@@ -1,0 +1,35 @@
+# ── Secrets & credentials — NEVER commit ──────────────────────────────────────
+# Google/YouTube OAuth client secrets and per-account tokens.
+# Ignore the secret files by name so a setup README in the folder can still be tracked.
+youtube/credentials/**/client_secrets.json
+youtube/credentials/**/*.pickle
+youtube/credentials/**/*.pkl
+youtube/credentials/**/token*.json
+*.pickle
+*.pkl
+# Cookie exports (YouTube download auth)
+cookies.txt
+*cookies*.txt
+# Local environment / secrets
+.env
+.env.*
+!.env.example
+# Machine-specific overrides (real PIN, tailnet SMB link, local interpreter path)
+hub/local_settings.py
+
+# ── Backups & scratch ─────────────────────────────────────────────────────────
+*.bak
+*.orig
+*.tmp
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ── Windows / editor cruft ────────────────────────────────────────────────────
+desktop.ini
+Thumbs.db
+.DS_Store
