@@ -1,0 +1,9 @@
+12-08-2026 02:34:17  ==== MAIN instance; pid-args=[] ====
+12-08-2026 02:34:17  HUB_DIR=N:\Code\git repositories\Agent Hub
+12-08-2026 02:34:17  APP_URL=https://infernalzeus-desktop.tail09be3b.ts.net
+12-08-2026 02:34:17  serverOnly=False  isWindowOpener=False
+12-08-2026 02:34:18  spawning window-opener
+12-08-2026 02:34:18  entering supervisor loop
+12-08-2026 02:34:18  starting server: Z:\Programs\Anaconda\python.exe app.py (output -> N:\Code\git repositories\Agent Hub\logs\hub_20260812_023417.server.txt)
+12-08-2026 02:34:19  window-opener: server listening=True after 2 checks
+12-08-2026 02:34:19  window-opener: launched -> installed PWA (app-id jceenlofihlodindmheeghjooepmoccm)

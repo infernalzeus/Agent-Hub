@@ -1,0 +1,8 @@
+12-08-2026 02:48:10  ==== SERVER instance; pid-args=[server] ====
+12-08-2026 02:48:10  HUB_DIR=N:\Code\git repositories\Agent Hub
+12-08-2026 02:48:10  APP_URL=https://infernalzeus-desktop.tail09be3b.ts.net
+12-08-2026 02:48:10  serverOnly=True  isWindowOpener=False
+12-08-2026 02:48:11  entering supervisor loop
+12-08-2026 02:48:11  starting server: Z:\Programs\Anaconda\python.exe app.py (output -> N:\Code\git repositories\Agent Hub\logs\hub_20260812_024810.server.txt)
+12-08-2026 02:57:09  server exited, code=0
+12-08-2026 02:57:09  supervisor loop ended (code<>42); launcher exiting

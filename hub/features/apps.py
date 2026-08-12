@@ -13,6 +13,11 @@ from ..proxy import _proxy_http, _proxy_ws
 
 routes = web.RouteTableDef()
 
+# Set by /api/restart before it triggers shutdown; app.main() reads it to decide
+# whether to exit with the "relaunch me" code (42) instead of 0. The launcher
+# (Agent Hub.vbs supervisor loop) restarts the hub only on 42.
+_restart_requested = False
+
 
 @routes.get("/api/status")
 async def api_status(request: web.Request) -> web.Response:
@@ -47,6 +52,24 @@ async def api_shutdown(request: web.Request) -> web.Response:
     to web.run_app's shutdown (as a real Ctrl+C does). A Task would instead
     *hold* that KeyboardInterrupt as an unretrieved result, which asyncio dumps
     to the terminal as a spurious 'Task exception was never retrieved' traceback."""
+    def _raise_sigint() -> None:
+        signal.raise_signal(signal.SIGINT)
+
+    asyncio.get_running_loop().call_later(0.3, _raise_sigint)
+    return web.json_response({"ok": True})
+
+
+@routes.post("/api/restart")
+async def api_restart(request: web.Request) -> web.Response:
+    """Restart Agent Hub from the UI (the header ⟳ button).
+
+    Same graceful shutdown as /api/shutdown, but sets _restart_requested so
+    app.main() exits with code 42 — the signal the launcher's supervisor loop
+    uses to relaunch a fresh hub. If the hub wasn't started via the launcher,
+    this simply shuts it down (nothing catches the 42)."""
+    global _restart_requested
+    _restart_requested = True
+
     def _raise_sigint() -> None:
         signal.raise_signal(signal.SIGINT)
 

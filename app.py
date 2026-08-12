@@ -14,6 +14,8 @@ Env:  HUB_HOST (default 0.0.0.0), HUB_PORT (default 8081)
 """
 from __future__ import annotations
 
+import sys
+
 from aiohttp import web
 
 from hub import config, lifecycle, ui
@@ -66,6 +68,13 @@ def main() -> None:
     print(f"  (from another Tailscale device: http://<this-machine>.<tailnet>.ts.net:{config.PORT})")
     web.run_app(app, host=config.HOST, port=config.PORT, print=None,
                 shutdown_timeout=3, handler_cancellation=True)
+
+    # run_app returns after graceful shutdown. Exit 42 = "relaunch me" (the ⟳
+    # restart button); the launcher's supervisor loop (Agent Hub.vbs) restarts
+    # the hub only on 42. Normal ✕ shutdown returns 0 → stays down.
+    if apps._restart_requested:
+        print("Restart requested — exiting 42 for the supervisor to relaunch.")
+        sys.exit(42)
 
 
 if __name__ == "__main__":

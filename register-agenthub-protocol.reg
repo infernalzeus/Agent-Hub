@@ -1,0 +1,13 @@
+Windows Registry Editor Version 5.00
+
+; Registers the "agenthub://" URL protocol so the DORMANT page's START button
+; can ask Windows to run the launcher (Agent Hub.vbs) and bring the hub back.
+; This is per-user (HKCU) — no admin needed. Double-click this file and confirm.
+; To undo: delete HKEY_CURRENT_USER\Software\Classes\agenthub in regedit.
+
+[HKEY_CURRENT_USER\Software\Classes\agenthub]
+@="URL:Agent Hub Protocol"
+"URL Protocol"=""
+
+[HKEY_CURRENT_USER\Software\Classes\agenthub\shell\open\command]
+@="wscript.exe \"N:\\Code\\git repositories\\Agent Hub\\Agent Hub.vbs\" \"%1\""

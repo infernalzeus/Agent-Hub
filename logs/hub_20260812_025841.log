@@ -1,0 +1,6 @@
+12-08-2026 02:58:41  ==== AGENTHUB://START/ instance; pid-args=[agenthub://start/] ====
+12-08-2026 02:58:41  HUB_DIR=N:\Code\git repositories\Agent Hub
+12-08-2026 02:58:41  APP_URL=https://infernalzeus-desktop.tail09be3b.ts.net
+12-08-2026 02:58:41  serverOnly=True  isWindowOpener=False
+12-08-2026 02:58:41  entering supervisor loop
+12-08-2026 02:58:41  starting server: Z:\Programs\Anaconda\python.exe app.py (output -> N:\Code\git repositories\Agent Hub\logs\hub_20260812_025841.server.txt)

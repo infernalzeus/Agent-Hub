@@ -79,6 +79,56 @@ Tailscale device: `http://<this-machine>.<tailnet>.ts.net:8081`.
 
 ---
 
+## Running it like a desktop app (Windows)
+
+`python app.py` works, but for daily use there's a launcher that makes it feel native.
+
+**`Agent Hub.vbs`** (in the repo root) — double-click it (or a shortcut to it) to:
+- start the server **hidden** (no console window), and
+- open the Hub in its **own window** — the installed PWA if present (own icon), else a
+  chromeless Edge `--app` window.
+
+It also doubles as a **supervisor**: the header **⟳ restart** button makes the Hub exit with
+code `42`, and the `.vbs` loop relaunches it; the header **✕** exits `0`, so it stays down.
+Launching again while it's already running just opens a window (it won't start a second server).
+A dedicated helper process waits for the server to come up, then opens the window.
+
+- **Desktop shortcut:** right-click `Agent Hub.vbs` → *Send to → Desktop*. Point its icon at
+  `favicon.ico` (round icon shipped in the repo).
+- **Auto-start at login:** drop that shortcut into `shell:startup`. The "already running" guard
+  makes a double-launch harmless.
+
+**Own taskbar icon (install as a PWA).** An `--app` window borrows Edge's icon. To give the Hub
+its **own** icon + taskbar identity, install it as a PWA — but note two requirements the launcher
+now handles for you:
+- **Install needs a secure context.** `http://localhost` works, but the plain-HTTP tailnet
+  address (`http://<host>:8081`) does **not** offer install. If you front the Hub with
+  **Tailscale Serve** (HTTPS), open that `https://…ts.net` URL in a normal Edge tab → **⋯ → Apps
+  → Install Agent Hub**. Bonus: it's the *same origin* your phone uses, so it's one unified app.
+- Once installed, the `.vbs` launches the PWA **by its app-id** (set `PWA_APPID` near the top of
+  the script — find it in the shortcut Edge creates, `…msedge_proxy.exe --app-id=<id>`). It
+  detects the install via Edge's per-app folder, so it doesn't depend on where the shortcut lands.
+
+**Logs.** Every launch writes one decision log `logs/hub_<timestamp>.log` (plus the server's
+own output as `.server.txt`); the last **5** launches are kept. If a window won't open, that log
+records every step (already-running check, window-opener, what it launched).
+
+**Dormant page.** When the Hub is down, the service worker serves the "DORMANT" page. It's
+**device-aware**:
+- On the **PC (Windows)** it shows a green **START** button. A web page can't run a local
+  program, so START fires a custom URL protocol — run **`register-agenthub-protocol.reg`** once
+  (per-user, no admin) to register `agenthub://` → the `.vbs`. START then relaunches the Hub in
+  place.
+- On a **phone/tablet** the button is greyed out with the note *"Agent Hub is dormant. Initiate
+  from PC"* — the protocol is PC-only, and Tailscale carries traffic to *running* services but
+  can't start a stopped one. Either page **auto-reconnects** once the Hub is back up.
+
+> Editing the dormant page (`offline.html`) means bumping `CACHE_NAME` in the service worker,
+> or the old page stays cached. Each device also needs to load the Hub once (while up) to pick
+> up the new cache.
+
+---
+
 ## Adding a new app
 
 Add an entry to `APPS` in **`hub/config.py`**:

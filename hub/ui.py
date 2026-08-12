@@ -56,19 +56,38 @@ _OFFLINE_HTML = """\
   --accent:#00e676;
   --text:rgba(0,230,118,0.90);--text-muted:rgba(0,230,118,0.52);--text-faint:rgba(0,230,118,0.30);
 }
-html{height:100%;min-height:100dvh;background:#080c28}
-html,body{min-height:100%;min-height:100dvh;background:linear-gradient(150deg,#080c28 0%,#0d1050 45%,#18095c 100%);
-  font-family:'Outfit',system-ui,sans-serif;color:var(--text);
+html{height:100%;min-height:100dvh;background:linear-gradient(150deg,#080c28 0%,#0d1050 45%,#18095c 100%) fixed}
+html,body{min-height:100%;min-height:100dvh;font-family:'Outfit',system-ui,sans-serif;color:var(--text);
   display:flex;align-items:center;justify-content:center;
   padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 .wrap{text-align:center;padding:20px}
+/* clip-path forces a true circle (radius < half-width) so NO square edge — top,
+   bottom, or corners — can ever show. The soft mask feathers the rim within it. */
 .hero-icon{width:220px;height:220px;object-fit:cover;mix-blend-mode:screen;opacity:.97;margin:0 auto 26px;display:block;
-  -webkit-mask-image:radial-gradient(circle at 50% 50%,#000 88px,transparent 122px);
-  mask-image:radial-gradient(circle at 50% 50%,#000 88px,transparent 122px)}
+  clip-path:circle(47% at 50% 50%);
+  -webkit-mask-image:radial-gradient(circle at 50% 50%,#000 86px,transparent 103px);
+  mask-image:radial-gradient(circle at 50% 50%,#000 86px,transparent 103px)}
 .brand{font-family:'Orbitron',monospace;font-size:22px;font-weight:900;color:var(--accent);
   letter-spacing:6px;text-shadow:0 0 20px rgba(0,230,118,.4)}
 .status{font-family:'Orbitron',monospace;font-size:12px;letter-spacing:3px;color:var(--text-faint);margin-top:12px}
 .hint{font-size:12.5px;color:var(--text-muted);margin-top:22px;max-width:280px;margin-left:auto;margin-right:auto;line-height:1.55}
+.wake-btn{margin-top:26px;font-family:'Orbitron',monospace;font-size:14px;font-weight:700;letter-spacing:2px;
+  padding:15px 40px;border-radius:12px;cursor:pointer;color:#04140b;
+  background:linear-gradient(180deg,#00ff8f 0%,#00c766 100%);
+  border:1px solid rgba(255,255,255,.35);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 4px 18px rgba(0,230,118,.45);
+  transition:transform .15s,box-shadow .2s,opacity .2s}
+.wake-btn:hover{transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.65),0 6px 24px rgba(0,230,118,.6)}
+.wake-btn:active{transform:scale(.97)}
+.wake-btn:disabled{opacity:.6;cursor:default}
+/* External (non-PC) devices can't start a stopped hub — greyed button, green
+   text, no glow, not actionable. Placed after :disabled so it wins on opacity. */
+.wake-btn.external{opacity:1;cursor:default;transform:none;color:var(--accent);
+  background:linear-gradient(180deg,#3a3f4b 0%,#2a2e39 100%);
+  border:1px solid rgba(0,230,118,.28);box-shadow:none}
+.wake-btn.external:hover{transform:none;box-shadow:none}
+.wake-sub{display:none;margin-top:14px;font-family:'Orbitron',monospace;font-size:11px;letter-spacing:1.5px;
+  color:var(--text-muted);line-height:1.6;max-width:280px;margin-left:auto;margin-right:auto}
 </style>
 </head>
 <body>
@@ -76,25 +95,79 @@ html,body{min-height:100%;min-height:100dvh;background:linear-gradient(150deg,#0
   <img class="hero-icon" src="/favicon.png" alt="Agent Hub">
   <div class="brand">AGENT HUB</div>
   <div class="status">DORMANT</div>
-  <div class="hint">Not reachable right now — start it on the PC. This page will switch back on its own once it's up.</div>
+  <div class="hint" id="hint">Not reachable right now — this page switches back on its own once the hub is up.</div>
+  <button type="button" id="wake-btn" class="wake-btn">▶ START</button>
+  <div class="wake-sub" id="wake-sub">Agent Hub is dormant. Initiate from PC.</div>
 </div>
 <script>
-async function checkOnline() {
+async function isUp() {
   try {
     const res = await fetch('/api/status', {cache: 'no-store', signal: AbortSignal.timeout(3000)});
-    if (res.ok) window.location.reload();
-  } catch (err) {}
+    return res.ok;
+  } catch (err) { return false; }
 }
+async function checkOnline() { if (await isUp()) window.location.reload(); }
 setInterval(checkOnline, 5000);
+
+// Trigger a custom URL protocol via a hidden iframe — if a handler is registered
+// (on the PC) Windows runs it; if not (e.g. on the phone) it fails SILENTLY with
+// no "cannot open page" error.
+function triggerProtocol(url) {
+  try {
+    const f = document.createElement('iframe');
+    f.style.display = 'none';
+    f.src = url;
+    document.body.appendChild(f);
+    setTimeout(() => f.remove(), 1500);
+  } catch (e) {}
+}
+
+const wakeBtn = document.getElementById('wake-btn');
+const wakeSub = document.getElementById('wake-sub');
+const hint = document.getElementById('hint');
+
+// Only the PC can start a stopped hub (the agenthub:// protocol is registered
+// there). The address can't tell us the device — PC and phone both load the same
+// tailnet URL — so detect the platform.
+function isWindows() {
+  const uad = navigator.userAgentData;
+  if (uad && uad.platform) return uad.platform === 'Windows';
+  return /Windows/i.test(navigator.userAgent);
+}
+
+if (isWindows()) {
+  // PC: green, functional START.
+  wakeBtn.onclick = async () => {
+    wakeBtn.textContent = 'STARTING…';
+    wakeBtn.disabled = true;
+    // Hand Windows the agenthub:// link → it runs the launcher (.vbs) in
+    // server-only mode and this same window reconnects. (Register it once with
+    // register-agenthub-protocol.reg.)
+    triggerProtocol('agenthub://start');
+    let n = 0;
+    const t = setInterval(async () => {
+      n += 1;
+      if (await isUp()) { clearInterval(t); window.location.reload(); return; }
+      if (n > 30) { clearInterval(t); wakeBtn.textContent = '▶ START'; wakeBtn.disabled = false; }
+    }, 2000);
+  };
+} else {
+  // External device: START can't wake the PC from here. Grey it out (green text),
+  // no action, and explain. The page still auto-reconnects once the hub is up.
+  wakeBtn.classList.add('external');
+  wakeBtn.disabled = true;
+  hint.style.display = 'none';
+  wakeSub.style.display = 'block';
+}
 </script>
 </body>
 </html>
 """
 
 _SW_JS = """\
-const CACHE_NAME = 'agent-hub-offline-v4';
+const CACHE_NAME = 'agent-hub-offline-v6';
 const OFFLINE_URL = '/offline.html';
-const PRECACHE = [OFFLINE_URL, '/favicon.png', '/favicon.svg'];
+const PRECACHE = [OFFLINE_URL, '/favicon.png', '/favicon-256.png', '/favicon.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -148,7 +221,9 @@ _HTML = """\
 <title>AGENT HUB</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png">
-<link rel="apple-touch-icon" href="/favicon.png">
+<link rel="icon" type="image/png" sizes="256x256" href="/favicon-256.png">
+<link rel="apple-touch-icon" href="/favicon-256.png">
+<link rel="manifest" href="/manifest.webmanifest">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -159,10 +234,12 @@ _HTML = """\
   --accent:#00e676;
   --text:rgba(0,230,118,0.90);--text-muted:rgba(0,230,118,0.52);--text-faint:rgba(0,230,118,0.22);
 }
-html{background:#080c28;min-height:100dvh}
-html,body{min-height:100%;min-height:100dvh;background:linear-gradient(150deg,#080c28 0%,#0d1050 45%,#18095c 100%);
-  font-family:'Outfit',system-ui,sans-serif;color:var(--text)}
-body{max-width:520px;margin:0 auto;
+/* Gradient lives on <html> as a viewport-fixed fill so it covers the WHOLE
+   screen on tablet/desktop. The 520px content column (body) is transparent, so
+   there's no visible panel edge/seam around it. */
+html{min-height:100dvh;background:linear-gradient(150deg,#080c28 0%,#0d1050 45%,#18095c 100%) fixed}
+html,body{min-height:100%;min-height:100dvh;font-family:'Outfit',system-ui,sans-serif;color:var(--text)}
+body{max-width:520px;margin:0 auto;background:transparent;
   padding:env(safe-area-inset-top) env(safe-area-inset-right) calc(104px + env(safe-area-inset-bottom)) env(safe-area-inset-left)}
 header{display:flex;align-items:center;gap:14px;padding:22px 20px 24px;border-bottom:1px solid var(--border-dim)}
 .conn-indicator{margin-left:auto;display:flex;align-items:center;gap:6px}
@@ -176,22 +253,51 @@ header{display:flex;align-items:center;gap:14px;padding:22px 20px 24px;border-bo
   background:transparent;display:flex;align-items:center;justify-content:center;font-size:18px;
   cursor:pointer;text-decoration:none;transition:all .15s;flex-shrink:0}
 .shortcut-btn:hover{background:rgba(0,230,118,.1);box-shadow:0 0 10px rgba(0,230,118,.18)}
-.shutdown-btn{width:38px;height:38px;border-radius:8px;border:1px solid rgba(255,92,92,.45);
-  background:transparent;color:#ff5c5c;display:flex;align-items:center;justify-content:center;
-  font-size:18px;line-height:1;cursor:pointer;transition:all .15s;flex-shrink:0;
-  font-family:'Outfit',system-ui,sans-serif}
-.shutdown-btn:hover{background:rgba(255,92,92,.12);box-shadow:0 0 10px rgba(255,92,92,.25)}
-.shutdown-btn:disabled{opacity:.5;cursor:default}
+/* Header buttons (⟳ restart / ✕ shutdown): ELECTRIC-BLUE metal with a soft CONIC
+   spun sheen (rotational lustre, no lines). Coloured glow ONLY while active
+   (hover / press / .working); resting = plain spun-blue metal. Icons are SVG
+   (centred, crisp). */
+.restart-btn,.shutdown-btn{width:40px;height:40px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;
+  background:
+    conic-gradient(from 218deg at 50% 50%,rgba(150,175,255,.12),rgba(0,0,0,.10) 25%,rgba(140,165,255,.09) 50%,rgba(0,0,0,.10) 75%,rgba(150,175,255,.12) 100%),
+    linear-gradient(180deg,#1a2170 0%,#0d1050 46%,#0a0c3e 54%,#160b54 100%);
+  border:1px solid rgba(110,140,235,.32);
+  box-shadow:inset 0 1px 0 rgba(140,165,255,.40),inset 0 -1px 2px rgba(0,0,0,.42),0 2px 6px rgba(0,0,0,.5);
+  transition:transform .15s ease,box-shadow .2s ease}
+.restart-btn svg,.shutdown-btn svg{width:20px;height:20px;display:block;fill:none;
+  stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;transition:filter .2s ease}
+.restart-btn{--g:rgba(0,230,118,.85)}
+.restart-btn svg{stroke:var(--accent)}
+.shutdown-btn{--g:rgba(255,92,92,.85)}
+.shutdown-btn svg{stroke:#ff6b6b}
+.restart-btn:hover,.shutdown-btn:hover,.restart-btn:active,.shutdown-btn:active,
+.restart-btn.working,.shutdown-btn.working{
+  box-shadow:inset 0 1px 0 rgba(210,225,255,.5),inset 0 -1px 2px rgba(0,0,0,.4),
+    0 2px 6px rgba(0,0,0,.5),0 0 16px var(--g)}
+.restart-btn:hover svg,.shutdown-btn:hover svg,.restart-btn:active svg,.shutdown-btn:active svg,
+.restart-btn.working svg,.shutdown-btn.working svg{filter:drop-shadow(0 0 5px var(--g))}
+.restart-btn:active,.shutdown-btn:active{transform:scale(.95)}
+.restart-btn.working,.shutdown-btn.working{animation:btnPulse 1s ease-in-out infinite}
+@keyframes btnPulse{
+  0%,100%{box-shadow:inset 0 1px 0 rgba(210,225,255,.5),inset 0 -1px 2px rgba(0,0,0,.4),0 2px 6px rgba(0,0,0,.5),0 0 8px var(--g)}
+  50%{box-shadow:inset 0 1px 0 rgba(210,225,255,.5),inset 0 -1px 2px rgba(0,0,0,.4),0 2px 6px rgba(0,0,0,.5),0 0 24px var(--g)}}
+.restart-btn:disabled,.shutdown-btn:disabled{cursor:default}
 .card-emoji svg{display:block}
 
 /* ── PC power control (center-bottom) ────────────────────────────────────── */
 .power-wrap{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));
   transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;align-items:center;gap:12px}
-.power-btn{width:66px;height:66px;border-radius:50%;border:none;background:rgba(8,12,40,.82);
-  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;
-  cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.45);transition:transform .15s,box-shadow .2s}
+.power-btn{width:66px;height:66px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;
+  background:
+    conic-gradient(from 218deg at 50% 50%,rgba(150,175,255,.12),rgba(0,0,0,.10) 25%,rgba(140,165,255,.09) 50%,rgba(0,0,0,.10) 75%,rgba(150,175,255,.12) 100%),
+    linear-gradient(180deg,#1a2170 0%,#0d1050 46%,#0a0c3e 54%,#160b54 100%);
+  border:1px solid rgba(110,140,235,.32);
+  box-shadow:inset 0 1px 0 rgba(140,165,255,.40),inset 0 -1px 2px rgba(0,0,0,.42),0 4px 20px rgba(0,0,0,.5);
+  transition:transform .15s,box-shadow .2s}
 .power-btn svg{width:44px;height:44px;filter:drop-shadow(0 0 6px rgba(0,208,192,.55))}
-.power-btn:hover{transform:scale(1.06);box-shadow:0 6px 26px rgba(0,208,192,.35)}
+.power-btn:hover{transform:scale(1.06);
+  box-shadow:inset 0 1px 0 rgba(140,165,255,.40),inset 0 -1px 2px rgba(0,0,0,.42),0 6px 26px rgba(0,0,0,.5),0 0 20px rgba(0,208,192,.35)}
 .power-btn:active{transform:scale(.95)}
 .power-menu{display:flex;flex-direction:column;gap:8px;width:196px;opacity:0;pointer-events:none;
   transform:translateY(10px);transition:opacity .18s,transform .18s}
@@ -223,8 +329,9 @@ header{display:flex;align-items:center;gap:14px;padding:22px 20px 24px;border-bo
   cursor:pointer;transition:all .15s}
 .power-abort:hover{background:rgba(0,230,118,.2);box-shadow:0 0 16px rgba(0,230,118,.3)}
 .brand-icon{width:40px;height:40px;flex-shrink:0;object-fit:cover;mix-blend-mode:screen;opacity:.97;
-  -webkit-mask-image:radial-gradient(circle at 50% 50%,#000 16px,transparent 22px);
-  mask-image:radial-gradient(circle at 50% 50%,#000 16px,transparent 22px)}
+  clip-path:circle(47% at 50% 50%);
+  -webkit-mask-image:radial-gradient(circle at 50% 50%,#000 15px,transparent 18px);
+  mask-image:radial-gradient(circle at 50% 50%,#000 15px,transparent 18px)}
 .brand{font-family:'Orbitron',monospace;font-size:15px;font-weight:900;color:var(--accent);
   letter-spacing:4px;text-shadow:0 0 20px rgba(0,230,118,.4)}
 .sub{font-size:11px;color:var(--text-faint);letter-spacing:.5px;margin-top:2px}
@@ -302,7 +409,12 @@ header{display:flex;align-items:center;gap:14px;padding:22px 20px 24px;border-bo
     <div id="conn-dot"></div>
   </div>
   <div class="header-shortcuts" id="header-shortcuts"></div>
-  <button type="button" class="shutdown-btn" id="shutdown-btn" title="Turn off Agent Hub">✕</button>
+  <button type="button" class="restart-btn" id="restart-btn" title="Restart Agent Hub" aria-label="Restart Agent Hub">
+    <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.36"/><path d="M21 4v5h-5"/></svg>
+  </button>
+  <button type="button" class="shutdown-btn" id="shutdown-btn" title="Turn off Agent Hub" aria-label="Turn off Agent Hub">
+    <svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+  </button>
 </header>
 
 <div id="apps-before"></div>
@@ -526,10 +638,34 @@ const shutdownBtn = document.getElementById('shutdown-btn');
 shutdownBtn.onclick = async () => {
   if (!confirm('Turn off Agent Hub?\\n\\nRunning apps will be stopped and this page goes dormant until you start it again on the PC.')) return;
   shutdownBtn.disabled = true;
+  shutdownBtn.classList.add('working');
   try { await fetch('/api/shutdown', {method: 'POST'}); } catch (e) {}
   setConn(false);
   document.title = 'AGENT HUB — Dormant';
   setTimeout(() => window.location.reload(), 1500);
+};
+
+// Restart from the header ⟳. The launcher's supervisor loop relaunches the
+// server; we poll /api/status and reload this window as soon as it's back.
+const restartBtn = document.getElementById('restart-btn');
+restartBtn.onclick = async () => {
+  if (!confirm('Restart Agent Hub?')) return;
+  restartBtn.disabled = true;
+  shutdownBtn.disabled = true;
+  restartBtn.classList.add('working');
+  try { await fetch('/api/restart', {method: 'POST'}); } catch (e) {}
+  setConn(false);
+  connLabel.textContent = 'RESTARTING';
+  document.title = 'AGENT HUB — Restarting…';
+  let tries = 0;
+  const poll = setInterval(async () => {
+    tries += 1;
+    try {
+      const r = await fetch('/api/status', {cache: 'no-store', signal: AbortSignal.timeout(2000)});
+      if (r.ok) { clearInterval(poll); window.location.reload(); return; }
+    } catch (e) {}
+    if (tries > 40) { clearInterval(poll); connLabel.textContent = 'DISCONNECTED'; }  // ~60s give-up
+  }, 1500);
 };
 
 async function openApp(id, name) {
@@ -1294,9 +1430,40 @@ async def favicon_64_png(request: web.Request) -> web.Response:
     return web.Response(body=path.read_bytes(), content_type="image/png")
 
 
+@routes.get("/favicon-256.png")
+async def favicon_256_png(request: web.Request) -> web.Response:
+    path = HERE / "favicon-256.png"
+    if not path.exists():
+        path = HERE / "favicon.png"
+    if not path.exists():
+        raise web.HTTPNotFound()
+    return web.Response(body=path.read_bytes(), content_type="image/png")
+
+
 @routes.get("/favicon.svg")
 async def favicon_svg(request: web.Request) -> web.Response:
     return web.Response(text=_FAVICON_SVG, content_type="image/svg+xml", charset="utf-8")
+
+
+@routes.get("/manifest.webmanifest")
+async def manifest(request: web.Request) -> web.Response:
+    """Web app manifest so Agent Hub can be installed as its own app (own window +
+    its own taskbar icon, instead of the generic Edge icon)."""
+    import json
+    return web.json_response({
+        "name": "Agent Hub",
+        "short_name": "Agent Hub",
+        "start_url": "/",
+        "scope": "/",
+        "display": "standalone",
+        "background_color": "#080c28",
+        "theme_color": "#080c28",
+        "icons": [
+            {"src": "/favicon-64.png", "sizes": "64x64", "type": "image/png"},
+            {"src": "/favicon-256.png", "sizes": "256x256", "type": "image/png", "purpose": "any"},
+            {"src": "/favicon-256.png", "sizes": "256x256", "type": "image/png", "purpose": "maskable"},
+        ],
+    }, content_type="application/manifest+json")
 
 
 @routes.get("/offline.html")

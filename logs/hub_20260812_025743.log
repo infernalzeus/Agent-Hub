@@ -1,0 +1,12 @@
+12-08-2026 02:57:43  ==== MAIN instance; pid-args=[] ====
+12-08-2026 02:57:43  HUB_DIR=N:\Code\git repositories\Agent Hub
+12-08-2026 02:57:43  APP_URL=https://infernalzeus-desktop.tail09be3b.ts.net
+12-08-2026 02:57:43  serverOnly=False  isWindowOpener=False
+12-08-2026 02:57:43  hub already listening on :8081
+12-08-2026 02:57:43  spawning window-opener (already-running path)
+12-08-2026 02:57:43  ==== WINDOW instance; pid-args=[window N:\Code\git repositories\Agent Hub\logs\hub_20260812_025743.log] ====
+12-08-2026 02:57:43  HUB_DIR=N:\Code\git repositories\Agent Hub
+12-08-2026 02:57:43  APP_URL=https://infernalzeus-desktop.tail09be3b.ts.net
+12-08-2026 02:57:43  serverOnly=False  isWindowOpener=True
+12-08-2026 02:57:44  window-opener: server listening=True after 1 checks
+12-08-2026 02:57:44  window-opener: launched -> installed PWA (app-id jceenlofihlodindmheeghjooepmoccm)
