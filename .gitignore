@@ -16,11 +16,16 @@ cookies.txt
 !.env.example
 # Machine-specific overrides (real PIN, tailnet SMB link, local interpreter path)
 hub/local_settings.py
+# Machine-specific overrides for the .vbs launcher (real Tailscale hostname, PWA app id)
+Agent Hub.local.vbs
 
 # ── Backups & scratch ─────────────────────────────────────────────────────────
 *.bak
 *.orig
 *.tmp
+
+# ── Launcher logs (Agent Hub.vbs) — per-machine, never needed in the repo ──────
+logs/
 
 # ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/

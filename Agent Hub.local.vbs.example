@@ -1,0 +1,15 @@
+' Copy this file to "Agent Hub.local.vbs" (same folder, gitignored) and fill
+' in your own values. "Agent Hub.vbs" reads it at startup if present.
+'
+' PWA_APPID: the installed-PWA id (stable, derived from the Serve URL). Once
+' you've installed the Hub as an Edge app (Edge -> ... -> Apps -> Install),
+' find this in the shortcut Edge creates: "...msedge_proxy.exe --app-id=<id>".
+' Leave blank to just open a plain (uninstalled) Edge --app window.
+PWA_APPID = ""
+
+' APP_URL: your Tailscale Serve HTTPS URL (e.g. "https://your-device.your-
+' tailnet.ts.net") -- a secure context, so Edge offers "Install as app", and
+' the same origin your phone/iPad use. Leave blank to open localhost instead
+' (works fine, just not a secure context, so no install-as-app / same-origin
+' bonus with other devices).
+APP_URL = ""

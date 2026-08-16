@@ -95,7 +95,6 @@ html,body{min-height:100%;min-height:100dvh;font-family:'Outfit',system-ui,sans-
   <img class="hero-icon" src="/favicon.png" alt="Agent Hub">
   <div class="brand">AGENT HUB</div>
   <div class="status">DORMANT</div>
-  <div class="hint" id="hint">Not reachable right now — this page switches back on its own once the hub is up.</div>
   <button type="button" id="wake-btn" class="wake-btn">▶ START</button>
   <div class="wake-sub" id="wake-sub">Agent Hub is dormant. Initiate from PC.</div>
 </div>
@@ -124,7 +123,6 @@ function triggerProtocol(url) {
 
 const wakeBtn = document.getElementById('wake-btn');
 const wakeSub = document.getElementById('wake-sub');
-const hint = document.getElementById('hint');
 
 // Only the PC can start a stopped hub (the agenthub:// protocol is registered
 // there). The address can't tell us the device — PC and phone both load the same
@@ -156,7 +154,6 @@ if (isWindows()) {
   // no action, and explain. The page still auto-reconnects once the hub is up.
   wakeBtn.classList.add('external');
   wakeBtn.disabled = true;
-  hint.style.display = 'none';
   wakeSub.style.display = 'block';
 }
 </script>
@@ -165,7 +162,7 @@ if (isWindows()) {
 """
 
 _SW_JS = """\
-const CACHE_NAME = 'agent-hub-offline-v6';
+const CACHE_NAME = 'agent-hub-offline-v7';
 const OFFLINE_URL = '/offline.html';
 const PRECACHE = [OFFLINE_URL, '/favicon.png', '/favicon-256.png', '/favicon.svg'];
 
@@ -249,6 +246,13 @@ header{display:flex;align-items:center;gap:14px;padding:22px 20px 24px;border-bo
 #conn-dot{width:7px;height:7px;border-radius:50%;background:#c0392b;transition:background .3s,box-shadow .3s;flex-shrink:0}
 #conn-dot.live{background:var(--accent);box-shadow:0 0 8px var(--accent)}
 .header-shortcuts{display:flex;gap:8px}
+#setup-banner:empty{display:none}
+.setup-issue{margin:14px 20px 0;padding:12px 14px;border-radius:10px;font-size:12.5px;line-height:1.5;
+  border:1px solid;cursor:default}
+.setup-issue.info{background:rgba(0,230,118,.06);border-color:var(--border-dim);color:var(--text-muted)}
+.setup-issue.warn{background:rgba(245,200,66,.08);border-color:rgba(245,200,66,.4);color:#f5c842}
+.setup-issue b{color:var(--text);font-weight:600}
+.setup-issue .detail{display:block;margin-top:3px;color:var(--text-muted);font-size:11.5px}
 .shortcut-btn{width:38px;height:38px;border-radius:8px;border:1px solid var(--border-bright);
   background:transparent;display:flex;align-items:center;justify-content:center;font-size:18px;
   cursor:pointer;text-decoration:none;transition:all .15s;flex-shrink:0}
@@ -417,6 +421,8 @@ header{display:flex;align-items:center;gap:14px;padding:22px 20px 24px;border-bo
   </button>
 </header>
 
+<div id="setup-banner"></div>
+
 <div id="apps-before"></div>
 
 <div id="yt-app-area">
@@ -554,6 +560,7 @@ header{display:flex;align-items:center;gap:14px;padding:22px 20px 24px;border-bo
       <div class="card-status" id="oc-status-line"><span class="status-dot"></span>0 SESSIONS</div>
     </div>
     <div class="card-actions">
+      <button type="button" class="btn" id="oc-graph-btn" title="Project status graph">GRAPH</button>
       <button type="button" class="btn" id="oc-toggle-btn">EXPAND</button>
     </div>
   </div>
@@ -693,6 +700,23 @@ function renderShortcuts() {
   }
 }
 renderShortcuts();
+
+// Setup-prerequisite banner: detection only, never auto-installs anything —
+// just says plainly what's missing instead of letting a card fail silently
+// the first time you click it. Checked once on load, not polled.
+async function loadSetupStatus() {
+  const el = document.getElementById('setup-banner');
+  try {
+    const res = await fetch('/api/setup-status');
+    const {issues} = await res.json();
+    el.innerHTML = (issues || []).map(i => `
+      <div class="setup-issue ${i.severity}">
+        <b>${i.title}</b>
+        <span class="detail">${i.detail}${i.readme_anchor ? ` — see README${i.readme_anchor}` : ''}</span>
+      </div>`).join('');
+  } catch (e) { /* setup status is non-critical — fail silent */ }
+}
+loadSetupStatus();
 
 function render(status) {
   appsBefore.innerHTML = '';
@@ -1144,6 +1168,7 @@ function ytdlDisconnectWs() {
 (function () {
   const header    = document.getElementById('oc-header');
   const toggleBtn = document.getElementById('oc-toggle-btn');
+  const graphBtn  = document.getElementById('oc-graph-btn');
   const expanded  = document.getElementById('oc-expanded');
   const statusEl  = document.getElementById('oc-status-line');
   const authEl    = document.getElementById('oc-auth');
@@ -1197,6 +1222,11 @@ function ytdlDisconnectWs() {
     if (ocOpen) refresh();
   }
   header.onclick = ocToggle;   // EXPAND button sits inside the header and bubbles up
+
+  // GRAPH also sits inside the header (bubbles to ocToggle) — stop that here
+  // and open /graph in a new tab instead. New tab, not top-level navigation:
+  // navigating the PWA's own top-level page away from / has stranded it before.
+  graphBtn.onclick = (e) => { e.stopPropagation(); window.open('/graph', '_blank'); };
 
   async function refresh() {
     loadFolders();

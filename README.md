@@ -1,10 +1,11 @@
 # Agent Hub
 
-A single always-on entry point for your personal web apps, reachable over
-[Tailscale](https://tailscale.com/) at one stable address. The apps themselves are **not**
-always running — the Hub spawns each one on first use, reverse-proxies it under
-`/app/<id>/...`, and stops it again after a period of inactivity (unless it reports itself
-busy). It also exposes a few direct actions (YouTube upload/download, a PC power menu).
+A remote control for your PC: one always-on entry point, reachable from any device over
+[Tailscale](https://tailscale.com/) at a single stable address, that wires into your own
+web-UI and CLI apps. The apps themselves are **not** always running — the Hub spawns each
+one on first use, reverse-proxies it under `/app/<id>/...`, and stops it again after a
+period of inactivity (unless it reports itself busy). It also exposes a few direct actions
+(YouTube upload/download, per-folder AI coding sessions via OpenCode, a PC power menu).
 
 It's just a launcher/proxy: it doesn't modify the apps it fronts, it only starts them as
 subprocesses and talks to them over `127.0.0.1`.
@@ -22,7 +23,7 @@ at your own copies, or remove the entries you don't want:
 
 | Feature | What it is | Where to get it |
 |---------|-----------|-----------------|
-| Movie Clipper | Movie → vertical shorts with captions | your own web app that binds `127.0.0.1` + honours a base-path env var |
+| Movie Clipper | Not shipped — a slot for any CLI/web-UI app of your choice. Example: my own [movie-shorts-clipper](https://github.com/infernalzeus/movie-shorts-clipper) (movie → vertical shorts with captions) | your own web app that binds `127.0.0.1` + honours a base-path env var |
 | File Browser  | Small tailnet file browser (included: `file-browser/app.py`) | ships in this repo |
 | YouTube Upload | Uploads an MP4 via the YouTube Data API | `youtube/yt_upload.py` (included); **you supply OAuth creds — see below** |
 | YouTube Download | `yt-dlp` wrapper (`youtube/ytdl.py`, included) | needs [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) installed in the interpreter you point `YT_DL_PYTHON` at |
@@ -34,6 +35,24 @@ reuse. Any external app just has to obey the contract in **[Adding a new app](#a
 ---
 
 ## Setup
+
+**Nothing here auto-installs.** There's no setup wizard — once running, the Hub checks its
+own prerequisites and shows a banner for anything missing (which README section to read,
+not a silent broken card), but it will never download or install something on your behalf.
+That part's on you, once, per prerequisite below.
+
+**Prerequisites checklist** (✅ = works with zero setup beyond `pip install`; the rest are
+opt-in — skip anything you won't use):
+- ✅ Python 3.10+ and `pip install -r requirements.txt` — this is all the File Browser and
+  the power menu need.
+- **Tailscale**, installed and signed in — technically optional (the Hub also just binds
+  `0.0.0.0` and works over a plain LAN address), but it's what makes this a *remote
+  control*, not just a local web page — install it if that's the point for you.
+- **Any app you want fronted** (Movie Clipper, etc.) — your own repo, already runnable on
+  its own. Hub only spawns/proxies it; see [Adding a new app](#adding-a-new-app).
+- **[OpenCode](https://github.com/sst/opencode)**, installed separately, if you want the
+  AI-coding-session feature. Point `OPENCODE_ROOT` (`hub/features/opencode.py`) at it.
+- **YouTube upload/download** — only if you use those cards; see steps 3–4 below.
 
 ```bash
 pip install -r requirements.txt        # just aiohttp
@@ -71,6 +90,9 @@ python app.py
 Opens on `http://0.0.0.0:8081` (override with `HUB_HOST` / `HUB_PORT`). From another
 Tailscale device: `http://<this-machine>.<tailnet>.ts.net:8081`.
 
+Open it in a browser and check the top of the page — if anything above is missing or
+unwired, the Hub says so there directly instead of a card just failing.
+
 > **The Hub is the only thing meant to face your tailnet.** Every app it fronts binds
 > `127.0.0.1` and is reached only through the proxy. The **PC power menu** (shut
 > down/restart/sleep/lock) is protected only by `HUB_POWER_PIN` — leave it empty and the
@@ -105,9 +127,12 @@ now handles for you:
   address (`http://<host>:8081`) does **not** offer install. If you front the Hub with
   **Tailscale Serve** (HTTPS), open that `https://…ts.net` URL in a normal Edge tab → **⋯ → Apps
   → Install Agent Hub**. Bonus: it's the *same origin* your phone uses, so it's one unified app.
-- Once installed, the `.vbs` launches the PWA **by its app-id** (set `PWA_APPID` near the top of
-  the script — find it in the shortcut Edge creates, `…msedge_proxy.exe --app-id=<id>`). It
-  detects the install via Edge's per-app folder, so it doesn't depend on where the shortcut lands.
+- Once installed, the `.vbs` launches the PWA **by its app-id**. Copy `Agent Hub.local.vbs.example`
+  to `Agent Hub.local.vbs` (gitignored — never commit it) and set `PWA_APPID` there (find it in
+  the shortcut Edge creates, `…msedge_proxy.exe --app-id=<id>`) and `APP_URL` (your Tailscale
+  Serve HTTPS URL). Both are specific to your machine/tailnet, so they're kept out of the tracked
+  script; without the local file, the launcher just opens plain `http://localhost` instead — it
+  still works, you only lose the own-icon/same-origin bonuses above.
 
 **Logs.** Every launch writes one decision log `logs/hub_<timestamp>.log` (plus the server's
 own output as `.server.txt`); the last **5** launches are kept. If a window won't open, that log

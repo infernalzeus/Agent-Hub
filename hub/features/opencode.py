@@ -13,6 +13,7 @@ in place (no copy) so you can continue previous work.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
 import secrets
@@ -25,13 +26,170 @@ from urllib.parse import unquote
 import aiohttp
 from aiohttp import web
 
+from .. import agent_knowledge
 from ..config import logger
 from ..platform_win import _assign_to_job
 
-OPENCODE_ROOT = Path(r"N:\Code\git repositories\Open Source\opencode")
+OPENCODE_ROOT = Path(r"N:\Code\opencode")
+# Deliberately OUTSIDE `git repositories\`: WORKROOT (below) lives inside this
+# tree, so keeping OPENCODE_ROOT itself under `git repositories\` would let a
+# session's working copy get swept up as a "source" by anything that scans
+# that folder for projects (the self-replication trap).
 OPENCODE_EXE = str(OPENCODE_ROOT / "node_modules" / "opencode-ai" / "bin" / "opencode.exe")
 OPENCODE_CONFIG = str(OPENCODE_ROOT / "opencode.json")
 WORKROOT = OPENCODE_ROOT / "Agent Code"
+# WORKROOT splits into two: PROJECTS_ROOT holds every copy made FROM a real
+# git-repositories source (what the status/diff engine compares); CHATS_ROOT
+# holds standalone folders with no such source (today: pre-existing/manually
+# made folders like "new test" - see agent_knowledge.projects.discover_orphan_chats).
+# Both are just "another folder for opencode to work out of" - no functional
+# difference to opencode itself, purely an organizational split.
+PROJECTS_ROOT = WORKROOT / "projects"
+CHATS_ROOT = WORKROOT / "chats"
+
+
+def _junction_cmd(link: Path, target: Path) -> list[str]:
+    return ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+            f'New-Item -ItemType Junction -Path "{link}" -Target "{target}" | Out-Null']
+
+
+def _make_junction_sync(link: Path, target: Path) -> None:
+    """Blocking version — for the startup migration, which runs at module
+    import time before any event loop exists. See `_make_junction` for what
+    this actually does and why it's safe."""
+    import subprocess
+    result = subprocess.run(_junction_cmd(link, target), capture_output=True)
+    if result.returncode != 0 or not link.is_dir():
+        raise OSError(f"junction creation failed ({link} -> {target}): {result.stderr.decode(errors='replace')}")
+
+
+async def _make_junction(link: Path, target: Path) -> None:
+    """An NTFS directory junction: `link` becomes an alternate path to the
+    SAME physical content as `target` (no admin/dev-mode needed, unlike a
+    real symlink). Used so every chat gets its own path for OpenCode's
+    path-keyed session history while all chats for one project share the
+    exact same files on disk — never a fresh duplicate copy per chat.
+    Verified safe to tear down later: `os.rmdir()` on a junction removes
+    only the link; `shutil.rmtree()` refuses outright rather than
+    following it into the real target (tested empirically, not assumed)."""
+    proc = await asyncio.create_subprocess_exec(
+        *_junction_cmd(link, target),
+        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+    if proc.returncode != 0 or not link.is_dir():
+        raise OSError(f"junction creation failed ({link} -> {target}): {stderr.decode(errors='replace')}")
+
+
+def _remove_workroot_entry(path: Path) -> None:
+    """Safely remove one Agent Code entry.
+
+    A chats/ junction into projects/: unlink the LINK only (`os.rmdir` —
+    verified empirically this never touches the real target's content;
+    `shutil.rmtree` was tested too and refuses outright on a reparse point
+    rather than risking following it, but rmdir is the correct intentional
+    op here, not a fallback).
+
+    A real directory: normal recursive delete — UNLESS it's the shared
+    projects/ folder itself and another chat still junctions into it, in
+    which case deleting it would yank the files out from under every other
+    open/resumable chat for that project, so this refuses instead.
+    """
+    target = path.resolve()
+    into_projects = target != path and str(target).startswith(str(PROJECTS_ROOT.resolve()))
+    if into_projects:
+        try:
+            os.rmdir(path)
+        except OSError as exc:
+            logger.warning("OpenCode: failed to unlink chat junction %s: %s", path, exc)
+        return
+    if str(target).startswith(str(PROJECTS_ROOT.resolve())) and CHATS_ROOT.is_dir():
+        still_linked = any(c.is_dir() and c.resolve() == target for c in CHATS_ROOT.iterdir())
+        if still_linked:
+            logger.warning("OpenCode: refusing to delete %s — other chats still link to it", path)
+            return
+    shutil.rmtree(path, ignore_errors=True)
+
+
+def resolve_workroot_child(name: str) -> Path | None:
+    """A bare Agent Code child name -> its own Path (the junction/folder
+    itself — deliberately NOT `.resolve()`d through a chats/ junction, since
+    callers need the chat's own distinct path for OpenCode's session
+    identity, not the shared project folder it links to). Checks chats/ then
+    projects/ (then the flat WORKROOT itself, a defensive fallback for
+    anything the startup migration didn't catch). `name` must be a bare leaf
+    name, never a nested/traversal path."""
+    if not name or "/" in name or "\\" in name or name in ("..", "."):
+        return None
+    for root in (CHATS_ROOT, PROJECTS_ROOT, WORKROOT):
+        p = root / name
+        if p.is_dir() and p.resolve() not in (PROJECTS_ROOT.resolve(), CHATS_ROOT.resolve()):
+            return p
+    return None
+
+
+def _migrate_legacy_layout() -> None:
+    """One-time reconciliation, safe to call on every startup:
+
+    1. Anything sitting directly under WORKROOT (the old flat layout, or an
+       earlier round's wrong chats/-only orphan placement) gets real content
+       moved into PROJECTS_ROOT — ALWAYS projects/, regardless of whether it
+       has a real, discovered external source. A folder started from scratch
+       inside Agent Code (no matching git-repositories source — "a project
+       that hasn't been added to my work yet") is still a real project, it
+       just has no external source to diff against; that only affects its
+       graph state/wiki-linking, never which physical folder it lives in.
+    2. Every PROJECTS_ROOT entry gets a matching CHATS_ROOT junction if it
+       doesn't already have one — chats/ is ONLY ever junctions (or, for
+       anything this pass hasn't reconciled yet, real folders it will fix
+       on the next run), never a second copy of real content.
+    """
+    if not WORKROOT.is_dir():
+        return
+    PROJECTS_ROOT.mkdir(parents=True, exist_ok=True)
+    CHATS_ROOT.mkdir(parents=True, exist_ok=True)
+
+    for child in list(WORKROOT.iterdir()):
+        if not child.is_dir() or child.resolve() in (PROJECTS_ROOT.resolve(), CHATS_ROOT.resolve()):
+            continue
+        target = PROJECTS_ROOT / child.name
+        try:
+            if not target.exists():
+                child.rename(target)
+                logger.info("OpenCode: migrated legacy folder %s -> projects/", child.name)
+            else:
+                logger.warning("OpenCode: migration skipped %s — projects/%s already exists", child, child.name)
+        except Exception as exc:
+            logger.warning("OpenCode: could not migrate %s: %s", child, exc)
+
+    # A folder that landed in chats/ directly (an earlier round's mistake,
+    # or a manually-made folder) with REAL content (not a junction) needs
+    # its content promoted to projects/ too, then relinked.
+    for child in list(CHATS_ROOT.iterdir()):
+        if not child.is_dir():
+            continue
+        if child.resolve() != child:      # already a junction — fine as-is
+            continue
+        target = PROJECTS_ROOT / child.name
+        if target.exists():
+            continue
+        try:
+            child.rename(target)
+            logger.info("OpenCode: promoted chats/%s (real content, no junction) -> projects/", child.name)
+        except Exception as exc:
+            logger.warning("OpenCode: could not promote chats/%s: %s", child, exc)
+
+    for project_dir in list(PROJECTS_ROOT.iterdir()):
+        if not project_dir.is_dir():
+            continue
+        chat_dir = CHATS_ROOT / project_dir.name
+        if chat_dir.exists():
+            continue
+        try:
+            _make_junction_sync(chat_dir, project_dir)
+            logger.info("OpenCode: linked chats/%s -> projects/%s", project_dir.name, project_dir.name)
+        except Exception as exc:
+            logger.warning("OpenCode: could not link chats/%s: %s", project_dir.name, exc)
 PUBLIC_PORTS = range(8100, 8150)          # python-owned, firewall-reachable
 INTERNAL_OFFSET = 100                     # opencode listens on public_port + 100 (localhost)
 COPY_IGNORE = shutil.ignore_patterns(
@@ -165,18 +323,22 @@ class Manager:
         raise RuntimeError(f"No free OpenCode ports ({PUBLIC_PORTS.start}-{PUBLIC_PORTS.stop - 1} all in use)")
 
     def list_folders(self) -> list[dict]:
-        """Existing Agent Code/ folders, newest first — for the Resume dropdown."""
-        if not WORKROOT.exists():
+        """Existing chats/ entries, newest first — for the Resume dropdown.
+        Each is either a junction into a shared projects/ copy, or (for a
+        standalone/orphan chat) a real folder — both list uniformly here.
+        projects/ folders themselves aren't independently resumable
+        identities; they're the shared storage chats link into."""
+        if not CHATS_ROOT.is_dir():
             return []
-        active = {str(Path(s.cwd).resolve()): s.id for s in self.sessions.values() if s.running}
+        active = {str(Path(s.cwd)): s.id for s in self.sessions.values() if s.running}
+        children = [p for p in CHATS_ROOT.iterdir() if p.is_dir()]
         out = []
-        for p in sorted(WORKROOT.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
-            if p.is_dir():
-                out.append({
-                    "folder": p.name, "path": str(p),
-                    "active_session": active.get(str(p.resolve())),
-                    "mtime": p.stat().st_mtime,
-                })
+        for p in sorted(children, key=lambda x: x.stat().st_mtime, reverse=True):
+            out.append({
+                "folder": p.name, "path": str(p),
+                "active_session": active.get(str(p)),
+                "mtime": p.stat().st_mtime,
+            })
         return out
 
     async def _reserve(self, name: str, source: Path, dest: Path) -> Session:
@@ -200,12 +362,31 @@ class Manager:
                 await asyncio.wait_for(gi.wait(), timeout=10)
             except Exception:
                 pass
-        agents = dest / "AGENTS.md"
-        if not agents.exists():
+        # Marker linking this copy back to its source — the in-memory Session
+        # doesn't survive a hub restart, but the graph's status engine (see
+        # hub/agent_knowledge/status.py) needs this pairing even for copies
+        # from a previous run. Written once, at first launch, never touched
+        # again (it's the copy's *origin*, not its current state).
+        marker = dest / ".agent-hub-source.json"
+        if not marker.exists():
             try:
-                agents.write_text(AGENTS_MD, encoding="utf-8")
+                marker.write_text(json.dumps({"source": str(sess.source)}), encoding="utf-8")
             except Exception:
                 pass
+
+        agents = dest / "AGENTS.md"
+        if not agents.exists():
+            # Project-aware: safety rules + a wiki-sourced project summary +
+            # a skill index (see hub/agent_knowledge). Falls back to the
+            # generic AGENTS_MD if generation fails for any reason — a
+            # session must never be left without the safety-rules section.
+            try:
+                agents.write_text(agent_knowledge.render_agents_md(sess.name, dest), encoding="utf-8")
+            except Exception:
+                try:
+                    agents.write_text(AGENTS_MD, encoding="utf-8")
+                except Exception:
+                    pass
 
         # THE directory lock: opencode derives its DEFAULT project directory from
         # the FOLDER that OPENCODE_CONFIG lives in (not cwd, and the web UI ignores
@@ -215,6 +396,13 @@ class Manager:
         session_cfg = dest / "opencode.json"
         try:
             shutil.copy(OPENCODE_CONFIG, session_cfg)
+            # Merge in the knowledge layer's lsp/mcp/model-options config
+            # (additive — never touches the base config's model/provider/
+            # permission keys unless model_options.json explicitly overrides
+            # a specific provider.model.options value).
+            base_cfg = json.loads(session_cfg.read_text(encoding="utf-8"))
+            merged_cfg = agent_knowledge.apply_session_config(base_cfg, sess.name, dest)
+            session_cfg.write_text(json.dumps(merged_cfg, indent=2), encoding="utf-8")
         except Exception:
             pass
         env = os.environ.copy()
@@ -250,6 +438,15 @@ class Manager:
         return sess
 
     async def create(self, source: str, name: str | None) -> Session:
+        """Open `source` in Agent Code. ONE real copy per project
+        (projects/<base>) and ONE chat identity per project (a junction at
+        chats/<base> into that copy) — both made once, reused every time
+        after. This is deliberately NOT "one folder per conversation":
+        OpenCode already supports many sessions within a single directory
+        natively (its own web UI has its own "new session" picker, tracked
+        in its own opencode.db) — Hub only needs to get you INTO that one
+        directory, not fabricate a folder per conversation. If this project
+        is already open, this just reconnects to it (same as `resume`)."""
         raw = source.strip().strip('"').strip()
         if "%" in raw:                      # decode percent-encoded pasted paths
             try:
@@ -261,21 +458,33 @@ class Manager:
             raise FileNotFoundError(f"Not a folder: {raw}")
 
         base = re.sub(r"[^A-Za-z0-9._-]+", "-", (name or src.name)).strip("-") or "session"
-        dest = WORKROOT / f"{base}-{uuid.uuid4().hex[:8]}"
-        sess = await self._reserve(name or base, src, dest)
-        WORKROOT.mkdir(parents=True, exist_ok=True)
-        try:
-            await asyncio.get_running_loop().run_in_executor(
-                None, lambda: shutil.copytree(src, dest, ignore=COPY_IGNORE))
-        except Exception:
-            self.sessions.pop(sess.id, None)
-            raise
+        PROJECTS_ROOT.mkdir(parents=True, exist_ok=True)
+        CHATS_ROOT.mkdir(parents=True, exist_ok=True)
+
+        project_dir = PROJECTS_ROOT / base
+        if not project_dir.exists():
+            try:
+                await asyncio.get_running_loop().run_in_executor(
+                    None, lambda: shutil.copytree(src, project_dir, ignore=COPY_IGNORE))
+            except Exception:
+                if project_dir.exists():
+                    shutil.rmtree(project_dir, ignore_errors=True)
+                raise
+
+        chat_dir = CHATS_ROOT / base
+        if not chat_dir.exists():
+            await _make_junction(chat_dir, project_dir)
+
+        for s in self.sessions.values():
+            if s.running and Path(s.cwd) == chat_dir:
+                return s
+        sess = await self._reserve(name or base, src, chat_dir)
         return await self._launch(sess)
 
     async def resume(self, folder: str, name: str | None) -> Session:
-        """Reopen an existing Agent Code/ folder in place — no copy."""
-        dest = (WORKROOT / folder).resolve()
-        if not str(dest).startswith(str(WORKROOT.resolve())) or not dest.is_dir():
+        """Reopen an existing projects/ or chats/ folder in place — no copy."""
+        dest = resolve_workroot_child(folder)
+        if dest is None:
             raise FileNotFoundError(f"No such Agent Code folder: {folder}")
         # if a session is already live on this folder, just return it
         for s in self.sessions.values():
@@ -337,16 +546,20 @@ class Manager:
         await self.stop(sid)
         s = self.sessions.pop(sid, None)
         if s and purge:
-            cwd = Path(s.cwd).resolve()
-            if str(cwd).startswith(str(WORKROOT.resolve())) and cwd != WORKROOT.resolve():
-                logger.info("OpenCode: deleting copied folder %s", cwd)
+            cwd = Path(s.cwd)  # NOT resolved — must act on the chat's own path,
+                                # never silently follow a junction to its target
+            resolved = cwd.resolve()
+            roots = (PROJECTS_ROOT.resolve(), CHATS_ROOT.resolve())
+            if str(resolved).startswith(str(WORKROOT.resolve())) and resolved not in roots:
+                logger.info("OpenCode: removing %s", cwd)
                 await asyncio.get_running_loop().run_in_executor(
-                    None, lambda: shutil.rmtree(cwd, ignore_errors=True))
+                    None, lambda: _remove_workroot_entry(cwd))
 
     async def stop_all(self) -> None:
         await asyncio.gather(*(self.stop(sid) for sid in list(self.sessions)), return_exceptions=True)
 
 
+_migrate_legacy_layout()
 OC = Manager()
 
 

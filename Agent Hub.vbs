@@ -26,21 +26,25 @@ HUB_DIR = "N:\Code\git repositories\Agent Hub"
 PYTHON  = "Z:\Programs\Anaconda\python.exe"
 EDGE    = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 EDGE_PROXY = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge_proxy.exe"
-' The installed-PWA id (stable, derived from the Serve URL). If the hub is
-' installed as an app (Edge -> Apps -> Install), we launch it by this id so the
-' window carries the hub's OWN icon. Empty/uninstalled -> plain Edge --app.
-PWA_APPID = "jceenlofihlodindmheeghjooepmoccm"
 PORT    = 8081
-' Window opens at the Tailscale Serve HTTPS URL (not localhost) on purpose:
-' it's a SECURE CONTEXT (Edge offers "Install as app" -> own taskbar icon) and
-' the SAME origin the phone/iPad use. The server still binds locally; Serve
-' proxies this URL to 127.0.0.1:PORT. (If Tailscale is off, open localhost by hand.)
-APP_URL = "https://infernalzeus-desktop.tail09be3b.ts.net"
 
 Dim sh, fso
 Set sh  = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
 sh.CurrentDirectory = HUB_DIR
+
+' The installed-PWA id and your Tailscale Serve URL are specific to YOUR
+' machine/tailnet (the Serve URL is a real, identifying hostname for your
+' device) -- kept OUT of this tracked script. Copy "Agent Hub.local.vbs.example"
+' to "Agent Hub.local.vbs" (gitignored) and fill both in there. Running
+' without it just opens plain http://localhost — works fine, you only lose
+' the own-taskbar-icon + same-origin-as-phone bonuses (see README).
+PWA_APPID = ""
+APP_URL   = ""
+Dim localCfg
+localCfg = HUB_DIR & "\Agent Hub.local.vbs"
+If fso.FileExists(localCfg) Then ExecuteGlobal fso.OpenTextFile(localCfg, 1).ReadAll()
+If APP_URL = "" Then APP_URL = "http://localhost:" & PORT
 
 ' --- Parse mode -------------------------------------------------------------
 Dim mode, isWindowOpener, serverOnly
@@ -159,11 +163,14 @@ Function PwaInstalled()
 End Function
 
 ' Is the hub already listening on PORT?
+'  Uses sh.Run HIDDEN (style 0) + the exit code, NOT sh.Exec: .Exec always pops a
+'  visible console window on every call (that was the terminal that "flashed" on
+'  launch — the main check plus the window-opener's polling). findstr exits 0 when
+'  it finds a LISTENING line, so exit code 0 = the hub is up.
 Function AlreadyRunning()
-    Dim exec, out
-    Set exec = sh.Exec("cmd /c netstat -ano -p tcp | findstr "":" & PORT & " "" | findstr LISTENING")
-    out = exec.StdOut.ReadAll()
-    AlreadyRunning = (InStr(out, "LISTENING") > 0)
+    Dim code
+    code = sh.Run("cmd /c netstat -ano -p tcp | findstr "":" & PORT & " "" | findstr LISTENING", 0, True)
+    AlreadyRunning = (code = 0)
 End Function
 
 Sub Log(msg)
