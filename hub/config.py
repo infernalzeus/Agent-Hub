@@ -28,43 +28,20 @@ logger = logging.getLogger("agent-hub")
 
 
 # ── App registry ────────────────────────────────────────────────────────────
-# To add a new app: give it its own internal port + base_path, and whatever
-# env vars it needs to know its host/port/prefix. That's the whole contract.
+# The fronted-app list is now data-driven: hub/apps.json (gitignored, seeded on
+# first run from hub/apps.default.json). The auto-ingest flow and the menu's
+# edit mode write that file; call reload_apps() + supervisor.rebuild_app_procs()
+# to pick up a change without a restart. See hub/app_registry.py.
 
-APPS: dict[str, dict] = {
-    "movie-clipper": {
-        "id": "movie-clipper",
-        "name": "Movie Clipper",
-        "emoji": "🎬",
-        "cwd": Path(r"N:\Code\git repositories\My Repo\movie-shorts-clipper"),
-        "cmd": [sys.executable, "web/app.py"],
-        "port": 8091,
-        "base_path": "/app/movie-clipper",
-        "health_path": "/status",
-        "idle_minutes": 20,
-        "env": {
-            "CLIPPER_WEB_HOST": "127.0.0.1",
-            "CLIPPER_WEB_PORT": "8091",
-            "CLIPPER_BASE_PATH": "/app/movie-clipper",
-        },
-    },
-    "file-browser": {
-        "id": "file-browser",
-        "name": "File Browser",
-        "emoji": "📁",
-        "cwd": HERE / "file-browser",
-        "cmd": [sys.executable, "app.py"],
-        "port": 8092,
-        "base_path": "/app/file-browser",
-        "health_path": "/status",
-        "idle_minutes": 20,
-        "env": {
-            "FB_WEB_HOST": "127.0.0.1",
-            "FB_WEB_PORT": "8092",
-            "FB_BASE_PATH": "/app/file-browser",
-        },
-    },
-}
+from . import app_registry  # noqa: E402
+
+APPS: dict[str, dict] = app_registry.load()
+
+
+def reload_apps() -> None:
+    """Re-read hub/apps.json into APPS (after the registry is edited)."""
+    global APPS
+    APPS = app_registry.load()
 
 # Static shortcuts shown top-right in the header — no backend process, just a link.
 # Machine-specific (e.g. an smb:// link to your own NAS/tailnet host), so this is

@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -93,10 +94,15 @@ _UPLOAD_URL_RE = re.compile(r"Upload complete!\s*(\S+)")
 
 
 async def _yt_broadcast(payload: dict) -> None:
+    # Each send is awaited on the SAME event loop every other request runs on
+    # — a slow (not yet dead) mobile connection stalling here blocks the
+    # whole server, not just this broadcast. A short per-send timeout caps
+    # that at ~2s regardless of how long the heartbeat takes to notice a
+    # truly dead peer.
     dead = []
     for ws in yt_state.subscribers:
         try:
-            await ws.send_str(json.dumps(payload))
+            await asyncio.wait_for(ws.send_str(json.dumps(payload)), timeout=2)
         except Exception:
             dead.append(ws)
     for ws in dead:
@@ -146,19 +152,29 @@ class YTDownloadState:
         self.task: asyncio.Task | None = None
         self.lines: list[str] = []
         self.progress: float = 0
+        self.title: str = ""
         self.done: bool = False
         self.ok: bool = False
         self.result: dict = {}
         self.subscribers: set[web.WebSocketResponse] = set()
+        # Requests made while a download is already running queue here instead
+        # of being rejected — {"id":..., "url":..., "format":...}, FIFO,
+        # drained one at a time by _ytdl_stream_download when the current
+        # download finishes. Persisted to disk (see _save_ytdl_queue) so a
+        # restart doesn't silently lose whatever was waiting.
+        self.queue: list[dict] = []
 
     def reset(self) -> None:
         self.proc = None
         self.task = None
         self.lines = []
         self.progress = 0
+        self.title = ""
         self.done = False
         self.ok = False
         self.result = {}
+        # queue is NOT cleared here — reset() runs at the start of every
+        # download, including ones popped off the queue itself.
 
     @property
     def busy(self) -> bool:
@@ -168,19 +184,56 @@ class YTDownloadState:
 ytdl_state = YTDownloadState()
 
 _DL_PROGRESS_RE = re.compile(r"Downloading:\s*([\d.]+)%")
+_DL_TITLE_RE = re.compile(r"^Title:\s*(.+)$")
 _DL_SAVED_RE = re.compile(r"Saved to:\s*(.+)$")
 _DL_ERROR_RE = re.compile(r"ERROR:\s*(.+)$")
 
+# Queue persistence: a restart (crash, manual, or the disk-hiccup freezes
+# this machine gets occasionally) must not silently drop whatever was
+# waiting — see the 2026-09-16 incident where a queued item vanished on
+# restart with no warning. Best-effort: a failed read/write just means the
+# queue behaves as it did before (in-memory only), never a hard failure.
+YTDL_QUEUE_FILE = Path(__file__).resolve().parent.parent.parent / "logs" / "ytdl_queue.json"
+
+
+def _save_ytdl_queue() -> None:
+    try:
+        YTDL_QUEUE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        YTDL_QUEUE_FILE.write_text(json.dumps(ytdl_state.queue), encoding="utf-8")
+    except Exception as exc:
+        logger.warning("ytdl queue: failed to persist: %s", exc)
+
+
+def _load_ytdl_queue() -> list[dict]:
+    try:
+        return json.loads(YTDL_QUEUE_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
 
 async def _ytdl_broadcast(payload: dict) -> None:
+    # See the identical comment on _yt_broadcast — bounds one slow/dead
+    # subscriber's send to ~2s instead of stalling the whole event loop.
     dead = []
     for ws in ytdl_state.subscribers:
         try:
-            await ws.send_str(json.dumps(payload))
+            await asyncio.wait_for(ws.send_str(json.dumps(payload)), timeout=2)
         except Exception:
             dead.append(ws)
     for ws in dead:
         ytdl_state.subscribers.discard(ws)
+
+
+def _build_ytdl_args(url: str, fmt: str) -> list[str]:
+    outdir = YT_DL_AUDIO_DIR if fmt == "audio" else YT_DL_VIDEO_DIR
+    args = ["--url", url, "--format", fmt, "--outdir", outdir]
+    # Authenticate the download. Prefer an exported cookies.txt; fall back to
+    # reading cookies live from a browser if one is configured.
+    if YT_DL_COOKIES and os.path.isfile(YT_DL_COOKIES):
+        args += ["--cookies", YT_DL_COOKIES]
+    elif YT_DL_COOKIES_BROWSER:
+        args += ["--cookies-from-browser", YT_DL_COOKIES_BROWSER]
+    return args
 
 
 async def _ytdl_stream_download(args: list[str]) -> None:
@@ -220,6 +273,10 @@ async def _ytdl_stream_download(args: list[str]) -> None:
                 continue
             ytdl_state.lines.append(line)
 
+            mt = _DL_TITLE_RE.match(line)
+            if mt:
+                ytdl_state.title = mt.group(1).strip()
+
             m = _DL_PROGRESS_RE.search(line)
             if m:
                 ytdl_state.progress = float(m.group(1))
@@ -234,12 +291,25 @@ async def _ytdl_stream_download(args: list[str]) -> None:
             if m3:
                 ytdl_state.result["error"] = m3.group(1).strip()
 
-            await _ytdl_broadcast({"type": "line", "text": line, "progress": ytdl_state.progress})
+            await _ytdl_broadcast({"type": "line", "text": line, "progress": ytdl_state.progress,
+                                    "title": ytdl_state.title})
 
     rc = await proc.wait()
     ytdl_state.done = True
     ytdl_state.ok = (rc == 0)
-    await _ytdl_broadcast({"type": "done", "ok": ytdl_state.ok, "result": ytdl_state.result})
+    await _ytdl_broadcast({"type": "done", "ok": ytdl_state.ok, "result": ytdl_state.result,
+                            "queue_remaining": len(ytdl_state.queue)})
+
+    if ytdl_state.queue:
+        next_item = ytdl_state.queue.pop(0)
+        _save_ytdl_queue()
+        # Confirmed bug: this dequeue was never announced, so a connected
+        # card's queue list just sat there showing the already-started item
+        # as still "waiting" until something else happened to re-render it.
+        await _ytdl_broadcast({"type": "queue_update", "queue": ytdl_state.queue})
+        next_args = _build_ytdl_args(next_item["url"], next_item["format"])
+        ytdl_state.reset()
+        ytdl_state.task = asyncio.create_task(_ytdl_stream_download(next_args))
 
 
 @routes.get("/api/youtube/accounts")
@@ -320,7 +390,12 @@ async def yt_upload(request: web.Request) -> web.Response:
 
 @routes.get("/ws/youtube")
 async def yt_ws_handler(request: web.Request) -> web.WebSocketResponse:
-    ws = web.WebSocketResponse()
+    # heartbeat: without it, a silently-dropped connection (phone sleeps,
+    # network hands off, tab backgrounds — no clean close frame ever sent)
+    # never triggers the cleanup below. aiohttp pings every 30s and force-
+    # closes if it gets no pong, so a truly-dead peer is detected in bounded
+    # time instead of leaking a subscriber + a blocked handler forever.
+    ws = web.WebSocketResponse(heartbeat=30)
     await ws.prepare(request)
     yt_state.subscribers.add(ws)
 
@@ -337,11 +412,24 @@ async def yt_ws_handler(request: web.Request) -> web.WebSocketResponse:
     return ws
 
 
+@routes.get("/api/youtube-dl/status")
+async def ytdl_status(request: web.Request) -> web.Response:
+    """Cheap, no-websocket status check — piggybacks on the page's existing
+    5s /api/status poll so the COLLAPSED card's status line (and the
+    other-device case: PC downloading, phone hasn't expanded the card) can
+    show real state without needing a live connection. The WS stays
+    expand-only on purpose (that's what closed the earlier leak); this is
+    the lightweight alternative for "is anything happening" at a glance."""
+    return web.json_response({
+        "busy": ytdl_state.busy,
+        "progress": ytdl_state.progress,
+        "title": ytdl_state.title,
+        "queue_length": len(ytdl_state.queue),
+    })
+
+
 @routes.post("/api/youtube-dl/download")
 async def ytdl_download(request: web.Request) -> web.Response:
-    if ytdl_state.busy:
-        raise web.HTTPConflict(text="A download is already running")
-
     data = await request.json()
     url = (data.get("url") or "").strip()
     fmt = data.get("format") or "video"
@@ -350,31 +438,76 @@ async def ytdl_download(request: web.Request) -> web.Response:
     if fmt not in ("audio", "video"):
         raise web.HTTPBadRequest(text="format must be 'audio' or 'video'")
 
-    outdir = YT_DL_AUDIO_DIR if fmt == "audio" else YT_DL_VIDEO_DIR
-    args = ["--url", url, "--format", fmt, "--outdir", outdir]
+    if ytdl_state.busy:
+        # Queue it rather than reject — _ytdl_stream_download drains this
+        # FIFO one at a time as each download finishes. Gets its own id so
+        # it can be swapped (format) or deleted while still waiting.
+        item = {"id": uuid.uuid4().hex[:8], "url": url, "format": fmt}
+        ytdl_state.queue.append(item)
+        _save_ytdl_queue()
+        position = len(ytdl_state.queue)
+        await _ytdl_broadcast({"type": "queue_update", "queue": ytdl_state.queue})
+        return web.json_response({"ok": True, "queued": True, "position": position, "id": item["id"]})
 
-    # Authenticate the download. Prefer an exported cookies.txt; fall back to
-    # reading cookies live from a browser if one is configured.
-    if YT_DL_COOKIES and os.path.isfile(YT_DL_COOKIES):
-        args += ["--cookies", YT_DL_COOKIES]
-    elif YT_DL_COOKIES_BROWSER:
-        args += ["--cookies-from-browser", YT_DL_COOKIES_BROWSER]
-
+    args = _build_ytdl_args(url, fmt)
     ytdl_state.reset()
     ytdl_state.task = asyncio.create_task(_ytdl_stream_download(args))
     return web.json_response({"ok": True})
 
 
+@routes.get("/api/youtube-dl/queue")
+async def ytdl_queue_list(request: web.Request) -> web.Response:
+    return web.json_response({"queue": ytdl_state.queue})
+
+
+@routes.post("/api/youtube-dl/queue/{item_id}/format")
+async def ytdl_queue_set_format(request: web.Request) -> web.Response:
+    """Swap a WAITING item's format. Once it's started (popped off the
+    queue), it's a running subprocess — this can't touch it anymore, hence
+    the plain 404 rather than silently no-op'ing."""
+    item_id = request.match_info["item_id"]
+    data = await request.json()
+    fmt = data.get("format")
+    if fmt not in ("audio", "video"):
+        raise web.HTTPBadRequest(text="format must be 'audio' or 'video'")
+    for item in ytdl_state.queue:
+        if item["id"] == item_id:
+            item["format"] = fmt
+            _save_ytdl_queue()
+            await _ytdl_broadcast({"type": "queue_update", "queue": ytdl_state.queue})
+            return web.json_response({"ok": True})
+    raise web.HTTPNotFound(text="No such queued item (it may have already started)")
+
+
+@routes.delete("/api/youtube-dl/queue/{item_id}")
+async def ytdl_queue_delete(request: web.Request) -> web.Response:
+    item_id = request.match_info["item_id"]
+    before = len(ytdl_state.queue)
+    ytdl_state.queue = [item for item in ytdl_state.queue if item["id"] != item_id]
+    if len(ytdl_state.queue) == before:
+        raise web.HTTPNotFound(text="No such queued item (it may have already started)")
+    _save_ytdl_queue()
+    await _ytdl_broadcast({"type": "queue_update", "queue": ytdl_state.queue})
+    return web.json_response({"ok": True})
+
+
 @routes.get("/ws/youtube-dl")
 async def ytdl_ws_handler(request: web.Request) -> web.WebSocketResponse:
-    ws = web.WebSocketResponse()
+    # heartbeat — see the identical comment on yt_ws_handler above. Confirmed
+    # root cause of a real hang: 56 downloads in one session, one dropped
+    # connection never detected, its dead-socket send eventually blocked the
+    # whole event loop for ~27s (visible as a dead gap in the access log).
+    ws = web.WebSocketResponse(heartbeat=30)
     await ws.prepare(request)
     ytdl_state.subscribers.add(ws)
 
     for line in ytdl_state.lines:
-        await ws.send_str(json.dumps({"type": "line", "text": line, "progress": ytdl_state.progress}))
+        await ws.send_str(json.dumps({"type": "line", "text": line, "progress": ytdl_state.progress,
+                                       "title": ytdl_state.title}))
     if ytdl_state.done:
         await ws.send_str(json.dumps({"type": "done", "ok": ytdl_state.ok, "result": ytdl_state.result}))
+    if ytdl_state.queue:
+        await ws.send_str(json.dumps({"type": "queue_update", "queue": ytdl_state.queue}))
 
     async for msg in ws:
         if msg.type in (WSMsgType.ERROR, WSMsgType.CLOSE):
@@ -382,4 +515,21 @@ async def ytdl_ws_handler(request: web.Request) -> web.WebSocketResponse:
 
     ytdl_state.subscribers.discard(ws)
     return ws
+
+
+def setup(app: web.Application) -> None:
+    async def _resume_ytdl_queue(app: web.Application) -> None:
+        # Restart (crash, manual, or one of the disk-hiccup freezes this
+        # machine gets) must not silently drop whatever was queued — reload
+        # it and pick up where it left off.
+        ytdl_state.queue = _load_ytdl_queue()
+        if ytdl_state.queue and not ytdl_state.busy:
+            next_item = ytdl_state.queue.pop(0)
+            _save_ytdl_queue()
+            args = _build_ytdl_args(next_item["url"], next_item["format"])
+            ytdl_state.reset()
+            ytdl_state.task = asyncio.create_task(_ytdl_stream_download(args))
+            logger.info("ytdl queue: resumed %s (%d still waiting)",
+                        next_item["url"], len(ytdl_state.queue))
+    app.on_startup.append(_resume_ytdl_queue)
 

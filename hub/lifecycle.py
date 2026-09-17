@@ -5,12 +5,29 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+import tempfile
 import time
 from pathlib import Path
 
 from aiohttp import web, WSCloseCode
 
 from .config import TAILSCALE_EXE, TAILDROP_DIR, HOST, PORT, logger
+
+# Heartbeat file the running hub keeps fresh. `Agent Hub.vbs` refuses to start a
+# second `python app.py` while this is < HUB_LOCK_STALE_S old — so no matter how
+# many times `agenthub://start` fires, only ONE hub ever runs. Goes stale on
+# its own if the hub dies, so the next launch takes over cleanly.
+HUB_LOCK = Path(tempfile.gettempdir()) / "agenthub.hub.lock"
+HUB_LOCK_STALE_S = 15
+
+
+async def _hub_heartbeat() -> None:
+    while True:
+        try:
+            HUB_LOCK.write_text(f"{os.getpid()} {time.time():.0f}\n", encoding="utf-8")
+        except Exception:
+            pass
+        await asyncio.sleep(5)
 from .platform_win import _assign_to_job
 from .supervisor import APP_PROCS, stop_app, _idle_reaper
 from .features.youtube import yt_state, ytdl_state
@@ -37,6 +54,7 @@ async def _start_taildrop_watcher() -> asyncio.subprocess.Process | None:
 def install(app: web.Application) -> None:
     async def _on_startup(app: web.Application) -> None:
         app["reaper"] = asyncio.create_task(_idle_reaper())
+        app["hub_heartbeat"] = asyncio.create_task(_hub_heartbeat())
         app["taildrop"] = await _start_taildrop_watcher()
         # Suppress the harmless ProactorEventLoop ConnectionResetError traceback
         # (a client — the phone, or a relayed opencode socket — dropping abruptly).
@@ -99,6 +117,13 @@ def install(app: web.Application) -> None:
     async def _on_cleanup(app: web.Application) -> None:
         t0 = time.monotonic()
         app["reaper"].cancel()
+        hb = app.get("hub_heartbeat")
+        if hb:
+            hb.cancel()
+        try:
+            HUB_LOCK.unlink()
+        except Exception:
+            pass
         # The job object (see top of file) guarantees no orphaned children no
         # matter how this shutdown goes, so there's no need to be patient here
         # — everything below runs concurrently with short timeouts instead of

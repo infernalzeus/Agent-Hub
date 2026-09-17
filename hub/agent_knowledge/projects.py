@@ -7,16 +7,10 @@ wiki and Agent Hub itself); everything else is discovered.
 """
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 
 REPOS_ROOT = Path(r"N:\Code\git repositories")
-
-# Duplicated from hub/features/opencode.py's WORKROOT (not imported directly,
-# to avoid a features->agent_knowledge->features import cycle) — must be kept
-# in sync if that path ever moves.
-DEFAULT_WORKROOT = Path(r"N:\Code\opencode") / "Agent Code"
 
 # Top-level entries that are single projects in their own right, not
 # categories to descend into.
@@ -85,36 +79,12 @@ def discover_projects() -> list[dict]:
 
 
 def discover_local_projects(workroot: Path | None = None) -> list[dict]:
-    """Projects that live ONLY under Agent Code/projects/ — no matching
-    external source under git-repositories, either because they were
-    started from scratch inside Agent Code (e.g. a quick experiment that
-    hasn't been "added to my work" as a real repo yet) or their marker's
-    source no longer resolves (moved/deleted). Still real projects — same
-    projects/+chats/ shape as every other one — just not yet documented in
-    the wiki or backed by an external source to diff against."""
-    root = (workroot or DEFAULT_WORKROOT) / "projects"
-    if not root.is_dir():
-        return []
-    known_sources = {str(Path(p["path"]).resolve()) for p in discover_projects()}
-    out: list[dict] = []
-    for child in sorted(root.iterdir()):
-        if not child.is_dir() or child.name in SKIP_DIRS:
-            continue
-        marker = child / ".agent-hub-source.json"
-        source = None
-        if marker.exists():
-            try:
-                data = json.loads(marker.read_text(encoding="utf-8"))
-                source = str(Path(data.get("source", "")).resolve())
-            except Exception:
-                source = None
-        if source and source in known_sources:
-            continue  # a normal source-backed copy, already covered via discover_projects()
-        out.append({
-            "slug": f"local-{_slugify(child.name)}", "name": child.name,
-            "path": str(child), "readonly": False, "category": "Local",
-        })
-    return out
+    """Retired. The old copytree layout (`Agent Code/projects/` + `.agent-hub-
+    source.json` markers) is gone — every project's agent work is now a git
+    worktree under `N:\\Code\\opencode\\worktrees\\` keyed by the deterministic
+    opencode slug (see hub/features/opencode.py). Kept as an importable no-op
+    so callers don't need conditional imports."""
+    return []
 
 
 def find_project(slug: str) -> dict | None:

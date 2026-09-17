@@ -28,6 +28,27 @@ class AppProc:
 APP_PROCS: dict[str, AppProc] = {aid: AppProc(cfg) for aid, cfg in APPS.items()}
 
 
+def rebuild_app_procs() -> None:
+    """Sync APP_PROCS with the current registry after apps.json is edited:
+    stop + drop a removed app, add an AppProc for a new one, refresh cfg for the
+    rest. Call after config.reload_apps()."""
+    from . import config
+    live = config.APPS
+    for aid in list(APP_PROCS):
+        if aid not in live:
+            ap = APP_PROCS.pop(aid)
+            if ap.running:
+                try:
+                    asyncio.get_running_loop().create_task(stop_app(ap))
+                except RuntimeError:
+                    pass
+    for aid, cfg in live.items():
+        if aid in APP_PROCS:
+            APP_PROCS[aid].cfg = cfg
+        else:
+            APP_PROCS[aid] = AppProc(cfg)
+
+
 async def ensure_started(ap: AppProc, timeout: float = 20.0) -> None:
     async with ap.lock:
         if ap.running:

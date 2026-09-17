@@ -36,6 +36,9 @@ reuse. Any external app just has to obey the contract in **[Adding a new app](#a
 
 ## Setup
 
+> **First time here? Follow [`SETUP.md`](SETUP.md)** — a numbered do-this-in-order
+> checklist. The rest of this section is the same ground in prose.
+
 **Nothing here auto-installs.** There's no setup wizard — once running, the Hub checks its
 own prerequisites and shows a banner for anything missing (which README section to read,
 not a silent broken card), but it will never download or install something on your behalf.
@@ -183,6 +186,29 @@ The app itself needs to:
 - Serve `GET <health_path>` returning `200` once ready, ideally `{"busy": true/false}`.
 - Use its `*_BASE_PATH` env var (empty by default, for standalone use) to prefix any
   absolute paths in its own HTML/JS and any URLs it hands back to the client.
+
+---
+
+## Agent Skills
+
+The Hub carries a library of [Agent Skills](https://agentskills.io) (standard
+`<name>/SKILL.md` directories) and **publishes it into the dirs OpenCode and Claude Code
+already scan** — so every AI session on the machine gets them through the native `skill`
+tool with progressive disclosure. The Hub owns the *source*; it does not invent a skill
+mechanism.
+
+Three sources feed one library (`hub/agent_knowledge/`):
+
+| Source dir | What | In git? |
+|---|---|---|
+| `skills/` | hand-written skills | yes |
+| `skills_vendor/` | verbatim Apache-2.0 skills from [`anthropics/skills`](https://github.com/anthropics/skills) — see `skills_vendor/PROVENANCE.md` | yes |
+| `skills_generated/` | compiled on each hub start from LLM-wiki pages tagged `skill: true` | no (build artifact) |
+
+`skills_sync.py` runs on every `python app.py` start and mirrors them to
+`~/.config/opencode/skills/` (all) and `~/.claude/skills/` (hand-written + wiki only —
+Claude Code ships the vendored ones as plugins). It's idempotent and only ever touches
+dirs it created. The `/graph` page's project panel shows which skills match each project.
 
 ---
 

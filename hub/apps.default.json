@@ -1,0 +1,44 @@
+[
+  {
+    "id": "movie-clipper",
+    "name": "Movie Clipper",
+    "emoji": "\ud83c\udfac",
+    "cwd": "N:\\Code\\git repositories\\My Repo\\movie-shorts-clipper",
+    "cmd": ["$PYTHON", "web/app.py"],
+    "port": 8091,
+    "serve": "proxy",
+    "base_path": "/app/movie-clipper",
+    "health_path": "/status",
+    "idle_minutes": 20,
+    "install": null,
+    "env": {
+      "CLIPPER_WEB_HOST": "127.0.0.1",
+      "CLIPPER_WEB_PORT": "8091",
+      "CLIPPER_BASE_PATH": "/app/movie-clipper"
+    },
+    "builtin": true,
+    "source": "wired-in",
+    "hidden": false
+  },
+  {
+    "id": "file-browser",
+    "name": "File Browser",
+    "emoji": "\ud83d\udcc1",
+    "cwd": "$HUB/file-browser",
+    "cmd": ["$PYTHON", "app.py"],
+    "port": 8092,
+    "serve": "proxy",
+    "base_path": "/app/file-browser",
+    "health_path": "/status",
+    "idle_minutes": 20,
+    "install": null,
+    "env": {
+      "FB_WEB_HOST": "127.0.0.1",
+      "FB_WEB_PORT": "8092",
+      "FB_BASE_PATH": "/app/file-browser"
+    },
+    "builtin": true,
+    "source": "wired-in",
+    "hidden": false
+  }
+]

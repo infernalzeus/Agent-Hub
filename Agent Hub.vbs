@@ -22,16 +22,25 @@
 Option Explicit
 
 Dim HUB_DIR, PYTHON, EDGE, EDGE_PROXY, PORT, APP_URL, PWA_APPID
-HUB_DIR = "N:\Code\git repositories\Agent Hub"
+Dim sh, fso
+Set sh  = CreateObject("WScript.Shell")
+Set fso = CreateObject("Scripting.FileSystemObject")
+
+' Repo root = the folder THIS script lives in. DERIVED, never hardcoded — so a
+' fresh clone works from any path, and the agenthub:// self-registration below
+' points at the right place with no editing.
+HUB_DIR = fso.GetParentFolderName(WScript.ScriptFullName)
+
+' Interpreter + Edge paths. Machine-specific but NOT secret; override them in
+' "Agent Hub.local.vbs" if these defaults are wrong for you. PYTHON falls back
+' to whatever "python" resolves to on PATH when the given path doesn't exist.
 PYTHON  = "Z:\Programs\Anaconda\python.exe"
 EDGE    = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 EDGE_PROXY = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge_proxy.exe"
 PORT    = 8081
 
-Dim sh, fso
-Set sh  = CreateObject("WScript.Shell")
-Set fso = CreateObject("Scripting.FileSystemObject")
 sh.CurrentDirectory = HUB_DIR
+If Not fso.FileExists(PYTHON) Then PYTHON = "python"
 
 ' The installed-PWA id and your Tailscale Serve URL are specific to YOUR
 ' machine/tailnet (the Serve URL is a real, identifying hostname for your
@@ -90,9 +99,13 @@ If isWindowOpener Then
         WScript.Sleep 500
     Next
     Log "window-opener: server listening=" & up & " after " & i & " checks"
-    Dim tgtDesc
-    tgtDesc = OpenAppWindow()
-    Log "window-opener: launched -> " & tgtDesc
+    If HubWindowOpen() Then
+        Log "window-opener: a hub window is already open — focusing nothing, not opening another"
+    Else
+        Dim tgtDesc
+        tgtDesc = OpenAppWindow()
+        Log "window-opener: launched -> " & tgtDesc
+    End If
     PruneLogs
     WScript.Quit
 End If
@@ -100,22 +113,33 @@ End If
 ' ============================================================================
 '  MAIN / SERVER MODE
 ' ============================================================================
-If AlreadyRunning() Then
-    Log "hub already listening on :" & PORT
-    If Not serverOnly Then
+RegisterProtocol      ' idempotent; makes the dormant page's START button work
+
+' A hub is running (listening on the port) OR one is starting right now (fresh
+' heartbeat file). EITHER way this instance must NOT start a second server —
+' that was the "more and more instances" problem when agenthub:// fired
+' repeatedly. Only ONE python app.py ever runs.
+If AlreadyRunning() Or HubHeartbeatFresh() Then
+    Log "hub already up or starting (listening=" & AlreadyRunning() & " heartbeat=" & HubHeartbeatFresh() & ") — not starting another"
+    If (Not serverOnly) And (Not HubWindowOpen()) And (Not RecentWindowSpawn()) Then
         Log "spawning window-opener (already-running path)"
         SpawnWindowOpener
+    ElseIf Not serverOnly Then
+        Log "not opening a window — one is already open or was just opened"
     End If
     PruneLogs
     WScript.Quit
 End If
 
-If Not serverOnly Then
+If (Not serverOnly) And (Not HubWindowOpen()) Then
     Log "spawning window-opener"
     SpawnWindowOpener
 End If
 
 Log "entering supervisor loop"
+' Claim the heartbeat immediately so a second launcher fired a moment later
+' (before the hub itself has written the lock) sees it and backs off.
+TouchHubLock
 Dim code
 Do
     Log "starting server: " & PYTHON & " app.py (output -> " & SERVER_OUT & ")"
@@ -132,9 +156,99 @@ WScript.Quit
 '  Helpers
 ' ============================================================================
 
+' Register the agenthub:// URL protocol under HKCU (no admin) so the dormant
+' page's START button can relaunch this script by URL. Idempotent — only writes
+' when the stored command doesn't already point at THIS script's real path.
+' Replaces the hand-run register-agenthub-protocol.reg (which had a path baked
+' in). register-agenthub-protocol.reg.example is kept as a manual fallback.
+Sub RegisterProtocol()
+    On Error Resume Next
+    Dim key, want, cur
+    key  = "HKCU\Software\Classes\agenthub\"
+    want = "wscript.exe """ & WScript.ScriptFullName & """ ""%1"""
+    cur  = sh.RegRead(key & "shell\open\command\")
+    If cur <> want Then
+        sh.RegWrite key, "URL:Agent Hub Protocol", "REG_SZ"
+        sh.RegWrite key & "URL Protocol", "", "REG_SZ"
+        sh.RegWrite key & "shell\open\command\", want, "REG_SZ"
+        Log "registered agenthub:// -> " & want
+    End If
+    On Error GoTo 0
+End Sub
+
 ' Re-invoke this script (detached) as the window-opener, sharing this log file.
 Sub SpawnWindowOpener()
+    TouchWindowStamp
     sh.Run "wscript.exe """ & WScript.ScriptFullName & """ window """ & LOG_FILE & """", 0, False
+End Sub
+
+' True if an Edge window for the hub PWA (or the --app fallback URL) is already
+' open. The real single-instance guard for "multiple hub windows" — the
+' heartbeat/debounce only reduced it; this stops it. Uses WMI to read process
+' command lines.
+Function HubWindowOpen()
+    On Error Resume Next
+    HubWindowOpen = False
+    Dim wmi, procs, p, cl
+    Set wmi = GetObject("winmgmts:\\.\root\cimv2")
+    Set procs = wmi.ExecQuery("SELECT CommandLine FROM Win32_Process WHERE Name='msedge.exe' OR Name='msedge_proxy.exe'")
+    For Each p In procs
+        cl = "" & p.CommandLine
+        If (PWA_APPID <> "" And InStr(cl, "--app-id=" & PWA_APPID) > 0) _
+           Or InStr(cl, "--app=" & APP_URL) > 0 Then
+            HubWindowOpen = True
+        End If
+    Next
+    On Error GoTo 0
+End Function
+
+' True if a hub process kept its heartbeat file fresh in the last 15 s — i.e. a
+' hub is running or in the middle of starting. Mirrors HUB_LOCK / HUB_LOCK_STALE_S
+' in hub/lifecycle.py. Stale on its own if the hub died, so a later launch takes
+' over cleanly.
+Function HubHeartbeatFresh()
+    On Error Resume Next
+    HubHeartbeatFresh = False
+    Dim p
+    p = sh.ExpandEnvironmentStrings("%TEMP%") & "\agenthub.hub.lock"
+    If fso.FileExists(p) Then
+        If DateDiff("s", fso.GetFile(p).DateLastModified, Now()) < 15 Then HubHeartbeatFresh = True
+    End If
+    On Error GoTo 0
+End Function
+
+' Debounce for the "already running" path: true if a hub window was opened in
+' the last 8 seconds (stamp file in %TEMP%).
+Function RecentWindowSpawn()
+    On Error Resume Next
+    RecentWindowSpawn = False
+    Dim p, f
+    p = sh.ExpandEnvironmentStrings("%TEMP%") & "\agenthub-window.stamp"
+    If fso.FileExists(p) Then
+        If DateDiff("s", fso.GetFile(p).DateLastModified, Now()) < 8 Then RecentWindowSpawn = True
+    End If
+    On Error GoTo 0
+End Function
+
+Sub TouchWindowStamp()
+    On Error Resume Next
+    Dim p, f
+    p = sh.ExpandEnvironmentStrings("%TEMP%") & "\agenthub-window.stamp"
+    Set f = fso.OpenTextFile(p, 2, True)   ' 2=ForWriting, create
+    f.WriteLine Now()
+    f.Close
+    On Error GoTo 0
+End Sub
+
+' Write the hub heartbeat now (the hub itself refreshes it every 5 s once up).
+Sub TouchHubLock()
+    On Error Resume Next
+    Dim p, f
+    p = sh.ExpandEnvironmentStrings("%TEMP%") & "\agenthub.hub.lock"
+    Set f = fso.OpenTextFile(p, 2, True)
+    f.WriteLine "vbs " & Now()
+    f.Close
+    On Error GoTo 0
 End Sub
 
 ' Open the hub UI window. Returns a short description (for the log).

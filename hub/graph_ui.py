@@ -42,9 +42,11 @@ header{position:fixed;top:0;left:0;right:0;z-index:20;height:56px;display:flex;a
   background:linear-gradient(150deg,#080c28 0%,#0d1050 45%,#18095c 100%)}
 .brand{font-family:'Orbitron',monospace;font-size:16px;font-weight:900;color:var(--accent);letter-spacing:3px}
 .back-link{margin-left:auto;font-family:'Orbitron',monospace;font-size:11px;letter-spacing:1.5px;
-  color:var(--text-muted);text-decoration:none;padding:8px 14px;border:1px solid rgba(0,230,118,.28);border-radius:8px;
-  transition:color .15s,border-color .15s}
+  color:var(--text-muted);text-decoration:none;padding:11px 16px;min-height:40px;display:inline-flex;align-items:center;
+  border:1px solid rgba(0,230,118,.28);border-radius:8px;transition:color .15s,border-color .15s;
+  -webkit-tap-highlight-color:transparent}
 .back-link:hover{color:var(--accent);border-color:var(--accent)}
+#panel-chat .chat-btn{min-height:40px}
 
 svg#graph{position:fixed;top:56px;left:0;right:0;bottom:0;width:100%;height:calc(100% - 56px);
   cursor:grab;background:#000}
@@ -90,6 +92,12 @@ svg#graph:active{cursor:grabbing}
 #panel-connections a.conn-link{color:#5dcaa5;text-decoration:none;cursor:pointer}
 #panel-connections a.conn-link:hover{text-decoration:underline}
 #panel-connections a.conn-link.related{color:#b87bff}
+#panel-skills{font-size:11.5px;color:var(--text-muted);margin-bottom:16px;line-height:1.7}
+#panel-skills .sk-title{font-family:'Orbitron',monospace;font-size:9.5px;letter-spacing:1px;color:var(--text-muted);margin-bottom:7px}
+#panel-skills .sk-tag{display:inline-block;background:rgba(0,232,255,.12);border:1px solid rgba(0,232,255,.30);color:#8fe6f2;border-radius:4px;padding:2px 7px;margin:2px 4px 2px 0;font-size:10.5px;cursor:default}
+#panel-skills .sk-tag.wiki{background:rgba(184,123,255,.12);border-color:rgba(184,123,255,.32);color:#c8a8ff}
+#panel-skills .sk-tag.vend{background:rgba(245,200,66,.12);border-color:rgba(245,200,66,.32);color:#f0d68a}
+#panel-skills .sk-muted{opacity:.85}
 #panel-chat{margin-bottom:16px}
 #panel-chat .chat-row{display:flex;align-items:center;justify-content:space-between;gap:10px;
   padding:9px 10px;border-radius:6px;font-size:12.5px;background:rgba(0,230,118,.05);margin-bottom:6px}
@@ -139,6 +147,7 @@ svg#graph:active{cursor:grabbing}
   <div class="row"><span class="dot" style="background:var(--green)"></span>in sync (clean)</div>
   <div class="row"><span class="dot ring" style="background:var(--amber);--r:var(--green)"></span>ready to push</div>
   <div class="row"><span class="dot ring" style="background:var(--amber);--r:var(--orange)"></span>needs update</div>
+  <div class="row"><span class="dot" style="background:#b07cd6"></span>orphan worktree (source gone)</div>
   <div class="row"><span class="dot" style="background:var(--grey)"></span>read-only / local cluster</div>
   <div class="row" style="margin-top:4px"><span style="width:16px;height:0;border-top:1.5px dotted #ffffff;flex-shrink:0"></span>documented in wiki</div>
   <div class="row"><span style="width:16px;height:0;border-top:1.5px solid #6a3fd1;flex-shrink:0"></span>related project (wiki link)</div>
@@ -150,6 +159,7 @@ svg#graph:active{cursor:grabbing}
   <div id="panel-badge"></div>
   <div class="path" id="panel-path"></div>
   <div id="panel-connections"></div>
+  <div id="panel-skills"></div>
   <div id="panel-chat"></div>
   <div id="panel-files"></div>
   <div id="diff-view"></div>
@@ -168,16 +178,16 @@ svg#graph:active{cursor:grabbing}
 // needs-update) sit on amber nodes only.
 // Grey is reserved for the READ-ONLY / LOCAL CLUSTER-HUB circles only — the
 // category descriptor, not the member nodes themselves.
-const COLORS = {red:'#e2544a', blue:'#5b9bf5', amber:'#f5c842', green:'#00e676', unknown:'#888780'};
+const COLORS = {red:'#e2544a', blue:'#5b9bf5', amber:'#f5c842', green:'#00e676', unknown:'#888780', orphan:'#b07cd6'};
 const RING_COLORS = {green:'#97c459', orange:'#ef9f27'};   // ready-to-push / needs-update
 const CLUSTER_COLOR = '#00e8ff';
 const CLUSTER_COLOR_GREY = '#7c8797';
-const GREY_CLUSTERS = new Set(['Read-only', 'Local']);
-const CLUSTER_ORDER = ['My Repo', 'Collab Projects', '_unsorted projects', 'Open Source', 'Read-only', 'Local'];
+const GREY_CLUSTERS = new Set(['Read-only', 'Local', 'Orphans']);
+const CLUSTER_ORDER = ['My Repo', 'Collab Projects', '_unsorted projects', 'Open Source', 'Read-only', 'Local', 'Orphans'];
 const CLUSTER_LABEL = {
   'My Repo': 'MY REPO', 'Collab Projects': 'COLLAB PROJECTS',
   '_unsorted projects': 'UNSORTED', 'Open Source': 'OPEN SOURCE', 'Read-only': 'READ-ONLY',
-  'Local': 'LOCAL',
+  'Local': 'LOCAL', 'Orphans': 'ORPHAN WORKTREES',
 };
 
 let graphData = {nodes: [], projectLinks: []};
@@ -433,59 +443,53 @@ function renderConnections(d) {
   });
 }
 
+// orphan worktree (source folder gone / never a tracked project): drive it by
+// the opencode slug via /api/opencode/folders/, not /api/graph/ (which 404s).
+function _isOrphan(d) { return d && d.state === 'orphan'; }
+function _detailBase(slug) {
+  const n = graphData.nodes.find(x => x.slug === slug);
+  return _isOrphan(n) ? `/api/opencode/folders/${encodeURIComponent(slug)}`
+                      : `/api/graph/${encodeURIComponent(slug)}`;
+}
+
+async function renderOrphanControls(d) {
+  const el = document.getElementById('panel-chat');
+  const missing = d.source_missing
+    ? '<span style="color:#e0a53c"> — source folder not found</span>' : '';
+  el.innerHTML =
+    `<div class="chat-row"><span style="color:var(--text-muted)">origin: ${d.origin || 'unknown'}${missing}</span></div>` +
+    `<button class="chat-btn new" id="orphan-open">OPEN WORKTREE</button>` +
+    `<button class="chat-btn" id="orphan-remove" style="border-color:rgba(255,92,92,.5);color:#ff6b6b">REMOVE WORKTREE</button>`;
+  el.querySelector('#orphan-open').onclick = async () => {
+    const b = el.querySelector('#orphan-open'); b.disabled = true; b.textContent = 'OPENING…';
+    try {
+      const r = await fetch(`/api/opencode/folders/${encodeURIComponent(d.slug)}/open`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({mode: 'autonomous'}),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      window.open('/agents?slug=' + encodeURIComponent(d.slug), 'oc-' + d.slug);
+    } catch (e) { alert('Open failed: ' + e.message); }
+    b.disabled = false; b.textContent = 'OPEN WORKTREE';
+  };
+  el.querySelector('#orphan-remove').onclick = async () => {
+    if (!confirm(`Remove worktree "${d.slug}"?\\n\\nDeletes ${d.worktree} and its chat history. Cannot be undone.`)) return;
+    await fetch(`/api/opencode/sessions/${encodeURIComponent(d.slug)}?purge=1`, {method: 'DELETE'});
+    const g = await (await fetch('/api/graph')).json();
+    graphData.nodes = g.nodes; graphData.projectLinks = g.project_links || [];
+    document.getElementById('panel').classList.remove('open');
+    render();
+  };
+}
+
 async function renderChatControls(d) {
   const el = document.getElementById('panel-chat');
   if (d.readonly) { el.innerHTML = ''; return; }
+  if (_isOrphan(d)) { await renderOrphanControls(d); return; }
 
-  let running = [];
-  try { running = await (await fetch('/api/opencode/sessions')).json().then(r => r.sessions || []); }
-  catch (e) { /* best-effort */ }
-
-  const rows = (d.copies || []).map(c => {
-    const live = running.find(s => s.folder === c.folder);
-    const action = live
-      ? `<button class="chat-btn" data-open="${live.open_url}">OPEN</button>`
-      : `<button class="chat-btn" data-resume="${c.folder}">RESUME</button>`;
-    const statusText = live ? 'running' : (c.has_diff ? 'has diff, stopped' : 'stopped');
-    return `<div class="chat-row"><span>${c.folder} <span style="color:var(--text-muted)">(${statusText})</span></span>${action}</div>`;
-  }).join('');
-
-  el.innerHTML = rows + `<button class="chat-btn new" id="new-chat-btn">+ New chat for this project</button>`;
-
-  el.querySelectorAll('[data-open]').forEach(btn => {
-    btn.onclick = () => window.open(btn.dataset.open, '_blank');
-  });
-  el.querySelectorAll('[data-resume]').forEach(btn => {
-    btn.onclick = async () => {
-      btn.disabled = true; btn.textContent = '…';
-      try {
-        const res = await fetch('/api/opencode/sessions/resume', {
-          method: 'POST', headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({folder: btn.dataset.resume}),
-        });
-        const sess = await res.json();
-        if (sess.open_url) window.open(sess.open_url, '_blank');
-      } catch (e) { alert('Resume failed: ' + e.message); }
-      renderChatControls(d);
-    };
-  });
-  const newBtn = document.getElementById('new-chat-btn');
-  if (newBtn) newBtn.onclick = async () => {
-    newBtn.disabled = true; newBtn.textContent = 'STARTING…';
-    try {
-      const res = await fetch('/api/opencode/sessions', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({source: d.path, name: d.name}),
-      });
-      const sess = await res.json();
-      if (sess.open_url) window.open(sess.open_url, '_blank');
-    } catch (e) { alert('New chat failed: ' + e.message); }
-    // Refresh: a new copy now exists, so the graph node's state/copies changed.
-    const g = await (await fetch('/api/graph')).json();
-    graphData.nodes = g.nodes;
-    graphData.projectLinks = g.project_links || [];
-    const updated = graphData.nodes.find(n => n.slug === d.slug);
-    if (updated) { renderChatControls(updated); render(); }
+  el.innerHTML = `<button class="chat-btn new" id="dispatch-btn">DISPATCH A MISSION →</button>`;
+  document.getElementById('dispatch-btn').onclick = () => {
+    location.href = '/missions?project=' + encodeURIComponent(d.slug);
   };
 }
 
@@ -497,7 +501,7 @@ async function openPanel(d) {
   document.getElementById('diff-view').textContent = '';
 
   const badge = document.getElementById('panel-badge');
-  const STATE_LABEL = {red:'READ-ONLY', blue:'AVAILABLE', amber:'HAS DIFF', green:'IN SYNC', unknown:'UNKNOWN'};
+  const STATE_LABEL = {red:'READ-ONLY', blue:'AVAILABLE', amber:'HAS DIFF', green:'IN SYNC', unknown:'UNKNOWN', orphan:'ORPHAN'};
   const stateLabel = STATE_LABEL[d.state] || 'UNKNOWN';
   const wikiNote = d.wiki_entity
     ? `<span style="color:#5dcaa5;margin-left:8px">documented — ${d.wiki_entity}</span>`
@@ -505,6 +509,7 @@ async function openPanel(d) {
   badge.innerHTML = `<span class="state-badge" style="background:${COLORS[d.state]}22;color:${COLORS[d.state]}">${stateLabel}</span>${wikiNote}`;
 
   renderConnections(d);
+  renderSkills(d);
 
   const filesEl = document.getElementById('panel-files');
   const pushAllBtn = document.getElementById('push-all');
@@ -526,8 +531,42 @@ async function openPanel(d) {
 }
 
 async function fetchDetail(slug) {
+  const n = graphData.nodes.find(x => x.slug === slug);
+  if (_isOrphan(n)) {
+    const res = await fetch(`/api/opencode/folders/${encodeURIComponent(slug)}/changes`);
+    return res.json();      // {changed_files, origin}
+  }
   const res = await fetch(`/api/graph/${encodeURIComponent(slug)}`);
   return res.json();
+}
+
+async function renderSkills(d) {
+  const el = document.getElementById('panel-skills');
+  el.innerHTML = '';
+  let data;
+  try {
+    data = await (await fetch('/api/graph/skills?project=' + encodeURIComponent(d.slug))).json();
+  } catch (e) { return; }
+  const relevant = new Set(data.relevant || []);
+  const skills = data.skills || [];
+  const wikiCount = skills.filter(s => s.origin === 'wiki-concept').length;
+  const vendCount = skills.filter(s => s.origin === 'vendored').length;
+  const rel = skills.filter(s => relevant.has(s.name));
+  let html = '<div class="sk-title">SKILLS &middot; ' + data.count + ' via the skill tool';
+  if (vendCount) html += ' &middot; ' + vendCount + ' vendored (Anthropic)';
+  if (wikiCount) html += ' &middot; ' + wikiCount + ' from the wiki';
+  html += '</div>';
+  if (rel.length) {
+    html += rel.map(s => {
+      const cls = s.origin === 'wiki-concept' ? 'sk-tag wiki'
+                : s.origin === 'vendored' ? 'sk-tag vend' : 'sk-tag';
+      const tip = (s.description || '').split('"').join('&quot;');
+      return '<span class="' + cls + '" title="' + tip + '">' + s.name + '</span>';
+    }).join('');
+  } else {
+    html += '<span class="sk-muted">no project-specific matches &mdash; all ' + data.count + ' are available on demand</span>';
+  }
+  el.innerHTML = html;
 }
 
 function renderFiles(slug, detail) {
@@ -535,17 +574,25 @@ function renderFiles(slug, detail) {
   const pushAllBtn = document.getElementById('push-all');
   if (!detail.changed_files || detail.changed_files.length === 0) {
     const node = graphData.nodes.find(n => n.slug === slug);
-    filesEl.innerHTML = node && node.state === 'blue'
-      ? '<div class="empty">No chat opened for this project yet.</div>'
+    filesEl.innerHTML =
+      node && node.state === 'orphan' ? '<div class="empty">No changes on this worktree.</div>'
+      : node && node.state === 'blue' ? '<div class="empty">No chat opened for this project yet.</div>'
       : '<div class="empty">No pending changes — in sync with the source.</div>';
     pushAllBtn.style.display = 'none';
     return;
   }
   filesEl.innerHTML = '';
-  const pushable = detail.changed_files.filter(f => f.status !== 'D');
+  const orphan = _isOrphan(graphData.nodes.find(n => n.slug === slug));
+  const pushable = orphan ? [] : detail.changed_files.filter(f => f.status !== 'D');
   detail.changed_files.forEach(f => {
     const row = document.createElement('div');
     row.className = 'file-row';
+    if (orphan) {
+      row.innerHTML = `<div class="file-left"><span class="badge ${f.status}">${f.status}</span><span>${f.path}</span></div>`;
+      row.onclick = () => showDiff(slug, f.path, row);
+      filesEl.appendChild(row);
+      return;
+    }
     if (f.status === 'D') {
       row.innerHTML = `<div class="file-left"><span class="badge ${f.status}">${f.status}</span><span>${f.path}</span></div>` +
         `<span class="del-note">not auto-pushed</span>`;
@@ -602,7 +649,7 @@ async function showDiff(slug, path, rowEl) {
   const view = document.getElementById('diff-view');
   view.textContent = 'Loading diff…';
   view.classList.add('show');
-  const res = await fetch(`/api/graph/${encodeURIComponent(slug)}/diff?path=${encodeURIComponent(path)}`);
+  const res = await fetch(`${_detailBase(slug)}/diff?path=${encodeURIComponent(path)}`);
   const text = await res.text();
   view.innerHTML = '';
   text.split('\\n').forEach(line => {

@@ -1,0 +1,2 @@
+Apache License 2.0 — this skill is Apache-2.0 per the anthropics/skills repo README
+(https://github.com/anthropics/skills). Upstream did not ship a per-skill LICENSE.txt.

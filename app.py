@@ -18,12 +18,13 @@ import sys
 
 from aiohttp import web
 
-from hub import config, graph_ui, lifecycle, ui
-from hub.features import apps, graph, opencode, power, setup_check, youtube
+from hub import agents_ui, config, graph_ui, lifecycle, missions_ui, ui
+from hub.features import apps, graph, missions, opencode, power, setup_check, youtube
 
 # Each feature module exposes `routes` (and optionally a `setup(app)` hook for
 # its own background tasks / cleanup). Add a feature = add it to this list.
-FEATURES = [apps, youtube, opencode, graph, graph_ui, power, setup_check, ui]
+FEATURES = [apps, youtube, opencode, missions, graph, graph_ui, agents_ui, missions_ui,
+            power, setup_check, ui]
 
 
 def create_app() -> web.Application:

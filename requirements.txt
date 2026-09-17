@@ -1,1 +1,6 @@
 aiohttp>=3.9.0
+
+# YT Download / YT Upload deps are optional — see requirements-youtube.txt.
+# The fresh-install setup banner can install them for you (one-click, or
+# `pip install -r requirements-youtube.txt` yourself); hub/features/setup_actions.py
+# is what actually runs when you click INSTALL, and this file is its source of truth.

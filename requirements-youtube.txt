@@ -1,0 +1,9 @@
+# Optional deps for the YT Download / YT Upload cards only. Install with:
+#   pip install -r requirements-youtube.txt
+# ...or click INSTALL on the setup banner (hub/features/setup_actions.py runs
+# this exact list — keep the two in sync if you change either).
+yt-dlp
+mutagen
+google-api-python-client
+google-auth-oauthlib
+google-auth-httplib2

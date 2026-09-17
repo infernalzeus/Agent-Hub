@@ -1,314 +1,192 @@
-"""Per-project sync state for the graph (Phase 3/4).
+"""Per-project sync state for the graph.
 
-State model (revised 2026-08-15, matching the agent-core node-color language —
-blue means "available/inactive", not "has changes"):
-  red    - read-only project (LLM wiki, Agent Hub, agent-core); never touched
-  blue   - available/potential: no Agent Code copy exists yet — nothing has
-           been opened into a chat for this project
-  amber  - has a diff vs source (a session exists and OpenCode made changes;
-           nothing decided yet) — amber/gold to match agent-core's own
-           "active work" color, since blue no longer means that here
-  green  - in sync: a copy exists and has no diff (untouched since creation,
-           or successfully pushed back)
-  amber + green ring - diff exists and has been marked ready to push
-  amber + orange ring - diff exists and the SOURCE has moved on since the
-                        copy was created (approximate: newest-file mtime
-                        compare — a real "did source change" signal needs the
-                        clone-on-branch upgrade noted in the design; this is
-                        the honest version of that signal until then)
+Each project's agent work is a **git worktree** on branch `agent/<slug>` under
+`N:\\Code\\opencode\\worktrees\\` (see hub/features/opencode.py). State per node:
+  red    - read-only project (LLM wiki, Agent Hub); never touched
+  blue   - no worktree yet — nothing has been opened for this project
+  amber  - the agent branch has diverged from its base (committed or working)
+  green  - worktree exists, no diff vs base
+  amber + green ring - diff exists and marked ready to push
 
-Diffing uses `git diff --no-index` between the two plain directories — this
-works whether or not `source` itself is a git repo, and needs no shared
-history (today's copies are `git init` + copytree, not a clone).
+Diffs come from `git diff <base>...HEAD` + `git status --porcelain` in the
+worktree; hub scaffolding is filtered out (see `_is_scaffolding`).
 """
 from __future__ import annotations
 
 import asyncio
-import json
 import re
 from pathlib import Path
 
 from . import _find_wiki_entity, WIKI_ENTITIES
-from .projects import discover_projects, discover_local_projects
+from .projects import discover_projects
 from ..config import logger
 
 _WIKILINK_RE = re.compile(r"\[\[([^\]|#]+)")
 
 MARKER_NAME = ".agent-hub-source.json"
 READY_MARKER_NAME = ".agent-hub-ready-to-push"
-NOISE_DIRS = {".git", "node_modules", "__pycache__", ".venv", ".mypy_cache", ".pytest_cache"}
-# Hub-injected scaffolding at the copy root — never part of "did the agent
-# change the project". opencode.json is rewritten on every launch regardless
-# of what source has, so it's never a genuine project diff either way.
-SCAFFOLDING_FILES = {MARKER_NAME, "AGENTS.md", "opencode.json"}
+NOISE_DIRS = {".git", "node_modules", "__pycache__", ".venv", ".mypy_cache", ".pytest_cache", ".ocdata"}
+# Hub-injected scaffolding dropped into a worktree — never "the agent changed
+# the project". A linked worktree shares .git/info/exclude with the real repo,
+# so we cannot gitignore these there; filter them here instead.
+SCAFFOLDING_FILES = {MARKER_NAME, "AGENTS.md", "opencode.json",
+                     ".agent-hub-base", ".agent-hub-origin", READY_MARKER_NAME}
 
 
-def _find_copies_for(source: Path, workroot: Path) -> list[Path]:
-    """Every Agent Code copy whose marker points at this source. Source-backed
-    copies live under `workroot/projects/` (see hub/features/opencode.py) —
-    that's the only place the diff/comparison engine ever needs to look."""
-    root = workroot / "projects"
-    if not root.is_dir():
-        return []
-    resolved_source = str(source.resolve())
-    out = []
-    for child in root.iterdir():
-        if not child.is_dir():
-            continue
-        marker = child / MARKER_NAME
-        if not marker.exists():
-            continue
-        try:
-            data = json.loads(marker.read_text(encoding="utf-8"))
-            if str(Path(data.get("source", "")).resolve()) == resolved_source:
-                out.append(child)
-        except Exception:
-            continue
+def _is_scaffolding(path: str) -> bool:
+    p = path.replace("\\", "/")
+    return (p in SCAFFOLDING_FILES or p == "serve.log"
+            or p.startswith(".ocdata") or p.startswith(".opencode") or p.startswith(".claude")
+            or "__pycache__/" in p + "/" or p.endswith(".pyc")
+            or p.startswith("node_modules/") or p.startswith(".venv/"))
+
+
+async def _git(cwd: Path, *args: str, timeout: float = 15) -> tuple[int, str]:
+    try:
+        p = await asyncio.create_subprocess_exec(
+            "git", "-c", "core.autocrlf=false", *args, cwd=str(cwd),
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+        out, _ = await asyncio.wait_for(p.communicate(), timeout=timeout)
+        return p.returncode or 0, out.decode("utf-8", "replace").strip()
+    except Exception as exc:
+        return 1, str(exc)
+
+
+def _wt_base(wt: Path) -> str:
+    try:
+        b = (wt / ".agent-hub-base").read_text(encoding="utf-8").strip()
+        return b or "HEAD"
+    except Exception:
+        return "HEAD"
+
+
+async def _wt_has_changes(wt: Path) -> bool | None:
+    """True if the agent branch has diverged from its base (committed OR
+    working-tree changes). None on error."""
+    base = _wt_base(wt)
+    rc, out = await _git(wt, "--no-pager", "diff", "--quiet", f"{base}...HEAD")
+    committed = None if rc not in (0, 1) else (rc == 1)
+    rc2, dirty = await _git(wt, "status", "--porcelain")
+    working = None if rc2 != 0 else bool([l for l in dirty.splitlines()
+                                          if not _is_scaffolding(l[3:].strip())])
+    if committed is None and working is None:
+        return None
+    return bool(committed) or bool(working)
+
+
+async def worktree_changed_files(wt: Path) -> list[dict]:
+    """[{status, path}] — committed diff vs base + uncommitted working changes."""
+    base = _wt_base(wt)
+    seen: dict[str, str] = {}
+    rc, out = await _git(wt, "--no-pager", "diff", "--name-status", f"{base}...HEAD")
+    if rc == 0:
+        for line in out.splitlines():
+            parts = line.split("\t")
+            if len(parts) >= 2:
+                seen[parts[-1]] = parts[0][:1]
+    rc2, dirty = await _git(wt, "status", "--porcelain")
+    if rc2 == 0:
+        for line in dirty.splitlines():
+            if not line.strip():
+                continue
+            code = line[:2].strip()
+            path = line[2:].strip().strip('"').split(" -> ")[-1].strip().strip('"')
+            if path and not _is_scaffolding(path):
+                seen[path] = (code[:1] or "M").replace("?", "A")
+    return [{"status": s, "path": p} for p, s in sorted(seen.items())]
+
+
+async def worktree_file_diff(wt: Path, rel_path: str) -> str:
+    base = _wt_base(wt)
+    await _git(wt, "add", "-N", rel_path)              # show a brand-new file's contents
+    rc, out = await _git(wt, "--no-pager", "diff", base, "--", rel_path)
     return out
 
 
-def _find_chats_for(project_dir: Path, workroot: Path) -> list[Path]:
-    """Every chats/ entry that links to this ONE project copy — a junction
-    whose target resolves to project_dir (the normal case, one per open/
-    resumable chat), or, defensively, a standalone chat folder that somehow
-    shares the exact same path (shouldn't happen, but never miss a chat
-    over it). Used for the graph panel's Resume/Open buttons — there can be
-    several chats for one project, all sharing the same underlying files."""
-    root = workroot / "chats"
-    if not root.is_dir():
-        return []
-    target = project_dir.resolve()
-    return [c for c in root.iterdir() if c.is_dir() and c.resolve() == target]
-
-
-async def _git_diff_has_changes(source: Path, copy: Path, timeout: float = 15.0) -> bool | None:
-    """True if there's any real (non-noise) difference between source and copy.
-
-    Delegates to `list_changed_files` rather than running its own separate
-    `git diff --no-index --name-only` — found and fixed a real bug where the
-    two had diverged: `--name-only` mode, for a DELETION with no rename
-    pairing, apparently reports the change as bare "/dev/null" and never
-    the actual filename (confirmed empirically — the same repo where
-    `--name-status` correctly names the deleted file). Since "/dev/null" is
-    exactly the noise token this function already had to filter out, a
-    delete-only diff was silently invisible here even though the file list
-    endpoint (which already used `--name-status`) saw it correctly the whole
-    time. One source of truth now — these two can't disagree again.
-
-    None on error/timeout (state becomes 'unknown', never a false green).
-    """
-    changed = await _raw_changed_files(source, copy, timeout=timeout)
-    return bool(changed) if changed is not None else None
-
-
-def _filter_diff_line(rel: str) -> bool:
-    """True if this path is real project content — not scaffolding/noise."""
-    if not rel or rel == "/dev/null":
-        return False
-    parts = Path(rel).parts
-    if any(p in NOISE_DIRS for p in parts):
-        return False
-    if parts and parts[-1] in SCAFFOLDING_FILES:
-        return False
-    return True
-
-
-async def _raw_changed_files(source: Path, copy: Path, timeout: float = 15.0) -> list[dict] | None:
-    """[{path, status}] via `git diff --no-index --name-status -z`, or None
-    on error/timeout (distinct from "no changes" — callers must not treat
-    an error as a false "in sync").
-
-    Two Windows-specific gotchas, both load-bearing:
-      - Backslash paths (esp. with the space in "Agent Code") make Git-for-
-        Windows quote/escape the output unpredictably — pass forward-slash
-        paths instead, which git accepts natively on Windows.
-      - `--name-status` (not `--name-only`) is required, not a style choice:
-        for a DELETION with no rename pairing, `--name-only`'s `-z` output
-        apparently reports bare "/dev/null" and never the actual filename
-        (confirmed empirically) — indistinguishable from the noise tokens
-        this already has to filter, so a delete-only diff went invisible.
-        `--name-status` pairs a real status letter with the path and doesn't
-        have this problem.
-    """
-    src_arg, copy_arg = str(source).replace("\\", "/"), str(copy).replace("\\", "/")
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            "git", "diff", "--no-index", "--name-status", "-z", src_arg, copy_arg,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
-        )
-        out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except Exception:
-        return None
-    tokens = [t for t in out.decode("utf-8", errors="replace").split("\x00") if t]
-    out_list: list[dict] = []
-    i = 0
-    while i < len(tokens):
-        code = tokens[i]
-        if code and code[0] in "AMD" and i + 1 < len(tokens):
-            path_token = tokens[i + 1]
-            i += 2
-        elif code and code[0] == "R" and i + 2 < len(tokens):
-            # rename: status\told-path\tnew-path — report the new path
-            path_token = tokens[i + 2]
-            i += 3
-        else:
-            i += 1
-            continue
-        rel = path_token[len(copy_arg):].lstrip("/") if path_token.startswith(copy_arg) \
-            else path_token[len(src_arg):].lstrip("/")
-        if _filter_diff_line(rel):
-            out_list.append({"path": rel, "status": code[0]})
-    return out_list
-
-
-async def list_changed_files(source: Path, copy: Path, timeout: float = 15.0) -> list[dict]:
-    """[{path, status}] for the git-desktop-style detail panel. status is
-    git's single-letter code: A (added), M (modified), D (deleted). Error/
-    timeout is silently [] here — the file-list UI has no separate "unknown"
-    state to show, unlike `_git_diff_has_changes`, which calls
-    `_raw_changed_files` directly to keep that distinction."""
-    changed = await _raw_changed_files(source, copy, timeout=timeout)
-    return changed if changed is not None else []
-
-
-async def file_diff(source: Path, copy: Path, rel_path: str, timeout: float = 10.0) -> str:
-    """Unified diff text for one file — for the detail panel's diff view."""
-    src_file = str(source / rel_path).replace("\\", "/")
-    copy_file = str(copy / rel_path).replace("\\", "/")
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            "git", "diff", "--no-index", "--no-color", src_file, copy_file,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
-        )
-        out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except Exception:
-        return ""
-    return out.decode("utf-8", errors="replace")
-
-
-def _source_newer_than_copy(source: Path, copy_created_at: float) -> bool:
-    """Approximate 'source moved on since this copy was made' — newest
-    mtime under source vs the copy's creation timestamp. See module docstring."""
-    try:
-        newest = max((p.stat().st_mtime for p in source.rglob("*")
-                      if p.is_file() and not any(part in NOISE_DIRS for part in p.parts)),
-                     default=0.0)
-    except Exception:
-        return False
-    return newest > copy_created_at
+async def merge_agent_branch(source: Path, wt: Path) -> dict:
+    """Commit any pending working changes on agent/<slug>, then merge that
+    branch into the source repo's base branch (non-fast-forward)."""
+    branch = f"agent/{wt.name}"
+    base = _wt_base(wt)
+    await _git(wt, "add", "-A")
+    await _git(wt, "-c", "user.email=hub@local", "-c", "user.name=Agent Hub",
+               "commit", "-m", "agent work", "--allow-empty")
+    if not (source / ".git").exists():
+        return {"ok": False, "output": "source is not a git repo — nothing to merge into"}
+    rc, out = await _git(source, "merge", "--no-ff", "-m", f"merge {branch}", branch)
+    return {"ok": rc == 0, "output": out, "branch": branch, "base": base}
 
 
 async def compute_project_state(project: dict, workroot: Path) -> dict:
-    """{slug, name, path, readonly, state, ring, wiki_entity, copies: [...]}
+    """{**project, state, ring, wiki_entity, copies}. `workroot` is now the
+    WORKTREES dir; a project's agent work is the git worktree at
+    workroot/<opencode slug>."""
+    from ..features.opencode import worktree_for
 
-    wiki_entity: the LLM wiki entity page's slug, if one declares this project
-    via `project_slug` frontmatter (see CLAUDE.md) or matches by name — the
-    graph draws an edge to the wiki node only when this is set, so projects
-    with no wiki page are visibly disconnected from it (a documentation-gap
-    signal, not just decoration).
-    """
-    slug, path = project["slug"], Path(project["path"])
+    path = Path(project["path"])
     entity = _find_wiki_entity(project["name"])
     wiki_entity = entity.stem if entity else None
 
     if project["readonly"]:
         return {**project, "state": "red", "ring": None, "wiki_entity": wiki_entity, "copies": []}
 
-    copies = _find_copies_for(path, workroot)
-    if not copies:
+    wt = worktree_for(path)
+    if not wt.exists():
         return {**project, "state": "blue", "ring": None, "wiki_entity": wiki_entity, "copies": []}
 
-    # Exactly ONE real copy per project now (hub/features/opencode.py reuses
-    # it for every chat rather than re-copying) — diff/ready/needs-update are
-    # a single project-level state, not one per chat. `copies` in the
-    # returned dict stays a list of CHATS though (junctions into this one
-    # copy) — that's what the graph panel's Resume/Open buttons act on, and
-    # there can genuinely be several of those for one project.
-    project_dir = copies[0]
-    has_diff = await _git_diff_has_changes(path, project_dir)
-    ready = (project_dir / READY_MARKER_NAME).exists()
-    try:
-        created_at = project_dir.stat().st_ctime
-    except Exception:
-        created_at = 0.0
-    needs_update = _source_newer_than_copy(path, created_at) if has_diff else False
-
-    chats = _find_chats_for(project_dir, workroot) or [project_dir]
-    copy_infos = [{
-        "folder": c.name, "has_diff": bool(has_diff), "ready_to_push": ready,
-        "needs_update": needs_update,
-    } for c in chats]
-
+    has_diff = await _wt_has_changes(wt)
+    ready = (wt / READY_MARKER_NAME).exists()
     if has_diff is None:
         state, ring = "unknown", None
     elif has_diff:
-        state = "amber"
-        ring = "green" if ready else ("orange" if needs_update else None)
+        state, ring = "amber", ("green" if ready else None)
     else:
         state, ring = "green", None
 
-    return {**project, "state": state, "ring": ring, "wiki_entity": wiki_entity, "copies": copy_infos}
+    return {**project, "state": state, "ring": ring, "wiki_entity": wiki_entity,
+            "copies": [{"folder": wt.name, "has_diff": bool(has_diff),
+                        "ready_to_push": ready, "needs_update": False}]}
 
 
-def _copy_created_at(copy: Path) -> float:
-    marker = copy / MARKER_NAME
-    try:
-        return marker.stat().st_ctime
-    except Exception:
+async def _orphan_nodes(workroot: Path) -> list[dict]:
+    """One node per worktree under `workroot` that no discovered project maps to
+    (source folder deleted / moved / never a tracked project). Reuses the
+    opencode slug so the graph panel can drive it via /api/opencode/folders/."""
+    import re
+    from ..features.opencode import slug_for, read_origin, OC
+    if not workroot.is_dir():
+        return []
+    mid_re = re.compile(r"^(?P<slug>.+)--(?P<mid>m[0-9a-f]{8})$")
+    known = set()
+    for p in discover_projects():
         try:
-            return copy.stat().st_ctime
+            known.add(slug_for(p["path"]))
         except Exception:
-            return 0.0
-
-
-async def push_changes(source: Path, copy: Path, files: list[str] | None = None,
-                        force: bool = False) -> dict:
-    """Apply reviewed changes from `copy` back onto `source`. Phase 5.
-
-    Deliberately conservative given today's architecture (a plain copytree,
-    not a clone with shared history — see the design notes in the module
-    docstring): only A(dded)/M(odified) files are ever written to source.
-    D(eleted) files are NEVER auto-deleted from source — reported back for
-    the user to remove by hand, since a deletion is the one push action that
-    can't be undone by re-diffing.
-
-    Conflict check: if `source`'s file was modified after this copy was
-    created (mtime-based — the same approximate signal as the graph's
-    "needs update" ring), the push is refused for that file unless
-    `force=True`. This is the "review-first, conflict-aware" behavior from
-    the design: never silently overwrite a source that moved on.
-    """
-    all_changed = await list_changed_files(source, copy)
-    wanted = set(files) if files is not None else None
-    created_at = _copy_created_at(copy)
-
-    pushed, skipped_deletions, conflicts, errors = [], [], [], []
-    for entry in all_changed:
-        rel, code = entry["path"], entry["status"]
-        if wanted is not None and rel not in wanted:
+            pass
+    out: list[dict] = []
+    for d in sorted(workroot.iterdir()):
+        if not d.is_dir() or d.name in ("_scratch", "_missions") or d.name in known:
             continue
-        if code == "D":
-            skipped_deletions.append(rel)
-            continue
-        src_file = source / rel
-        copy_file = copy / rel
-        if not force:
-            try:
-                if src_file.exists() and src_file.stat().st_mtime > created_at:
-                    conflicts.append(rel)
-                    continue
-            except Exception:
-                pass
-        try:
-            src_file.parent.mkdir(parents=True, exist_ok=True)
-            src_file.write_bytes(copy_file.read_bytes())
-            pushed.append(rel)
-        except Exception as exc:
-            errors.append({"path": rel, "error": str(exc)})
-            logger.warning("push_changes: failed to write %s: %s", src_file, exc)
-
-    return {"pushed": pushed, "skipped_deletions": skipped_deletions,
-            "conflicts": conflicts, "errors": errors}
+        origin = read_origin(d)
+        running = d.name in OC.runtimes and OC.runtimes[d.name].alive
+        has_diff = await _wt_has_changes(d)
+        mm = mid_re.match(d.name)
+        base = Path(origin).name if origin else (
+            (mm.group("slug") if mm else d.name.rsplit("-", 1)[0]).replace("-", " "))
+        # keep state 'orphan' so the graph's existing worktree controls apply;
+        # only the category differs so missions cluster on their own.
+        out.append({
+            "slug": d.name,
+            "name": (f"{base} · {mm.group('mid')}" if mm else base) or d.name,
+            "path": origin or str(d), "readonly": False,
+            "category": "Missions" if mm else "Orphans",
+            "state": "orphan", "ring": None,
+            "wiki_entity": None, "origin": origin, "worktree": str(d),
+            "running": running, "source_missing": not (origin and Path(origin).is_dir()),
+            "copies": [{"folder": d.name, "has_diff": bool(has_diff),
+                        "ready_to_push": False, "needs_update": False}],
+        })
+    return out
 
 
 async def compute_graph(workroot: Path) -> list[dict]:
@@ -324,13 +202,10 @@ async def compute_graph(workroot: Path) -> list[dict]:
             out.append({**p, "state": "unknown", "ring": None, "wiki_entity": None, "copies": []})
         else:
             out.append(r)
-    for local in discover_local_projects(workroot):
-        chats = _find_chats_for(Path(local["path"]), workroot) or [Path(local["path"])]
-        out.append({
-            **local, "state": "blue", "ring": None, "wiki_entity": None,
-            "copies": [{"folder": c.name, "has_diff": False,
-                        "ready_to_push": False, "needs_update": False} for c in chats],
-        })
+    try:
+        out.extend(await _orphan_nodes(workroot))
+    except Exception as exc:
+        logger.warning("graph: orphan scan failed: %s", exc)
     return out
 
 

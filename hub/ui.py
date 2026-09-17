@@ -138,10 +138,16 @@ if (isWindows()) {
   wakeBtn.onclick = async () => {
     wakeBtn.textContent = 'STARTING…';
     wakeBtn.disabled = true;
-    // Hand Windows the agenthub:// link → it runs the launcher (.vbs) in
-    // server-only mode and this same window reconnects. (Register it once with
-    // register-agenthub-protocol.reg.)
-    triggerProtocol('agenthub://start');
+    // Hand Windows the agenthub:// link → it runs the launcher (.vbs), which
+    // starts ONE server (it self-guards via the heartbeat lock). Debounce here
+    // too: never fire it more than once per 20s, no matter how many times this
+    // page reloads or the button is mashed.
+    let last = 0;
+    try { last = +(localStorage.getItem('agenthub:lastStart') || 0); } catch (e) {}
+    if (Date.now() - last > 20000) {
+      try { localStorage.setItem('agenthub:lastStart', Date.now()); } catch (e) {}
+      triggerProtocol('agenthub://start');
+    }
     let n = 0;
     const t = setInterval(async () => {
       n += 1;
@@ -291,8 +297,16 @@ header{display:flex;align-items:center;gap:14px;padding:22px 20px 24px;border-bo
 
 /* ── PC power control (center-bottom) ────────────────────────────────────── */
 .power-wrap{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));
-  transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;align-items:center;gap:12px}
-.power-btn{width:66px;height:66px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;
+  transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;align-items:center;gap:12px;
+  pointer-events:none}
+/* .power-wrap itself is click-through: .power-menu is `display:flex` even
+   while closed (only opacity/pointer-events toggle on .open), so its full
+   ~200px-tall layout footprint sits invisibly above everything at z-index
+   60 the whole time. Without this, that dead space silently swallows clicks
+   meant for whatever's actually rendered underneath it (e.g. a card's
+   button on a short viewport) instead of passing them through. Both actual
+   interactive pieces opt back in explicitly below. */
+.power-btn{pointer-events:auto;width:66px;height:66px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;
   background:
     conic-gradient(from 218deg at 50% 50%,rgba(150,175,255,.12),rgba(0,0,0,.10) 25%,rgba(140,165,255,.09) 50%,rgba(0,0,0,.10) 75%,rgba(150,175,255,.12) 100%),
     linear-gradient(180deg,#1a2170 0%,#0d1050 46%,#0a0c3e 54%,#160b54 100%);
@@ -340,9 +354,33 @@ header{display:flex;align-items:center;gap:14px;padding:22px 20px 24px;border-bo
   letter-spacing:4px;text-shadow:0 0 20px rgba(0,230,118,.4)}
 .sub{font-size:11px;color:var(--text-faint);letter-spacing:.5px;margin-top:2px}
 #apps{padding:18px 16px}
-.card{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--border-dim);
+.card{position:relative;display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--border-dim);
   border-radius:10px;padding:16px;margin-bottom:12px;transition:border-color .15s}
 .card:hover{border-color:var(--border-bright)}
+/* ── edit / "jiggle" mode: reorder + wire-out ─────────────────────────────── */
+body.edit-mode .card.app-card{animation:jiggle .32s ease-in-out infinite alternate}
+body.edit-mode .card.app-card:nth-child(even){animation-delay:-.16s}
+@keyframes jiggle{from{transform:rotate(-.5deg)}to{transform:rotate(.5deg)}}
+.card.app-card.dragging{opacity:.85;animation:none !important;box-shadow:0 10px 28px rgba(0,0,0,.5);
+  border-color:var(--accent);touch-action:none}
+.wire-out{position:absolute;top:-9px;right:-9px;width:26px;height:26px;border-radius:50%;display:none;
+  align-items:center;justify-content:center;background:#ff5c5c;color:#0a0a0a;font-size:15px;font-weight:700;
+  border:2px solid var(--bg);cursor:pointer;z-index:2;line-height:1;touch-action:none}
+body.edit-mode .wire-out{display:flex}
+.drag-handle{display:none;color:var(--text-faint);font-size:20px;cursor:grab;padding:4px 6px;margin:-4px 0;
+  touch-action:none;-webkit-user-select:none;user-select:none}
+body.edit-mode .drag-handle{display:block}
+.drag-handle:active{cursor:grabbing;color:var(--accent)}
+.ingest-card{border-style:dashed;justify-content:center;cursor:pointer;color:var(--text-muted);
+  font-family:'Orbitron',monospace;font-size:11px;letter-spacing:2px}
+.ingest-card:hover{border-color:var(--accent);color:var(--accent)}
+#edit-toggle.on{background:rgba(0,230,118,.14);border-color:var(--accent);color:var(--accent)}
+#trash-zone{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(30px);
+  z-index:90;padding:12px 22px;border-radius:14px;border:2px dashed rgba(255,92,92,.6);background:rgba(20,6,10,.92);
+  color:#ff8a8a;font-family:'Orbitron',monospace;font-size:11px;letter-spacing:2px;display:flex;align-items:center;gap:8px;
+  opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
+body.edit-mode #trash-zone{opacity:1;transform:translateX(-50%) translateY(0)}
+#trash-zone.hot{background:rgba(255,92,92,.22);border-style:solid}
 .card-emoji{font-size:26px;flex-shrink:0}
 .card-body{flex:1;min-width:0}
 .card-name{font-size:14.5px;font-weight:600;color:var(--text)}
@@ -351,9 +389,16 @@ header{display:flex;align-items:center;gap:14px;padding:22px 20px 24px;border-bo
 .status-dot{width:6px;height:6px;border-radius:50%;background:var(--text-faint)}
 .status-dot.running{background:var(--accent);box-shadow:0 0 6px var(--accent)}
 .card-actions{display:flex;gap:8px;flex-shrink:0}
-.btn{font-family:'Orbitron',monospace;font-size:9px;letter-spacing:1px;padding:8px 14px;border-radius:6px;
+.btn{font-family:'Orbitron',monospace;font-size:9.5px;letter-spacing:1px;padding:10px 14px;min-height:40px;border-radius:6px;
+  display:inline-flex;align-items:center;justify-content:center;
   border:1px solid var(--border-bright);background:transparent;color:var(--accent);cursor:pointer;
-  transition:all .15s;white-space:nowrap}
+  transition:all .15s;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+/* OpenCode card: give its four links a full row of comfortable 2×2 tap targets
+   instead of tiny wrapped chips crammed next to the title on a phone. */
+#oc-header{flex-wrap:wrap}
+#oc-header .card-body{min-width:140px}
+#opencode-app-area .card-actions{flex-basis:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;justify-content:stretch}
+#opencode-app-area .card-actions .btn{width:100%;min-height:46px;font-size:10px}
 .btn:hover:not(:disabled){background:rgba(0,230,118,.1);box-shadow:0 0 10px rgba(0,230,118,.18)}
 .btn:disabled{opacity:.4;cursor:not-allowed}
 .btn.stop{border-color:rgba(255,92,92,.4);color:#ff5c5c}
@@ -395,13 +440,63 @@ header{display:flex;align-items:center;gap:14px;padding:22px 20px 24px;border-bo
 .yt-thumb-preview{width:100%;max-width:200px;border-radius:8px;display:block;margin:0 auto 8px}
 .yt-progress-bar{height:6px;border-radius:3px;background:var(--border-dim);overflow:hidden;margin-top:8px}
 .yt-progress-fill{height:100%;background:var(--accent);width:0%;transition:width .3s}
+/* Post-download ffmpeg work (thumbnail crop + embed) has no percentage to
+   show — a pulsing full-width fill signals "still working" instead of the
+   bar looking frozen at 100% while nothing visibly happens. */
+.yt-progress-fill.processing{width:100%!important;animation:ytdlProcessingPulse 1.2s ease-in-out infinite}
+@keyframes ytdlProcessingPulse{0%,100%{opacity:.35}50%{opacity:1}}
 .yt-progress-text{font-family:'Orbitron',monospace;font-size:10px;color:var(--text-muted);margin-top:6px;text-align:center}
+.yt-active-title{font-size:12.5px;color:var(--text);text-align:center;margin-top:10px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Format picker: a two-position slider (Video / Audio) instead of a select —
+   sliding thumb behind whichever is active, same metal-panel look as the
+   power button, not a generic switch. */
+.fmt-slider{position:relative;display:flex;background:var(--border-dim);border-radius:10px;padding:4px;gap:4px}
+.fmt-slider-thumb{position:absolute;top:4px;left:4px;width:calc(50% - 4px);height:calc(100% - 8px);
+  border-radius:7px;
+  background:linear-gradient(180deg,#1a2170 0%,#0d1050 46%,#0a0c3e 54%,#160b54 100%);
+  border:1px solid rgba(110,140,235,.32);
+  box-shadow:inset 0 1px 0 rgba(140,165,255,.40),0 2px 8px rgba(0,0,0,.35);
+  transition:transform .2s ease;pointer-events:none}
+.fmt-slider[data-value="audio"] .fmt-slider-thumb{transform:translateX(100%)}
+.fmt-slider-opt{position:relative;z-index:1;flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
+  padding:9px 0;background:transparent;border:none;cursor:pointer;color:var(--text-muted);
+  font-family:'Orbitron',monospace;font-size:10px;letter-spacing:1px;transition:color .2s}
+.fmt-slider-opt svg{width:15px;height:15px;flex-shrink:0}
+.fmt-slider[data-value="video"] .fmt-slider-opt[data-fmt="video"],
+.fmt-slider[data-value="audio"] .fmt-slider-opt[data-fmt="audio"]{color:var(--accent)}
+
+/* Waiting queue — one row per item, each independently swappable/deletable
+   until it's actually started (the active download is shown separately
+   above, via .yt-active-title, and isn't part of this list). */
+.yt-queue-list{margin-top:10px}
+.yt-queue-label{font-family:'Orbitron',monospace;font-size:9px;letter-spacing:1px;color:var(--text-faint);margin-bottom:6px}
+.yt-queue-row{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:7px;
+  background:rgba(0,230,118,.04);margin-bottom:5px}
+.yt-queue-fmt-toggle{flex-shrink:0;width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+  background:transparent;border:1px solid var(--border-bright);color:var(--accent);cursor:pointer}
+.yt-queue-fmt-toggle svg{width:13px;height:13px}
+.yt-queue-url{flex:1;min-width:0;font-size:11.5px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.yt-queue-del{flex-shrink:0;width:22px;height:22px;border-radius:5px;background:transparent;border:none;
+  color:#ff5c5c;cursor:pointer;font-size:13px;line-height:1}
+.yt-queue-del:hover{background:rgba(255,92,92,.12)}
 .yt-result{margin-top:12px;font-size:12.5px;text-align:center}
 .yt-result a{color:var(--accent)}
 .yt-manual-btn{margin-top:8px}
+#oc-header{cursor:default}
+#hub-toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(12px);
+  z-index:120;max-width:min(440px,90vw);padding:12px 16px;border-radius:10px;font-size:12.5px;line-height:1.5;
+  background:var(--panel);border:1px solid var(--border-bright);color:var(--text);box-shadow:0 8px 30px rgba(0,0,0,.5);
+  opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
+#hub-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#hub-toast.err{border-color:rgba(255,92,92,.6);color:#ffb3b3}
 </style>
 </head>
 <body>
+
+<div id="hub-toast"></div>
+<div id="trash-zone">🗑 DRAG HERE TO WIRE OUT</div>
 
 <header>
   <img class="brand-icon" src="/favicon.png" alt="Agent Hub">
@@ -413,6 +508,15 @@ header{display:flex;align-items:center;gap:14px;padding:22px 20px 24px;border-bo
     <div id="conn-dot"></div>
   </div>
   <div class="header-shortcuts" id="header-shortcuts"></div>
+  <button type="button" class="shortcut-btn" id="edit-toggle" title="Rearrange / wire out apps" aria-label="Edit apps">
+    <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><g transform="rotate(45 12 12)">
+      <rect x="9.3" y="1.4" width="5.4" height="3.8" rx="1.3" fill="#ff5c5c"/>
+      <rect x="9.3" y="5.1" width="5.4" height="1.6" fill="#e4e4e4"/>
+      <rect x="9.3" y="6.6" width="5.4" height="10.3" fill="#f5c842"/>
+      <path d="M9.3 16.9h5.4l-1.7 4.3a1 1 0 0 1-1.9 0L9.3 16.9Z" fill="#c98a3e"/>
+      <path d="M10.9 19.3h2.2l-.8 2a.6.6 0 0 1-1.1 0l-.8-2Z" fill="#1a1a1a"/>
+    </g></svg>
+  </button>
   <button type="button" class="restart-btn" id="restart-btn" title="Restart Agent Hub" aria-label="Restart Agent Hub">
     <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.36"/><path d="M21 4v5h-5"/></svg>
   </button>
@@ -428,7 +532,13 @@ header{display:flex;align-items:center;gap:14px;padding:22px 20px 24px;border-bo
 <div id="yt-app-area">
 <div class="yt-card">
   <div class="yt-header" id="yt-header">
-    <div class="card-emoji">📺</div>
+    <div class="card-emoji"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+      <defs><linearGradient id="gUpload" x1="2" y1="3" x2="22" y2="21" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#e60000"/><stop offset="1" stop-color="#7a0000"/>
+      </linearGradient></defs>
+      <rect x="1" y="1" width="22" height="22" rx="6" fill="url(#gUpload)"/>
+      <path d="M12 18V9m0 0-3.2 3.2M12 9l3.2 3.2M6.5 6h11" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg></div>
     <div class="card-body">
       <div class="card-name">YouTube Upload</div>
       <div class="card-status" id="yt-status-line"><span class="status-dot"></span>IDLE</div>
@@ -494,7 +604,13 @@ header{display:flex;align-items:center;gap:14px;padding:22px 20px 24px;border-bo
 <div id="ytdl-app-area">
 <div class="yt-card">
   <div class="yt-header" id="ytdl-header">
-    <div class="card-emoji">⬇️</div>
+    <div class="card-emoji"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+      <defs><linearGradient id="gDownload" x1="2" y1="3" x2="22" y2="21" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#3ba7ff"/><stop offset="1" stop-color="#122e8f"/>
+      </linearGradient></defs>
+      <rect x="1" y="1" width="22" height="22" rx="6" fill="url(#gDownload)"/>
+      <path d="M12 6v9m0 0-3.2-3.2M12 15l3.2-3.2M6.5 18h11" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg></div>
     <div class="card-body">
       <div class="card-name">YouTube Download</div>
       <div class="card-status" id="ytdl-status-line"><span class="status-dot"></span>IDLE</div>
@@ -512,17 +628,30 @@ header{display:flex;align-items:center;gap:14px;padding:22px 20px 24px;border-bo
 
     <div class="yt-section">
       <label>Format</label>
-      <select id="ytdl-format">
-        <option value="video" selected>🎬 Video (1080p MP4)</option>
-        <option value="audio">🎵 Audio (MP3 320k)</option>
-      </select>
+      <div class="fmt-slider" id="ytdl-format-slider" data-value="video">
+        <div class="fmt-slider-thumb"></div>
+        <button type="button" class="fmt-slider-opt" data-fmt="video">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="15" height="14" rx="2"/><path d="M17 9.5 22 6v12l-5-3.5"/></svg>
+          <span>VIDEO</span>
+        </button>
+        <button type="button" class="fmt-slider-opt" data-fmt="audio">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          <span>AUDIO</span>
+        </button>
+      </div>
     </div>
 
     <button type="button" class="btn" id="ytdl-download-btn" style="width:100%;margin-top:14px">DOWNLOAD</button>
 
+    <div class="yt-active-title" id="ytdl-active-title" style="display:none"></div>
     <div id="ytdl-progress-wrap" style="display:none">
       <div class="yt-progress-bar"><div class="yt-progress-fill" id="ytdl-progress-fill"></div></div>
       <div class="yt-progress-text" id="ytdl-progress-text">0%</div>
+    </div>
+
+    <div class="yt-queue-list" id="ytdl-queue-list" style="display:none">
+      <div class="yt-queue-label">QUEUED</div>
+      <div id="ytdl-queue-rows"></div>
     </div>
 
     <div class="yt-result" id="ytdl-result" style="display:none"></div>
@@ -532,6 +661,7 @@ header{display:flex;align-items:center;gap:14px;padding:22px 20px 24px;border-bo
 </div>
 
 <div id="apps-after"></div>
+<div id="filebrowser-area"></div>
 
 <div id="opencode-app-area">
 <div class="yt-card">
@@ -557,36 +687,14 @@ header{display:flex;align-items:center;gap:14px;padding:22px 20px 24px;border-bo
     </div>
     <div class="card-body">
       <div class="card-name">OpenCode</div>
-      <div class="card-status" id="oc-status-line"><span class="status-dot"></span>0 SESSIONS</div>
+      <div class="card-status" id="oc-status-line"><span class="status-dot"></span>agents &amp; missions</div>
     </div>
     <div class="card-actions">
-      <button type="button" class="btn" id="oc-graph-btn" title="Project status graph">GRAPH</button>
-      <button type="button" class="btn" id="oc-toggle-btn">EXPAND</button>
+      <a class="btn" href="/missions">MISSIONS</a>
+      <a class="btn" href="/agents">AGENTS</a>
+      <a class="btn" href="/graph">GRAPH</a>
+      <button type="button" class="btn" id="oc-scratch-btn" title="A project-less OpenCode chat (raw UI, new tab)">QUICK CHAT</button>
     </div>
-  </div>
-  <div class="yt-expanded" id="oc-expanded">
-
-    <div class="yt-section">
-      <label>Folder to work on</label>
-      <input type="text" id="oc-source" placeholder="N:\\Code\\...\\your-repo">
-    </div>
-    <div class="yt-section">
-      <label>Session name (optional)</label>
-      <input type="text" id="oc-name" placeholder="defaults to folder name">
-    </div>
-    <button type="button" class="btn" id="oc-create-btn" style="width:100%">+ NEW SESSION</button>
-
-    <div class="yt-section" style="margin-top:16px">
-      <label>Resume a previous folder (no copy)</label>
-      <div style="display:flex;gap:8px;align-items:center">
-        <select id="oc-folders" style="flex:1;min-width:0"></select>
-        <button type="button" class="oc-btn" id="oc-resume-btn">RESUME</button>
-      </div>
-    </div>
-
-    <div class="yt-result" id="oc-auth" style="display:none;margin-top:12px"></div>
-    <div id="oc-session-list" style="margin-top:14px"></div>
-
   </div>
 </div>
 </div>
@@ -625,6 +733,20 @@ header{display:flex;align-items:center;gap:14px;padding:22px 20px 24px;border-bo
 <script>
 const APPS = __APPS_JSON__;
 const SHORTCUTS = __SHORTCUTS_JSON__;
+
+// Non-blocking toast — a native alert() freezes the whole window (every link
+// included) until dismissed, which on the PWA / a second monitor reads as
+// "buttons stopped working".
+let _toastT = null;
+function toast(msg, kind) {
+  const el = document.getElementById('hub-toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.toggle('err', kind === 'err');
+  el.classList.add('show');
+  clearTimeout(_toastT);
+  _toastT = setTimeout(() => el.classList.remove('show'), 4200);
+}
 const appsBefore = document.getElementById('apps-before');
 const appsAfter  = document.getElementById('apps-after');
 const ytAppArea   = document.getElementById('yt-app-area');
@@ -633,6 +755,17 @@ const ocAppArea   = document.getElementById('opencode-app-area');
 const powerWrap   = document.getElementById('power-wrap');
 let downCount = 0;   // consecutive failed status polls → surface the dormant page
 const shortcutsEl = document.getElementById('header-shortcuts');
+
+// Fixed page order: ingested apps (Movie Clipper — the "wire in" example — +
+// the ＋ INGEST APP button) first, then the standard built-in features in a
+// fixed order: OpenCode, YT Download, YT Upload, File Browser. The standard
+// section is never draggable/wire-out-able — only the ingested-apps list is.
+(function reorderSections() {
+  const anchor = document.getElementById('power-scrim');
+  if (!anchor || !anchor.parentNode) return;
+  ['apps-before', 'opencode-app-area', 'ytdl-app-area', 'yt-app-area', 'filebrowser-area']
+    .forEach(id => { const el = document.getElementById(id); if (el) anchor.parentNode.insertBefore(el, anchor); });
+})();
 
 // SMB (and any other static shortcut) now lives inside its app's card, not the
 // header — the header's top-right is the power/shutdown control.
@@ -701,9 +834,43 @@ function renderShortcuts() {
 }
 renderShortcuts();
 
-// Setup-prerequisite banner: detection only, never auto-installs anything —
-// just says plainly what's missing instead of letting a card fail silently
-// the first time you click it. Checked once on load, not polled.
+// Setup-prerequisite banner: mostly detection only — just says plainly
+// what's missing instead of letting a card fail silently the first time you
+// click it. A couple of issues (OpenCode, YouTube deps) additionally carry a
+// same-machine, reversible install action (see hub/features/setup_actions.py)
+// offered as a one-click button here; system-level issues (Node.js,
+// Tailscale) only ever offer a copyable command, never auto-run. Checked
+// once on load, not polled.
+function setupActionHtml(action) {
+  if (!action) return '';
+  if (action.kind === 'install') {
+    return `<button type="button" class="btn setup-action" data-id="${action.id}"
+      onclick="runSetupInstall(this)" style="margin-top:8px">${action.label || 'INSTALL'}</button>`;
+  }
+  if (action.kind === 'command') {
+    return `<button type="button" class="btn setup-action" data-cmd="${(action.command||'').replace(/"/g,'&quot;')}"
+      onclick="copySetupCommand(this)" style="margin-top:8px">${action.label || 'COPY COMMAND'}</button>`;
+  }
+  return '';
+}
+window.copySetupCommand = (btn) => {
+  const cmd = btn.dataset.cmd || '';
+  (navigator.clipboard?.writeText(cmd) || Promise.reject()).catch(() => {});
+  const orig = btn.textContent; btn.textContent = 'COPIED';
+  setTimeout(() => { btn.textContent = orig; }, 1500);
+};
+window.runSetupInstall = async (btn) => {
+  const id = btn.dataset.id;
+  btn.disabled = true; btn.textContent = 'INSTALLING…';
+  try {
+    const r = await fetch('/api/setup/install/' + encodeURIComponent(id), {method: 'POST'});
+    const data = await r.json();
+    if (!data.ok) console.warn('setup install failed:', data.log);
+    await loadSetupStatus();
+  } catch (e) {
+    btn.textContent = 'FAILED'; btn.disabled = false;
+  }
+};
 async function loadSetupStatus() {
   const el = document.getElementById('setup-banner');
   try {
@@ -713,84 +880,218 @@ async function loadSetupStatus() {
       <div class="setup-issue ${i.severity}">
         <b>${i.title}</b>
         <span class="detail">${i.detail}${i.readme_anchor ? ` — see README${i.readme_anchor}` : ''}</span>
+        ${setupActionHtml(i.action)}
       </div>`).join('');
   } catch (e) { /* setup status is non-critical — fail silent */ }
 }
 loadSetupStatus();
 
-function render(status) {
-  appsBefore.innerHTML = '';
-  appsAfter.innerHTML = '';
-  const ids = Object.keys(APPS);
-  if (!ids.length) {
-    appsBefore.innerHTML = '<div id="empty">No apps registered yet.</div>';
-    return;
+let APP_LIST = [];       // from /api/apps — the ordered, editable "ingested apps" list
+let EDIT = false;
+let _dragCard = null, _dragStartY = 0, _dragPointerId = null;
+
+// A fancier badge icon for a standard feature card, in place of its plain
+// registry emoji (which stays as the /api/apps fallback for anything else).
+const CARD_ICONS = {
+  'file-browser': `<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+    <defs>
+      <radialGradient id="gFolderBadge" cx="35%" cy="30%" r="85%">
+        <stop offset="0" stop-color="#ffe9a8"/><stop offset=".5" stop-color="#d4a017"/><stop offset="1" stop-color="#7a5206"/>
+      </radialGradient>
+      <clipPath id="gFolderClip"><path d="M5 8.3h4.3l1.3 1.4H19a1 1 0 0 1 1 1V17a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9.3a1 1 0 0 1 1-1Z"/></clipPath>
+    </defs>
+    <rect width="24" height="24" rx="3" fill="url(#gFolderBadge)"/>
+    <g clip-path="url(#gFolderClip)">
+      <rect x="0" y="0" width="24" height="9.7" fill="#9a9a9a"/>
+      <rect x="0" y="9.7" width="24" height="14.3" fill="#111"/>
+    </g>
+    <path d="M5 8.3h4.3l1.3 1.4H19a1 1 0 0 1 1 1V17a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9.3a1 1 0 0 1 1-1Z" fill="none" stroke="#c9c9c9" stroke-width=".6" stroke-linejoin="round"/>
+  </svg>`,
+};
+
+// File Browser is a standard feature (like OpenCode/YT), not an ingested app —
+// it renders as a fixed card via renderFileBrowser(), never in this editable list.
+function buildAppCard(info, editable) {
+  const id = info.id, running = !!info.running;
+  const card = document.createElement('div');
+  card.className = 'card app-card';
+  card.dataset.id = id;
+  card.innerHTML = `
+    ${editable ? '<span class="drag-handle" title="Drag to reorder">⠿</span>' : ''}
+    <div class="card-emoji">${CARD_ICONS[id] || info.emoji || '📦'}</div>
+    <div class="card-body">
+      <div class="card-name">${info.name}</div>
+      <div class="card-status"><span class="status-dot ${running ? 'running' : ''}"></span>${running ? 'RUNNING' : 'IDLE'}${info.serve === 'direct' ? ' · NEW TAB' : ''}</div>
+    </div>
+    <div class="card-actions"></div>
+    ${editable ? '<span class="wire-out" title="Wire out">✕</span>' : ''}`;
+  const actions = card.querySelector('.card-actions');
+
+  const openBtn = document.createElement('button');
+  openBtn.className = 'btn';
+  openBtn.textContent = running ? 'OPEN' : 'START';
+  openBtn.onclick = async () => {
+    openBtn.disabled = true;
+    openBtn.textContent = running ? 'OPENING…' : 'STARTING…';
+    try {
+      const res = await fetch(`/api/start/${id}`, {method: 'POST'});
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      if (data.serve === 'direct' && data.open_url) window.open(data.open_url, '_blank');
+      else window.location.href = data.base_path + '/';
+    } catch (err) {
+      toast(`Failed to start ${info.name}: ${err.message}`, 'err');
+    } finally {
+      openBtn.disabled = false;
+      openBtn.textContent = running ? 'OPEN' : 'START';
+    }
+  };
+  actions.appendChild(openBtn);
+
+  if (id === 'file-browser' && SMB_SHORTCUT) {
+    const smbBtn = document.createElement('a');
+    smbBtn.className = 'btn';
+    smbBtn.textContent = SMB_SHORTCUT.emoji + ' SMB';
+    smbBtn.href = SMB_SHORTCUT.href;
+    smbBtn.title = SMB_SHORTCUT.title;
+    actions.appendChild(smbBtn);
   }
-  for (const id of ids) {
-    // YouTube Upload's static card sits between the two — everything up to and
-    // including movie-clipper renders before it, the rest render after.
-    const container = id === 'movie-clipper' ? appsBefore : appsAfter;
-    const info = APPS[id];
-    const running = status[id] && status[id].running;
 
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `
-      <div class="card-emoji">${info.emoji}</div>
-      <div class="card-body">
-        <div class="card-name">${info.name}</div>
-        <div class="card-status"><span class="status-dot ${running ? 'running' : ''}"></span>${running ? 'RUNNING' : 'IDLE'}</div>
-      </div>
-      <div class="card-actions"></div>
-    `;
-    const actions = card.querySelector('.card-actions');
-
-    const openBtn = document.createElement('button');
-    openBtn.className = 'btn';
-    openBtn.textContent = running ? 'OPEN' : 'START';
-    openBtn.onclick = async () => {
-      openBtn.disabled = true;
-      openBtn.textContent = running ? 'OPENING…' : 'STARTING…';
-      try {
-        const res = await fetch(`/api/start/${id}`, {method: 'POST'});
-        if (!res.ok) throw new Error(await res.text());
-        const data = await res.json();
-        window.location.href = data.base_path + '/';
-      } catch (err) {
-        alert(`Failed to start ${info.name}: ${err.message}`);
-        openBtn.disabled = false;
-        openBtn.textContent = running ? 'OPEN' : 'START';
-      }
+  if (running) {
+    const stopBtn = document.createElement('button');
+    stopBtn.className = 'btn stop';
+    stopBtn.textContent = 'STOP';
+    stopBtn.onclick = async () => {
+      stopBtn.disabled = true;
+      await fetch(`/api/stop/${id}`, {method: 'POST'});
+      refresh();
     };
-    actions.appendChild(openBtn);
+    actions.appendChild(stopBtn);
+  }
 
-    // File Browser also gets a direct SMB link — opens the N: drive in the OS Files app.
-    // It's its own <a>, kept separate from OPEN so tapping one never triggers
-    // the other.
-    if (id === 'file-browser' && SMB_SHORTCUT) {
-      const smbBtn = document.createElement('a');
-      smbBtn.className = 'btn';
-      smbBtn.textContent = SMB_SHORTCUT.emoji + ' SMB';
-      smbBtn.href = SMB_SHORTCUT.href;
-      smbBtn.title = SMB_SHORTCUT.title;
-      actions.appendChild(smbBtn);
+  if (editable) {
+    card.querySelector('.wire-out').onclick = (e) => { e.stopPropagation(); wireOut(info); };
+    card.querySelector('.drag-handle').addEventListener('pointerdown', (e) => startDrag(e, card));
+  }
+  return card;
+}
+
+function render() {
+  appsBefore.innerHTML = '';
+  for (const info of APP_LIST) {
+    if (info.hidden || info.id === 'file-browser') continue;
+    appsBefore.appendChild(buildAppCard(info, true));
+  }
+  const add = document.createElement('div');
+  add.className = 'card ingest-card';
+  add.textContent = '＋ INGEST APP';
+  add.onclick = ingestPrompt;
+  appsBefore.appendChild(add);
+}
+
+function renderFileBrowser() {
+  const host = document.getElementById('filebrowser-area');
+  if (!host) return;
+  host.innerHTML = '';
+  const fb = APP_LIST.find(a => a.id === 'file-browser');
+  if (fb && !fb.hidden) host.appendChild(buildAppCard(fb, false));
+}
+
+// ── reorder + drag-to-trash via Pointer Events — one code path for mouse AND
+// touch (unlike HTML5 drag-and-drop, which touch browsers don't fire at all). ──
+function startDrag(e, card) {
+  if (!EDIT) return;
+  e.preventDefault();
+  _dragCard = card;
+  _dragStartY = e.clientY;
+  _dragPointerId = e.pointerId;
+  try { card.setPointerCapture(e.pointerId); } catch (err) {}
+  card.classList.add('dragging');
+  card.style.zIndex = 60;
+  document.addEventListener('pointermove', onDragMove);
+  document.addEventListener('pointerup', onDragEnd, {once: true});
+  document.addEventListener('pointercancel', onDragEnd, {once: true});
+}
+function onDragMove(e) {
+  if (!_dragCard) return;
+  e.preventDefault();
+  _dragCard.style.transform = `translateY(${e.clientY - _dragStartY}px)`;
+
+  const trash = document.getElementById('trash-zone');
+  const tr = trash.getBoundingClientRect();
+  const overTrash = e.clientY >= tr.top && e.clientY <= tr.bottom && e.clientX >= tr.left && e.clientX <= tr.right;
+  trash.classList.toggle('hot', overTrash);
+  if (overTrash) return;
+
+  const siblings = [...appsBefore.querySelectorAll('.app-card')].filter(c => c !== _dragCard);
+  for (const sib of siblings) {
+    const r = sib.getBoundingClientRect();
+    const mid = r.top + r.height / 2;
+    const pos = sib.compareDocumentPosition(_dragCard);
+    if (e.clientY < mid && (pos & Node.DOCUMENT_POSITION_FOLLOWING)) {
+      appsBefore.insertBefore(_dragCard, sib);
+      _dragStartY = e.clientY; _dragCard.style.transform = '';
+      break;
     }
-
-    if (running) {
-      const stopBtn = document.createElement('button');
-      stopBtn.className = 'btn stop';
-      stopBtn.textContent = 'STOP';
-      stopBtn.onclick = async () => {
-        stopBtn.disabled = true;
-        await fetch(`/api/stop/${id}`, {method: 'POST'});
-        refresh();
-      };
-      actions.appendChild(stopBtn);
+    if (e.clientY > mid && (pos & Node.DOCUMENT_POSITION_PRECEDING)) {
+      appsBefore.insertBefore(_dragCard, sib.nextSibling);
+      _dragStartY = e.clientY; _dragCard.style.transform = '';
+      break;
     }
-
-    container.appendChild(card);
   }
 }
+function onDragEnd(e) {
+  document.removeEventListener('pointermove', onDragMove);
+  if (!_dragCard) return;
+  const card = _dragCard, id = card.dataset.id;
+  try { card.releasePointerCapture(_dragPointerId); } catch (err) {}
+  card.classList.remove('dragging');
+  card.style.transform = ''; card.style.zIndex = '';
+  const trash = document.getElementById('trash-zone');
+  const wasHot = trash.classList.contains('hot');
+  trash.classList.remove('hot');
+  _dragCard = null;
+  if (wasHot) {
+    const info = APP_LIST.find(a => a.id === id);
+    if (info) wireOut(info);
+    return;
+  }
+  const order = [...appsBefore.querySelectorAll('.app-card')].map(c => c.dataset.id);
+  fetch('/api/apps/reorder', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({order})}).then(refresh);
+}
+
+async function wireOut(info) {
+  const purge = info.source && info.source !== 'wired-in';
+  const msg = info.builtin
+    ? `Wire out "${info.name}"? Its repo on disk is untouched — restore it later with /api/apps/${info.id}/restore.`
+    : `Wire out "${info.name}"${purge ? ' and delete its clone' : ''}?`;
+  if (!confirm(msg)) return;
+  await fetch(`/api/apps/${info.id}${purge ? '?purge=1' : ''}`, {method: 'DELETE'});
+  toast(`${info.name} wired out`);
+  refresh();
+}
+
+async function ingestPrompt() {
+  const url = prompt('Git URL of the web app to ingest:');
+  if (!url || !url.trim()) return;
+  const name = prompt('Display name (optional):') || undefined;
+  try {
+    const res = await fetch('/api/apps/ingest', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url: url.trim(), name})});
+    if (!res.ok) throw new Error(await res.text());
+    toast('Ingest mission started — review it on /missions, then APPLY to wire it in.');
+    setTimeout(() => { window.location.href = '/missions'; }, 1200);
+  } catch (e) { toast('Ingest failed: ' + e.message, 'err'); }
+}
+
+const editToggle = document.getElementById('edit-toggle');
+editToggle.onclick = () => {
+  EDIT = !EDIT;
+  document.body.classList.toggle('edit-mode', EDIT);
+  editToggle.classList.toggle('on', EDIT);
+  render();
+};
 
 const connLabel = document.getElementById('conn-label');
 const connDot   = document.getElementById('conn-dot');
@@ -806,27 +1107,55 @@ async function refresh() {
   try {
     const res = await fetch('/api/status', {signal: AbortSignal.timeout(4000)});
     if (!res.ok) throw new Error('bad status');
-    const status = await res.json();
+    await res.json();
     setConn(true);
     downCount = 0;
     ytAppArea.style.display = '';
     ytdlAppArea.style.display = '';
-    ocAppArea.style.display = '';
     powerWrap.style.display = '';
-    render(status);
+    try {
+      const a = await fetch('/api/apps', {cache: 'no-store', signal: AbortSignal.timeout(4000)});
+      if (a.ok) { APP_LIST = (await a.json()).apps || []; }
+    } catch (e) { /* keep the last list */ }
+    // Lightweight YT-DL status, no websocket — so a device whose card is
+    // COLLAPSED (or another device entirely, e.g. phone while PC downloads)
+    // still shows "downloading"/"queued" instead of a stale "IDLE" until
+    // someone happens to expand it. Skipped once the card's own live WS is
+    // driving the status line for real (ytdlOpen) so the two never fight.
+    try {
+      if (typeof ytdlOpen !== 'undefined' && !ytdlOpen) {
+        const y = await fetch('/api/youtube-dl/status', {cache: 'no-store', signal: AbortSignal.timeout(4000)});
+        if (y.ok) {
+          const s = await y.json();
+          const line = document.getElementById('ytdl-status-line');
+          if (line) {
+            const text = s.busy
+              ? (s.title ? `DOWNLOADING: ${s.title}` : `DOWNLOADING ${s.progress.toFixed(0)}%`)
+              : (s.queue_length ? `${s.queue_length} QUEUED` : 'IDLE');
+            line.innerHTML = `<span class="status-dot ${s.busy ? 'running' : ''}"></span>${text}`;
+          }
+        }
+      }
+    } catch (e) { /* non-critical — leave whatever the status line last showed */ }
+    if (!_dragCard) { render(); renderFileBrowser(); }   // don't yank the DOM mid-gesture
   } catch (err) {
     setConn(false);
-    ytAppArea.style.display = 'none';
-    ytdlAppArea.style.display = 'none';
-    ocAppArea.style.display = 'none';
-    powerWrap.style.display = 'none';   // the power button can't work with the hub down
-    appsBefore.innerHTML = '<div id="empty">Could not reach Agent Hub API.</div>';
-    appsAfter.innerHTML = '';
-    // Hub is down → flip to the DORMANT screen. Reloading lets the service worker
-    // serve offline.html (it does when the backend errors). Wait for a couple of
-    // failed polls so a brief blip doesn't reload, and rate-limit so a flapping
-    // API can't loop.
+    // One slow /api/status poll (>4s) must NOT yank the cards out of the layout —
+    // that's what made MISSIONS / GRAPH look "unclickable" for a beat. Only react
+    // once we've missed two polls in a row.
     downCount += 1;
+    if (downCount >= 2) {
+      ytAppArea.style.display = 'none';
+      ytdlAppArea.style.display = 'none';
+      powerWrap.style.display = 'none';   // the power button can't work with the hub down
+      appsBefore.innerHTML = '<div id="empty">Could not reach Agent Hub API.</div>';
+      appsAfter.innerHTML = '';
+      const fbHost = document.getElementById('filebrowser-area');
+      if (fbHost) fbHost.innerHTML = '';
+    }
+    // Hub is down → flip to the DORMANT screen. Reloading lets the service worker
+    // serve offline.html (it does when the backend errors). Rate-limit so a
+    // flapping API can't loop.
     const lastReload = +(sessionStorage.getItem('hubReloadAt') || 0);
     if (downCount >= 2 && Date.now() - lastReload > 20000) {
       sessionStorage.setItem('hubReloadAt', String(Date.now()));
@@ -1054,12 +1383,76 @@ const ytdlToggleBtn  = document.getElementById('ytdl-toggle-btn');
 const ytdlExpanded   = document.getElementById('ytdl-expanded');
 const ytdlStatusLine = document.getElementById('ytdl-status-line');
 const ytdlUrl        = document.getElementById('ytdl-url');
-const ytdlFormat     = document.getElementById('ytdl-format');
+const ytdlFormatSlider = document.getElementById('ytdl-format-slider');
 const ytdlDownloadBtn = document.getElementById('ytdl-download-btn');
+const ytdlActiveTitle = document.getElementById('ytdl-active-title');
 const ytdlProgWrap   = document.getElementById('ytdl-progress-wrap');
 const ytdlProgFill   = document.getElementById('ytdl-progress-fill');
 const ytdlProgText   = document.getElementById('ytdl-progress-text');
 const ytdlResultEl   = document.getElementById('ytdl-result');
+const ytdlQueueList  = document.getElementById('ytdl-queue-list');
+const ytdlQueueRows  = document.getElementById('ytdl-queue-rows');
+
+// Icon slider: click either side to pick the format — data-value on the
+// wrapper drives both the sliding thumb and which label lights up (CSS).
+ytdlFormatSlider.querySelectorAll('.fmt-slider-opt').forEach(opt => {
+  opt.onclick = () => { ytdlFormatSlider.dataset.value = opt.dataset.fmt; };
+});
+function ytdlSelectedFormat() { return ytdlFormatSlider.dataset.value; }
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML;
+}
+
+const YTDL_FMT_ICON = {
+  video: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="15" height="14" rx="2"/><path d="M17 9.5 22 6v12l-5-3.5"/></svg>',
+  audio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
+};
+
+// One row per WAITING item — the active download is shown separately via
+// ytdlActiveTitle/ytdlProgWrap above, never listed here. Rows carry their
+// own swap (format) / delete controls since they're only valid pre-start.
+function ytdlRenderQueue(queue) {
+  if (!queue || !queue.length) { ytdlQueueList.style.display = 'none'; ytdlQueueRows.innerHTML = ''; return; }
+  ytdlQueueList.style.display = 'block';
+  ytdlQueueRows.innerHTML = queue.map(item => `
+    <div class="yt-queue-row" data-id="${item.id}">
+      <button type="button" class="yt-queue-fmt-toggle" data-id="${item.id}" data-fmt="${item.format}"
+              title="Swap to ${item.format === 'video' ? 'audio' : 'video'}">${YTDL_FMT_ICON[item.format]}</button>
+      <span class="yt-queue-url">${esc(item.url)}</span>
+      <button type="button" class="yt-queue-del" data-id="${item.id}" title="Remove from queue">✕</button>
+    </div>`).join('');
+}
+
+// Event delegation — rows are rebuilt wholesale on every queue_update, so
+// listeners go on the (stable) container instead of each row.
+ytdlQueueRows.onclick = async (ev) => {
+  const swapBtn = ev.target.closest('.yt-queue-fmt-toggle');
+  const delBtn = ev.target.closest('.yt-queue-del');
+  if (swapBtn) {
+    const next = swapBtn.dataset.fmt === 'video' ? 'audio' : 'video';
+    try {
+      await fetch(`/api/youtube-dl/queue/${swapBtn.dataset.id}/format`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({format: next}),
+      });
+      // Server broadcasts queue_update to every connected tab, including
+      // this one — no need to hand-patch the DOM here.
+    } catch (e) { /* ignore — the row just won't have changed */ }
+  } else if (delBtn) {
+    try { await fetch(`/api/youtube-dl/queue/${delBtn.dataset.id}`, {method: 'DELETE'}); }
+    catch (e) { /* ignore */ }
+  }
+};
+// Lines from the ACTUAL bundled youtube/ytdl.py that mark ffmpeg post-
+// processing (no % available for this phase, unlike the download itself) —
+// see ytdlWs.onmessage below. Audio and video use different wording
+// ("Square-cropping cover" / "Converting thumbnail → JPEG", "Embedding
+// cover art" / "Embedding poster") — matched against the standalone
+// yt-fetch project's wording once before; this is the real script's text.
+const YTDL_PROCESSING_RE = /post-processing|cropping cover|Converting thumbnail|Embedding cover art|Embedding poster/i;
 
 let ytdlOpen = false;
 let ytdlActive = false;  // see ytUploadActive — guards against replayed 'done' on expand
@@ -1082,11 +1475,15 @@ function ytdlCollapse() {
   ytdlDisconnectWs();
   ytdlExpanded.classList.remove('open');
   ytdlProgWrap.style.display = 'none';
+  ytdlProgFill.classList.remove('processing');
+  ytdlActiveTitle.style.display = 'none';
   ytdlResultEl.style.display = 'none';
-  ytdlDownloadBtn.disabled = false;
   ytdlToggleBtn.textContent = 'EXPAND';
   ytdlUrl.value = '';
   ytdlSetStatus('IDLE', false);
+  // Deliberately NOT touching ytdlQueueList/ytdlQueueRows here — waiting
+  // items are a server-side fact independent of whether this card is open;
+  // collapsing just stops watching, it doesn't cancel anything queued.
 }
 
 ytdlHeader.onclick = ytdlToggle;
@@ -1095,14 +1492,10 @@ ytdlDownloadBtn.onclick = async () => {
   const url = ytdlUrl.value.trim();
   if (!url) { alert('Paste a YouTube URL first.'); return; }
 
-  const payload = {url, format: ytdlFormat.value};
-
-  ytdlDownloadBtn.disabled = true;
-  ytdlProgWrap.style.display = 'block';
-  ytdlResultEl.style.display = 'none';
-  ytdlProgFill.style.width = '0%';
-  ytdlProgText.textContent = '0%';
-  ytdlSetStatus('DOWNLOADING', true);
+  const payload = {url, format: ytdlSelectedFormat()};
+  // Never disabled: the backend now queues a request instead of rejecting it
+  // when one's already running, so clicking again (to line up another URL)
+  // is always valid, not just when idle.
 
   try {
     const res = await fetch('/api/youtube-dl/download', {
@@ -1111,13 +1504,21 @@ ytdlDownloadBtn.onclick = async () => {
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    ytdlUrl.value = '';
+    if (data.queued) return;  // queue_update (broadcast) renders the new row
     ytdlActive = true;
+    ytdlProgWrap.style.display = 'block';
+    ytdlResultEl.style.display = 'none';
+    ytdlActiveTitle.style.display = 'none';
+    ytdlActiveTitle.textContent = '';
+    ytdlProgFill.classList.remove('processing');
+    ytdlProgFill.style.width = '0%';
+    ytdlProgText.textContent = '0%';
+    ytdlSetStatus('DOWNLOADING', true);
   } catch (err) {
-    ytdlProgWrap.style.display = 'none';
     ytdlResultEl.style.display = 'block';
     ytdlResultEl.textContent = `Failed to start: ${err.message}`;
-    ytdlDownloadBtn.disabled = false;
-    ytdlSetStatus('IDLE', false);
   }
 };
 
@@ -1130,22 +1531,57 @@ function ytdlConnectWs() {
   ws.onmessage = ev => {
     const d = JSON.parse(ev.data);
     if (d.type === 'line') {
-      ytdlProgFill.style.width = d.progress + '%';
-      ytdlProgText.textContent = d.progress.toFixed(0) + '%';
+      if (d.title) {
+        ytdlActiveTitle.textContent = d.title;
+        ytdlActiveTitle.style.display = 'block';
+      }
+      if (YTDL_PROCESSING_RE.test(d.text)) {
+        ytdlProgFill.classList.add('processing');
+        ytdlProgText.textContent = 'PROCESSING…';
+        ytdlSetStatus('PROCESSING', true);
+      } else if (d.text.startsWith('Downloading:')) {
+        ytdlProgFill.classList.remove('processing');
+        ytdlProgFill.style.width = d.progress + '%';
+        ytdlProgText.textContent = d.progress.toFixed(0) + '%';
+        ytdlSetStatus('DOWNLOADING', true);
+      }
+    } else if (d.type === 'queue_update') {
+      // Full snapshot, broadcast to every connected tab on any queue change
+      // (add/swap/delete/dequeue) — always just re-render, never patch.
+      ytdlRenderQueue(d.queue);
     } else if (d.type === 'done') {
       if (!ytdlActive) return;  // ignore a replayed 'done' from a prior download
-      ytdlActive = false;
-      ytdlProgWrap.style.display = 'none';
+      const hasNext = d.queue_remaining > 0;
+      ytdlProgFill.classList.remove('processing');
       ytdlResultEl.style.display = 'block';
-      ytdlDownloadBtn.disabled = false;
       if (d.ok) {
-        ytdlResultEl.textContent = `✅ Saved: ${(d.result && d.result.saved_to) || 'done'}`;
+        ytdlResultEl.textContent = `✅ Saved: ${(d.result && d.result.saved_to) || 'done'}`
+          + (hasNext ? ' — starting next queued download…' : '');
         ytdlSetStatus('DONE', false);
-        setTimeout(ytdlCollapse, 4000);
       } else {
         const why = d.result && d.result.error;
-        ytdlResultEl.textContent = why ? ('❌ ' + why) : '❌ Download failed — check the URL and try again.';
+        ytdlResultEl.textContent = (why ? ('❌ ' + why) : '❌ Download failed — check the URL and try again.')
+          + (hasNext ? ' — starting next queued download…' : '');
         ytdlSetStatus('FAILED', false);
+      }
+      if (hasNext) {
+        // A queued item auto-starts server-side — stay "active" so ITS
+        // 'done' isn't ignored, and reset the visible progress for it
+        // shortly (the backend needs a moment to spawn the next process).
+        // Its own queue_update (item removed) arrives separately.
+        setTimeout(() => {
+          ytdlResultEl.style.display = 'none';
+          ytdlActiveTitle.style.display = 'none';
+          ytdlActiveTitle.textContent = '';
+          ytdlProgFill.style.width = '0%';
+          ytdlProgText.textContent = '0%';
+          ytdlSetStatus('DOWNLOADING', true);
+        }, 1500);
+      } else {
+        ytdlActive = false;
+        ytdlProgWrap.style.display = 'none';
+        ytdlActiveTitle.style.display = 'none';
+        setTimeout(ytdlCollapse, 4000);
       }
     }
   };
@@ -1163,161 +1599,40 @@ function ytdlDisconnectWs() {
 </script>
 
 <script>
-// ── OpenCode (expandable card; multi-session, one per copied folder) ─────────
-// No persistent hub websocket: the list is fetched on expand and after actions.
+// ── OpenCode card — links to Missions / Agents / Graph; QUICK CHAT = raw scratch UI
 (function () {
-  const header    = document.getElementById('oc-header');
-  const toggleBtn = document.getElementById('oc-toggle-btn');
-  const graphBtn  = document.getElementById('oc-graph-btn');
-  const expanded  = document.getElementById('oc-expanded');
-  const statusEl  = document.getElementById('oc-status-line');
-  const authEl    = document.getElementById('oc-auth');
-  const listEl    = document.getElementById('oc-session-list');
-  const sourceEl  = document.getElementById('oc-source');
-  const nameEl    = document.getElementById('oc-name');
-  const createBtn = document.getElementById('oc-create-btn');
-  const foldersEl = document.getElementById('oc-folders');
-  const resumeBtn = document.getElementById('oc-resume-btn');
-  let ocOpen = false;
+  const scratchBtn = document.getElementById('oc-scratch-btn');
+  const statusEl   = document.getElementById('oc-status-line');
 
-  async function loadFolders() {
-    let list;
-    try { list = await (await fetch('/api/opencode/folders', {cache: 'no-store'})).json(); }
-    catch (e) { return; }
-    foldersEl.innerHTML = list.length
-      ? list.map((f) => `<option value="${esc(f.folder)}">${esc(f.folder)}${f.active_session ? ' (running)' : ''}</option>`).join('')
-      : '<option value="">— no previous folders —</option>';
-  }
-
-  resumeBtn.onclick = async () => {
-    const folder = foldersEl.value;
-    if (!folder) { alert('No previous folder to resume.'); return; }
-    resumeBtn.disabled = true; resumeBtn.textContent = '…';
-    try {
-      const res = await fetch('/api/opencode/sessions/resume', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({folder}),
-      });
-      if (!res.ok) throw new Error(await res.text());
-    } catch (e) { alert('Resume failed: ' + e.message); }
-    resumeBtn.disabled = false; resumeBtn.textContent = 'RESUME';
-    refresh();
-  };
-
-  // Decode percent-encoded paths on paste so the field shows the real path
-  // immediately (no visible %5C / %20), whatever the clipboard handed over.
-  sourceEl.addEventListener('input', () => {
-    if (/%[0-9A-Fa-f]{2}/.test(sourceEl.value)) {
-      try { sourceEl.value = decodeURIComponent(sourceEl.value); } catch (e) {}
-    }
-  });
-
-  const esc = (s) => (s || '').replace(/[&<>"']/g, (c) =>
-    ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
-
-  function ocToggle() {
-    ocOpen = !ocOpen;
-    expanded.classList.toggle('open', ocOpen);
-    toggleBtn.textContent = ocOpen ? 'COLLAPSE' : 'EXPAND';
-    if (ocOpen) refresh();
-  }
-  header.onclick = ocToggle;   // EXPAND button sits inside the header and bubbles up
-
-  // GRAPH also sits inside the header (bubbles to ocToggle) — stop that here
-  // and open /graph in a new tab instead. New tab, not top-level navigation:
-  // navigating the PWA's own top-level page away from / has stranded it before.
-  graphBtn.onclick = (e) => { e.stopPropagation(); window.open('/graph', '_blank'); };
-
-  async function refresh() {
-    loadFolders();
-    let data;
-    try {
-      data = await (await fetch('/api/opencode/sessions', {cache: 'no-store'})).json();
-    } catch (e) {
-      listEl.innerHTML = '<div class="yt-result">Could not reach the hub.</div>';
-      return;
-    }
-    const rows = data.sessions || [];
-    const live = rows.filter((r) => r.running).length;
-    statusEl.innerHTML = `<span class="status-dot ${live ? 'running' : ''}"></span>${rows.length} SESSION(S)`;
-
-    if (rows.length && data.auth) {
-      authEl.style.display = 'block';
-      authEl.innerHTML = `When the OpenCode tab asks to log in — user <b>${esc(data.auth.username)}</b> · pass <b>${esc(data.auth.password)}</b>`;
-    } else {
-      authEl.style.display = 'none';
-    }
-
-    if (!rows.length) {
-      listEl.innerHTML = '<div style="opacity:.6;font-size:13px">No sessions yet. Give a folder above and hit NEW SESSION.</div>';
-      return;
-    }
-    listEl.innerHTML = rows.map((s) => `
-      <div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-top:1px solid var(--border-dim)">
-        <span class="status-dot ${s.running ? 'running' : ''}"></span>
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:600">${esc(s.name)}</div>
-          <div style="font-size:11px;opacity:.55;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.cwd)}</div>
-        </div>
-        ${s.running
-          ? `<a class="oc-btn" href="${esc(s.open_url)}" target="_blank" rel="noopener">OPEN</a>
-             <button class="oc-btn stop" onclick="ocStop('${s.id}')">STOP</button>`
-          : `<button class="oc-btn" onclick="ocStart(this,'${s.id}','${esc(s.folder)}')">START</button>`}
-        <button class="oc-btn stop" onclick="ocRemove('${s.id}', '${esc(s.name)}')">✕</button>
-      </div>`).join('');
-  }
-
-  createBtn.onclick = async () => {
-    let source = sourceEl.value.trim();
-    // Paths pasted from the file-browser / address bar arrive percent-encoded
-    // (%5C = '\', %20 = space). Decode so the real path reaches the hub.
-    if (/%[0-9A-Fa-f]{2}/.test(source)) {
-      try { source = decodeURIComponent(source); sourceEl.value = source; } catch (e) {}
-    }
-    if (!source) { alert('Enter a folder path to work on first.'); return; }
-    createBtn.disabled = true;
-    createBtn.textContent = 'COPYING + STARTING…';
+  scratchBtn.onclick = async () => {
+    scratchBtn.disabled = true; scratchBtn.textContent = 'STARTING…';
     try {
       const res = await fetch('/api/opencode/sessions', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({source, name: nameEl.value.trim()}),
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({source: 'scratch'}),
+        signal: AbortSignal.timeout(45000),
       });
-      if (!res.ok) throw new Error(await res.text());
-      sourceEl.value = '';
-      nameEl.value = '';
+      if (!res.ok) throw new Error((await res.text()) || res.status);
+      const s = await res.json();
+      if (s.open_url) window.open(s.open_url, 'oc-scratch');
+      else throw new Error('no session URL returned');
     } catch (e) {
-      alert('Failed to start session: ' + e.message);
+      toast('Quick chat could not start: ' + (e.message || e), 'err');
+    } finally {
+      scratchBtn.disabled = false; scratchBtn.textContent = 'QUICK CHAT';
     }
-    createBtn.disabled = false;
-    createBtn.textContent = '+ NEW SESSION';
-    refresh();
   };
 
-  window.ocStop = async (id) => {
-    await fetch(`/api/opencode/sessions/${id}/stop`, {method: 'POST'});
-    refresh();
-  };
-  // Restart a stopped session: drop the dead entry (keeps its folder) then resume
-  // that folder, so you get one live row instead of a dead one + a duplicate.
-  window.ocStart = async (btn, id, folder) => {
-    if (btn) { btn.textContent = 'STARTING…'; btn.classList.add('disabled'); }
+  async function tick() {
     try {
-      await fetch(`/api/opencode/sessions/${id}`, {method: 'DELETE'});
-      const res = await fetch('/api/opencode/sessions/resume', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({folder}),
-      });
-      if (!res.ok) throw new Error(await res.text());
-    } catch (e) { alert('Failed to start: ' + e.message); }
-    refresh();
-  };
-  window.ocRemove = async (id, name) => {
-    if (!confirm(`Remove session "${name}"?\n\nThis STOPS it and DELETES its copied working folder.\nYour original folder is NOT touched.`)) return;
-    if (!confirm(`Confirm: permanently delete the copied folder for "${name}"? This cannot be undone.`)) return;
-    await fetch(`/api/opencode/sessions/${id}?purge=1`, {method: 'DELETE'});
-    refresh();
-  };
+      const m = (await (await fetch('/api/missions', {cache:'no-store'})).json()).missions || [];
+      const run = m.filter(x => x.status === 'running').length;
+      const rev = m.filter(x => x.status === 'awaiting_review').length;
+      statusEl.innerHTML = `<span class="status-dot ${run?'running':''}"></span>` +
+        (m.length ? `${run} running · ${rev} to review` : 'agents & missions');
+    } catch (e) {}
+  }
+  tick(); setInterval(tick, 5000);
 })();
 </script>
 

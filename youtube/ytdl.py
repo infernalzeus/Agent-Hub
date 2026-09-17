@@ -31,8 +31,25 @@ import yt_dlp
 
 # ── Progress hook ──────────────────────────────────────────────────────────────
 
+# One process per download, so a plain module-level flag is enough to print
+# the title exactly once — no download-to-download bleed to worry about.
+_title_printed = False
+
+
 def _progress_hook(d: dict) -> None:
+    global _title_printed
     if d["status"] == "downloading":
+        if not _title_printed:
+            # d['filename'] is yt-dlp's own stable, documented field — the
+            # outtmpl-expanded destination path, so its stem IS the title
+            # (matches the thumbnail's filename you see on disk). Tried
+            # info_dict.get('title') first; that key isn't reliably present
+            # on the first callback across yt-dlp versions, which is why the
+            # title never showed. filename always is.
+            fname = d.get("filename")
+            if fname:
+                print(f"Title: {os.path.splitext(os.path.basename(fname))[0]}", flush=True)
+                _title_printed = True
         pct   = d.get("_percent_str", "?%").strip()
         total = d.get("_total_bytes_str", "?")
         speed = d.get("_speed_str", "?")

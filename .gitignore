@@ -16,8 +16,16 @@ cookies.txt
 !.env.example
 # Machine-specific overrides (real PIN, tailnet SMB link, local interpreter path)
 hub/local_settings.py
+**/local_settings.py
 # Machine-specific overrides for the .vbs launcher (real Tailscale hostname, PWA app id)
 Agent Hub.local.vbs
+# Generated per-machine (real repo path baked in) — see register-agenthub-protocol.reg.example
+register-agenthub-protocol.reg
+# Defensive: anything a tool marks machine-local, and stray secret files
+*.local
+.claude/settings.local.json
+secrets*.json
+credentials*.json
 
 # ── Backups & scratch ─────────────────────────────────────────────────────────
 *.bak
@@ -38,3 +46,13 @@ venv/
 desktop.ini
 Thumbs.db
 .DS_Store
+
+# Compiled-from-wiki skills (rebuilt on every hub start by skills_sync.py)
+hub/agent_knowledge/skills_generated/
+
+# Personal agent personas + per-agent LLM-setting overrides (yours, not the repo's)
+hub/agent_knowledge/agents_user/
+hub/agent_knowledge/agent_overrides.json
+hub/agent_knowledge/model_policy.json
+hub/apps.json
+hub/ingested_apps/

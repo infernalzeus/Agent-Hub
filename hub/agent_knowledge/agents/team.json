@@ -1,0 +1,4 @@
+{
+  "primary": "orchestrator",
+  "roster": ["orchestrator", "coder", "reviewer", "researcher", "tester", "doc-writer"]
+}

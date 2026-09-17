@@ -1,0 +1,21 @@
+Windows Registry Editor Version 5.00
+
+; MANUAL FALLBACK — you normally do NOT need this file.
+;
+; "Agent Hub.vbs" now self-registers the agenthub:// protocol on startup, using
+; its own resolved path (see RegisterProtocol in that script). Just run the
+; launcher once and the dormant page's START button works.
+;
+; Use this file only if you want to register the protocol WITHOUT running the
+; launcher: replace <PATH-TO-REPO> below with the full path to your clone
+; (e.g. C:\Users\you\agent-hub), save as "register-agenthub-protocol.reg"
+; (that name is gitignored), then double-click and confirm.
+;
+; To undo: delete HKEY_CURRENT_USER\Software\Classes\agenthub in regedit.
+
+[HKEY_CURRENT_USER\Software\Classes\agenthub]
+@="URL:Agent Hub Protocol"
+"URL Protocol"=""
+
+[HKEY_CURRENT_USER\Software\Classes\agenthub\shell\open\command]
+@="wscript.exe \"<PATH-TO-REPO>\\Agent Hub.vbs\" \"%1\""
