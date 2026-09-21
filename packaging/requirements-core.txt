@@ -1,0 +1,2 @@
+# Only what starts the Agent Hub host. Build tools install separately.
+aiohttp>=3.9,<4
