@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "core": {
+    "label": "Agent Hub core",
+    "includes": ["embedded Python runtime", "aiohttp", "Agent Hub host", "agent knowledge", "favicons"]
+  },
+  "optional": [
+    {"id":"tailscale","label":"Private device connection","installer":"official Tailscale installer","user_action":"sign in"},
+    {"id":"opencode","label":"Autonomous coding","installer":"npm","user_action":"choose projects"},
+    {"id":"youtube","label":"Media downloads and uploads","installer":"Python extras","user_action":"connect account if uploading"},
+    {"id":"whisper","label":"Local speech recognition","installer":"model download","user_action":"choose model"},
+    {"id":"mcp","label":"Desktop MCP control","installer":"Windows MCP provider","user_action":"enable PC control"}
+  ]
+}
