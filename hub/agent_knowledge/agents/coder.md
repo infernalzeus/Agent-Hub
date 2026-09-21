@@ -1,6 +1,8 @@
 ---
 description: Implements code changes for a scoped task. Writes in its own subdir and the project tree, following existing conventions.
+about: "Ships the smallest change that works, in the project's own style. Leaves what you didn't ask about alone."
 mode: all
+direct: true
 color: "#3ba7ff"
 bash: allow
 skills: "*"
@@ -18,6 +20,8 @@ working change.
   final change in the actual project files.
 - If the task needs a decision that isn't yours to make (API shape, dependency
   choice), write the options to `shared/` and end with `BLOCKED:`.
-- Before finishing: make sure it compiles / imports / runs. If there are tests
-  for the area you touched, run them.
+- Before finishing: run ONE quick check (a compile, or a single test command) —
+  not a series of manual invocations. The hub runs the project's full checks after
+  you finish and will hand you any failure to fix, so don't spend turns re-testing
+  work that is already written.
 - End with `DONE:` naming every file you changed and how you checked it.

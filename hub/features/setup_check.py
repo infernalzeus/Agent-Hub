@@ -16,8 +16,10 @@ command — never auto-installed.
 from __future__ import annotations
 
 import asyncio
+import re
 import shutil
 import subprocess
+import time
 import sys
 from pathlib import Path
 
@@ -46,8 +48,39 @@ def _module_missing_in(python_exe: str, modules: list[str]) -> list[str]:
     return missing
 
 
+OPENCODE_MIN_VERSION = (1, 18, 0)     # OpenCode Zen free tier rejects older clients with HTTP 426
+
+
+def _opencode_version() -> tuple[int, ...] | None:
+    try:
+        r = subprocess.run([OPENCODE_EXE, "--version"], capture_output=True, text=True, timeout=8)
+        m = re.search(r"(\d+)\.(\d+)\.(\d+)", r.stdout + r.stderr)
+        return tuple(int(x) for x in m.groups()) if m else None
+    except Exception:
+        return None
+
+
 def _check() -> list[dict]:
     issues: list[dict] = []
+
+    from .. import locations as LOC
+    if LOC.configured():
+        for r in LOC.REGISTRY:
+            st = LOC.validate(r["key"], LOC.get(r["key"]))
+            if st["level"] == "error":
+                issues.append({"severity": "warn", "title": f"{r['label']}: {st['msg']}", "detail": r["purpose"],
+                               "action": {"kind": "link", "label": "Fix in LOCATIONS", "href": "/setup"}})
+
+    if Path(OPENCODE_EXE).is_file():
+        ver = _opencode_version()
+        if ver and ver < OPENCODE_MIN_VERSION and shutil.which("npm"):
+            issues.append({
+                "severity": "warn", "title": f"OpenCode {'.'.join(map(str, ver))} is too old for the free models",
+                "detail": "OpenCode Zen now rejects clients older than "
+                          f"{'.'.join(map(str, OPENCODE_MIN_VERSION))} (HTTP 426) — every free-model mission fails until it's updated.",
+                "readme_anchor": "#what-it-fronts",
+                "action": {"kind": "install", "id": "update-opencode", "label": "Update OpenCode now"},
+            })
 
     if not Path(OPENCODE_EXE).is_file():
         if shutil.which("npm"):
@@ -161,14 +194,44 @@ def _check() -> list[dict]:
     return issues
 
 
-@routes.get("/api/setup-status")
-async def setup_status(request: web.Request) -> web.Response:
+_CACHE: dict = {"at": 0.0, "issues": [], "busy": False}
+_TTL = 60.0
+
+
+def _safe_check() -> list[dict]:
     try:
-        issues = _check()
+        return _check()
     except Exception as exc:
         logger.warning("setup_check: %s", exc)
-        issues = []
-    return web.json_response({"issues": issues})
+        return []
+
+
+async def _refresh_cache() -> None:
+    """`_check()` shells out (opencode --version, import probes, tailscale status) ~2s — it must run in a
+    worker thread: run inline it froze EVERY request (menu tiles, status, clicks) while it ran."""
+    if _CACHE["busy"]:
+        return
+    _CACHE["busy"] = True
+    try:
+        _CACHE["issues"] = await asyncio.get_running_loop().run_in_executor(None, _safe_check)
+        _CACHE["at"] = time.time()
+    finally:
+        _CACHE["busy"] = False
+
+
+@routes.get("/api/setup-status")
+async def setup_status(request: web.Request) -> web.Response:
+    if not _CACHE["at"]:
+        await _refresh_cache()                       # first ever call: wait, but off the event loop
+    elif time.time() - _CACHE["at"] > _TTL:
+        asyncio.create_task(_refresh_cache())        # stale-while-revalidate: answer instantly, refresh behind
+    return web.json_response({"issues": _CACHE["issues"]})
+
+
+def setup(app: web.Application) -> None:
+    async def _warm(_app: web.Application) -> None:
+        asyncio.create_task(_refresh_cache())        # compute once in the background after the hub is listening
+    app.on_startup.append(_warm)
 
 
 @routes.post("/api/setup/install/{action_id}")
@@ -180,4 +243,5 @@ async def setup_install(request: web.Request) -> web.Response:
     if action is None:
         return web.json_response({"error": "unknown action"}, status=404)
     ok, log = await asyncio.get_event_loop().run_in_executor(None, action.run)
+    _CACHE["at"] = 0.0                                  # something was just installed — re-probe on the next status call
     return web.json_response({"ok": ok, "log": log})

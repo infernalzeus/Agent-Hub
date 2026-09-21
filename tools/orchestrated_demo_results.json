@@ -1,0 +1,133 @@
+{
+  "b-wiki": {
+    "key": "b-wiki",
+    "project": "basic-wiki-brief",
+    "model": "ollama/nemotron-3-super:cloud",
+    "profile": "research",
+    "timeline": [
+      {
+        "t": 15,
+        "status": "plan_ready",
+        "steps": "\u00b7\u00b7\u00b7"
+      },
+      {
+        "t": 30,
+        "status": "running",
+        "steps": "\u25cf\u25d0\u25cb"
+      },
+      {
+        "t": 45,
+        "status": "running",
+        "steps": "\u25cf\u25cf\u25d0"
+      },
+      {
+        "t": 76,
+        "status": "awaiting_review",
+        "steps": "\u25cf\u25cf\u25cf"
+      }
+    ],
+    "started": 1789860398.7909167,
+    "id": "m710a871d",
+    "plan": [
+      {
+        "id": "m1",
+        "agent": "researcher",
+        "after": [],
+        "brief": "Investigate the Agent Hub concept by reading the LLM Wiki at .hub-ref/wiki/ (starting with index.md and following relevant links). Summarize"
+      },
+      {
+        "id": "m2",
+        "agent": "analyst",
+        "after": [
+          "m1"
+        ],
+        "brief": "Using research-findings.txt, produce exactly five bullet points that explain what Agent Hub is. Each bullet must be concise, clear, and end "
+      },
+      {
+        "id": "m3",
+        "agent": "editor",
+        "after": [
+          "m2"
+        ],
+        "brief": "Review agent-hub-explanation.md for clarity, grammar, correct citation format, and verification that it contains exactly five bullets. Provi"
+      }
+    ],
+    "status": "awaiting_review",
+    "secs": 76,
+    "error": "",
+    "verify": {
+      "ok": true,
+      "step": "content",
+      "output": "2 file(s) checked: no placeholders, limits ok",
+      "attempts": 0
+    },
+    "model_note": null,
+    "files": [
+      "research-findings.txt",
+      "research/agent-hub-explanation.md"
+    ],
+    "steps": [
+      {
+        "id": "m1",
+        "agent": "researcher",
+        "status": "done",
+        "model": null,
+        "verdict": null,
+        "rounds": null,
+        "summary": "research-findings.txt\nFiles: research-findings.txt"
+      },
+      {
+        "id": "m2",
+        "agent": "analyst",
+        "status": "done",
+        "model": null,
+        "verdict": null,
+        "rounds": null,
+        "summary": "Created agent-hub-explanation.md with five bullet points explaining Agent Hub, each with appropriate citations.\nFiles: research/agent-hub-explanation.md"
+      },
+      {
+        "id": "m3",
+        "agent": "editor",
+        "status": "done",
+        "model": null,
+        "verdict": null,
+        "rounds": null,
+        "summary": "review-comments.txt\n<<<FILE review-comments.txt>>>\nPass\n<<<END>>>\nDONE: review-comments.txt"
+      }
+    ],
+    "runmap": [
+      {
+        "agent": "orchestrator",
+        "model": "ollama/nemotron-3-super:cloud",
+        "phase": "plan \u00b7 orchestrator",
+        "secs": 15.5,
+        "steps": 0,
+        "reason": ""
+      },
+      {
+        "agent": "researcher",
+        "model": "ollama/nemotron-3-super:cloud",
+        "phase": "step m1 \u00b7 researcher",
+        "secs": 7.3,
+        "steps": 0,
+        "reason": ""
+      },
+      {
+        "agent": "analyst",
+        "model": "ollama/nemotron-3-super:cloud",
+        "phase": "step m2 \u00b7 analyst",
+        "secs": 36.5,
+        "steps": 0,
+        "reason": ""
+      },
+      {
+        "agent": "editor",
+        "model": "ollama/nemotron-3-super:cloud",
+        "phase": "step m3 \u00b7 editor",
+        "secs": 0.0,
+        "steps": 0,
+        "reason": ""
+      }
+    ]
+  }
+}

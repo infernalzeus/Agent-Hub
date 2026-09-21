@@ -12,6 +12,7 @@ HERE = Path(__file__).resolve().parent.parent
 
 HOST = os.getenv("HUB_HOST", "0.0.0.0")
 PORT = int(os.getenv("HUB_PORT", "8081"))
+VOICEBOX_URL = os.getenv("VOICEBOX_URL", "http://127.0.0.1:17493").rstrip("/")
 
 TAILDROP_DIR = Path(os.getenv("TAILDROP_DIR", r"N:\Taildrop"))
 TAILSCALE_EXE = os.getenv("TAILSCALE_EXE", r"C:\Program Files\Tailscale\tailscale.exe")
@@ -70,15 +71,11 @@ YOUTUBE_ACCOUNTS: dict[str, dict] = {
 }
 
 # ── YouTube download ─────────────────────────────────────────────────────────
-# Same self-contained shape as the uploader: script copied in, not referenced
-# elsewhere. yt_dlp is only installed in this specific Python 3.11 install
-# (confirmed — it's absent from the Anaconda interpreter Hub itself runs
-# under), so this is the one subprocess spawn that can't use sys.executable.
-
+# YouTube downloads run through Agent Hub's own Python interpreter.
+# The setup action maintains yt-dlp in that interpreter.
 YT_DL_SCRIPT = str(HERE / "youtube" / "ytdl.py")
-# The one interpreter that has yt_dlp installed. Defaults to whatever "python3.11"
-# resolves to on PATH; override with an absolute path in hub/local_settings.py.
-YT_DL_PYTHON = os.getenv("YT_DL_PYTHON", "python3.11")
+# Override with an absolute path in hub/local_settings.py only when required.
+YT_DL_PYTHON = os.getenv("YT_DL_PYTHON", sys.executable)
 YT_DL_AUDIO_DIR = os.getenv("YT_DL_AUDIO_DIR", r"N:\Code\YT-DLP\1")
 YT_DL_VIDEO_DIR = os.getenv("YT_DL_VIDEO_DIR", r"N:\Code\YT-DLP\2")
 
@@ -106,3 +103,11 @@ try:
     from .local_settings import *  # noqa: F401,F403
 except ImportError:
     pass
+
+# Locations the user saved from /setup win over everything above (see hub/locations.py).
+from . import locations as _locations  # noqa: E402
+_locations.apply_to_config(globals())
+
+
+
+

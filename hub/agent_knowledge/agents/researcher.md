@@ -1,5 +1,6 @@
 ---
 description: Investigates questions using the codebase, docs, and the web. Produces written findings — does not edit project files.
+about: "Digs through code, docs and the web, then reports what it found and how sure it is."
 mode: all
 color: "#a78bfa"
 bash: ask

@@ -1,0 +1,135 @@
+{
+  "basis": "latency measured 2026-09-19 (quality still unmeasured): ollama-cloud Nemotron 3-6 s/call; local gemma4:e4b-32k 5-125 s/step; OpenCode Zen free 6-170 s/call and stalls under load. Quality per role comes from tools/benchmark.py.",
+  "updated": "2026-09-19",
+  "roles": {
+    "orchestrator": {
+      "pick": "ollama/nemotron-3-super:cloud",
+      "alt": [
+        "opencode/nemotron-3-ultra-free",
+        "ollama/qwen3.6:32k",
+        "claude-code:haiku"
+      ],
+      "why": "Fast (3-6 s/call) and the model you already trust in Movie Clipper. Judgment + strict structured output (the JSON plan). Needs the strongest model you have; speed matters less."
+    },
+    "reviewer": {
+      "pick": "ollama/nemotron-3-super:cloud",
+      "alt": [
+        "opencode/nemotron-3-ultra-free",
+        "ollama/qwen3.6:32k"
+      ],
+      "why": "Fast (3-6 s/call) and the model you already trust in Movie Clipper. Reading + reasoning about a diff; low temperature; few steps."
+    },
+    "coder": {
+      "pick": "ollama/nemotron-3-super:cloud",
+      "alt": [
+        "ollama/qwen3.6:32k",
+        "opencode/big-pickle",
+        "opencode/mimo-v2.5-free"
+      ],
+      "why": "Fast (3-6 s/call). Local qwen3.6 is the private alternative but ~6 min per run."
+    },
+    "tester": {
+      "pick": "ollama/nemotron-3-super:cloud",
+      "alt": [
+        "opencode/big-pickle",
+        "ollama/qwen3.6:32k"
+      ],
+      "why": "Fast (3-6 s/call) and the model you already trust in Movie Clipper. Short edit+run loops \u2014 favours fast turns."
+    },
+    "researcher": {
+      "pick": "ollama/nemotron-3-super:cloud",
+      "alt": [
+        "opencode/mimo-v2.5-free",
+        "opencode/nemotron-3-ultra-free"
+      ],
+      "why": "Fast (3-6 s/call) and the model you already trust in Movie Clipper. Web/reading heavy; needs breadth more than code precision."
+    },
+    "doc-writer": {
+      "pick": "ollama/gemma4:e4b-32k",
+      "alt": [
+        "opencode/mimo-v2.5-free"
+      ],
+      "why": "Small, low-stakes edits \u2014 the fast local model is enough."
+    },
+    "app-ingestor": {
+      "pick": "ollama/nemotron-3-super:cloud",
+      "alt": [
+        "opencode/big-pickle",
+        "ollama/qwen3.6:32k"
+      ],
+      "why": "Fast (3-6 s/call) and the model you already trust in Movie Clipper. Reads an unfamiliar repo and writes a small manifest."
+    },
+    "analyst": {
+      "pick": "ollama/nemotron-3-super:cloud",
+      "alt": [
+        "opencode/mimo-v2.5-free",
+        "opencode/nemotron-3-ultra-free"
+      ],
+      "why": "Fast (3-6 s/call) and the model you already trust in Movie Clipper. Web/reading heavy, needs breadth and careful phrasing."
+    },
+    "data-analyst": {
+      "pick": "ollama/nemotron-3-super:cloud",
+      "alt": [
+        "opencode/big-pickle",
+        "ollama/qwen3.6:32k"
+      ],
+      "why": "Fast (3-6 s/call) and the model you already trust in Movie Clipper. Short write-run-read loops with pandas \u2014 favours fast turns."
+    },
+    "product-manager": {
+      "pick": "ollama/nemotron-3-super:cloud",
+      "alt": [
+        "opencode/nemotron-3-ultra-free",
+        "opencode/mimo-v2.5-free"
+      ],
+      "why": "Fast (3-6 s/call) and the model you already trust in Movie Clipper. Structured spec with judgement about scope."
+    },
+    "project-manager": {
+      "pick": "ollama/nemotron-3-super:cloud",
+      "alt": [
+        "opencode/mimo-v2.5-free",
+        "opencode/nemotron-3-ultra-free"
+      ],
+      "why": "Fast (3-6 s/call) and the model you already trust in Movie Clipper. Plans and status text; consistency over cleverness."
+    },
+    "copywriter": {
+      "pick": "ollama/nemotron-3-super:cloud",
+      "alt": [
+        "opencode/mimo-v2.5-free",
+        "ollama/gemma4:e4b-32k"
+      ],
+      "why": "Fast (3-6 s/call) and the model you already trust in Movie Clipper. Fluent short-form writing; the small local model is a fair fallback."
+    },
+    "designer": {
+      "pick": "ollama/nemotron-3-super:cloud",
+      "alt": [
+        "opencode/big-pickle",
+        "ollama/qwen3.6:32k"
+      ],
+      "why": "Fast (3-6 s/call) and the model you already trust in Movie Clipper. HTML/CSS/SVG is code \u2014 a coding-tuned model."
+    },
+    "editor": {
+      "pick": "ollama/nemotron-3-super:cloud",
+      "alt": [
+        "opencode/nemotron-3-ultra-free",
+        "ollama/qwen3.6:32k"
+      ],
+      "why": "Fast (3-6 s/call) and the model you already trust in Movie Clipper. Read + judge against a checklist; wants the strongest model."
+    },
+    "ops-writer": {
+      "pick": "ollama/gemma4:e4b-32k",
+      "alt": [
+        "opencode/mimo-v2.5-free"
+      ],
+      "why": "Short, low-stakes process docs \u2014 the fast local model is enough."
+    },
+    "compliance-reviewer": {
+      "pick": "ollama/nemotron-3-super:cloud",
+      "alt": [
+        "opencode/nemotron-3-ultra-free",
+        "ollama/qwen3.6:32k"
+      ],
+      "why": "Fast (3-6 s/call) and the model you already trust in Movie Clipper. Conservative risk screen; wants the strongest model."
+    }
+  },
+  "measured": {}
+}

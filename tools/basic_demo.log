@@ -1,0 +1,45 @@
+[00:01:12] b-vague     dispatched m998486c2 on ollama/nemotron-3-super:cloud
+[00:01:12] b-local     dispatched mf90458df on ollama/gemma4:e4b-32k
+[00:01:12] b-code      dispatched m2688e882 on ollama/nemotron-3-super:cloud
+[00:01:27] b-vague     needs_input        
+[00:01:27] b-vague     answered the questions with the recommended defaults
+[00:01:27] b-code      running            
+[00:01:27] b-local     running            
+[00:01:42] b-vague     running            
+[00:01:42] b-code      plan_ready       ···  
+[00:01:42] b-code      DISPATCH PIPELINE
+[00:01:58] b-local     plan_ready       ···  
+[00:01:58] b-code      running          ◐○○  
+[00:01:58] b-local     DISPATCH PIPELINE
+[00:02:13] b-local     running          ◐○○  
+[00:02:28] b-vague     plan_ready       ···  
+[00:02:28] b-vague     DISPATCH PIPELINE
+[00:02:43] b-vague     running          ◐○○  
+[00:04:13] b-local     running          ●◐○  
+[00:10:16] b-vague     failed           ✖○○  aborted
+[00:10:16] b-code      failed           ✖○○  aborted
+[00:10:16] b-code      FINAL failed in 544s, files=['tests/test_text_utils.py', 'text_utils.py']
+[00:10:16] b-vague     FINAL failed in 544s, files=['calculator.py']
+[00:10:17] b-sop       dispatched m0373df1b on ollama/nemotron-3-super:cloud
+[00:10:17] b-post      dispatched mffa57de6 on ollama/nemotron-3-super:cloud
+[00:10:32] b-sop       plan_ready       ···  
+[00:10:32] b-sop       DISPATCH PIPELINE (use suggested models)
+[00:10:32] b-post      running            
+[00:10:47] b-sop       running          ●◐○  
+[00:10:47] b-post      plan_ready       ···  
+[00:10:47] b-post      DISPATCH PIPELINE
+[00:11:02] b-post      running          ◐○○  
+[00:11:16] b-local     FINAL running in 605s, files=['tests/test_text_utils.py', 'text_utils.py']
+[00:11:47] b-sop       running          ●●◐  
+[00:12:17] b-sop       awaiting_review  ●●●  
+[00:12:18] b-sop       FINAL awaiting_review in 121s, files=['ops/SOP_PasswordReset.md']
+[00:12:18] b-wiki      dispatched meb6b5eec on ollama/nemotron-3-super:cloud
+[00:12:33] b-wiki      running            
+[00:13:18] b-wiki      plan_ready       ···  
+[00:13:18] b-wiki      DISPATCH PIPELINE
+[00:13:33] b-wiki      running          ◐○○  
+[00:19:50] b-post      failed           ✖○○  aborted
+[00:19:51] b-post      FINAL failed in 574s, files=['content/quill/copy.md']
+[00:19:51] b-plan      dispatched mb78f801e on ollama/nemotron-3-super:cloud
+[00:19:51] b-wiki      failed           ✖○○  aborted
+[00:19:51] b-wiki      FINAL failed in 453s, files=[]

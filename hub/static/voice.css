@@ -1,0 +1,47 @@
+/* TALK button (square, Smith icon, green sound waves) and the conversation popover. Shared by the hub menu and the Missions page. */
+.talk-btn{position:relative;width:46px;height:46px;flex:none;padding:0;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
+  border:1px solid rgba(0,230,118,.55);background:linear-gradient(180deg,#1a2170 0%,#0d1050 48%,#0a0c3e 100%);
+  box-shadow:inset 0 1px 0 rgba(140,165,255,.35),0 2px 6px rgba(0,0,0,.5);-webkit-tap-highlight-color:transparent}
+.talk-btn img{width:28px;height:28px;border-radius:7px;position:relative;z-index:1;object-fit:cover}
+.talk-btn::before,.talk-btn::after{content:"";position:absolute;inset:-1px;border-radius:12px;border:1.5px solid rgba(0,230,118,.6);opacity:0;pointer-events:none;animation:talkWave 2.8s ease-out infinite}
+.talk-btn::after{animation-delay:1.4s}
+.talk-btn:hover{box-shadow:inset 0 1px 0 rgba(210,225,255,.5),0 2px 6px rgba(0,0,0,.5),0 0 14px rgba(0,230,118,.55)}
+.talk-btn.on{box-shadow:inset 0 1px 0 rgba(210,225,255,.5),0 0 18px rgba(0,230,118,.75)}
+.talk-btn.on::before,.talk-btn.on::after{animation-duration:1.15s}.talk-btn.on::after{animation-delay:.55s}
+@keyframes talkWave{0%{transform:scale(1);opacity:.75}100%{transform:scale(1.75);opacity:0}}
+@media (prefers-reduced-motion:reduce){.talk-btn::before,.talk-btn::after{animation:none}}
+#voice{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));width:390px;max-width:calc(100vw - 24px);z-index:60;background:var(--bg-mid,#0d1050);border:1px solid var(--border-bright,rgba(0,230,118,.55));
+  border-radius:14px;padding:12px 14px;box-shadow:0 12px 40px rgba(0,0,0,.55);font-family:'Outfit',system-ui,sans-serif;box-sizing:border-box;max-height:calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom));overflow-y:auto}
+#voice[hidden],#voice [hidden]{display:none!important}
+#voice .v-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font:700 10px 'Orbitron',monospace;letter-spacing:1.6px;color:var(--accent,#00e676);margin-bottom:8px}
+#voice .v-tools{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+#voice .v-mode{display:grid;grid-template-columns:1fr 1fr;gap:4px;flex:1 1 170px;padding:3px;border:1px solid var(--border-dim,rgba(0,230,118,.22));border-radius:8px;background:rgba(0,0,0,.18)}
+#voice .v-mode .vbtn{min-height:27px;padding:5px 8px;border-color:transparent;color:rgba(217,255,233,.62)}
+#voice .v-mode .vbtn.active{background:linear-gradient(180deg,rgba(0,230,118,.20),rgba(0,230,118,.08));border-color:rgba(0,230,118,.60);color:var(--accent,#00e676);box-shadow:0 0 10px rgba(0,230,118,.16)}
+#voice .v-tools select,#voice .v-persona{flex:1 1 100%}
+#voice .v-persona{box-sizing:border-box;min-height:34px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 9px;border:1px dashed rgba(120,145,255,.52);border-radius:6px;background:rgba(22,24,92,.42);color:#aebaff;font:700 9px 'Orbitron',monospace;letter-spacing:.9px}
+#voice .v-persona small{font:500 8px 'Orbitron',monospace;letter-spacing:.5px;color:rgba(217,255,233,.55);text-align:right}
+#voice select{background:var(--bg,#080c28);border:1px solid var(--border-dim,rgba(0,230,118,.22));color:#d9ffe9;border-radius:6px;padding:6px 6px;font-size:11.5px;min-width:0}
+#voice .vbtn{font-family:'Orbitron',monospace;font-size:9px;letter-spacing:1px;padding:7px 10px;min-height:30px;border-radius:6px;border:1px solid var(--border-bright,rgba(0,230,118,.55));background:transparent;color:var(--accent,#00e676);cursor:pointer;white-space:nowrap}
+#voice .vbtn:hover{background:rgba(0,230,118,.1)}#voice .vbtn.go{background:rgba(0,230,118,.14);border-color:var(--accent,#00e676)}#voice .vbtn.stop{border-color:rgba(255,92,92,.5);color:#ff5c5c}
+#voice .v-log{max-height:260px;min-height:70px;overflow-y:auto;display:flex;flex-direction:column;gap:7px;padding:2px 2px 8px}
+#voice .v-msg{max-width:88%;font-size:13px;line-height:1.45;padding:7px 11px;border-radius:12px;color:#d9ffe9;word-wrap:break-word}
+#voice .v-msg.you{align-self:flex-end;background:rgba(0,230,118,.14);border:1px solid var(--border-bright,rgba(0,230,118,.55));border-radius:12px 12px 3px 12px}
+#voice .v-msg.hub{align-self:flex-start;background:rgba(0,0,0,.28);border:1px solid var(--border-dim,rgba(0,230,118,.22));border-radius:12px 12px 12px 3px}
+#voice .v-msg.act{align-self:flex-start;font-size:11.5px;color:var(--amber,#e0a53c);border:1px solid var(--amber,#e0a53c);background:transparent}
+#voice .v-tag{display:inline-block;margin-left:8px;padding:2px 5px;border:1px solid rgba(0,230,118,.55);border-radius:4px;color:var(--accent,#00e676);font:700 8px 'Orbitron',monospace;letter-spacing:.8px;vertical-align:1px}
+#voice .v-status{display:flex;align-items:center;gap:8px;font:700 9.5px 'Orbitron',monospace;letter-spacing:1.2px;color:var(--accent,#00e676);min-height:24px}
+#voice .v-status canvas{width:20px;height:20px;flex:none}
+#voice .v-row{display:flex;gap:8px;margin-top:8px}#voice .v-row .vbtn{flex:1}
+#voice .v-type{display:flex;gap:7px;margin-top:8px}
+#voice .v-type input{flex:1;min-width:0;background:var(--bg,#080c28);border:1px solid var(--border-dim,rgba(0,230,118,.22));color:#d9ffe9;border-radius:6px;padding:8px 10px;font-size:13px}
+#voice .v-hint{font-size:11px;color:var(--amber,#e0a53c);margin-top:8px;line-height:1.4}
+#voice .v-history{display:flex;gap:6px;justify-content:flex-end;margin:4px 0}
+#voice.compact .v-tools{display:none}
+#voice.compact .v-log{min-height:0;max-height:90px}
+#voice.compact .v-msg{padding:5px 8px}
+#voice.compact .v-hint{max-height:38px;overflow-y:auto}
+#voice.expanded .v-log{max-height:260px}
+@media (max-width:720px){#voice{right:8px;left:8px;bottom:calc(8px + env(safe-area-inset-bottom));width:auto;max-width:none}#voice .v-log{max-height:36vh}}
+@media (max-width:720px){#voice.compact .v-log{max-height:72px}#voice.expanded .v-log{max-height:32vh}#voice .v-head{letter-spacing:.8px}#voice .vbtn{letter-spacing:.5px;padding:7px 8px}}
+

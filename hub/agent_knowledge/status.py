@@ -36,7 +36,7 @@ SCAFFOLDING_FILES = {MARKER_NAME, "AGENTS.md", "opencode.json",
 def _is_scaffolding(path: str) -> bool:
     p = path.replace("\\", "/")
     return (p in SCAFFOLDING_FILES or p == "serve.log"
-            or p.startswith(".ocdata") or p.startswith(".opencode") or p.startswith(".claude")
+            or p.startswith(".ocdata") or p.startswith(".opencode") or p.startswith(".claude") or p.startswith(".hub-ref")
             or "__pycache__/" in p + "/" or p.endswith(".pyc")
             or p.startswith("node_modules/") or p.startswith(".venv/"))
 
@@ -84,7 +84,7 @@ async def worktree_changed_files(wt: Path) -> list[dict]:
             parts = line.split("\t")
             if len(parts) >= 2:
                 seen[parts[-1]] = parts[0][:1]
-    rc2, dirty = await _git(wt, "status", "--porcelain")
+    rc2, dirty = await _git(wt, "status", "--porcelain", "-uall")   # -uall: list files, not a collapsed "newdir/"
     if rc2 == 0:
         for line in dirty.splitlines():
             if not line.strip():
@@ -164,12 +164,17 @@ async def _orphan_nodes(workroot: Path) -> list[dict]:
         except Exception:
             pass
     out: list[dict] = []
-    for d in sorted(workroot.iterdir()):
-        if not d.is_dir() or d.name in ("_scratch", "_missions") or d.name in known:
-            continue
+    dirs = [d for d in sorted(workroot.iterdir())
+            if d.is_dir() and d.name not in ("_scratch", "_missions") and d.name not in known]
+    gate = asyncio.Semaphore(6)                       # scan in parallel (was one folder at a time), but never 40 gits at once
+
+    async def _scan(d: Path):
+        async with gate:
+            return await _wt_has_changes(d)
+    diffs = await asyncio.gather(*(_scan(d) for d in dirs))
+    for d, has_diff in zip(dirs, diffs):
         origin = read_origin(d)
         running = d.name in OC.runtimes and OC.runtimes[d.name].alive
-        has_diff = await _wt_has_changes(d)
         mm = mid_re.match(d.name)
         base = Path(origin).name if origin else (
             (mm.group("slug") if mm else d.name.rsplit("-", 1)[0]).replace("-", " "))

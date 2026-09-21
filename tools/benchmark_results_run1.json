@@ -1,0 +1,32 @@
+[
+  {
+    "model": "opencode/nemotron-3-ultra-free",
+    "task": "bugfix",
+    "score": 3,
+    "max": 3,
+    "notes": [],
+    "status": "awaiting_review",
+    "secs": 275,
+    "id": "mb7720b7d",
+    "steps": 5,
+    "prompt_k": 8.2,
+    "error": "",
+    "hub_check": true
+  },
+  {
+    "model": "opencode/nemotron-3-ultra-free",
+    "task": "plan",
+    "score": 0,
+    "max": 3,
+    "notes": [
+      "mission failed: {\"name\": \"APIError\", \"data\": {\"message\": \"Error from provider (Console): OpenCode's free tier can on"
+    ],
+    "status": "failed",
+    "secs": 9,
+    "id": "me4c9d92a",
+    "steps": 0,
+    "prompt_k": 0.0,
+    "error": "{\"name\": \"APIError\", \"data\": {\"message\": \"Error from provider (Console): OpenCode's free tier can only be used from within OpenCode\", \"statusCode\": 403, \"isRetr",
+    "hub_check": null
+  }
+]

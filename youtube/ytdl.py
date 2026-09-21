@@ -48,7 +48,13 @@ def _progress_hook(d: dict) -> None:
             # title never showed. filename always is.
             fname = d.get("filename")
             if fname:
-                print(f"Title: {os.path.splitext(os.path.basename(fname))[0]}", flush=True)
+                # Leading "\n" is load-bearing: yt-dlp's own console progress
+                # text ("[download]  3.6% of ... ETA Unknown") has NO trailing
+                # newline and is emitted just before this hook runs, so without
+                # it "Title: X" gets glued onto the end of that line
+                # ("...ETA UnknownTitle: X") and the hub's line-anchored
+                # matcher never sees it. Verified against real output.
+                print(f"\nTitle: {os.path.splitext(os.path.basename(fname))[0]}", flush=True)
                 _title_printed = True
         pct   = d.get("_percent_str", "?%").strip()
         total = d.get("_total_bytes_str", "?")

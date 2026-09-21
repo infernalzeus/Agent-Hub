@@ -1,0 +1,66 @@
+[
+  {
+    "model": "opencode/nemotron-3.5-lightning-free",
+    "task": "calc",
+    "score": 2,
+    "max": 3,
+    "notes": [
+      "files/tests missing or hub checks failed"
+    ],
+    "status": "awaiting_review",
+    "secs": 1800,
+    "id": "ma5052376",
+    "steps": 11,
+    "prompt_k": 9.6,
+    "error": "timed out after 1800s",
+    "final_model": "opencode/nemotron-3.5-lightning-free",
+    "hub_check": null
+  },
+  {
+    "model": "opencode/nemotron-3-ultra-free",
+    "task": "calc",
+    "score": 2,
+    "max": 3,
+    "notes": [
+      "files/tests missing or hub checks failed"
+    ],
+    "status": "awaiting_review",
+    "secs": 1801,
+    "id": "m16269b22",
+    "steps": 12,
+    "prompt_k": 8.7,
+    "error": "timed out after 1800s",
+    "final_model": "opencode/nemotron-3-ultra-free",
+    "hub_check": null
+  },
+  {
+    "model": "opencode/nemotron-3-ultra-free",
+    "task": "bugfix",
+    "score": 3,
+    "max": 3,
+    "notes": [],
+    "status": "awaiting_review",
+    "secs": 547,
+    "id": "me1eea5fb",
+    "steps": 9,
+    "prompt_k": 8.6,
+    "error": "",
+    "final_model": "opencode/nemotron-3-ultra-free",
+    "hub_check": true
+  },
+  {
+    "model": "opencode/nemotron-3.5-lightning-free",
+    "task": "bugfix",
+    "score": 3,
+    "max": 3,
+    "notes": [],
+    "status": "awaiting_review",
+    "secs": 844,
+    "id": "m5601ae0c",
+    "steps": 7,
+    "prompt_k": 9.7,
+    "error": "",
+    "final_model": "opencode/nemotron-3.5-lightning-free",
+    "hub_check": true
+  }
+]

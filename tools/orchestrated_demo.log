@@ -1,0 +1,46 @@
+[18:51:44] calc        dispatched ma17b8806 on opencode/nemotron-3.5-lightning-free
+[18:51:44] local-calc  dispatched m6b500424 on ollama/gemma4:e4b-32k
+[18:51:44] manual      dispatched m8cab7178 on opencode/nemotron-3.5-lightning-free
+[18:51:44] research    dispatched m0260078d on opencode/nemotron-3-ultra-free
+[18:51:44] sop         dispatched m6da42d89 on opencode/big-pickle
+[18:51:44] posts       dispatched m5c681b10 on opencode/mimo-v2.5-free
+[18:51:59] local-calc  running            
+[18:51:59] calc        running            
+[18:51:59] posts       running            
+[18:51:59] research    running            
+[18:51:59] sop         running            
+[18:51:59] manual      running            
+[18:53:15] local-calc  plan_ready       ····  
+[18:53:15] local-calc  DISPATCH PIPELINE
+[18:53:30] local-calc  running          ◐○○○  
+[18:54:33] calc        needs_input        
+[18:54:33] calc        answered the questions with the recommended defaults
+[18:54:48] calc        running            
+[18:54:49] posts       plan_ready       ····  
+[18:54:49] posts       DISPATCH PIPELINE
+[18:55:04] posts       running          ◐○○○  
+[18:55:34] sop         plan_ready       ·····  
+[18:55:34] sop         DISPATCH PIPELINE (use suggested models)
+[18:55:49] sop         running          ◐○○○○  
+[18:57:35] sop         running          ●◐○○○  
+[18:59:36] sop         running          ●●◐○○  
+[19:04:53] sop         running          ●●●○○  
+[19:06:40] local-calc  running          ●◐○○  
+[19:07:41] local-calc  running          ●●◐○  
+[19:21:58] research    timed_out          timed out after 1800s
+[19:21:58] research    FINAL timed_out in 1814s, files=[]
+[19:22:01] manual      timed_out          timed out after 1800s
+[19:22:01] manual      FINAL timed_out in 1817s, files=[]
+[19:22:03] calc        timed_out          timed out after 1800s
+[19:22:03] calc        FINAL timed_out in 1820s, files=[]
+[19:22:04] posts       awaiting_review  ✖○○○  timed out after 1800s
+[19:22:04] posts       FINAL awaiting_review in 1820s, files=['shared/PLAN.md', 'social-posts.md']
+[19:22:11] local-calc  running          ●●●○  
+[19:32:49] sop         running          ●●●◐○  
+[19:33:04] sop         awaiting_review  ●●●✖○  timed out after 1800s
+[19:33:04] sop         FINAL awaiting_review in 2480s, files=['docs/onboarding-sop.md', 'docs/one-week-onboarding-checklist.md', 'docs/password-reset-faq-macros.md', 'shared/PLAN.md']
+[19:33:34] local-calc  running          ●●●◐  
+[19:37:06] local-calc  awaiting_review  ●●●✖  timed out after 2700s
+[19:37:06] local-calc  FINAL awaiting_review in 2722s, files=['calc.py', 'tests/test_calc.py']
+[19:37:06] local-posts dispatched ma2d89cb8 on ollama/qwen3.6:32k
+[19:37:21] local-posts running            

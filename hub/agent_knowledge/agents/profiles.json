@@ -1,0 +1,52 @@
+{
+  "code": {
+    "label": "Software",
+    "roster": [
+      "coder",
+      "tester",
+      "reviewer",
+      "researcher",
+      "doc-writer"
+    ],
+    "gate": "code",
+    "hint": "Builds/fixes code. Hub runs compile + pytest before review."
+  },
+  "content": {
+    "label": "Marketing & content",
+    "roster": [
+      "analyst",
+      "copywriter",
+      "designer",
+      "editor",
+      "compliance-reviewer"
+    ],
+    "gate": "content",
+    "hint": "Posts, emails, ads, visuals. Hub checks placeholders, channel limits, brand 'Avoid' list, unrendered designs."
+  },
+  "business": {
+    "label": "Business & operations",
+    "roster": [
+      "analyst",
+      "data-analyst",
+      "product-manager",
+      "project-manager",
+      "ops-writer",
+      "editor",
+      "compliance-reviewer"
+    ],
+    "gate": "content",
+    "hint": "Specs, plans, SOPs, analysis, HR/support docs. Hub checks placeholders and brand rules."
+  },
+  "research": {
+    "label": "Research & analysis",
+    "roster": [
+      "researcher",
+      "analyst",
+      "data-analyst",
+      "doc-writer",
+      "editor"
+    ],
+    "gate": "content",
+    "hint": "Cited reports and data analysis. Can use the LLM Wiki as a reference library."
+  }
+}

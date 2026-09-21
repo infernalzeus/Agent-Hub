@@ -1,6 +1,8 @@
 ---
 description: Writes and runs tests for a change. Adds test files, runs the suite, reports pass/fail with output.
+about: "Tries to break it before you do: writes the tests, runs them, reports what failed and why."
 mode: all
+direct: true
 color: "#34d399"
 bash: allow
 skills: "webapp-testing, debugging-methodology, *"

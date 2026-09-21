@@ -14,7 +14,9 @@
     "env": {
       "CLIPPER_WEB_HOST": "127.0.0.1",
       "CLIPPER_WEB_PORT": "8091",
-      "CLIPPER_BASE_PATH": "/app/movie-clipper"
+      "CLIPPER_BASE_PATH": "/app/movie-clipper",
+      "CLIPPER_WHISPER_DEVICE": "cpu",
+      "CLIPPER_WHISPER_COMPUTE_TYPE": "int8"
     },
     "builtin": true,
     "source": "wired-in",
