@@ -22,9 +22,10 @@ import json
 import re
 from pathlib import Path
 
+from .. import locations as _LOC
 from ..config import logger
 
-WIKI_ROOT = Path(r"N:\Code\git repositories\_LLM Wiki - Obsidian Second Brain\LLM Wiki")
+WIKI_ROOT = Path(_LOC.get("wiki_root") or (_LOC.BASE / "_no_wiki"))     # unset = a folder that does not exist, so wiki features stay off
 WIKI_ENTITIES = WIKI_ROOT / "entities"
 SKILLS_DIR = Path(__file__).parent / "skills"
 # Per-provider/per-model sampling overrides (temperature, top_p, ...), keyed
@@ -319,7 +320,7 @@ def relevant_skills(project_name: str, source: Path, limit: int = 4) -> list[dic
     return [s for _, _, s in scored[:limit]]
 
 
-def render_agents_md(project_name: str, source: Path) -> str:
+def render_agents_md(project_name: str, source: Path, mission: bool = False) -> str:
     """The full AGENTS.md for a session: safety rules + wiki summary + a short
     skills pointer.
 
@@ -331,7 +332,14 @@ def render_agents_md(project_name: str, source: Path) -> str:
     adds a one-line nudge naming the skills that match this project, which
     helps weaker local models that won't reach for the tool unprompted.
     """
-    parts = [SAFETY_RULES]
+    safety = SAFETY_RULES
+    if mission:
+        # a mission's brief already carries the file list; "start with ls" made every agent burn two calls (10-50 s each)
+        # listing a folder it had just been given. Also no todo bookkeeping.
+        safety = safety.replace("- Start by listing the current directory (`ls`); everything you need is here.",
+                                "- The task already lists the project files. Do NOT run `ls`/`dir`/`tree` first and do NOT use the todo tools — "
+                                "go straight to the work.")
+    parts = [safety]
 
     summary = _wiki_summary(project_name)
     if summary:
@@ -363,6 +371,7 @@ USER_AGENTS_DIR = Path(__file__).parent / "agents_user"      # yours, gitignored
 OVERRIDES_FILE = Path(__file__).parent / "agent_overrides.json"   # LLM-settings, gitignored
 # always materialised + always available as a chat target, but not "on the team"
 UTILITY_AGENTS = ("agent-smith", "app-ingestor")
+RENDER_TOOL = Path(__file__).resolve().parents[2] / "tools" / "render_png.py"   # HTML/SVG -> PNG via headless Edge/Chrome
 
 
 def _agent_md(name: str) -> Path | None:
@@ -416,10 +425,14 @@ def list_agents() -> list[dict]:
 
 # ── model policy ─────────────────────────────────────────────────────────────
 POLICY_FILE = Path(__file__).parent / "model_policy.json"
+# Measured 2026-09-19 through OpenCode in a warm worktree: Ollama-cloud Nemotron answers in 3-6 s per call; the OpenCode Zen
+# free gateway took 6-15 s idle but 60-170 s per call (and stalled outright) under load. So the fast default is the Ollama
+# cloud model — Zen free models stay as fallbacks.
+FAST_CLOUD_MODEL = "ollama/nemotron-3-super:cloud"
 FAST_FREE_MODEL = "opencode/nemotron-3.5-lightning-free"
-LOCAL_MODEL = "ollama/gemma4:e4b"
+LOCAL_MODEL = "ollama/gemma4:e4b-32k"   # 32k-ctx Modelfile variant: Ollama's default 4096 is smaller than one mission prompt
 # free cloud models to fall back through on a transient (502 / overloaded) failure
-MODEL_FALLBACKS = ["opencode/mimo-v2.5-free", LOCAL_MODEL]
+MODEL_FALLBACKS = [LOCAL_MODEL, "opencode/mimo-v2.5-free", FAST_FREE_MODEL]
 _PAID_ENV = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
              "GROQ_API_KEY", "GEMINI_API_KEY", "DEEPSEEK_API_KEY", "XAI_API_KEY")
 
@@ -460,17 +473,17 @@ def resolved_default_model(workspace_model: str | None = None) -> str:
     if pol == "local":
         return LOCAL_MODEL
     if pol == "free-cloud":
-        return FAST_FREE_MODEL
+        return FAST_CLOUD_MODEL
     if pol not in ("auto", ""):
         return pol                                   # an explicit id
-    return _paid_provider_model() or workspace_model or FAST_FREE_MODEL
+    return _paid_provider_model() or workspace_model or FAST_CLOUD_MODEL
 
 
 def model_chain(primary: str | None, workspace_model: str | None = None) -> list[str]:
     """Ordered models to try for a mission: the pinned/policy model first, then
     the free-cloud + local fallbacks, deduped."""
     first = primary or resolved_default_model(workspace_model)
-    chain = [first, FAST_FREE_MODEL, *MODEL_FALLBACKS]
+    chain = [first, FAST_CLOUD_MODEL, *MODEL_FALLBACKS]
     seen: set[str] = set()
     return [m for m in chain if m and not (m in seen or seen.add(m))]
 
@@ -542,6 +555,38 @@ def delete_user_agent(name: str) -> bool:
     return False
 
 
+# agents that only assess (never write deliverables) — a pipeline gates before them and reads their VERDICT
+READONLY_AGENTS = ("reviewer", "editor", "compliance-reviewer")
+
+
+def profiles() -> dict:
+    """Work-type presets: {name: {label, roster, gate, hint}} from agents/profiles.json (roster filtered
+    to personas that exist). `code` is always present."""
+    have = {a["name"]: a for a in list_agents()}
+    try:
+        raw = json.loads((AGENTS_DIR / "profiles.json").read_text(encoding="utf-8"))
+    except Exception:
+        raw = {}
+    out = {}
+    users = [n for n, a in have.items() if a.get("origin") == "user" and n not in UTILITY_AGENTS]
+    for k, v in raw.items():
+        roster = [n for n in v.get("roster", []) if n in have]
+        for n in users:      # agents you create join every work type unless their frontmatter `profiles:` narrows it
+            want = str((_load_persona(n) or {}).get("frontmatter", {}).get("profiles", "")).replace(",", " ").split()
+            if (not want or k in want) and n not in roster:
+                roster.append(n)
+        out[k] = {**v, "roster": roster}
+    out.setdefault("code", {"label": "Software", "gate": "code", "hint": "",
+                            "roster": [n for n in ("coder", "tester", "reviewer", "researcher", "doc-writer") if n in have]})
+    return out
+
+
+def agent_menu(names: list[str]) -> str:
+    """One line per agent — what the orchestrator sees when it picks who does what."""
+    desc = {a["name"]: a["description"] for a in list_agents()}
+    return "\n".join(f"- {n}: {desc.get(n, '')}" for n in names)
+
+
 def default_team() -> dict:
     """{primary, roster} — team.json order, plus every user agent appended."""
     agents = list_agents()
@@ -569,7 +614,7 @@ def _skill_patterns(spec: str) -> dict:
 
 def render_agent_file(name: str, *, subdir: str, roster: list[str],
                        base_branch: str, slug: str, headless: bool = False,
-                       mission: bool = False) -> str | None:
+                       mission: bool = False, skill_allow: list[str] | None = None) -> str | None:
     """The full `.opencode/agent/<name>.md` for a worktree.
 
     `mission=True` (a one-shot `opencode run` mission — one agent, its own
@@ -589,7 +634,17 @@ def render_agent_file(name: str, *, subdir: str, roster: list[str],
         return "allow" if ((headless or mission) and v == "ask") else v
 
     perm: dict = {"skill": _skill_patterns(fm.get("skills", "*"))}
+    if skill_allow is not None:
+        # lean mission prompt: OpenCode advertises every ALLOWED skill's description on
+        # every step (~2.8K tokens for the 45-skill library) — a tax weak/local models
+        # can't afford. Allow only the few that fit this project.
+        perm["skill"] = {"*": "deny", **{n: "allow" for n in skill_allow}}
     perm["bash"] = _gate(fm.get("bash"), "ask")
+    if perm["bash"] == "deny":
+        # a fully-denied bash tool makes the OpenCode Zen free gateway answer 403 "free tier can only be
+        # used from within OpenCode" (bisected 2026-09-19: deny=403, allow=OK, pattern rule=OK). Keeping
+        # the tool present with a near-empty allow-list is equivalent for a planner and passes the gateway.
+        perm["bash"] = {"*": "deny", "ls*": "allow", "git status*": "allow"}
     if fm.get("webfetch"):
         perm["webfetch"] = _gate(fm.get("webfetch"), "ask")
     if mission and is_primary:
@@ -664,7 +719,14 @@ def render_agent_file(name: str, *, subdir: str, roster: list[str],
                 .replace("BASE_BRANCH", base_branch)
                 .replace("SLUG", slug)
                 .replace("TEAMMATES", ", ".join(n for n in roster if n != name) or "(none)"))
-    return "\n".join(lines) + "\n\n" + base.strip() + "\n\n" + persona["body"] + "\n"
+    if fm.get("domain") == "work" and mission:
+        # non-code roles: the base mission's compile/test checklist doesn't apply
+        base = re.sub(r"- Before finishing:.*?(?=\n- End your final message)",
+                      "- Before finishing: re-read your deliverable once against the brief — right format, no "
+                      "placeholders, no invented facts. Do NOT run GUI apps or long-running servers.",
+                      base, flags=re.S)
+    body = persona["body"].replace("{RENDER_TOOL}", str(RENDER_TOOL))
+    return "\n".join(lines) + "\n\n" + base.strip() + "\n\n" + body + "\n"
 
 
 def lsp_config() -> dict:

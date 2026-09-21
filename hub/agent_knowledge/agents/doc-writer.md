@@ -1,6 +1,8 @@
 ---
 description: Writes and updates documentation for a change — READMEs, comments, changelogs, usage notes.
+about: "Keeps the README honest: documents what the change actually does, with an example that runs."
 mode: all
+direct: true
 color: "#f59e0b"
 bash: ask
 skills: "doc-coauthoring, internal-comms, *"

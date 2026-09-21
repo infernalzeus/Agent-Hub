@@ -1,5 +1,6 @@
 ---
 description: Onboards a web app from a freshly cloned git repo — works out how to run it and writes the hub manifest. No creative latitude.
+about: "Reads an unfamiliar repo, works out how to run it and writes the hub manifest. No creativity required."
 mode: all
 color: "#22d3ee"
 bash: allow

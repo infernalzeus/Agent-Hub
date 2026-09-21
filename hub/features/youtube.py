@@ -224,6 +224,7 @@ async def _ytdl_broadcast(payload: dict) -> None:
         ytdl_state.subscribers.discard(ws)
 
 
+
 def _build_ytdl_args(url: str, fmt: str) -> list[str]:
     outdir = YT_DL_AUDIO_DIR if fmt == "audio" else YT_DL_VIDEO_DIR
     args = ["--url", url, "--format", fmt, "--outdir", outdir]
@@ -241,12 +242,22 @@ async def _ytdl_stream_download(args: list[str]) -> None:
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
 
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-        env=env,
-    )
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            env=env,
+        )
+    except FileNotFoundError:
+        # The request returned already because downloads stream in the background.
+        # Finish it explicitly so the card reports the configuration problem.
+        ytdl_state.done = True
+        ytdl_state.ok = False
+        ytdl_state.result["error"] = f"Downloader Python was not found: {YT_DL_PYTHON}"
+        await _ytdl_broadcast({"type": "done", "ok": False, "result": ytdl_state.result,
+                                "queue_remaining": len(ytdl_state.queue)})
+        return
     ytdl_state.proc = proc
     _assign_to_job(proc.pid)
 
@@ -427,7 +438,6 @@ async def ytdl_status(request: web.Request) -> web.Response:
         "queue_length": len(ytdl_state.queue),
     })
 
-
 @routes.post("/api/youtube-dl/download")
 async def ytdl_download(request: web.Request) -> web.Response:
     data = await request.json()
@@ -501,11 +511,15 @@ async def ytdl_ws_handler(request: web.Request) -> web.WebSocketResponse:
     await ws.prepare(request)
     ytdl_state.subscribers.add(ws)
 
-    for line in ytdl_state.lines:
-        await ws.send_str(json.dumps({"type": "line", "text": line, "progress": ytdl_state.progress,
-                                       "title": ytdl_state.title}))
-    if ytdl_state.done:
-        await ws.send_str(json.dumps({"type": "done", "ok": ytdl_state.ok, "result": ytdl_state.result}))
+    # Replay ONLY an in-flight download, so a tab opened mid-download picks up its
+    # title/progress. A FINISHED one must not be replayed: its last lines are the
+    # post-processing ones (-> "PROCESSING") plus the old title, and the client
+    # rightly ignores a replayed 'done' — so replaying it stranded the button on
+    # PROCESSING with the previous video's title.
+    if ytdl_state.busy:
+        for line in ytdl_state.lines:
+            await ws.send_str(json.dumps({"type": "line", "text": line, "progress": ytdl_state.progress,
+                                           "title": ytdl_state.title}))
     if ytdl_state.queue:
         await ws.send_str(json.dumps({"type": "queue_update", "queue": ytdl_state.queue}))
 
@@ -532,4 +546,7 @@ def setup(app: web.Application) -> None:
             logger.info("ytdl queue: resumed %s (%d still waiting)",
                         next_item["url"], len(ytdl_state.queue))
     app.on_startup.append(_resume_ytdl_queue)
+
+
+
 

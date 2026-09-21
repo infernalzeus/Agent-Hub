@@ -38,18 +38,19 @@ import aiohttp
 from aiohttp import web
 
 from .. import agent_knowledge
+from .. import locations as LOC
 from ..agent_knowledge import status as ak_status
 from ..config import PORT as HUB_PORT, logger
 from ..platform_win import _assign_to_job
 
 # ── constants ──────────────────────────────────────────────────────────────
-OPENCODE_ROOT = Path(r"N:\Code\opencode")
+OPENCODE_ROOT = Path(LOC.get("opencode_home"))
 OPENCODE_EXE = str(OPENCODE_ROOT / "node_modules" / "opencode-ai" / "bin" / "opencode.exe")
 OPENCODE_CONFIG = str(OPENCODE_ROOT / "opencode.json")
 
 # git worktrees live here — outside `git repositories\` so a worktree is never
 # mistaken for a source project by the graph's folder scan.
-WORKTREES = OPENCODE_ROOT / "worktrees"
+WORKTREES = Path(LOC.get("work_dir"))
 
 PUBLIC_BASE = 8100
 PORT_SPAN = 40                     # public 8100–8139
@@ -70,7 +71,7 @@ _TRANSIENT = re.compile(r"\b504\b|idle timeout|upstream|econnreset|fetch failed|
 # a chat stuck 'busy' longer than this is auto-aborted by the watchdog
 WATCHDOG_SECONDS = 720
 # model fallback chain for the "continue on a steadier model" action
-FALLBACK_MODELS = ["opencode/nemotron-3-ultra-free", "ollama/qwen3.6:latest"]
+FALLBACK_MODELS = ["opencode/nemotron-3-ultra-free", "ollama/qwen3.6:32k"]
 
 COPY_IGNORE = shutil.ignore_patterns(
     ".git", "node_modules", "__pycache__", ".venv", ".mypy_cache", ".pytest_cache", ".ocdata",
@@ -304,7 +305,7 @@ async def _default_branch(repo: Path) -> str:
 # is safe because that repo is ours alone.
 HUB_SCAFFOLDING = frozenset({
     "AGENTS.md", "opencode.json", ".agent-hub-base", ".agent-hub-ready-to-push",
-    ".agent-hub-origin", ".opencode", ".claude",
+    ".agent-hub-origin", ".opencode", ".claude", ".hub-ref",
 })
 # git pathspecs that keep hub scaffolding + the per-project data dir out of every
 # `git add` / `git diff` the hub runs — so it never lands in the user's branch.

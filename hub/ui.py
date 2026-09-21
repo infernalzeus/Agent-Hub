@@ -3,10 +3,15 @@ from __future__ import annotations
 
 import base64
 import json
+from pathlib import Path
 
 from aiohttp import web
 
 from .config import APPS, SHORTCUTS, HERE
+from .voice_widget import TALK_BUTTON, widget as _widget
+
+_WIDGET = _widget(True)      # conversation popover + orbs, built once
+_PICKER = (Path(__file__).parent / "static" / "picker.js").read_text(encoding="utf-8")
 
 routes = web.RouteTableDef()
 
@@ -92,7 +97,7 @@ html,body{min-height:100%;min-height:100dvh;font-family:'Outfit',system-ui,sans-
 </head>
 <body>
 <div class="wrap">
-  <img class="hero-icon" src="/favicon.png" alt="Agent Hub">
+  <img class="hero-icon" src="/favicon-256.png" alt="Agent Hub">
   <div class="brand">AGENT HUB</div>
   <div class="status">DORMANT</div>
   <button type="button" id="wake-btn" class="wake-btn">▶ START</button>
@@ -168,9 +173,9 @@ if (isWindows()) {
 """
 
 _SW_JS = """\
-const CACHE_NAME = 'agent-hub-offline-v7';
+const CACHE_NAME = 'agent-hub-offline-v8';
 const OFFLINE_URL = '/offline.html';
-const PRECACHE = [OFFLINE_URL, '/favicon.png', '/favicon-256.png', '/favicon.svg'];
+const PRECACHE = [OFFLINE_URL, '/favicon-256.png', '/favicon.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -243,10 +248,10 @@ _HTML = """\
 html{min-height:100dvh;background:linear-gradient(150deg,#080c28 0%,#0d1050 45%,#18095c 100%) fixed}
 html,body{min-height:100%;min-height:100dvh;font-family:'Outfit',system-ui,sans-serif;color:var(--text)}
 body{max-width:520px;margin:0 auto;background:transparent;
-  padding:env(safe-area-inset-top) env(safe-area-inset-right) calc(104px + env(safe-area-inset-bottom)) env(safe-area-inset-left)}
-header{display:flex;align-items:center;gap:14px;padding:22px 20px 24px;border-bottom:1px solid var(--border-dim)}
-.conn-indicator{margin-left:auto;display:flex;align-items:center;gap:6px}
-.conn-label{font-family:'Orbitron',monospace;font-size:9px;letter-spacing:1.5px;color:var(--text-faint);transition:color .3s}
+  padding:0 env(safe-area-inset-right) calc(104px + env(safe-area-inset-bottom)) env(safe-area-inset-left)}
+header{display:flex;align-items:center;flex-wrap:nowrap;gap:7px;width:100%;padding:calc(18px + env(safe-area-inset-top)) 16px 14px}
+.conn-indicator{margin-left:auto;display:flex;align-items:center;gap:4px;flex:0 1 auto;min-width:0}.header-controls{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.conn-label{font-family:'Orbitron',monospace;font-size:8px;letter-spacing:.8px;color:var(--text-faint);transition:color .3s}
 .conn-label.live{color:var(--accent)}
 .conn-label.down{color:#ff5c5c}
 #conn-dot{width:7px;height:7px;border-radius:50%;background:#c0392b;transition:background .3s,box-shadow .3s;flex-shrink:0}
@@ -267,7 +272,7 @@ header{display:flex;align-items:center;gap:14px;padding:22px 20px 24px;border-bo
    spun sheen (rotational lustre, no lines). Coloured glow ONLY while active
    (hover / press / .working); resting = plain spun-blue metal. Icons are SVG
    (centred, crisp). */
-.restart-btn,.shutdown-btn{width:40px;height:40px;border-radius:12px;
+.restart-btn,.shutdown-btn{width:36px;height:36px;border-radius:11px;
   display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;
   background:
     conic-gradient(from 218deg at 50% 50%,rgba(150,175,255,.12),rgba(0,0,0,.10) 25%,rgba(140,165,255,.09) 50%,rgba(0,0,0,.10) 75%,rgba(150,175,255,.12) 100%),
@@ -374,7 +379,19 @@ body.edit-mode .drag-handle{display:block}
 .ingest-card{border-style:dashed;justify-content:center;cursor:pointer;color:var(--text-muted);
   font-family:'Orbitron',monospace;font-size:11px;letter-spacing:2px}
 .ingest-card:hover{border-color:var(--accent);color:var(--accent)}
-#edit-toggle.on{background:rgba(0,230,118,.14);border-color:var(--accent);color:var(--accent)}
+#edit-toggle.on,.restart-btn#edit-toggle.on{box-shadow:inset 0 1px 0 rgba(210,225,255,.5),inset 0 -1px 2px rgba(0,0,0,.4),0 2px 6px rgba(0,0,0,.5),0 0 16px var(--g);border-color:var(--accent)}
+#edit-toggle.on svg{filter:drop-shadow(0 0 5px var(--g))}
+.restart-btn{text-decoration:none}
+#edit-toggle{--g:rgba(255,154,31,.85)}#edit-toggle svg{stroke:#ff9a1f;filter:drop-shadow(0 0 3px rgba(255,154,31,.8))}
+#edit-toggle svg .ul{stroke:#fff}
+#loc-btn{--g:rgba(56,182,255,.85)}#loc-btn svg{width:20px;height:20px;stroke:#38b6ff;filter:drop-shadow(0 0 3px rgba(56,182,255,.85))}
+#loc-btn svg .loc-marker{fill:#070b25;stroke:#304a9d;stroke-width:2;filter:drop-shadow(0 0 2px rgba(48,74,157,.72))}
+@media (max-width:720px){#loc-btn svg{width:18px;height:18px}}
+@media (max-width:720px){header{gap:5px;padding:calc(10px + env(safe-area-inset-top)) 10px 10px}.brand{font-size:13px;letter-spacing:2px}.brand-icon{width:30px;height:30px}
+  .conn-label{display:none}.restart-btn,.shutdown-btn{width:36px;height:36px;border-radius:11px}.restart-btn svg,.shutdown-btn svg{width:18px;height:18px}}
+.ico{width:14px;height:14px;vertical-align:-2px;margin-right:6px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.wire-out .ico,.yt-queue-del .ico{margin:0;width:13px;height:13px}
+header{column-gap:10px}.brand{white-space:nowrap}.header-shortcuts:empty{display:none}.conn-label{white-space:nowrap}
 #trash-zone{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(30px);
   z-index:90;padding:12px 22px;border-radius:14px;border:2px dashed rgba(255,92,92,.6);background:rgba(20,6,10,.92);
   color:#ff8a8a;font-family:'Orbitron',monospace;font-size:11px;letter-spacing:2px;display:flex;align-items:center;gap:8px;
@@ -397,8 +414,15 @@ body.edit-mode #trash-zone{opacity:1;transform:translateX(-50%) translateY(0)}
    instead of tiny wrapped chips crammed next to the title on a phone. */
 #oc-header{flex-wrap:wrap}
 #oc-header .card-body{min-width:140px}
+.mcp-wire{width:46px;height:46px;flex:none;padding:0;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(0,230,118,.45);border:1px solid rgba(0,230,118,.28);background:linear-gradient(180deg,#1a2170 0%,#0d1050 48%,#0a0c3e 100%);box-shadow:inset 0 1px 0 rgba(140,165,255,.28),0 2px 6px rgba(0,0,0,.5);transition:all .18s}.mcp-wire svg{width:25px;height:25px}.mcp-wire.on{color:var(--accent);border-color:rgba(0,230,118,.72);box-shadow:inset 0 1px 0 rgba(210,225,255,.5),0 0 16px rgba(0,230,118,.48)}.mcp-wire.off:hover{color:var(--accent);border-color:rgba(0,230,118,.55)}.mcp-wire:disabled{opacity:.42;cursor:default}
 #opencode-app-area .card-actions{flex-basis:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;justify-content:stretch}
 #opencode-app-area .card-actions .btn{width:100%;min-height:46px;font-size:10px}
+#setup-card{border:1px solid var(--amber);border-radius:14px;padding:14px 16px;margin:0 auto 14px;max-width:520px;background:rgba(224,165,60,.08);display:grid;gap:8px}
+#setup-card[hidden]{display:none}
+#setup-card .sc-title{font:700 10px 'Orbitron',monospace;letter-spacing:1.6px;color:var(--amber)}
+#setup-card .sc-text{font-size:13px;line-height:1.5;color:#d9ffe9}
+#setup-card .btn{justify-self:start;text-decoration:none}
+
 .btn:hover:not(:disabled){background:rgba(0,230,118,.1);box-shadow:0 0 10px rgba(0,230,118,.18)}
 .btn:disabled{opacity:.4;cursor:not-allowed}
 .btn.stop{border-color:rgba(255,92,92,.4);color:#ff5c5c}
@@ -508,15 +532,13 @@ body.edit-mode #trash-zone{opacity:1;transform:translateX(-50%) translateY(0)}
     <div id="conn-dot"></div>
   </div>
   <div class="header-shortcuts" id="header-shortcuts"></div>
-  <button type="button" class="shortcut-btn" id="edit-toggle" title="Rearrange / wire out apps" aria-label="Edit apps">
-    <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><g transform="rotate(45 12 12)">
-      <rect x="9.3" y="1.4" width="5.4" height="3.8" rx="1.3" fill="#ff5c5c"/>
-      <rect x="9.3" y="5.1" width="5.4" height="1.6" fill="#e4e4e4"/>
-      <rect x="9.3" y="6.6" width="5.4" height="10.3" fill="#f5c842"/>
-      <path d="M9.3 16.9h5.4l-1.7 4.3a1 1 0 0 1-1.9 0L9.3 16.9Z" fill="#c98a3e"/>
-      <path d="M10.9 19.3h2.2l-.8 2a.6.6 0 0 1-1.1 0l-.8-2Z" fill="#1a1a1a"/>
-    </g></svg>
+  <div class="header-controls">
+  <button type="button" class="restart-btn" id="edit-toggle" title="Rearrange / wire out apps" aria-label="Edit apps">
+    <svg viewBox="0 0 24 24"><path d="M16.5 2.8a2.1 2.1 0 0 1 3 3L7.2 18 3.2 19l1-4Z"/><path class="ul" d="M3 22.2h18"/></svg>
   </button>
+  <a class="restart-btn" id="loc-btn" href="/setup" title="Locations: where Agent Hub reads and writes" aria-label="Locations">
+    <svg viewBox="0 0 24 24"><path d="M12 21.5s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z"/><circle class="loc-marker" cx="12" cy="10.5" r="2.35"/></svg>
+  </a>
   <button type="button" class="restart-btn" id="restart-btn" title="Restart Agent Hub" aria-label="Restart Agent Hub">
     <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.36"/><path d="M21 4v5h-5"/></svg>
   </button>
@@ -526,6 +548,13 @@ body.edit-mode #trash-zone{opacity:1;transform:translateX(-50%) translateY(0)}
 </header>
 
 <div id="setup-banner"></div>
+
+<div id="setup-card" hidden>
+  <div class="sc-title">FIRST-TIME SETUP</div>
+  <div class="sc-text">Check where Agent Hub reads and writes: your project folders, the missions work folder, downloads and the phone inbox. Everything is prefilled with what was found. Look it over, then save.</div>
+  <a class="btn go" href="/setup">CHECK &amp; SAVE</a>
+</div>
+<script>fetch('/api/locations/state',{cache:'no-store'}).then(r=>r.json()).then(j=>{ if(!j.configured) document.getElementById('setup-card').hidden=false; }).catch(()=>{});</script>
 
 <div id="apps-before"></div>
 
@@ -689,6 +718,8 @@ body.edit-mode #trash-zone{opacity:1;transform:translateX(-50%) translateY(0)}
       <div class="card-name">OpenCode</div>
       <div class="card-status" id="oc-status-line"><span class="status-dot"></span>agents &amp; missions</div>
     </div>
+    __TALK_BUTTON__
+    <button type="button" class="mcp-wire off" id="mcp-wire" title="PC control: checking" aria-label="PC control: checking"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="1.8"/><path d="M8.5 20h7M12 16v4M6.5 10h.01M9.5 10h.01M12.5 10h.01M15.5 10h.01M18 7.5v5"/></svg></button>
     <div class="card-actions">
       <a class="btn" href="/missions">MISSIONS</a>
       <a class="btn" href="/agents">AGENTS</a>
@@ -704,8 +735,8 @@ body.edit-mode #trash-zone{opacity:1;transform:translateX(-50%) translateY(0)}
   <div class="power-menu" id="power-menu">
     <button type="button" class="power-item" data-action="lock">🔒 LOCK</button>
     <button type="button" class="power-item sleep" data-action="sleep">🌙 SLEEP</button>
-    <button type="button" class="power-item warn" data-action="restart">↻ RESTART</button>
-    <button type="button" class="power-item danger" data-action="shutdown">⏻ SHUT DOWN</button>
+    <button type="button" class="power-item warn" data-action="restart"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.36"/><path d="M21 4v5h-5"/></svg>RESTART</button>
+    <button type="button" class="power-item danger" data-action="shutdown"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9"/><path d="M6.4 6.4a8 8 0 1 0 11.2 0"/></svg>SHUT DOWN</button>
   </div>
   <button type="button" class="power-btn" id="power-btn" title="Power" aria-label="Power menu">
     <svg viewBox="0 0 32 32" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -847,6 +878,9 @@ function setupActionHtml(action) {
     return `<button type="button" class="btn setup-action" data-id="${action.id}"
       onclick="runSetupInstall(this)" style="margin-top:8px">${action.label || 'INSTALL'}</button>`;
   }
+  if (action.kind === 'link') {
+    return `<a class="btn setup-action" href="${action.href}" style="margin-top:8px">${action.label || 'OPEN'}</a>`;
+  }
   if (action.kind === 'command') {
     return `<button type="button" class="btn setup-action" data-cmd="${(action.command||'').replace(/"/g,'&quot;')}"
       onclick="copySetupCommand(this)" style="margin-top:8px">${action.label || 'COPY COMMAND'}</button>`;
@@ -886,7 +920,7 @@ async function loadSetupStatus() {
 }
 loadSetupStatus();
 
-let APP_LIST = [];       // from /api/apps — the ordered, editable "ingested apps" list
+let APP_LIST = __APP_LIST_JSON__;   // embedded by the server so every tile paints on the first frame; /api/apps keeps it fresh
 let EDIT = false;
 let _dragCard = null, _dragStartY = 0, _dragPointerId = null;
 
@@ -924,7 +958,7 @@ function buildAppCard(info, editable) {
       <div class="card-status"><span class="status-dot ${running ? 'running' : ''}"></span>${running ? 'RUNNING' : 'IDLE'}${info.serve === 'direct' ? ' · NEW TAB' : ''}</div>
     </div>
     <div class="card-actions"></div>
-    ${editable ? '<span class="wire-out" title="Wire out">✕</span>' : ''}`;
+    ${editable ? '<span class="wire-out" title="Wire out"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></span>' : ''}`;
   const actions = card.querySelector('.card-actions');
 
   const openBtn = document.createElement('button');
@@ -984,7 +1018,7 @@ function render() {
   }
   const add = document.createElement('div');
   add.className = 'card ingest-card';
-  add.textContent = '＋ INGEST APP';
+  add.innerHTML = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>INGEST APP';
   add.onclick = ingestPrompt;
   appsBefore.appendChild(add);
 }
@@ -1105,6 +1139,17 @@ function setConn(live) {
 
 async function refresh() {
   try {
+    // fire all three at once — they used to run one after another, so the menu waited for the sum
+    const _o = (ms) => ({cache: 'no-store', signal: AbortSignal.timeout(ms)});
+    const pApps = fetch('/api/apps', _o(4000)).then(r => r.ok ? r.json() : null).catch(() => null);
+    // `ytdlOpen` is a `let` declared further down this script: on the FIRST refresh() (called before that line runs)
+    // even `typeof ytdlOpen` throws (temporal dead zone) — that threw into the catch below and showed DISCONNECTED on
+    // every page load until the next poll. Guard it.
+    let _ytClosed = true;
+    try { _ytClosed = (typeof ytdlOpen !== 'undefined') ? !ytdlOpen : true; } catch (e) { _ytClosed = true; }
+    const pYt = _ytClosed
+      ? fetch('/api/youtube-dl/status', _o(4000)).then(r => r.ok ? r.json() : null).catch(() => null)
+      : Promise.resolve(null);
     const res = await fetch('/api/status', {signal: AbortSignal.timeout(4000)});
     if (!res.ok) throw new Error('bad status');
     await res.json();
@@ -1113,10 +1158,7 @@ async function refresh() {
     ytAppArea.style.display = '';
     ytdlAppArea.style.display = '';
     powerWrap.style.display = '';
-    try {
-      const a = await fetch('/api/apps', {cache: 'no-store', signal: AbortSignal.timeout(4000)});
-      if (a.ok) { APP_LIST = (await a.json()).apps || []; }
-    } catch (e) { /* keep the last list */ }
+    { const a = await pApps; if (a) { APP_LIST = a.apps || APP_LIST; } }   // else keep the last list
     // Lightweight YT-DL status, no websocket — so a device whose card is
     // COLLAPSED (or another device entirely, e.g. phone while PC downloads)
     // still shows "downloading"/"queued" instead of a stale "IDLE" until
@@ -1124,9 +1166,8 @@ async function refresh() {
     // driving the status line for real (ytdlOpen) so the two never fight.
     try {
       if (typeof ytdlOpen !== 'undefined' && !ytdlOpen) {
-        const y = await fetch('/api/youtube-dl/status', {cache: 'no-store', signal: AbortSignal.timeout(4000)});
-        if (y.ok) {
-          const s = await y.json();
+        const s = await pYt;
+        if (s) {
           const line = document.getElementById('ytdl-status-line');
           if (line) {
             const text = s.busy
@@ -1164,6 +1205,7 @@ async function refresh() {
   }
 }
 
+render(); renderFileBrowser();      // instant first paint from the embedded list
 refresh();
 setInterval(refresh, 5000);
 
@@ -1422,7 +1464,7 @@ function ytdlRenderQueue(queue) {
       <button type="button" class="yt-queue-fmt-toggle" data-id="${item.id}" data-fmt="${item.format}"
               title="Swap to ${item.format === 'video' ? 'audio' : 'video'}">${YTDL_FMT_ICON[item.format]}</button>
       <span class="yt-queue-url">${esc(item.url)}</span>
-      <button type="button" class="yt-queue-del" data-id="${item.id}" title="Remove from queue">✕</button>
+      <button type="button" class="yt-queue-del" data-id="${item.id}" title="Remove from queue"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>`).join('');
 }
 
@@ -1531,6 +1573,12 @@ function ytdlConnectWs() {
   ws.onmessage = ev => {
     const d = JSON.parse(ev.data);
     if (d.type === 'line') {
+      // A live line means a download is in flight — even one started on ANOTHER
+      // device. Mark it active so its 'done' isn't dropped by the guard below
+      // (that drop left this tab stuck on PROCESSING + the last title).
+      ytdlActive = true;
+      ytdlProgWrap.style.display = 'block';
+      ytdlResultEl.style.display = 'none';
       if (d.title) {
         ytdlActiveTitle.textContent = d.title;
         ytdlActiveTitle.style.display = 'block';
@@ -1603,6 +1651,37 @@ function ytdlDisconnectWs() {
 (function () {
   const scratchBtn = document.getElementById('oc-scratch-btn');
   const statusEl   = document.getElementById('oc-status-line');
+  const mcpWire    = document.getElementById('mcp-wire');
+  let windowsMcp = null;
+
+  function paintMcp(server) {
+    windowsMcp = server || null;
+    const usable = !!(server && server.installed);
+    const on = !!(usable && server.enabled);
+    mcpWire.disabled = !usable;
+    mcpWire.classList.toggle('on', on);
+    mcpWire.classList.toggle('off', !on);
+    mcpWire.title = usable ? `PC control: ${on ? 'ON — TALK can control this PC' : 'OFF'}` : 'PC control is not installed';
+    mcpWire.setAttribute('aria-label', mcpWire.title);
+  }
+  async function syncMcp() {
+    try {
+      const data = await (await fetch('/api/mcp', {cache:'no-store'})).json();
+      paintMcp((data.servers || []).find(s => s.name === 'windows'));
+    } catch (e) { paintMcp(null); }
+  }
+  mcpWire.onclick = async () => {
+    if (!windowsMcp || !windowsMcp.installed) return;
+    const on = !windowsMcp.enabled;
+    mcpWire.disabled = true;
+    try {
+      const res = await fetch('/api/mcp/windows/enabled', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:on})});
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      paintMcp((data.servers || []).find(s => s.name === 'windows'));
+      toast(on ? 'PC control ON — TALK can now open Edge, YouTube, and web searches. New OpenCode and Mission workspaces get Windows MCP.' : 'PC control OFF — TALK, new OpenCode chats, and new Mission workspaces cannot control this PC.');
+    } catch (e) { toast('PC control could not change: ' + (e.message || e), 'err'); await syncMcp(); }
+  };
 
   scratchBtn.onclick = async () => {
     scratchBtn.disabled = true; scratchBtn.textContent = 'STARTING…';
@@ -1614,8 +1693,11 @@ function ytdlDisconnectWs() {
       });
       if (!res.ok) throw new Error((await res.text()) || res.status);
       const s = await res.json();
-      if (s.open_url) window.open(s.open_url, 'oc-scratch');
-      else throw new Error('no session URL returned');
+      const chat = await fetch('/api/opencode/projects/' + encodeURIComponent(s.slug) + '/chats', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}', signal:AbortSignal.timeout(15000) });
+      if (!chat.ok) throw new Error((await chat.text()) || 'could not create a chat');
+      const created = await chat.json();
+      if (created.url) window.open(created.url, 'oc-scratch');
+      else throw new Error('no chat URL returned');
     } catch (e) {
       toast('Quick chat could not start: ' + (e.message || e), 'err');
     } finally {
@@ -1632,7 +1714,7 @@ function ytdlDisconnectWs() {
         (m.length ? `${run} running · ${rev} to review` : 'agents & missions');
     } catch (e) {}
   }
-  tick(); setInterval(tick, 5000);
+  tick(); syncMcp(); setInterval(() => { tick(); syncMcp(); }, 5000);
 })();
 </script>
 
@@ -1733,6 +1815,8 @@ function ytdlDisconnectWs() {
   };
 })();
 </script>
+<script>__PICKER_JS__</script>
+__VOICE_WIDGET__
 </body>
 </html>
 """
@@ -1740,13 +1824,24 @@ function ytdlDisconnectWs() {
 
 def _render_menu() -> str:
     import json
+    from . import app_registry
+    from .supervisor import APP_PROCS
+    try:
+        app_list = [{**m, "running": bool(APP_PROCS.get(m.get("id")) and APP_PROCS[m.get("id")].running)}
+                    for m in app_registry.load_raw()]
+    except Exception:
+        app_list = []
     apps_json = json.dumps({
         aid: {"name": cfg["name"], "emoji": cfg["emoji"], "pinned": cfg.get("pinned", False)}
         for aid, cfg in APPS.items()
     })
     shortcuts_json = json.dumps(SHORTCUTS)
     return (_HTML
+            .replace("__PICKER_JS__", _PICKER)
+            .replace("__VOICE_WIDGET__", _WIDGET)
+            .replace("__TALK_BUTTON__", TALK_BUTTON)
             .replace("__APPS_JSON__", apps_json)
+            .replace("__APP_LIST_JSON__", json.dumps(app_list).replace("</", "<\\/"))
             .replace("__SHORTCUTS_JSON__", shortcuts_json))
 
 
@@ -1819,4 +1914,6 @@ async def offline_page(request: web.Request) -> web.Response:
 @routes.get("/sw.js")
 async def service_worker(request: web.Request) -> web.Response:
     return web.Response(text=_SW_JS, content_type="application/javascript", charset="utf-8")
+
+
 

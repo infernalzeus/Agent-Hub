@@ -37,18 +37,18 @@ body{background:#000}
 /* Header keeps the Hub's own blue/purple gradient — the graph body below it
    is plain black, so the graph is boxed to ITS OWN area (top:56px on the
    SVG below) and never renders up through/behind this bar. */
-header{position:fixed;top:0;left:0;right:0;z-index:20;height:56px;display:flex;align-items:center;gap:14px;
-  padding:0 20px;border-bottom:1px solid rgba(0,230,118,.14);
+header{position:fixed;top:0;left:0;right:0;z-index:20;height:calc(56px + env(safe-area-inset-top));display:flex;align-items:center;gap:14px;
+  padding:env(safe-area-inset-top) 20px 0;border-bottom:1px solid rgba(0,230,118,.14);
   background:linear-gradient(150deg,#080c28 0%,#0d1050 45%,#18095c 100%)}
 .brand{font-family:'Orbitron',monospace;font-size:16px;font-weight:900;color:var(--accent);letter-spacing:3px}
 .back-link{margin-left:auto;font-family:'Orbitron',monospace;font-size:11px;letter-spacing:1.5px;
   color:var(--text-muted);text-decoration:none;padding:11px 16px;min-height:40px;display:inline-flex;align-items:center;
   border:1px solid rgba(0,230,118,.28);border-radius:8px;transition:color .15s,border-color .15s;
-  -webkit-tap-highlight-color:transparent}
+  -webkit-tap-highlight-color:transparent;flex-shrink:0}
 .back-link:hover{color:var(--accent);border-color:var(--accent)}
 #panel-chat .chat-btn{min-height:40px}
 
-svg#graph{position:fixed;top:56px;left:0;right:0;bottom:0;width:100%;height:calc(100% - 56px);
+svg#graph{position:fixed;top:calc(56px + env(safe-area-inset-top));left:0;right:0;bottom:0;width:100%;height:calc(100% - 56px - env(safe-area-inset-top));
   cursor:grab;background:#000}
 svg#graph:active{cursor:grabbing}
 .ngrp{cursor:pointer}
@@ -127,6 +127,7 @@ svg#graph:active{cursor:grabbing}
 .diff-del{color:#f09595}
 #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
   font-family:'Orbitron',monospace;font-size:12px;letter-spacing:2px;color:var(--text-muted)}
+@media (max-width:520px){header{gap:8px;padding-left:12px;padding-right:12px}.brand{font-size:11px;letter-spacing:1.5px}.back-link{padding:9px 11px;font-size:10px;min-height:36px}}
 </style>
 </head>
 <body>

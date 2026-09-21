@@ -71,6 +71,16 @@ def _install_opencode() -> tuple[bool, str]:
     return ok, log
 
 
+def _update_opencode() -> tuple[bool, str]:
+    """OpenCode Zen's free tier now returns 426 to clients older than 1.18.0 — a server-side
+    change that silently broke every free-model mission on 1.17.x."""
+    npm = shutil.which("npm")
+    if not npm:
+        return False, "npm not found on PATH — install Node.js first, then retry."
+    ok, log = _run([npm, "install", "opencode-ai@latest"], cwd=OPENCODE_ROOT, timeout=300)
+    return ok, log
+
+
 def _install_yt_deps() -> tuple[bool, str]:
     target = yt_python_target()
     ok, log = _run([target, "-m", "pip", "install", *_read_yt_deps()], timeout=300)
@@ -88,5 +98,6 @@ ACTIONS: dict[str, InstallAction] = {
     a.id: a for a in [
         InstallAction("install-opencode", "Install OpenCode now", _install_opencode),
         InstallAction("install-yt-deps", "Install YouTube dependencies now", _install_yt_deps),
+        InstallAction("update-opencode", "Update OpenCode now", _update_opencode),
     ]
 }
