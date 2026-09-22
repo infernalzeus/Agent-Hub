@@ -45,7 +45,7 @@ folder (relative paths, or absolute paths that start with this folder).
 
 Rules:
 - Start by listing the current directory (`ls`); everything you need is here.
-- NEVER search the whole filesystem/drive: no `find N:\\ ...`, no `dir -Recurse`
+- NEVER search the whole filesystem/drive: no `find <drive root> ...`, no `dir -Recurse`
   from the drive root, no listing `/`, `/var`, `/home`, `/Users`, `/workspace`.
 - NEVER edit a file outside this directory. If a tool would write to a path that
   is not inside this folder, do not do it — the edit belongs in the copy here.

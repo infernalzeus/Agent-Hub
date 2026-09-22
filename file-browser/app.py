@@ -1,5 +1,5 @@
 """
-File Browser — browse, view, and download files on N:\\ from any device on the
+File Browser — browse, view, and download files under the configured root from
 tailnet, in-browser (images/video preview inline, everything else downloads).
 
 Standalone aiohttp app, spawned on demand by Agent Hub exactly like Movie
@@ -17,7 +17,12 @@ from pathlib import Path
 
 from aiohttp import web
 
-ROOT = Path(os.getenv("FB_ROOT", "N:/")).resolve()
+# The folder to browse. Defaults to this user's home rather than one machine's
+# drive — Agent Hub passes FB_ROOT from the File Browser location you configured.
+ROOT = Path(os.getenv("FB_ROOT") or Path.home()).resolve()
+# Breadcrumb label for ROOT: the drive when ROOT is a drive root, else its name.
+ROOT_LABEL = os.getenv("FB_ROOT_LABEL") or (
+    (ROOT.drive + "\\") if ROOT.parent == ROOT and ROOT.drive else (ROOT.name or str(ROOT)))
 
 HOST = os.getenv("FB_WEB_HOST", "0.0.0.0")
 PORT = int(os.getenv("FB_WEB_PORT", "8092"))
@@ -387,7 +392,7 @@ function iconForFile(name, kind) {
 function renderCrumbs(path) {
   crumbsEl.innerHTML = '';
   const rootLink = document.createElement('a');
-  rootLink.textContent = 'N:\\\\';
+  rootLink.textContent = '__ROOT_LABEL__';
   rootLink.onclick = () => load('');
   crumbsEl.appendChild(rootLink);
 
@@ -687,7 +692,9 @@ load('');
 
 
 def _render_html() -> str:
-    return _HTML.replace("__BASE_PATH__", BASE_PATH)
+    # ROOT_LABEL goes into a JS string literal, so escape backslashes and quotes.
+    label = ROOT_LABEL.replace("\\", "\\\\").replace("'", "\\'")
+    return _HTML.replace("__BASE_PATH__", BASE_PATH).replace("__ROOT_LABEL__", label)
 
 
 def _render_favicon_svg() -> str:

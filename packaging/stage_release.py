@@ -3,7 +3,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
+import re
 import shutil
 
 EXTENSIONS = {'.py', '.json', '.js', '.css', '.html', '.md', '.txt', '.png', '.svg', '.jpg', '.jpeg', '.ico', '.pdf', '.zip', '.gz', '.yaml', '.yml', '.sh', '.ts', '.tsx', '.cjs', '.mjs'}
@@ -61,6 +63,29 @@ def stage(root: Path, destination: Path, packaging: Path | None = None):
     return destination
 
 
+# A user profile, or any drive other than the system one, is this machine's layout.
+# C:\Program Files and C:\Windows are legitimate defaults and stay allowed.
+# The lookbehind keeps URL schemes out of it: the "s:/" inside "https://" is not a drive.
+_MACHINE_PATH = re.compile(r'(?<![A-Za-z])(?:[D-Zd-z]:[\\/]|[Cc]:[\\/]Users[\\/])')
+
+
+def _denied_values() -> list[str]:
+    """Machine-specific strings to reject — a PIN, an account tag, a hostname.
+
+    Deliberately NOT literals in this file: it is public, so a denylist written
+    here would publish exactly what it exists to keep out. One value per line in
+    packaging/release-deny.local.txt (gitignored), and/or AGENTHUB_RELEASE_DENY
+    as a ';'-separated list.
+    """
+    values = []
+    local = Path(__file__).resolve().parent / 'release-deny.local.txt'
+    if local.is_file():
+        values += [line.strip() for line in local.read_text(encoding='utf-8').splitlines()
+                   if line.strip() and not line.startswith('#')]
+    values += [v.strip() for v in os.environ.get('AGENTHUB_RELEASE_DENY', '').split(';') if v.strip()]
+    return values
+
+
 def audit(destination: Path):
     for path in destination.rglob('*'):
         if path.is_file() and (any(part in PRIVATE for part in path.relative_to(destination).parts)
@@ -69,10 +94,16 @@ def audit(destination: Path):
     manifests = json.loads((destination / 'hub/apps.default.json').read_text(encoding='utf-8'))
     if [item['id'] for item in manifests] != ['file-browser']:
         raise ValueError('Release must start with only the packaged File Browser.')
+    denied = _denied_values()
     for name in ('hub/config.py', 'hub/locations.py', 'hub/apps.default.json'):
         contents = (destination / name).read_text(encoding='utf-8')
-        if any(value in contents for value in ('N:\\', 'Z:\\', 'IZ17-G', '9274')):
-            raise ValueError('Machine-specific value in release configuration: ' + name)
+        found = _MACHINE_PATH.search(contents)
+        if found:
+            raise ValueError('Absolute machine path in release configuration: ' + name
+                             + ' (' + found.group(0) + ')')
+        # Never name the offending value: this runs into build logs.
+        if any(value in contents for value in denied):
+            raise ValueError('Denied machine-specific value in release configuration: ' + name)
 
 
 if __name__ == '__main__':

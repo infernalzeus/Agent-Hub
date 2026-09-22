@@ -5,7 +5,7 @@ included in this repo** — they are ignored by `.gitignore`. Create your own:
 
 ```
 youtube/credentials/
-└── <ACCOUNT_TAG>/            # e.g. "IZ17-G" — must match the key in hub/config.py YOUTUBE_ACCOUNTS
+└── <ACCOUNT_TAG>/            # must match a key in YOUTUBE_ACCOUNTS (hub/local_settings.py)
     ├── client_secrets.json   # you provide (see below)
     └── youtube_token.pickle  # auto-created on first upload after you authorize
 ```

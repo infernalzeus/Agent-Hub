@@ -16,8 +16,13 @@ from __future__ import annotations
 import argparse
 import glob
 import os
+import shutil
 import subprocess
 import sys
+
+# JS runtime for yt-dlp's signature/SABR challenge solver. Found on PATH so this
+# file carries no machine's install location; AGENTHUB_NODE pins a specific one.
+_NODE = os.environ.get("AGENTHUB_NODE") or shutil.which("node") or ""
 
 # Force UTF-8 on stdout/stderr — yt-dlp writes Unicode progress characters
 # (arrows, symbols) that crash on Windows with the default cp1252 encoding.
@@ -108,9 +113,9 @@ def download(
         # Without a JS runtime, yt-dlp can't solve YouTube's current signature/
         # SABR challenges and silently falls back to format 18 (640x360) only —
         # this is what caused downloads to come out at 360p regardless of the
-        # format selector above. node is what's actually installed on this
-        # machine; the remote component is the challenge-solver script itself.
-        "js_runtimes":       {"node": {"path": r"Z:\Programs\NodeJS\node.exe"}},
+        # format selector above. The remote component is the challenge-solver
+        # script itself. Node is located on PATH, or pinned via AGENTHUB_NODE.
+        **({"js_runtimes": {"node": {"path": _NODE}}} if _NODE else {}),
         "remote_components": ["ejs:github"],
     }
 
@@ -294,8 +299,9 @@ def main() -> None:
             print("\nERROR: YouTube is requiring sign-in cookies for this download.",
                   file=sys.stderr, flush=True)
             print("Fix: export your YouTube cookies to a cookies.txt file and point "
-                  "YT_DL_COOKIES at it (default N:\\Code\\YT-DLP\\cookies.txt). "
-                  "Use a 'Get cookies.txt' browser extension while signed in to YouTube.",
+                  "YT_DL_COOKIES at it, or set the 'YouTube cookies file' location "
+                  "in Agent Hub. Use a 'Get cookies.txt' browser extension while "
+                  "signed in to YouTube.",
                   file=sys.stderr, flush=True)
         else:
             print(f"\nERROR: {e}", file=sys.stderr, flush=True)

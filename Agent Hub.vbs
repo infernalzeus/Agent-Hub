@@ -34,13 +34,14 @@ HUB_DIR = fso.GetParentFolderName(WScript.ScriptFullName)
 ' Interpreter + Edge paths. Machine-specific but NOT secret; override them in
 ' "Agent Hub.local.vbs" if these defaults are wrong for you. PYTHON falls back
 ' to whatever "python" resolves to on PATH when the given path doesn't exist.
-PYTHON  = "Z:\Programs\Anaconda\python.exe"
+' Default is PATH, not one machine's install: this file is public. Set PYTHON in
+' "Agent Hub.local.vbs" (loaded below, so it wins) to pin a specific interpreter.
+PYTHON  = "python"
 EDGE    = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 EDGE_PROXY = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge_proxy.exe"
 PORT    = 8081
 
 sh.CurrentDirectory = HUB_DIR
-If Not fso.FileExists(PYTHON) Then PYTHON = "python"
 
 ' The installed-PWA id and your Tailscale Serve URL are specific to YOUR
 ' machine/tailnet (the Serve URL is a real, identifying hostname for your
@@ -54,6 +55,9 @@ Dim localCfg
 localCfg = HUB_DIR & "\Agent Hub.local.vbs"
 If fso.FileExists(localCfg) Then ExecuteGlobal fso.OpenTextFile(localCfg, 1).ReadAll()
 If APP_URL = "" Then APP_URL = "http://localhost:" & PORT
+' After the local override, so a pinned interpreter that has been moved or
+' uninstalled still falls back to PATH instead of failing to start.
+If InStr(PYTHON, "\") > 0 And Not fso.FileExists(PYTHON) Then PYTHON = "python"
 
 ' --- Parse mode -------------------------------------------------------------
 Dim mode, isWindowOpener, serverOnly

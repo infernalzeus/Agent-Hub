@@ -73,3 +73,6 @@ build-exit.txt
 hub/locations.json
 # Learned PC-control routines, run history, and other local databases
 hub/data/
+
+# Release audit denylist (real PIN / account tag / tailnet address)
+packaging/release-deny.local.txt

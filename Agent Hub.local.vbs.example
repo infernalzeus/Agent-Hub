@@ -1,6 +1,11 @@
 ' Copy this file to "Agent Hub.local.vbs" (same folder, gitignored) and fill
 ' in your own values. "Agent Hub.vbs" reads it at startup if present.
 '
+' PYTHON: the interpreter that runs app.py. Leave unset to use whatever
+' "python" resolves to on PATH. Set it when you need a specific install
+' (e.g. an Anaconda or venv interpreter that has the Hub's dependencies).
+' PYTHON = "C:\path\to\python.exe"
+'
 ' PWA_APPID: the installed-PWA id (stable, derived from the Serve URL). Once
 ' you've installed the Hub as an Edge app (Edge -> ... -> Apps -> Install),
 ' find this in the shortcut Edge creates: "...msedge_proxy.exe --app-id=<id>".
