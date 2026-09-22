@@ -1,4 +1,4 @@
-"""MCP servers OpenCode is configured with (N:\\Code\\opencode\\opencode.json -> "mcp"), and a safe on/off switch.
+"""MCP servers OpenCode is configured with (opencode.json in the OpenCode install folder -> "mcp"), and a safe on/off switch.
 
   GET  /api/mcp                       every server: enabled?, command, which tools are excluded, installed?
   POST /api/mcp/{name}/enabled        {enabled: bool}  flips ONLY that flag (a timestamped backup is kept the first time each day)

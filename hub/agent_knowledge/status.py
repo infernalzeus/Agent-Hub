@@ -1,7 +1,7 @@
 """Per-project sync state for the graph.
 
 Each project's agent work is a **git worktree** on branch `agent/<slug>` under
-`N:\\Code\\opencode\\worktrees\\` (see hub/features/opencode.py). State per node:
+the configured Missions work folder (see hub/features/opencode.py). State per node:
   red    - read-only project (LLM wiki, Agent Hub); never touched
   blue   - no worktree yet — nothing has been opened for this project
   amber  - the agent branch has diverged from its base (committed or working)

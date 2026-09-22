@@ -86,7 +86,7 @@ The hub's OpenCode card has four links: **MISSIONS**, **AGENTS**, **GRAPH**,
 **QUICK CHAT** (a project-less raw OpenCode chat, opens in a new tab).
 
 A **mission** = one `opencode run` against its **own git worktree** on a
-throwaway branch under `N:\Code\opencode\worktrees\<project>--<id>\` — a precise
+throwaway branch under `<Missions work folder>\<project>--<id>\` — a precise
 brief handed to one agent, run headless to completion. `/missions` is the board:
 
 - **＋ NEW MISSION** → pick a project (a real folder), write the **brief** (what
@@ -123,7 +123,7 @@ management:
 
 ### Models
 
-`N:\Code\opencode\opencode.json` sets `model` / `small_model`. The free OpenCode
+`opencode.json` in your OpenCode install folder sets `model` / `small_model`. The free OpenCode
 Zen tier is a shared gateway — a long turn can 504 (`Upstream idle timeout
 exceeded`). Mitigations: `steps` caps + lean prompts; a mission that fails shows
 the error with **RETRY** and **RETRY ON `<local/steadier model>`**; a configured

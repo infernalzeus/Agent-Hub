@@ -9,8 +9,8 @@ Usage:
     --video-path  /path/to/video.mp4
     --title       "My Video Title"
     --privacy     public
-    --secrets-file  credentials/IZ17-G/client_secrets.json
-    --token-file    credentials/IZ17-G/youtube_token.pickle
+    --secrets-file  credentials/<ACCOUNT_TAG>/client_secrets.json
+    --token-file    credentials/<ACCOUNT_TAG>/youtube_token.pickle
     [--description "..."]
     [--tags "tag1,tag2,tag3"]
     [--thumbnail   /path/to/thumb.png]

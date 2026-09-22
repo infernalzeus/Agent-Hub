@@ -1,0 +1,13 @@
+# Copy to release-deny.local.txt (gitignored) and list the machine-specific
+# strings the release audit must never let through: a power PIN, an account
+# tag, a tailnet address, a hostname. One value per line; '#' starts a comment.
+#
+# Keep real values out of stage_release.py - that file is public, so a denylist
+# written there would publish exactly what it exists to keep out.
+#
+# Absolute non-system paths (any drive but C:, and C:\Users\...) are already
+# rejected structurally, so list only what a pattern cannot infer.
+
+# 1234
+# my-channel-tag
+# 100.x.y.z

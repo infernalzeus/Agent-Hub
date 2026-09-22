@@ -60,7 +60,7 @@ def discover_projects() -> list[dict]:
 def discover_local_projects(workroot: Path | None = None) -> list[dict]:
     """Retired. The old copytree layout (`Agent Code/projects/` + `.agent-hub-
     source.json` markers) is gone — every project's agent work is now a git
-    worktree under `N:\\Code\\opencode\\worktrees\\` keyed by the deterministic
+    worktree under the configured Missions work folder keyed by the deterministic
     opencode slug (see hub/features/opencode.py). Kept as an importable no-op
     so callers don't need conditional imports."""
     return []
