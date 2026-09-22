@@ -56,3 +56,20 @@ hub/agent_knowledge/agent_overrides.json
 hub/agent_knowledge/model_policy.json
 hub/apps.json
 hub/ingested_apps/
+
+# ── Build & release output — never in the repo (assets go to GitHub Releases) ──
+build/
+release/
+.release-venv/
+.release-work/
+packaging/payloads/
+
+# ── Build logs ────────────────────────────────────────────────────────────────
+/*.log
+build-exit.txt
+
+# ── Per-machine runtime state ─────────────────────────────────────────────────
+# Real disk layout for this machine — see hub/locations.example.json
+hub/locations.json
+# Learned PC-control routines, run history, and other local databases
+hub/data/
