@@ -1,38 +1,53 @@
 # Agent Hub
 
-A remote control for your PC: one always-on entry point, reachable from any device over
-[Tailscale](https://tailscale.com/) at a single stable address, that wires into your own
-web-UI and CLI apps. The apps themselves are **not** always running — the Hub spawns each
-one on first use, reverse-proxies it under `/app/<id>/...`, and stops it again after a
-period of inactivity (unless it reports itself busy). It also exposes a few direct actions
-(YouTube upload/download, per-folder AI coding sessions via OpenCode, a PC power menu).
+Your PC, reachable from your phone.
 
-It's just a launcher/proxy: it doesn't modify the apps it fronts, it only starts them as
-subprocesses and talks to them over `127.0.0.1`.
-
-> **Windows-only.** It shells out to `shutdown`, `rundll32`, `tailscale.exe`, and uses a
-> Windows Job Object to make child processes die with the Hub.
+One always-on address on your private [Tailscale](https://tailscale.com/) network that
+launches your tools on demand, runs coding agents against your repos, and gives you the
+machine itself — files, media, power — from whatever device you happen to be holding.
 
 ---
 
-## What it fronts
+## Install
 
-None of these ship in this repo — they're separate, mostly open-source projects that the
-Hub launches by path. Point the paths in `hub/config.py` (and `hub/features/opencode.py`)
-at your own copies, or remove the entries you don't want:
+Download the installer for your machine from the
+[latest release](https://github.com/infernalzeus/Agent-Hub/releases/latest):
 
-| Feature | What it is | Where to get it |
-|---------|-----------|-----------------|
-| Movie Clipper | Not shipped — a slot for any CLI/web-UI app of your choice. Example: my own [movie-shorts-clipper](https://github.com/infernalzeus/movie-shorts-clipper) (movie → vertical shorts with captions) | your own web app that binds `127.0.0.1` + honours a base-path env var |
-| File Browser  | Small tailnet file browser (included: `file-browser/app.py`) | ships in this repo |
-| YouTube Upload | Uploads an MP4 via the YouTube Data API | `youtube/yt_upload.py` (included); **you supply OAuth creds — see below** |
-| YouTube Download | `yt-dlp` wrapper (`youtube/ytdl.py`, included) | needs [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) installed in the interpreter you point `YT_DL_PYTHON` at |
-| OpenCode | Per-folder AI coding agent sessions | [`opencode`](https://github.com/sst/opencode) binary + a source folder |
+| | | |
+|---|---|---|
+| **Windows** | `Agent-Hub-Setup.exe` | Everything below works |
+| **macOS** | `Agent-Hub-<version>-macOS-arm64.dmg` | Unsigned — first launch needs right-click → **Open** |
+| **Linux** | `Agent-Hub-<version>-linux-x86_64.tar.gz` | |
 
-The included `file-browser/` and `youtube/` scripts are self-contained and MIT-friendly to
-reuse. Any external app just has to obey the contract in **[Adding a new app](#adding-a-new-app)**.
+First launch asks one question: set everything up now, or set each tool up the first time
+you open it. Nothing is installed until you say so, and each step says what it will
+download and how big it is.
+
+**Power controls and PC control are Windows-only.** macOS and Linux get the Hub, File
+Browser, Missions, Media and the project graph; the controls they cannot do are hidden
+rather than offered and broken. See [`hub/platforms.py`](hub/platforms.py).
 
 ---
+
+## What you get
+
+| | |
+|---|---|
+| **Missions** | Describe a task; an agent works in its own git worktree; you read the diff and APPLY or DISCARD. Your repo is never touched until you approve. |
+| **TALK + PC control** | Speak to the machine from your phone — open an app, run a routine it has learned. Every action is approved, and control stays off until you turn it on. |
+| **Media** | Download, convert and file video and audio; browse the machine's drives from anywhere; send files from your phone. |
+| **Project graph** | Every repo's real state, read from its git history, drawn as one map. |
+| **Your own apps** | Point the Hub at any web app that binds `127.0.0.1`; it spawns it on first use, proxies it under `/app/<id>/`, and stops it when idle. |
+
+---
+
+## Running from source
+
+Everything below is for developing the Hub itself. If you just want to use it, the
+installer above is the supported path.
+
+**Building your own installer:** double-click `Build-Release.cmd`. See
+[`packaging/BUILDING.md`](packaging/BUILDING.md).
 
 ## Setup
 

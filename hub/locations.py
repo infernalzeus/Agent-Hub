@@ -18,7 +18,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-FILE = Path(__file__).resolve().parent / "locations.json"          # per machine, gitignored
+from .runtime import STATE, python_for
+
+FILE = STATE / "locations.json"          # per machine, gitignored (repo hub/ from source)
 HOME = Path(os.environ.get("USERPROFILE") or Path.home())
 
 
@@ -32,12 +34,22 @@ def _default_base() -> Path:
                 candidates.append((shutil.disk_usage(root).free, root))
         except OSError:
             pass
-    return max(candidates, default=(0, HOME), key=lambda item: item[0])[1] / "AgentHub"
+    for _, root in sorted(candidates, key=lambda item: item[0], reverse=True):
+        try:
+            # os.access() does not prove write permission under Windows ACLs —
+            # a drive can report writable and still refuse. Actually write.
+            with tempfile.TemporaryFile(dir=root):
+                pass
+            return root / "AgentHub"
+        except OSError:
+            continue
+    return HOME / "AgentHub"
 
 
-BASE = _default_base()
+# The installer sets AGENTHUB_WORK_ROOT so the user can pick where data goes.
+BASE = Path(os.environ.get("AGENTHUB_WORK_ROOT") or _default_base())
 
-# key, label, group, kind (folder | file | sources), required, needs-restart, purpose
+# key, label, group, kind (folder | file | sources | share), required, needs-restart, purpose
 REGISTRY = [
     dict(key="project_sources", label="Project folders", group="PROJECTS", kind="sources", required=True, restart=False,
          purpose="Git projects the hub may read and run missions on. Add as many folders as you like; a collection holds many projects."),
@@ -57,6 +69,10 @@ REGISTRY = [
          purpose="Files you send from your phone land here."),
     dict(key="outputs", label="Finished videos (for upload)", group="FILES", kind="folder", required=False, restart=True,
          purpose="Where the clipper writes finished videos; the YouTube uploader picks them from here."),
+    dict(key="file_root", label="File Browser root", group="FILES", kind="folder", required=False, restart=True,
+         purpose="The top of what File Browser can see; it cannot go above this. A whole drive root is fine here — browsing is read-only."),
+    dict(key="smb_share", label="Shared drive", group="FILES", kind="share", required=False, restart=False,
+         purpose="Optional Windows share (\\\\server\\share) offered as a header shortcut. Credentials stay in Windows."),
     dict(key="tailscale_exe", label="Tailscale program", group="TOOLS", kind="file", required=False, restart=True,
          purpose="Used for the phone inbox. Found automatically on PATH when possible."),
     dict(key="yt_python", label="Python that has yt-dlp", group="TOOLS", kind="file", required=False, restart=True,
@@ -89,7 +105,7 @@ def _default(key: str):
             "dl_audio": str(BASE / "downloads" / "audio"), "dl_video": str(BASE / "downloads" / "video"),
             "dl_cookies": "", "inbox": str(BASE / "inbox"), "outputs": str(BASE / "outputs"),
             "tailscale_exe": shutil.which("tailscale") or r"C:\Program Files\Tailscale\tailscale.exe",
-            "yt_python": sys.executable}[key]
+            "yt_python": str(python_for("media")), "file_root": str(HOME), "smb_share": ""}[key]
 
 
 # ── storage ───────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -161,8 +177,14 @@ def apply_to_config(g: dict) -> None:
 
 
 # ── validation ────────────────────────────────────────────────────────────────────────────────────────────────────────
-def _forbidden(p: Path) -> str:
-    if p.parent == p:
+# File Browser is read-only and exists to browse a whole drive, so a drive root
+# is the point there, not a mistake. Everywhere else it means "the hub may write
+# anywhere on this disk", which is what this rule is for.
+_DRIVE_ROOT_OK = {"file_root"}
+
+
+def _forbidden(p: Path, key: str = "") -> str:
+    if p.parent == p and key not in _DRIVE_ROOT_OK:
         return "a drive root is too broad, pick a folder inside it"
     win = os.environ.get("SystemRoot")
     if win and (p == Path(win) or Path(win) in p.parents):
@@ -195,7 +217,7 @@ def _validate_path(key: str, value: str, meta: dict) -> dict:
     p = Path(v)
     if not p.is_absolute():
         return {"level": "error", "msg": "use a full path (like C:\\Users\\you\\Projects)"}
-    bad = _forbidden(p)
+    bad = _forbidden(p, key)
     if bad:
         return {"level": "error", "msg": bad}
     if p.is_file():
@@ -232,6 +254,11 @@ def validate(key: str, value) -> dict:
     meta = _BY_KEY.get(key)
     if not meta:
         return {"level": "error", "msg": "unknown location"}
+    if meta["kind"] == "share":
+        v = str(value or "").strip()
+        ok = not v or (v.startswith("\\\\") and len(v[2:].split("\\")) >= 2)
+        return {"level": "ok" if ok else "error",
+                "msg": "optional Windows share" if ok else "use a Windows UNC path: \\\\server\\share"}
     if meta["kind"] == "sources":
         if not isinstance(value, list) or (meta["required"] and not value):
             return {"level": "warn" if isinstance(value, list) else "error", "msg": "add at least one project folder"}

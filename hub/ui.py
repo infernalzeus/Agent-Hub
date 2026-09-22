@@ -8,6 +8,7 @@ from pathlib import Path
 from aiohttp import web
 
 from .config import APPS, SHORTCUTS, HERE
+from . import runtime as RT
 from .voice_widget import TALK_BUTTON, widget as _widget
 
 _WIDGET = _widget(True)      # conversation popover + orbs, built once
@@ -96,6 +97,7 @@ html,body{min-height:100%;min-height:100dvh;font-family:'Outfit',system-ui,sans-
 </style>
 </head>
 <body>
+__SETUP_LINK__
 <div class="wrap">
   <img class="hero-icon" src="/favicon-256.png" alt="Agent Hub">
   <div class="brand">AGENT HUB</div>
@@ -518,6 +520,7 @@ body.edit-mode #trash-zone{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
+__SETUP_LINK__
 
 <div id="hub-toast"></div>
 <div id="trash-zone">🗑 DRAG HERE TO WIRE OUT</div>
@@ -1842,7 +1845,8 @@ def _render_menu() -> str:
             .replace("__TALK_BUTTON__", TALK_BUTTON)
             .replace("__APPS_JSON__", apps_json)
             .replace("__APP_LIST_JSON__", json.dumps(app_list).replace("</", "<\\/"))
-            .replace("__SHORTCUTS_JSON__", shortcuts_json))
+            .replace("__SHORTCUTS_JSON__", shortcuts_json)
+            .replace("__SETUP_LINK__", _setup_link()))
 
 
 @routes.get("/")
@@ -1906,9 +1910,21 @@ async def manifest(request: web.Request) -> web.Response:
     }, content_type="application/manifest+json")
 
 
+# A way back into first-run setup once it has been dismissed. Installed builds
+# only: from source there is no setup wizard to return to.
+_SETUP_LINK = ('<a href="/onboarding" style="position:fixed;bottom:16px;right:16px;z-index:900;'
+               'background:#080c28;border:1px solid rgba(0,230,118,.5);border-radius:8px;padding:8px 12px;'
+               'color:#00e676;font:600 11px Orbitron,monospace;letter-spacing:1px;text-decoration:none">SETUP</a>')
+
+
+def _setup_link() -> str:
+    return _SETUP_LINK if RT.PACKAGED else ""
+
+
 @routes.get("/offline.html")
 async def offline_page(request: web.Request) -> web.Response:
-    return web.Response(text=_OFFLINE_HTML, content_type="text/html", charset="utf-8")
+    return web.Response(text=_OFFLINE_HTML.replace("__SETUP_LINK__", _setup_link()),
+                        content_type="text/html", charset="utf-8")
 
 
 @routes.get("/sw.js")

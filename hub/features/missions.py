@@ -33,6 +33,7 @@ from .. import agent_knowledge, app_registry, config
 from .. import decide as DEC
 from ..config import logger
 from ..platform_win import _assign_to_job
+from ..runtime import python_for
 from . import opencode as OCM   # reuse worktree / model / merge / materialize helpers
 from . import claude_runtime as CRT   # second runtime: Claude Code CLI, alongside OpenCode
 
@@ -803,7 +804,7 @@ async def _apply_ingest(m: Mission) -> dict:
         "builtin": False, "source": m.project_path, "hidden": False,
     }
     if entry["install"]:
-        icmd = [sys.executable if a == "$PYTHON" else a for a in entry["install"]]
+        icmd = [str(python_for("apps")) if a == "$PYTHON" else a for a in entry["install"]]
         try:
             p = await asyncio.create_subprocess_exec(
                 *icmd, cwd=str(dest), stdout=asyncio.subprocess.DEVNULL,
@@ -1177,14 +1178,14 @@ def _run_checks_sync(wt: Path, changed: list[dict]) -> dict | None:
         except Exception as exc:
             return 1, str(exc)
 
-    rc, out = _run([sys.executable, "-m", "py_compile", *py], 30)
+    rc, out = _run([str(python_for("apps")), "-m", "py_compile", *py], 30)
     if rc != 0:
         return {"ok": False, "step": "compile", "output": out[-1500:]}
     has_tests = any(p.name.startswith("test_") or p.name.endswith("_test.py")
                     for p in wt.rglob("*.py") if ".ocdata" not in p.parts and ".git" not in p.parts)
     if not has_tests:
         return {"ok": True, "step": "compile", "output": f"{len(py)} file(s) compile"}
-    rc, out = _run([sys.executable, "-m", "pytest", "-x", "-q", "--no-header", "-p", "no:cacheprovider",
+    rc, out = _run([str(python_for("apps")), "-m", "pytest", "-x", "-q", "--no-header", "-p", "no:cacheprovider",
                     "-o", "faulthandler_timeout=12"], 45)     # a hang dumps its stack after 12s so the fixer sees WHERE
     if rc == 5:                                   # pytest: no tests collected
         return {"ok": True, "step": "compile", "output": "compiles; no runnable tests found"}
@@ -1749,7 +1750,7 @@ def _render_designs(wt: Path, new: list[str]) -> list[str]:
         mt = re.search(r"size:\s*(\d{3,4})\s*x\s*(\d{3,4})", head)
         w, h = (mt.group(1), mt.group(2)) if mt else ("1080", "1080")
         try:
-            r = subprocess.run([sys.executable, str(agent_knowledge.RENDER_TOOL), str(src), str(src.with_suffix(".png")), w, h],
+            r = subprocess.run([str(python_for("apps")), str(agent_knowledge.RENDER_TOOL), str(src), str(src.with_suffix(".png")), w, h],
                                capture_output=True, text=True, timeout=60)
             if r.returncode == 0:
                 made.append(src.with_suffix(".png").relative_to(wt).as_posix())

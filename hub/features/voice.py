@@ -38,6 +38,7 @@ from aiohttp import web
 
 from .. import agent_knowledge, decide as DEC
 from ..config import VOICEBOX_URL, logger
+from .. import runtime as RT
 
 routes = web.RouteTableDef()
 
@@ -675,6 +676,14 @@ def _cached_model_name() -> "str | None":
 
 
 def whisper_status() -> dict:
+    if RT.PACKAGED:
+        from .onboarding import state
+        name = state().get("speech_model")
+        ready = (name in ("tiny", "base", "small") and RT.python_for("speech").is_file()
+                 and (RT.STATE / "models" / (name + ".ready")).is_file())
+        return {"whisper": bool(ready), "model": name if ready else None,
+                "note": "" if ready else "Open Setup tools → TALK speech to install speech and choose a model.",
+                "setup_url": "/onboarding#speech"}
     try:
         import faster_whisper  # noqa: F401
     except Exception:
@@ -691,6 +700,13 @@ def _load_model(name: str):
 
 
 def _transcribe_file(path: str, name: str, lang: "str | None") -> str:
+    if RT.PACKAGED:
+        r = RT.run([str(RT.python_for("speech")), str(RT.ASSETS / "packaging" / "speech_worker.py"),
+                    "transcribe", name, str(RT.STATE / "models"), path, lang or ""], 180)
+        if r.returncode:
+            raise RuntimeError(r.stderr[-1000:])
+        text = json.loads(r.stdout)["text"]
+        return "" if _clean(text) in _HALLUCINATIONS else text
     segs, _info = _load_model(name).transcribe(path, language=lang, vad_filter=True, beam_size=1, condition_on_previous_text=False)
     text = " ".join(s.text.strip() for s in segs).strip()
     return "" if _clean(text) in _HALLUCINATIONS else text
@@ -743,11 +759,14 @@ _TTS_CACHE: dict = {}
 
 @routes.get("/api/voice/voices")
 async def api_voices(request: web.Request) -> web.Response:
-    try:
-        import edge_tts  # noqa: F401
-        ok = True
-    except Exception:
-        ok = False
+    if RT.PACKAGED:
+        ok = RT.python_for("speech").is_file()
+    else:
+        try:
+            import edge_tts  # noqa: F401
+            ok = True
+        except Exception:
+            ok = False
     return web.json_response({"voices": [{"id": v["id"], "name": v["name"]} for v in VOICES], "default": VOICES[0]["id"], "neural": ok})
 
 
@@ -766,12 +785,29 @@ async def api_speak(request: web.Request) -> web.Response:
     key = (text, v["id"])
     if key in _TTS_CACHE:
         return web.Response(body=_TTS_CACHE[key], content_type="audio/mpeg")
-    try:
-        import edge_tts
-    except Exception:
-        raise web.HTTPNotImplemented(text="edge-tts is not installed")
+    if RT.PACKAGED and not RT.python_for("speech").is_file():
+        raise web.HTTPNotImplemented(text="Open Setup tools → TALK speech first.")
+    if not RT.PACKAGED:
+        try:
+            import edge_tts
+        except Exception:
+            raise web.HTTPNotImplemented(text="edge-tts is not installed")
 
     async def go() -> bytes:
+        if RT.PACKAGED:
+            # Neural TTS lives in the managed speech runtime, not in the Hub.
+            proc = await asyncio.create_subprocess_exec(
+                str(RT.python_for("speech")), str(RT.ASSETS / "packaging" / "speech_worker.py"), "speak",
+                stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            try:
+                out, err = await proc.communicate(json.dumps({"text": text, **v}).encode("utf-8"))
+                if proc.returncode:
+                    raise RuntimeError(err.decode(errors="replace")[-300:])
+                return out
+            finally:
+                if proc.returncode is None:
+                    proc.kill()
+                    await proc.wait()
         buf = b""
         async for ch in edge_tts.Communicate(text, v["voice"], rate=v["rate"], pitch=v["pitch"]).stream():
             if ch["type"] == "audio":

@@ -3,10 +3,10 @@
     "id": "file-browser",
     "name": "File Browser",
     "emoji": "\ud83d\udcc1",
-    "cwd": "$HUB/file-browser",
+    "cwd": "$HUB",
     "cmd": [
-      "$PYTHON",
-      "app.py"
+      "$HUB_EXE",
+      "--file-browser"
     ],
     "port": 8092,
     "serve": "proxy",

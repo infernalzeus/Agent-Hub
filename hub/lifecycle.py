@@ -12,12 +12,17 @@ from pathlib import Path
 from aiohttp import web, WSCloseCode
 
 from .config import TAILSCALE_EXE, TAILDROP_DIR, HOST, PORT, logger
+from .runtime import PACKAGED, STATE, capability_ready
 
 # Heartbeat file the running hub keeps fresh. `Agent Hub.vbs` refuses to start a
 # second `python app.py` while this is < HUB_LOCK_STALE_S old — so no matter how
 # many times `agenthub://start` fires, only ONE hub ever runs. Goes stale on
 # its own if the hub dies, so the next launch takes over cleanly.
-HUB_LOCK = Path(tempfile.gettempdir()) / "agenthub.hub.lock"
+# From source this MUST stay in %TEMP%: "Agent Hub.vbs" looks for it there to
+# refuse a second launch. An installed build has no .vbs, and two installs (the
+# real one and an "Agent Hub Test") must not block each other, so each keeps its
+# lock inside its own per-install state folder.
+HUB_LOCK = (STATE / "agenthub.hub.lock") if PACKAGED else (Path(tempfile.gettempdir()) / "agenthub.hub.lock")
 HUB_LOCK_STALE_S = 15
 
 
@@ -36,6 +41,10 @@ from .features.youtube import yt_state, ytdl_state
 async def _start_taildrop_watcher() -> asyncio.subprocess.Process | None:
     """Continuously pull incoming Taildrop files (phone -> this PC) into TAILDROP_DIR.
     Lives and dies with the Hub itself instead of being a separately-run process."""
+    # An installed build must not start pulling files before the user has
+    # actually set Tailscale up and signed in.
+    if not capability_ready("tailscale"):
+        return None
     if not Path(TAILSCALE_EXE).exists():
         logger.warning("tailscale.exe not found at %s — Taildrop watcher not started", TAILSCALE_EXE)
         return None
