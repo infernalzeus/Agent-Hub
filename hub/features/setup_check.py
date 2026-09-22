@@ -245,3 +245,4 @@ async def setup_install(request: web.Request) -> web.Response:
     ok, log = await asyncio.get_event_loop().run_in_executor(None, action.run)
     _CACHE["at"] = 0.0                                  # something was just installed — re-probe on the next status call
     return web.json_response({"ok": ok, "log": log})
+

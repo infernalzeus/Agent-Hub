@@ -20,7 +20,22 @@ from pathlib import Path
 
 FILE = Path(__file__).resolve().parent / "locations.json"          # per machine, gitignored
 HOME = Path(os.environ.get("USERPROFILE") or Path.home())
-BASE = HOME / "AgentHub"                                            # where a fresh install puts what it creates
+
+
+def _default_base() -> Path:
+    """Choose the writable drive with the most free space; Locations remains editable."""
+    candidates = []
+    for letter in "CDEFGHIJKLMNOPQRSTUVWXYZ":
+        root = Path(f"{letter}:\\")
+        try:
+            if root.is_dir() and os.access(root, os.W_OK):
+                candidates.append((shutil.disk_usage(root).free, root))
+        except OSError:
+            pass
+    return max(candidates, default=(0, HOME), key=lambda item: item[0])[1] / "AgentHub"
+
+
+BASE = _default_base()
 
 # key, label, group, kind (folder | file | sources), required, needs-restart, purpose
 REGISTRY = [
@@ -306,4 +321,5 @@ def suggest_sources() -> list[dict]:
         if repos:
             out.append({"path": str(c), "kind": "collection", "dirs": dirs, "repos": repos})
     return out
+
 

@@ -1,7 +1,8 @@
 """Safely-local, reversible install actions for the fresh-install setup banner.
 
 Companion to setup_check.py's detection: a small, deliberately short list of
-issues the hub is willing to fix *itself* on a click — a local `npm install`
+issues the hub is willing to fix *itself* on a click — a local 
+pm install`
 under OPENCODE_ROOT, a `pip install` into an interpreter already on this
 machine. Nothing here touches system state (no services, no elevated
 installers, no writing outside this repo / an existing interpreter's
@@ -87,6 +88,41 @@ def _install_yt_deps() -> tuple[bool, str]:
     return ok, f"installed into: {target}\n\n{log}"
 
 
+
+def _run_winget(package: str) -> tuple[bool, str]:
+    winget = shutil.which("winget")
+    if not winget:
+        return False, "Windows App Installer (winget) is not available. Install it from Microsoft Store, then retry."
+    return _run([winget, "install", "--id", package, "--exact", "--accept-package-agreements", "--accept-source-agreements"], timeout=600)
+
+
+def _install_tailscale() -> tuple[bool, str]:
+    return _run_winget("Tailscale.Tailscale")
+
+
+def _install_python() -> tuple[bool, str]:
+    return _run_winget("Python.Python.3.13")
+
+
+def _pip_optional(packages: list[str]) -> tuple[bool, str]:
+    py = shutil.which("py") or shutil.which("python")
+    if not py:
+        return False, "Python is required first. Use Install Python, then retry."
+    cmd = [py, "-m", "pip", "install", *packages]
+    return _run(cmd, timeout=900)
+
+
+def _install_whisper() -> tuple[bool, str]:
+    return _pip_optional(["faster-whisper", "edge-tts"])
+
+
+def _install_mcp() -> tuple[bool, str]:
+    return _pip_optional(["mcp"])
+
+
+def _prepare_media() -> tuple[bool, str]:
+    return _install_yt_deps()
+
 @dataclass
 class InstallAction:
     id: str
@@ -99,5 +135,12 @@ ACTIONS: dict[str, InstallAction] = {
         InstallAction("install-opencode", "Install OpenCode now", _install_opencode),
         InstallAction("install-yt-deps", "Install YouTube dependencies now", _install_yt_deps),
         InstallAction("update-opencode", "Update OpenCode now", _update_opencode),
+        InstallAction("install-tailscale", "Install Tailscale", _install_tailscale),
+        InstallAction("install-python", "Install Python", _install_python),
+        InstallAction("install-whisper", "Install Whisper and neural speech", _install_whisper),
+        InstallAction("install-mcp", "Install MCP client", _install_mcp),
+        InstallAction("prepare-media", "Install Media Vault dependencies", _prepare_media),
     ]
 }
+
+
