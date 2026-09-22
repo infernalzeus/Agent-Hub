@@ -14,7 +14,12 @@ HOST = os.getenv("HUB_HOST", "0.0.0.0")
 PORT = int(os.getenv("HUB_PORT", "8081"))
 VOICEBOX_URL = os.getenv("VOICEBOX_URL", "http://127.0.0.1:17493").rstrip("/")
 
-TAILDROP_DIR = Path(os.getenv("TAILDROP_DIR", r"N:\Taildrop"))
+# Default folders come from locations.BASE (the writable drive with the most free
+# space), never from one developer's disk — this file is public. Real values arrive
+# from local_settings.py or, last and strongest, the Locations the user saved.
+from . import locations as _loc  # noqa: E402
+
+TAILDROP_DIR = Path(os.getenv("TAILDROP_DIR", str(_loc.BASE / "inbox")))
 TAILSCALE_EXE = os.getenv("TAILSCALE_EXE", r"C:\Program Files\Tailscale\tailscale.exe")
 
 # PIN that unlocks the PC power menu (shutdown/restart/sleep/lock). Prompted each
@@ -61,14 +66,13 @@ SHORTCUTS: list[dict] = []
 # actual upload.
 
 YT_UPLOAD_SCRIPT = str(HERE / "youtube" / "yt_upload.py")
-MC_OUTPUT_DIR = Path(r"N:\Code\git repositories\My Repo\movie-shorts-clipper\output")
+MC_OUTPUT_DIR = Path(os.getenv("MC_OUTPUT_DIR", str(_loc.BASE / "outputs")))
 
-YOUTUBE_ACCOUNTS: dict[str, dict] = {
-    "IZ17-G": {
-        "secrets_file": str(HERE / "youtube" / "credentials" / "IZ17-G" / "client_secrets.json"),
-        "token_file": str(HERE / "youtube" / "credentials" / "IZ17-G" / "youtube_token.pickle"),
-    },
-}
+# Your YouTube channels, keyed by a short tag you choose. Empty here on purpose:
+# a channel tag names a real account, so it belongs in hub/local_settings.py
+# (gitignored) alongside its credentials. See local_settings.example.py.
+# The credential files themselves are gitignored under youtube/credentials/.
+YOUTUBE_ACCOUNTS: dict[str, dict] = {}
 
 # ── YouTube download ─────────────────────────────────────────────────────────
 # YouTube downloads run through Agent Hub's own Python interpreter.
@@ -76,8 +80,8 @@ YOUTUBE_ACCOUNTS: dict[str, dict] = {
 YT_DL_SCRIPT = str(HERE / "youtube" / "ytdl.py")
 # Override with an absolute path in hub/local_settings.py only when required.
 YT_DL_PYTHON = os.getenv("YT_DL_PYTHON", sys.executable)
-YT_DL_AUDIO_DIR = os.getenv("YT_DL_AUDIO_DIR", r"N:\Code\YT-DLP\1")
-YT_DL_VIDEO_DIR = os.getenv("YT_DL_VIDEO_DIR", r"N:\Code\YT-DLP\2")
+YT_DL_AUDIO_DIR = os.getenv("YT_DL_AUDIO_DIR", str(_loc.BASE / "downloads" / "audio"))
+YT_DL_VIDEO_DIR = os.getenv("YT_DL_VIDEO_DIR", str(_loc.BASE / "downloads" / "video"))
 
 # YouTube now blocks most anonymous downloads ("Sign in to confirm you're not a
 # bot"). Authenticate with an exported cookies.txt (preferred for an always-on
@@ -85,7 +89,7 @@ YT_DL_VIDEO_DIR = os.getenv("YT_DL_VIDEO_DIR", r"N:\Code\YT-DLP\2")
 # App-Bound Encryption). Export once with a "Get cookies.txt" extension while
 # signed in to YouTube and drop the file at YT_DL_COOKIES. As a fallback,
 # YT_DL_COOKIES_BROWSER (e.g. "edge") reads cookies live from a browser.
-YT_DL_COOKIES = os.getenv("YT_DL_COOKIES", r"N:\Code\YT-DLP\cookies.txt")
+YT_DL_COOKIES = os.getenv("YT_DL_COOKIES", "")
 # Default to reading Firefox's live cookies: unlike Edge/Chrome it has no
 # App-Bound Encryption, so yt-dlp reads it directly (even while open) and the
 # login auto-refreshes — no cookies.txt to maintain. An explicit cookies.txt at

@@ -65,28 +65,23 @@ REGISTRY = [
 _BY_KEY = {r["key"]: r for r in REGISTRY}
 
 # ── this machine's layout from before this module existed (migration aid only; ignored once saved, or when the folder is gone) ─────────
-_R = Path(r"N:\Code\git repositories")
-_LEGACY_PATHS = {
-    "opencode_home": r"N:\Code\opencode", "work_dir": r"N:\Code\opencode\worktrees",
-    "wiki_root": str(_R / "_LLM Wiki - Obsidian Second Brain" / "LLM Wiki"),
-    "dl_audio": r"N:\Code\YT-DLP\1", "dl_video": r"N:\Code\YT-DLP\2", "dl_cookies": r"N:\Code\YT-DLP\cookies.txt",
-    "inbox": r"N:\Taildrop", "outputs": str(_R / "My Repo" / "movie-shorts-clipper" / "output"),
-    "tailscale_exe": r"C:\Program Files\Tailscale\tailscale.exe",
-}
+# The real values live in hub/local_settings.py, which is GITIGNORED — one machine's
+# disk layout must never ship in the repo, and a clone must not inherit someone else's
+# folders as its defaults. Absent or empty ⇒ no migration, _default() applies.
+# See local_settings.example.py for LEGACY_PATHS / LEGACY_SOURCES.
+def _legacy_settings() -> tuple[dict, list]:
+    try:
+        from . import local_settings as ls
+    except Exception:
+        return {}, []
+    paths = getattr(ls, "LEGACY_PATHS", None)
+    srcs = getattr(ls, "LEGACY_SOURCES", None)
+    return (paths if isinstance(paths, dict) else {}, srcs if isinstance(srcs, list) else [])
 
 
 def _legacy_sources() -> list[dict]:
-    if not _R.is_dir():
-        return []
-    out = [{"kind": "project", "path": str(_R / "_LLM Wiki - Obsidian Second Brain"), "readonly": True, "slug": "llm-wiki", "name": "LLM Wiki"},
-           {"kind": "project", "path": str(_R / "Agent Hub"), "readonly": True, "slug": "agent-hub", "name": "Agent Hub"}]
-    for cat in ("Collab Projects", "My Repo", "Open Source", "_unsorted projects"):
-        e: dict = {"kind": "collection", "path": str(_R / cat)}
-        if cat == "_unsorted projects":
-            e["collapsed"] = {"JARVIS Attempts": {"slug": "agent-core", "name": "agent-core (retired)"}}
-            e["new_projects_here"] = True
-        out.append(e)
-    return out
+    return [s for s in _legacy_settings()[1]
+            if isinstance(s, dict) and s.get("path") and Path(s["path"]).is_dir()]
 
 
 def _default(key: str):
@@ -123,7 +118,7 @@ def configured() -> bool:
 def _legacy(key: str):
     if key == "project_sources":
         return _legacy_sources() or None
-    p = _LEGACY_PATHS.get(key)
+    p = _legacy_settings()[0].get(key)
     return p if p and Path(p).exists() else None
 
 
