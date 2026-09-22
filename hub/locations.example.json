@@ -1,0 +1,27 @@
+{
+  "_comment": "Copy to locations.json and edit. Every key is optional: anything you omit falls back to hub/locations.py _default(), which puts AgentHub on the writable drive with the most free space. Prefer editing these from the Hub UI (Locations) over editing by hand. locations.json is gitignored - it describes one machine.",
+  "project_sources": [
+    {
+      "kind": "project",
+      "path": "C:\\Code\\my-single-repo",
+      "readonly": true,
+      "slug": "my-single-repo",
+      "name": "My Single Repo"
+    },
+    {
+      "kind": "collection",
+      "path": "C:\\Code\\repos",
+      "new_projects_here": true
+    }
+  ],
+  "work_dir": "C:\\AgentHub\\work",
+  "opencode_home": "C:\\AgentHub\\opencode",
+  "wiki_root": "",
+  "dl_audio": "C:\\AgentHub\\downloads\\audio",
+  "dl_video": "C:\\AgentHub\\downloads\\video",
+  "dl_cookies": "",
+  "inbox": "C:\\AgentHub\\inbox",
+  "outputs": "C:\\AgentHub\\outputs",
+  "tailscale_exe": "C:\\Program Files\\Tailscale\\tailscale.exe",
+  "yt_python": ""
+}

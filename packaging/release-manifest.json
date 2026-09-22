@@ -1,14 +1,23 @@
 {
-  "schema": 1,
-  "core": {
-    "label": "Agent Hub core",
-    "includes": ["embedded Python runtime", "aiohttp", "Agent Hub host", "agent knowledge", "favicons"]
-  },
+  "schema": 2,
+  "version": "0.1.3",
+  "status": "test-only",
+  "core": [
+    "frozen Python",
+    "aiohttp",
+    "Hub",
+    "packaged File Browser",
+    "static UI assets"
+  ],
   "optional": [
-    {"id":"tailscale","label":"Private device connection","installer":"official Tailscale installer","user_action":"sign in"},
-    {"id":"opencode","label":"Autonomous coding","installer":"npm","user_action":"choose projects"},
-    {"id":"youtube","label":"Media downloads and uploads","installer":"Python extras","user_action":"connect account if uploading"},
-    {"id":"whisper","label":"Local speech recognition","installer":"model download","user_action":"choose model"},
-    {"id":"mcp","label":"Desktop MCP control","installer":"Windows MCP provider","user_action":"enable PC control"}
-  ]
+    "Tailscale",
+    "speech + explicit model",
+    "Windows MCP",
+    "media + ffmpeg + Node.js",
+    "agents + app ingestion",
+    "SMB connection",
+    "selected Git repositories"
+  ],
+  "private_data": "not included",
+  "release_gate": "Clean Windows install, all-now and deferred external setup must pass before publication."
 }
