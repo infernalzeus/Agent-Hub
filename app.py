@@ -18,13 +18,14 @@ import sys
 
 from aiohttp import web
 
-from hub import agents_ui, config, graph_ui, lifecycle, missions_ui, setup_ui, ui
-from hub.features import apps, graph, locations_api, mcp, missions, opencode, pc_control, power, schedule, setup_check, skills_api, voice, youtube
+from hub import agents_ui, config, graph_ui, lifecycle, missions_ui, request_security, setup_ui, ui
+from hub.features import apps, graph, integrations, locations_api, mcp, missions, onboarding, opencode, pc_control, power, schedule, setup_check, skills_api, voice, youtube
 
 # Each feature module exposes `routes` (and optionally a `setup(app)` hook for
 # its own background tasks / cleanup). Add a feature = add it to this list.
 FEATURES = [apps, youtube, opencode, missions, graph, graph_ui, agents_ui, missions_ui,
-            locations_api, mcp, pc_control, schedule, skills_api, setup_ui, voice, power, setup_check, ui]
+            locations_api, mcp, pc_control, schedule, skills_api, setup_ui, voice, power, setup_check, onboarding,
+            integrations, ui]
 
 
 def create_app() -> web.Application:
@@ -33,6 +34,9 @@ def create_app() -> web.Application:
         app.add_routes(feature.routes)
         if hasattr(feature, "setup"):
             feature.setup(app)
+    # Last registered, first to run: refuse forged state changes before any
+    # feature handler sees them.
+    request_security.install(app)
     lifecycle.install(app)
     return app
 
@@ -45,13 +49,15 @@ def _selfcheck() -> None:
     checks = {
         "opencode.exe":       opencode.OPENCODE_EXE,
         "opencode config":    opencode.OPENCODE_CONFIG,
-        "movie-clipper dir":  config.APPS["movie-clipper"]["cwd"],
-        "file-browser dir":   config.APPS["file-browser"]["cwd"],
         "yt-dlp python":      config.YT_DL_PYTHON,
         "yt-dlp script":      config.YT_DL_SCRIPT,
         "yt upload script":   config.YT_UPLOAD_SCRIPT,
         "tailscale.exe":      config.TAILSCALE_EXE,
     }
+    # Whichever apps are actually registered — an installed build ships only the
+    # packaged File Browser, so naming apps here would make it fail on startup.
+    for app_id, manifest in config.APPS.items():
+        checks[f"{app_id} dir"] = manifest["cwd"]
     missing = [f"{name} -> {p}" for name, p in checks.items() if not Path(p).exists()]
     if missing:
         for m in missing:

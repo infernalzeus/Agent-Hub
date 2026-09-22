@@ -51,6 +51,9 @@ def yt_python_target() -> str:
     YT_DL_PYTHON if it actually resolves to something on this machine,
     else the Hub's own interpreter (the common case on a fresh install,
     where the default "python3.11" name resolves to nothing)."""
+    from ..runtime import PACKAGED, python_for
+    if PACKAGED:
+        return str(python_for("media"))
     from ..config import YT_DL_PYTHON
     if Path(YT_DL_PYTHON).is_file():
         return YT_DL_PYTHON
@@ -113,14 +116,25 @@ def _pip_optional(packages: list[str]) -> tuple[bool, str]:
 
 
 def _install_whisper() -> tuple[bool, str]:
+    from ..runtime import PACKAGED, install
+    if PACKAGED:
+        return install("speech", ["faster-whisper", "edge-tts"])
     return _pip_optional(["faster-whisper", "edge-tts"])
 
 
 def _install_mcp() -> tuple[bool, str]:
+    from ..runtime import PACKAGED
+    if PACKAGED:
+        from .onboarding import install_mcp
+        return install_mcp()
     return _pip_optional(["mcp"])
 
 
 def _prepare_media() -> tuple[bool, str]:
+    from ..runtime import PACKAGED
+    if PACKAGED:
+        from .onboarding import install_media
+        return install_media()
     return _install_yt_deps()
 
 @dataclass
@@ -138,7 +152,7 @@ ACTIONS: dict[str, InstallAction] = {
         InstallAction("install-tailscale", "Install Tailscale", _install_tailscale),
         InstallAction("install-python", "Install Python", _install_python),
         InstallAction("install-whisper", "Install Whisper and neural speech", _install_whisper),
-        InstallAction("install-mcp", "Install MCP client", _install_mcp),
+        InstallAction("install-mcp", "Install PC-control provider", _install_mcp),
         InstallAction("prepare-media", "Install Media Vault dependencies", _prepare_media),
     ]
 }

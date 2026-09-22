@@ -10,17 +10,14 @@ import subprocess
 
 from aiohttp import web
 
-from ..config import HUB_POWER_PIN
+from .. import platforms as PLAT
+from .. import power_settings as PS
 
 routes = web.RouteTableDef()
 
-_POWER_CMDS = {
-    "shutdown": ["shutdown", "/s", "/t", "30"],
-    "restart":  ["shutdown", "/r", "/t", "30"],
-    "abort":    ["shutdown", "/a"],
-    "sleep":    ["rundll32.exe", "powrprof.dll,SetSuspendState", "0,1,0"],
-    "lock":     ["rundll32.exe", "user32.dll,LockWorkStation"],
-}
+# Per-OS; empty where power control is not supported, so every action 404s
+# rather than shelling out to a command that does not exist.
+_POWER_CMDS = PLAT.power_commands()
 _POWER_NEEDS_PIN = {"shutdown", "restart", "sleep", "lock"}
 
 
@@ -32,7 +29,8 @@ async def _json(request: web.Request) -> dict:
 
 
 def _pin_ok(data: dict) -> bool:
-    return (not HUB_POWER_PIN) or (str(data.get("pin", "")) == HUB_POWER_PIN)
+    # Read at action time, not at import: changing the PIN takes effect at once.
+    return PS.verify(str(data.get("pin", "")))
 
 
 @routes.post("/api/power/unlock")
@@ -42,7 +40,31 @@ async def power_unlock(request: web.Request) -> web.Response:
     data = await _json(request)
     if not _pin_ok(data):
         raise web.HTTPForbidden(text="wrong PIN")
-    return web.json_response({"ok": True, "pin_required": bool(HUB_POWER_PIN)})
+    return web.json_response({"ok": True, "pin_required": PS.configured()})
+
+
+# ── PIN settings ─────────────────────────────────────────────────────────────
+# Registered before /api/power/{action} so "settings" is not read as an action.
+@routes.get("/api/power/settings")
+async def power_settings_status(request: web.Request) -> web.Response:
+    """Whether a PIN is set — never the PIN itself."""
+    return web.json_response(PS.status())
+
+
+@routes.post("/api/power/settings/set")
+async def power_settings_set(request: web.Request) -> web.Response:
+    data = await _json(request)
+    ok, message = PS.set_pin(data.get("new"), data.get("confirm"), data.get("current"))
+    return web.json_response({"ok": ok, "message": message, **PS.status()},
+                             status=200 if ok else 400)
+
+
+@routes.post("/api/power/settings/remove")
+async def power_settings_remove(request: web.Request) -> web.Response:
+    data = await _json(request)
+    ok, message = PS.remove_pin(data.get("current"))
+    return web.json_response({"ok": ok, "message": message, **PS.status()},
+                             status=200 if ok else 400)
 
 
 @routes.post("/api/power/{action}")

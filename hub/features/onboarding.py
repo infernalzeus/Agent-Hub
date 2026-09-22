@@ -380,6 +380,17 @@ async def smb(request):
     return web.json_response({'ok': True})
 
 
+def setup(app):
+    """Register the first-run gate — installed builds only.
+
+    From source there is no first-run setup, so `state()` is empty and this
+    middleware would redirect every page load to the wizard and 428 every tool.
+    A git clone is a developer's machine: nothing to gate.
+    """
+    if RT.PACKAGED:
+        app.middlewares.append(middleware)
+
+
 @web.middleware
 async def middleware(request, handler):
     # Installer-only same-origin check for setup writes (including Explorer launches).

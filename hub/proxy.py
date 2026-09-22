@@ -7,6 +7,7 @@ import aiohttp
 from aiohttp import web, WSMsgType
 
 from .config import logger
+from .request_security import ensure_ws_origin
 
 
 # ── Reverse proxy ────────────────────────────────────────────────────────────
@@ -52,6 +53,7 @@ async def _proxy_http(request: web.Request, target_base: str, target_path: str) 
 
 
 async def _proxy_ws(request: web.Request, target_base: str, target_path: str) -> web.WebSocketResponse:
+    ensure_ws_origin(request)
     ws_server = web.WebSocketResponse()
     await ws_server.prepare(request)
 

@@ -1,11 +1,16 @@
 param(
   [switch]$TestOnly,
-  [string]$Version = '0.1.3',
+  [string]$Version = '',
   [string]$Python = 'python',
   [string]$ReleaseEvidence
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+if (-not $Version) {
+  # One source of truth for the version: packaging/release-manifest.json.
+  # Resolved before the evidence check below, which compares against it.
+  $Version = (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'release-manifest.json') -Raw | ConvertFrom-Json).version
+}
 if (-not $TestOnly) {
   if (-not $ReleaseEvidence) { throw 'Public release is gated. Use -TestOnly for a local test build, or supply completed clean-Windows ReleaseEvidence.' }
   $evidence = Get-Content -LiteralPath $ReleaseEvidence -Raw | ConvertFrom-Json
@@ -26,6 +31,10 @@ if (-not (Test-Path -LiteralPath "$venv\Scripts\python.exe")) {
 $corePython = Join-Path $venv 'Scripts\python.exe'
 & $corePython -m pip install -r (Join-Path $PSScriptRoot 'requirements-core.txt') 'pyinstaller>=6,<7'
 if ($LASTEXITCODE -ne 0) { throw 'Build dependency installation failed.' }
+# Bundled payloads must be present before freezing, or the installed Hub would
+# have to reach the network to set its optional tools up.
+& $corePython (Join-Path $PSScriptRoot 'fetch_payloads.py')
+if ($LASTEXITCODE -ne 0) { throw 'Bundled payloads are incomplete.' }
 & $corePython (Join-Path $PSScriptRoot 'stage_release.py') --root $root --destination $stage
 if ($LASTEXITCODE -ne 0) { throw 'Clean staging or privacy audit failed.' }
 
@@ -41,13 +50,13 @@ try {
   $env:USERPROFILE = Join-Path $work 'smoke'
   $env:PYTHONPATH = $stage
   $env:PYTHONDONTWRITEBYTECODE = "1"
-  & $corePython -c 'import app; app.create_app(); app._selfcheck(); print("Core import and optional-app startup: OK")'
+  & $corePython (Join-Path $PSScriptRoot 'smoke_check.py')
   if ($LASTEXITCODE -ne 0) { throw 'Core startup smoke check failed.' }
   & $corePython (Join-Path $PSScriptRoot 'test_release.py') --source $stage
   if ($LASTEXITCODE -ne 0) { throw 'Installer behavior tests failed.' }
   # A venv based on Conda still needs these three CPython native runtime DLLs.
   # Include only these files, never the parent environment's packages.
-  $baseLibrary = & $corePython -c 'import sys; from pathlib import Path; print(Path(sys.base_prefix) / "Library" / "bin")'
+  $baseLibrary = & $corePython (Join-Path $PSScriptRoot 'base_library_dir.py')
   $nativeBinaries = @()
   foreach ($dll in @('ffi.dll', 'sqlite3.dll', 'libmpdec-4.dll')) {
     $dllPath = Join-Path $baseLibrary $dll
@@ -60,7 +69,8 @@ try {
     --add-data "$stage\hub\apps.default.json;hub" --add-data "$stage\hub\static;hub\static" `
     --add-data "$stage\hub\agent_knowledge;hub\agent_knowledge" --add-data "$stage\file-browser;file-browser" `
     --add-data "$stage\youtube;youtube" --add-data "$stage\packaging\speech_worker.py;packaging" `
-    --add-data "$stage\requirements-youtube.txt;." "$stage\packaging\agenthub_launcher.py"
+    --add-data "$stage\requirements-youtube.txt;." `
+    --add-data "$stage\payloads;payloads" "$stage\packaging\agenthub_launcher.py"
   if ($LASTEXITCODE -ne 0) { throw 'Freezing failed; no installer will be produced.' }
 } finally {
   $env:AGENTHUB_STATE_DIR = $previousState

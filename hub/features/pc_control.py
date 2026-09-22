@@ -10,11 +10,12 @@ from pathlib import Path
 
 from aiohttp import web
 
-from ..config import HERE
+from ..runtime import STATE
 from . import mcp as MCP
 
 routes = web.RouteTableDef()
-DB_PATH = HERE / "hub" / "data" / "pc_control.sqlite"
+# Learned routines are per-machine state, not part of the program.
+DB_PATH = STATE / "data" / "pc_control.sqlite"
 
 
 def canonical_app_name(value: str) -> str:

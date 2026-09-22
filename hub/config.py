@@ -10,7 +10,12 @@ from pathlib import Path
 # directory the original monolithic app.py sat in (favicon, youtube/, etc.).
 HERE = Path(__file__).resolve().parent.parent
 
-HOST = os.getenv("HUB_HOST", "0.0.0.0")
+# Loopback by default. Tailscale Serve terminates HTTPS on the tailnet and
+# proxies to 127.0.0.1, so phone/iPad access keeps working — while binding
+# 0.0.0.0 would ALSO hand every device on the local network the full Hub:
+# power menu, missions, File Browser. Set HUB_HOST="0.0.0.0" in
+# hub/local_settings.py only with a deliberate access policy in place.
+HOST = os.getenv("HUB_HOST", "127.0.0.1")
 PORT = int(os.getenv("HUB_PORT", "8081"))
 VOICEBOX_URL = os.getenv("VOICEBOX_URL", "http://127.0.0.1:17493").rstrip("/")
 
@@ -19,7 +24,7 @@ VOICEBOX_URL = os.getenv("VOICEBOX_URL", "http://127.0.0.1:17493").rstrip("/")
 # from local_settings.py or, last and strongest, the Locations the user saved.
 from . import locations as _loc  # noqa: E402
 
-TAILDROP_DIR = Path(os.getenv("TAILDROP_DIR", str(_loc.BASE / "inbox")))
+TAILDROP_DIR = Path(os.getenv("TAILDROP_DIR") or _loc.get("inbox"))
 TAILSCALE_EXE = os.getenv("TAILSCALE_EXE", r"C:\Program Files\Tailscale\tailscale.exe")
 
 # PIN that unlocks the PC power menu (shutdown/restart/sleep/lock). Prompted each
@@ -66,7 +71,7 @@ SHORTCUTS: list[dict] = []
 # actual upload.
 
 YT_UPLOAD_SCRIPT = str(HERE / "youtube" / "yt_upload.py")
-MC_OUTPUT_DIR = Path(os.getenv("MC_OUTPUT_DIR", str(_loc.BASE / "outputs")))
+MC_OUTPUT_DIR = Path(os.getenv("MC_OUTPUT_DIR") or _loc.get("outputs"))
 
 # Your YouTube channels, keyed by a short tag you choose. Empty here on purpose:
 # a channel tag names a real account, so it belongs in hub/local_settings.py
@@ -79,9 +84,9 @@ YOUTUBE_ACCOUNTS: dict[str, dict] = {}
 # The setup action maintains yt-dlp in that interpreter.
 YT_DL_SCRIPT = str(HERE / "youtube" / "ytdl.py")
 # Override with an absolute path in hub/local_settings.py only when required.
-YT_DL_PYTHON = os.getenv("YT_DL_PYTHON", sys.executable)
-YT_DL_AUDIO_DIR = os.getenv("YT_DL_AUDIO_DIR", str(_loc.BASE / "downloads" / "audio"))
-YT_DL_VIDEO_DIR = os.getenv("YT_DL_VIDEO_DIR", str(_loc.BASE / "downloads" / "video"))
+YT_DL_PYTHON = os.getenv("YT_DL_PYTHON") or _loc.get("yt_python")
+YT_DL_AUDIO_DIR = os.getenv("YT_DL_AUDIO_DIR") or _loc.get("dl_audio")
+YT_DL_VIDEO_DIR = os.getenv("YT_DL_VIDEO_DIR") or _loc.get("dl_video")
 
 # YouTube now blocks most anonymous downloads ("Sign in to confirm you're not a
 # bot"). Authenticate with an exported cookies.txt (preferred for an always-on
@@ -89,7 +94,7 @@ YT_DL_VIDEO_DIR = os.getenv("YT_DL_VIDEO_DIR", str(_loc.BASE / "downloads" / "vi
 # App-Bound Encryption). Export once with a "Get cookies.txt" extension while
 # signed in to YouTube and drop the file at YT_DL_COOKIES. As a fallback,
 # YT_DL_COOKIES_BROWSER (e.g. "edge") reads cookies live from a browser.
-YT_DL_COOKIES = os.getenv("YT_DL_COOKIES", "")
+YT_DL_COOKIES = os.getenv("YT_DL_COOKIES") or _loc.get("dl_cookies")
 # Default to reading Firefox's live cookies: unlike Edge/Chrome it has no
 # App-Bound Encryption, so yt-dlp reads it directly (even while open) and the
 # login auto-refreshes — no cookies.txt to maintain. An explicit cookies.txt at

@@ -42,6 +42,7 @@ from .. import locations as LOC
 from ..agent_knowledge import status as ak_status
 from ..config import PORT as HUB_PORT, logger
 from ..platform_win import _assign_to_job
+from ..runtime import capability_ready
 
 # ── constants ──────────────────────────────────────────────────────────────
 OPENCODE_ROOT = Path(LOC.get("opencode_home"))
@@ -1561,6 +1562,10 @@ def setup(app: web.Application) -> None:
     async def _housekeeping_soon() -> None:
         # a beat after the server is answering — keeps cold start fast
         await asyncio.sleep(0.5)
+        # An installed build may not have the agent runtime set up yet; probing
+        # for a git/opencode that was never installed only produces noise.
+        if not capability_ready("agents"):
+            return
         try:
             await asyncio.get_running_loop().run_in_executor(None, _startup_housekeeping)
         except Exception as exc:

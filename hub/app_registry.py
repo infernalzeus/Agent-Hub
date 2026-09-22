@@ -5,8 +5,11 @@ list the user + the auto-ingest flow edit; `apps.default.json` (committed) is th
 built-in baseline used to seed it on first run and to restore a removed built-in.
 
 Manifest = one JSON object per app. Tokens resolved at load:
-  `$PYTHON` anywhere in `cmd`  → sys.executable
-  `$HUB`    at the start of `cwd` → the hub repo root
+  `$PYTHON`  anywhere in `cmd`  → the interpreter for the "apps" capability
+                                  (runtime.python_for; the running one from source)
+  `$HUB_EXE` anywhere in `cmd`  → the Hub itself, re-launched in a child mode
+                                  (an installed build has no separate Python)
+  `$HUB`     at the start of `cwd` → the hub repo root
 
 Shape (only `id`, `cmd`, `port` are required; the rest have defaults):
   id, name, emoji, cwd, cmd[list], port, serve("direct"|"proxy"),
@@ -18,14 +21,18 @@ The HTTP surface (GET/reorder/hide/DELETE/ingest) lives in hub/features/apps.py.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
+from .runtime import STATE, python_for
+
 _HERE = Path(__file__).resolve().parent          # hub/
 _ROOT = _HERE.parent                             # repo root
-LIVE = _HERE / "apps.json"
-DEFAULT = _HERE / "apps.default.json"
-INGESTED = _HERE / "ingested_apps"               # where auto-ingested app clones live
+# Writable state: the repo's hub/ folder from source, per-user when installed.
+LIVE = STATE / "apps.json"
+DEFAULT = _HERE / "apps.default.json"            # read-only baseline, ships with the code
+INGESTED = STATE / "ingested_apps"               # where auto-ingested app clones live
 
 
 def _read(p: Path) -> list[dict]:
@@ -62,21 +69,37 @@ def _resolve(m: dict) -> dict:
     cwd = str(m.get("cwd") or ".")
     if cwd.startswith("$HUB"):
         cwd = str(_ROOT / cwd[4:].lstrip("/\\"))
-    cmd = [sys.executable if a == "$PYTHON" else str(a) for a in (m.get("cmd") or [])]
+    cmd = [str(python_for("apps")) if a == "$PYTHON"
+           else sys.executable if a == "$HUB_EXE"
+           else str(a) for a in (m.get("cmd") or [])]
+    # From source $HUB_EXE is a plain Python, so it needs the launcher script that
+    # a frozen build has built in.
+    if "$HUB_EXE" in (m.get("cmd") or []) and not getattr(sys, "frozen", False):
+        cmd.insert(1, str(_ROOT / "packaging" / "agenthub_launcher.py"))
     aid = str(m["id"])
+    env = dict(m.get("env") or {})
+    port = int(m["port"])
+    if aid == "file-browser":
+        # Locations is the single source of truth for the browsable root, so the
+        # Locations UI actually changes it. The port override lets a test install
+        # run beside the real one.
+        from . import locations
+        env["FB_ROOT"] = locations.get("file_root")
+        port = int(os.environ.get("AGENTHUB_FILE_PORT") or port)
+        env["FB_WEB_PORT"] = str(port)
     return {
         "id": aid,
         "name": m.get("name") or aid,
         "emoji": m.get("emoji") or "\U0001F4E6",
         "cwd": Path(cwd),
         "cmd": cmd,
-        "port": int(m["port"]),
+        "port": port,
         "serve": m.get("serve") or "direct",
         "base_path": m.get("base_path") or f"/app/{aid}",
         "health_path": m.get("health_path") or "/",
         "idle_minutes": int(m.get("idle_minutes", 20)),
         "install": list(m["install"]) if m.get("install") else None,
-        "env": dict(m.get("env") or {}),
+        "env": env,
         "builtin": bool(m.get("builtin", False)),
         "source": m.get("source") or "wired-in",
         "hidden": bool(m.get("hidden", False)),

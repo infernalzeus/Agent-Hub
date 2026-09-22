@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent
@@ -24,6 +25,14 @@ from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 from hub.features import onboarding as O, voice
 from hub import runtime as RT, locations as LOC, app_registry
+
+
+def _payload_manifest() -> Path:
+    """payloads.json as the staged/frozen tree sees it, else the repo's copy."""
+    staged = RT.payloads()
+    if staged and (staged / 'payloads.json').is_file():
+        return staged / 'payloads.json'
+    return ROOT / 'payloads.json'
 
 
 class SetupTests(unittest.IsolatedAsyncioTestCase):
@@ -160,6 +169,52 @@ class PackageTests(unittest.TestCase):
         with patch.dict(app.config.APPS, {}, clear=True):
             app._selfcheck()
             self.assertGreater(len(list(app.create_app().router.routes())), 100)
+
+
+class PayloadTests(unittest.TestCase):
+    """The installed Hub must be able to set its bundled tools up with no network."""
+
+    def test_wheelhouse_is_found_for_every_bundled_capability(self):
+        manifest = json.loads(_payload_manifest().read_text(encoding='utf-8'))
+        for capability in manifest['bundled']['wheels']:
+            if capability.startswith('_'):
+                continue
+            self.assertIsNotNone(RT.wheelhouse(capability),
+                                 capability + ' has no bundled wheels')
+
+    def test_offline_install_uses_no_index(self):
+        """pip must be told --no-index, or a 'bundled' setup silently hits PyPI."""
+        captured = {}
+
+        def fake_run(cmd, timeout=900):
+            captured['cmd'] = cmd
+            return SimpleNamespace(returncode=0, stdout='', stderr='')
+
+        with patch.object(RT, 'python_for', return_value=Path(sys.executable)), \
+             patch.object(RT, 'run', side_effect=fake_run):
+            RT.install('media', ['yt-dlp'])
+        self.assertIn('--no-index', captured['cmd'])
+        self.assertIn('--find-links', captured['cmd'])
+
+    def test_bundled_python_is_only_used_when_none_is_present(self):
+        """Never install a second Python over one that already works."""
+        calls = []
+
+        with patch.object(RT, 'python_for', return_value=Path(sys.executable)), \
+             patch.object(RT, 'run', side_effect=lambda cmd, timeout=900: (
+                 calls.append(cmd) or SimpleNamespace(returncode=0, stdout='', stderr=''))):
+            RT.install('media', ['yt-dlp'])
+        self.assertFalse([c for c in calls if any('python-3' in str(a) for a in c)],
+                         'bundled Python installer ran although an interpreter was available')
+
+    def test_manifest_records_measured_hashes(self):
+        manifest = json.loads(_payload_manifest().read_text(encoding='utf-8'))
+        python_entry = manifest['bundled']['python']
+        self.assertTrue(python_entry.get('sha256'), 'python payload has no recorded hash')
+        self.assertTrue(python_entry.get('size'), 'python payload has no recorded size')
+        local = RT.bundled_python_installer()
+        if local and local.is_file():
+            self.assertEqual(local.stat().st_size, python_entry['size'])
 
 
 if __name__ == '__main__':

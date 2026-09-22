@@ -1,0 +1,95 @@
+{
+  "schema": 1,
+  "_comment": "What the installer carries, and what it fetches only when asked. Sizes and hashes are filled in by fetch_payloads.py from the real downloads - never hand-edited, so the manifest is measured rather than claimed.",
+  "bundled": {
+    "_comment": "Ships inside the installer. Setting these capabilities up needs no network at all.",
+    "python": {
+      "id": "python",
+      "version": "3.13.7",
+      "url": "https://www.python.org/ftp/python/3.13.7/python-3.13.7-amd64.exe",
+      "filename": "python-3.13.7-amd64.exe",
+      "licence": "PSF-2.0",
+      "why": "Optional tools run in their own environments. Used only when the machine has no Python 3.13 already, and installed per-user, never system-wide.",
+      "sha256": "b12e2e82461ac8e51fc43289050bc8eb937a32d84ce4d242e2c88258c37cf2bb",
+      "size": 28808040
+    },
+    "wheels": {
+      "_comment": "pip download --only-binary=:all: per capability. imageio-ffmpeg carries the ffmpeg binary, so media needs no separate ffmpeg download.",
+      "media": [
+        "yt-dlp",
+        "mutagen",
+        "imageio-ffmpeg"
+      ],
+      "apps": [
+        "aiohttp",
+        "pytest",
+        "pillow"
+      ]
+    }
+  },
+  "on_request": {
+    "_comment": "Too large, or third-party installers better taken fresh from their vendor. Each states its source and size before anything is downloaded, and is checked against its hash afterwards.",
+    "tailscale": {
+      "id": "tailscale",
+      "url": "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi",
+      "filename": "tailscale-setup-amd64.msi",
+      "licence": "BSD-3-Clause",
+      "why": "Private access from your phone and other devices.",
+      "sha256": null,
+      "size": null
+    },
+    "node": {
+      "id": "node",
+      "version": "22.11.0",
+      "url": "https://nodejs.org/dist/v22.11.0/node-v22.11.0-x64.msi",
+      "filename": "node-v22.11.0-x64.msi",
+      "licence": "MIT",
+      "why": "YouTube signature checks, and the OpenCode agent runtime.",
+      "sha256": null,
+      "size": null
+    },
+    "git": {
+      "id": "git",
+      "version": "2.47.0",
+      "url": "https://github.com/git-for-windows/git/releases/download/v2.47.0.windows.1/Git-2.47.0-64-bit.exe",
+      "filename": "Git-2.47.0-64-bit.exe",
+      "licence": "GPL-2.0",
+      "why": "Missions work in git worktrees.",
+      "sha256": null,
+      "size": null
+    },
+    "speech_wheels": {
+      "_comment": "ctranslate2 + av + onnxruntime are ~80% of a fully-bundled installer's weight, to serve one optional feature. Fetched when TALK speech is set up.",
+      "packages": [
+        "faster-whisper",
+        "edge-tts"
+      ]
+    },
+    "speech_models": {
+      "_comment": "Downloaded by packaging/speech_worker.py only after an explicit model choice.",
+      "tiny": {
+        "approx_mb": 75
+      },
+      "base": {
+        "approx_mb": 145
+      },
+      "small": {
+        "approx_mb": 480
+      }
+    },
+    "youtube_upload": {
+      "_comment": "~15 MB. Fetched from PyPI when YouTube upload is first set up.",
+      "packages": [
+        "google-api-python-client",
+        "google-auth-oauthlib",
+        "google-auth-httplib2"
+      ]
+    },
+    "mcp": {
+      "_comment": "~26 MB (numpy, pillow, pywin32). Fetched from PyPI when PC control is first set up.",
+      "packages": [
+        "windows-mcp"
+      ]
+    }
+  }
+}

@@ -13,6 +13,8 @@ from pathlib import Path
 import aiohttp
 from aiohttp import web, WSMsgType
 
+from ..request_security import ensure_ws_origin
+
 from ..config import (
     YOUTUBE_ACCOUNTS, MC_OUTPUT_DIR, YT_UPLOAD_SCRIPT,
     YT_DL_PYTHON, YT_DL_SCRIPT, YT_DL_AUDIO_DIR, YT_DL_VIDEO_DIR,
@@ -407,6 +409,7 @@ async def yt_ws_handler(request: web.Request) -> web.WebSocketResponse:
     # closes if it gets no pong, so a truly-dead peer is detected in bounded
     # time instead of leaking a subscriber + a blocked handler forever.
     ws = web.WebSocketResponse(heartbeat=30)
+    ensure_ws_origin(request)
     await ws.prepare(request)
     yt_state.subscribers.add(ws)
 
@@ -508,6 +511,7 @@ async def ytdl_ws_handler(request: web.Request) -> web.WebSocketResponse:
     # connection never detected, its dead-socket send eventually blocked the
     # whole event loop for ~27s (visible as a dead gap in the access log).
     ws = web.WebSocketResponse(heartbeat=30)
+    ensure_ws_origin(request)
     await ws.prepare(request)
     ytdl_state.subscribers.add(ws)
 

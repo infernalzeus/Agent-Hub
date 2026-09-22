@@ -1,7 +1,12 @@
-"""Stage an allowlisted, hash-checked release tree; never edit live Hub files."""
+"""Stage an allowlisted release tree; never edit live Hub files.
+
+The Hub itself decides how to behave when installed (see hub/runtime.py:
+PACKAGED/STATE/python_for), so staging is a straight copy plus a privacy
+audit. Nothing here patches source, so editing the Hub cannot stale the
+build, and new modules or skills are picked up with no manifest to update.
+"""
 from __future__ import annotations
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -20,11 +25,6 @@ def stage(root: Path, destination: Path, packaging: Path | None = None):
         raise ValueError('Stage must not be the source tree or its parent.')
     if destination.exists() and any(destination.iterdir()):
         raise ValueError('Use a new, empty staging directory; existing data is never deleted.')
-    changes = json.loads((packaging / 'release-changes.json').read_text(encoding='utf-8'))
-    for item in changes['files']:
-        source = root / item['path']
-        if hashlib.sha256(source.read_bytes()).hexdigest() != item['sha256']:
-            raise ValueError('Release overlay is stale: ' + item['path'] + '. Review and refresh it before rebuilding.')
     destination.mkdir(parents=True, exist_ok=True)
     for name in ROOT_FILES:
         shutil.copy2(root / name, destination / name)
@@ -44,21 +44,17 @@ def stage(root: Path, destination: Path, packaging: Path | None = None):
     (destination / 'youtube').mkdir()
     for name in ('ytdl.py', 'yt_upload.py'):
         shutil.copy2(root / 'youtube' / name, destination / 'youtube' / name)
-    for item in changes['files']:
-        path = destination / item['path']
-        # Packaging entrypoint is copied explicitly, outside the application allowlist.
-        if not path.exists():
-            path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(root / item['path'], path)
-        lines = path.read_text(encoding='utf-8').splitlines(keepends=True)
-        for edit in reversed(item['edits']):
-            lines[edit['start']:edit['end']] = edit['replacement'].splitlines(keepends=True)
-        path.write_text(''.join(lines), encoding='utf-8')
-    for source in (packaging / 'overlay').rglob('*'):
-        if source.is_file():
-            target = destination / source.relative_to(packaging / 'overlay')
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, target)
+    # Packaging scripts the frozen app runs as children, outside the app allowlist.
+    (destination / 'packaging').mkdir(parents=True, exist_ok=True)
+    for name in ('agenthub_launcher.py', 'speech_worker.py'):
+        shutil.copy2(packaging / name, destination / 'packaging' / name)
+    # Bundled payloads (wheels, the Python installer). Copied in rather than
+    # referenced, so the staged tree is exactly what gets frozen and the tests
+    # exercise the same lookup the installed Hub will do.
+    if (packaging / 'payloads').is_dir():
+        shutil.copytree(packaging / 'payloads', destination / 'payloads',
+                        ignore=shutil.ignore_patterns('*.part'))
+        shutil.copy2(packaging / 'payloads.json', destination / 'payloads' / 'payloads.json')
     audit(destination)
     return destination
 

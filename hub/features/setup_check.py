@@ -29,6 +29,7 @@ from .apps import APPS
 from ..config import HUB_POWER_PIN, TAILSCALE_EXE, logger
 from .opencode import OPENCODE_EXE
 from . import setup_actions
+from .. import runtime as RT
 
 routes = web.RouteTableDef()
 
@@ -221,6 +222,10 @@ async def _refresh_cache() -> None:
 
 @routes.get("/api/setup-status")
 async def setup_status(request: web.Request) -> web.Response:
+    # An installed build reports readiness through the onboarding wizard, which
+    # owns the same capabilities — running these probes too would contradict it.
+    if RT.PACKAGED:
+        return web.json_response({"issues": []})
     if not _CACHE["at"]:
         await _refresh_cache()                       # first ever call: wait, but off the event loop
     elif time.time() - _CACHE["at"] > _TTL:
@@ -229,6 +234,8 @@ async def setup_status(request: web.Request) -> web.Response:
 
 
 def setup(app: web.Application) -> None:
+    if RT.PACKAGED:
+        return                                       # onboarding owns capability state; nothing to probe
     async def _warm(_app: web.Application) -> None:
         asyncio.create_task(_refresh_cache())        # compute once in the background after the hub is listening
     app.on_startup.append(_warm)
@@ -239,6 +246,9 @@ async def setup_install(request: web.Request) -> web.Response:
     """Run one of the safely-local install actions (setup_actions.ACTIONS) and
     report what happened. Never used for Node.js/Tailscale/anything
     system-level — those stay show-command-only issues, with no route here."""
+    if RT.PACKAGED:
+        from . import onboarding
+        return await onboarding.legacy_install(request)
     action = setup_actions.ACTIONS.get(request.match_info["action_id"])
     if action is None:
         return web.json_response({"error": "unknown action"}, status=404)
