@@ -2,7 +2,9 @@
   #error Supply /DSourceDir with the freshly verified package directory.
 #endif
 #ifndef AppVersion
-  #define AppVersion "0.1.3"
+  ; Always supplied by Build-Release.ps1 (/DAppVersion). Erroring here rather
+  ; than defaulting means the installer can never claim a stale version.
+  #error Supply /DAppVersion with the version being built.
 #endif
 ; Three modes:
 ;   TestOnly   - separate app, obviously not the real thing
@@ -58,6 +60,11 @@ WizardStyle=modern
 UninstallDisplayIcon={app}\AgentHub.exe
 CloseApplications=yes
 RestartApplications=no
+; Whoever runs the installer sees what changed, from the same notes that
+; become the GitHub Release description.
+#if FileExists(SourceDir + "\RELEASE-NOTES.md")
+  InfoBeforeFile={#SourceDir}\RELEASE-NOTES.md
+#endif
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
