@@ -1,63 +1,99 @@
 # Agent Hub
 
-Your PC, reachable from your phone.
+**Your most powerful PC tools. At your fingertips, any device.**
 
-One always-on address on your private [Tailscale](https://tailscale.com/) network that
-launches your tools on demand, runs coding agents against your repos, and gives you the
-machine itself — files, media, power — from whatever device you happen to be holding.
+One address on your own private network. Your phone, tablet and laptop reach the PC at
+home; the PC runs the work. Nothing is exposed to the internet, and nothing leaves your
+[Tailscale](https://tailscale.com/) network.
 
 ---
 
 ## Install
 
-Download the installer for your machine from the
+Download for your machine from the
 [latest release](https://github.com/infernalzeus/Agent-Hub/releases/latest):
 
 | | | |
 |---|---|---|
-| **Windows** | `Agent-Hub-Setup.exe` | Everything below works |
-| **macOS** | `Agent-Hub-<version>-macOS-arm64.dmg` | Unsigned — first launch needs right-click → **Open** |
-| **Linux** | `Agent-Hub-<version>-linux-x86_64.tar.gz` | |
+| **Windows** | [`Agent-Hub-Setup.exe`](https://github.com/infernalzeus/Agent-Hub/releases/latest/download/Agent-Hub-Setup.exe) | Everything works |
+| **macOS** | [`Agent-Hub-macOS.dmg`](https://github.com/infernalzeus/Agent-Hub/releases/latest/download/Agent-Hub-macOS.dmg) | Unsigned — first launch, right-click → **Open** |
+| **Linux** | [`Agent-Hub-Linux.tar.gz`](https://github.com/infernalzeus/Agent-Hub/releases/latest/download/Agent-Hub-Linux.tar.gz) | |
 
-First launch asks one question: set everything up now, or set each tool up the first time
-you open it. Nothing is installed until you say so, and each step says what it will
-download and how big it is.
+Run it, and it asks one question: **set everything up now, or set each tool up the first
+time you open it.** Nothing installs until you say so, and every step tells you what it
+will download and how big it is. Media and file browsing work with no network at all —
+they ship inside the installer.
 
-**Power controls and PC control are Windows-only.** macOS and Linux get the Hub, File
-Browser, Missions, Media and the project graph; the controls they cannot do are hidden
-rather than offered and broken. See [`hub/platforms.py`](hub/platforms.py).
+Then, to reach it from your phone: install Tailscale on the PC and the phone, sign both
+into the same private network, open the Hub address and save it to your home screen.
+
+> **Windows gets everything.** macOS and Linux run the Hub, agents, files and media;
+> desktop control is Windows-only and is hidden there rather than offered and broken.
+> See [`hub/platforms.py`](hub/platforms.py).
 
 ---
 
 ## What you get
 
-| | |
-|---|---|
-| **Missions** | Describe a task; an agent works in its own git worktree; you read the diff and APPLY or DISCARD. Your repo is never touched until you approve. |
-| **TALK + PC control** | Speak to the machine from your phone — open an app, run a routine it has learned. Every action is approved, and control stays off until you turn it on. |
-| **Media** | Download, convert and file video and audio; browse the machine's drives from anywhere; send files from your phone. |
-| **Project graph** | Every repo's real state, read from its git history, drawn as one map. |
-| **Your own apps** | Point the Hub at any web app that binds `127.0.0.1`; it spawns it on first use, proxies it under `/app/<id>/`, and stops it when idle. |
+### Autonomous LLM
+Describe a task. An agent picks it up and works in **its own git worktree** — a private
+copy of your repo. You read the diff and decide:
+
+```
+OpenCode ─▸ Missions ─▸ Dispatch ─┬─▸ Worktree ─▸ Review ─▸ Apply  (or discard)
+                                  └─▸ Orchestrator
+```
+
+Your repo is never written to until you approve. The same worktree diff is what feeds the
+Git Graph, so what an agent did shows up on the map.
+
+### MCP Control
+Speak to the PC from your phone. Open an app, run a routine it has learned. Every action
+is approved, and control stays **off** until you switch it on. *(Windows only.)*
+
+### Media Vault
+Download, convert and file video and audio. Browse the machine's drives from anywhere, and
+send files straight from your phone. Runs on yt-dlp and ffmpeg, both bundled.
+
+### Git Graph
+Every repo's real state, read live from its git history, drawn as one map — including the
+worktrees your agents are working in.
+
+### Your own apps
+Point the Hub at any web app that binds `127.0.0.1` and honours a base-path env var. It
+spawns it on first use, proxies it under `/app/<id>/`, and stops it when idle. See
+[Adding a new app](#adding-a-new-app).
+
+---
+
+## Building your own installer
+
+**Double-click `Build-Release.cmd`.** A window opens: type what changed, tick Windows /
+macOS / Linux, press COMPILE. It bumps the patch version, writes the changelog, stamps the
+notes into the installer, and — if you tick Publish — creates a draft GitHub release with
+the installer attached.
+
+macOS and Linux build on GitHub Actions, because PyInstaller cannot cross-compile.
+
+Full detail, and how to change what ships inside the installer:
+[`packaging/BUILDING.md`](packaging/BUILDING.md).
 
 ---
 
 ## Running from source
 
-Everything below is for developing the Hub itself. If you just want to use it, the
-installer above is the supported path.
-
-**Building your own installer:** double-click `Build-Release.cmd`. See
-[`packaging/BUILDING.md`](packaging/BUILDING.md).
+Everything below is for working on the Hub itself. To just use it, the installer above is
+the supported path.
 
 ## Setup
 
 > **First time here? Follow [`SETUP.md`](SETUP.md)** — a numbered do-this-in-order
 > checklist. The rest of this section is the same ground in prose.
 
-**Nothing here auto-installs.** There's no setup wizard — once running, the Hub checks its
-own prerequisites and shows a banner for anything missing (which README section to read,
-not a silent broken card), but it will never download or install something on your behalf.
-That part's on you, once, per prerequisite below.
+**An installed Hub has a first-run wizard**; running from source does not. From source,
+the Hub checks its own prerequisites and shows a banner for anything missing — which
+README section to read, not a silent broken card — but it never downloads or installs
+anything on your behalf. That part is on you, once, per prerequisite below.
 
 **Prerequisites checklist** (✅ = works with zero setup beyond `pip install`; the rest are
 opt-in — skip anything you won't use):
@@ -229,13 +265,20 @@ dirs it created. The `/graph` page's project panel shows which skills match each
 
 ## Architecture
 
-`app.py` is a thin composition root: `FEATURES = [apps, youtube, opencode, power, ui]`; each
-feature module in `hub/features/` exposes `routes` + an optional `setup(app)`. Supporting
-modules in `hub/`:
+`app.py` is a thin composition root: every module in `FEATURES` exposes `routes` and an
+optional `setup(app)`, and `app.py` wires them into one aiohttp app. Adding a feature
+means adding it to that list. `request_security.install(app)` runs last, so it is the
+first thing a state-changing request meets. Supporting modules in `hub/`:
 
 - `config.py` — constants, the `APPS` registry, paths (+ `local_settings.py` overrides).
 - `platform_win.py` — Windows Job Object so every spawned child dies with the Hub.
 - `proxy.py` — WebSocket-aware streaming reverse proxy.
 - `supervisor.py` — start/stop + idle reaper for the proxied apps.
 - `lifecycle.py` — startup hooks, graceful cleanup, force-exit watchdog.
+- `runtime.py` — the only place that knows source-from-clone versus installed:
+  `PACKAGED`, `STATE` (where writable state lives) and `python_for(capability)`.
+  It exists so the build never has to patch source.
+- `platforms.py` — what this OS can actually do; the UI hides the rest.
+- `request_security.py` / `integration_tokens.py` — same-origin enforcement, plus
+  named revocable tokens so scripts and phone shortcuts still work.
 - `ui.py` — the menu page, offline page, service worker, favicons.
