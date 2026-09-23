@@ -77,3 +77,5 @@ hub/data/
 
 # Release audit denylist (real PIN / account tag / tailnet address)
 packaging/release-deny.local.txt
+# Written by the build dialog when you confirm the clean-machine test.
+release-evidence.json
