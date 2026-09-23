@@ -7,9 +7,23 @@
 #   packaging/CHANGELOG.md            what the GitHub Release shows as its notes
 #   release/<mode>-<version>-<stamp>/ the folder the build lands in
 
+function Write-Utf8NoBom {
+    <#  Windows PowerShell 5.1's "-Encoding UTF8" writes a BYTE ORDER MARK, and
+        Python's json.load rejects a leading BOM outright. That is what broke the
+        macOS and Linux CI builds: they read release-manifest.json and got
+        "Unexpected UTF-8 BOM". Always write these files without one.  #>
+    param([string]$Path, [string]$Text)
+    # .NET resolves relative paths against the PROCESS working directory, which is
+    # not PowerShell's location. Resolve first so a relative path cannot land
+    # somewhere unexpected.
+    $full = if ([System.IO.Path]::IsPathRooted($Path)) { $Path }
+            else { Join-Path (Get-Location).ProviderPath $Path }
+    [System.IO.File]::WriteAllText($full, $Text, (New-Object System.Text.UTF8Encoding $false))
+}
+
 function Get-HubVersion {
     param([string]$PackagingDir)
-    (Get-Content -LiteralPath (Join-Path $PackagingDir 'release-manifest.json') -Raw -Encoding UTF8 |
+    (Get-Content -LiteralPath (Join-Path $PackagingDir 'release-manifest.json') -Raw |
         ConvertFrom-Json).version
 }
 
@@ -26,10 +40,10 @@ function Step-PatchVersion {
 function Set-HubVersion {
     param([string]$PackagingDir, [string]$Version)
     $path = Join-Path $PackagingDir 'release-manifest.json'
-    $manifest = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
+    $manifest = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
     $manifest.version = $Version
     # 10 levels so nested objects in the manifest survive the round trip.
-    $manifest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $path -Encoding UTF8
+    Write-Utf8NoBom $path (($manifest | ConvertTo-Json -Depth 10) + "`n")
 }
 
 function Add-ChangelogEntry {
@@ -41,15 +55,15 @@ function Add-ChangelogEntry {
     $body = ($Notes | Where-Object { $_.Trim() } | ForEach-Object { "- $($_.Trim())" }) -join "`n"
     if (-not $body) { $body = '- No notes recorded for this build.' }
     $entry = "$marker`n`n## $Version`n`n_$(Get-Date -Format 'd MMMM yyyy')_`n`n$body"
-    $text = Get-Content -LiteralPath $path -Raw -Encoding UTF8
+    $text = Get-Content -LiteralPath $path -Raw
     if ($text -notmatch [regex]::Escape($marker)) { throw "CHANGELOG.md is missing its insert marker." }
-    ($text -replace [regex]::Escape($marker), $entry) | Set-Content -LiteralPath $path -Encoding UTF8
+    Write-Utf8NoBom $path ($text -replace [regex]::Escape($marker), $entry)
 }
 
 function Get-ChangelogEntry {
     <#  The newest section, used as the GitHub Release description.  #>
     param([string]$PackagingDir, [string]$Version)
-    $text = Get-Content -LiteralPath (Join-Path $PackagingDir 'CHANGELOG.md') -Raw -Encoding UTF8
+    $text = Get-Content -LiteralPath (Join-Path $PackagingDir 'CHANGELOG.md') -Raw
     $escaped = [regex]::Escape($Version)
     $pattern = '(?ms)^## ' + $escaped + '\s*$(.*?)(?=^## |\z)'
     $found = [regex]::Match($text, $pattern)

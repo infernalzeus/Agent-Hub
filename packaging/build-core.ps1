@@ -87,7 +87,8 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'release-manifest.json') -Destin
 . (Join-Path $PSScriptRoot 'version.ps1')
 $notes = Get-ChangelogEntry $PSScriptRoot $Version
 if ($notes) {
-  "# Agent Hub $Version`n`n$notes" | Set-Content (Join-Path $package 'RELEASE-NOTES.md') -Encoding UTF8
+  # No BOM: the installer shows this file verbatim, and a BOM renders as a stray glyph.
+  Write-Utf8NoBom (Join-Path $package 'RELEASE-NOTES.md') "# Agent Hub $Version`n`n$notes`n"
   Write-Host "`nPatch notes for ${Version}:"
   $notes -split "`n" | ForEach-Object { Write-Host "  $_" }
 }
