@@ -9,10 +9,12 @@ installer. Everything below is what it does and how to change it.
 
 | I want to | Do this |
 |---|---|
-| A Windows installer from my current code | Double-click `Build-Release.cmd` |
-| ... plus macOS and Linux | `Build-Release.cmd /all` (commits must be pushed) |
-| A public release | `Build-Release.cmd -ReleaseEvidence evidence.json` |
+| The real installer, to install and test | Double-click `Build-Release.cmd` |
+| A throwaway that installs separately | `Build-Release.cmd /testonly` |
+| Publish (Windows + macOS + Linux) | `Build-Release.cmd /all -ReleaseEvidence evidence.json` |
 | Just check the payloads | `python packaging\fetch_payloads.py --check` |
+
+> **Close the source Hub first.** Every install uses port 8081 — see *Gotchas*.
 
 You need [Inno Setup](https://jrsoftware.org/isdl.php) (6 or 7) and Python 3.13.
 Everything else the build fetches itself.
@@ -87,9 +89,23 @@ right-click → Open.
 
 ---
 
+## The three build modes
+
+| Mode | Installs as | Marker file | Publishable |
+|---|---|---|---|
+| `/testonly` | Agent Hub **Test** | `TEST-ONLY.txt` | never |
+| default (candidate) | **Agent Hub** — the real thing | `RELEASE-CANDIDATE.txt` | not until tested |
+| `-ReleaseEvidence` | **Agent Hub** | `release-evidence.json` | yes |
+
+The candidate mode exists because the evidence file asserts clean-machine testing
+*has already passed* — which is the testing you do **by installing**. Gating the
+build on it made the real installer impossible to produce for the purpose of
+validating it. The gate belongs on publishing, and that is where it now sits:
+`Build-Release.cmd /all` refuses to tag or push without evidence.
+
 ## The release gate
 
-A public build refuses to run without a `-ReleaseEvidence` JSON file:
+Publishing refuses to run without a `-ReleaseEvidence` JSON file:
 
 ```json
 {
@@ -121,7 +137,14 @@ carried the public installer name despite never being installed anywhere.
   Hub logs to stderr, and PS wraps each line as an error, failing the step.
 - A venv built on a Conda base needs three native DLLs (ffi, sqlite3, libmpdec)
   from the base `Library/bin`. `build-core.ps1` copies only those.
-- Test installs use their own AppId, `Agent Hub Test`, and ports 18081/18092, so
-  they never collide with or upgrade a real install.
+- **Only one Agent Hub runs at a time.** Every install — test, candidate or public —
+  uses port **8081** (`hub/config.py`) and `%LOCALAPPDATA%\AgentHub\state`
+  (`runtime._default_state`). A test install gets its own AppId, display name and
+  install folder, so it will not *upgrade* a real one, but it shares the port and
+  the state directory. Close the source Hub, and uninstall any test build, before
+  installing a real one.
+  <br>(An earlier version of this file claimed test installs used ports 18081/18092
+  with separate state. That was never implemented — nothing sets `HUB_PORT` or
+  `AGENTHUB_STATE_DIR`.)
 - `release/`, `packaging/payloads/` and `.release-work/` are gitignored. Release
   binaries belong on GitHub Releases, never in the repo.

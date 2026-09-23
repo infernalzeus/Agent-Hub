@@ -7,9 +7,11 @@
 [CmdletBinding()]
 param(
   [switch]$All,            # also tag + push so CI builds macOS and Linux
-  [switch]$SkipTests,      # emergency escape hatch; the build normally runs them
-  [string]$ReleaseEvidence # required for a public (non TEST-ONLY) build
+  [switch]$TestOnly,       # throwaway build installed as a separate "Agent Hub Test"
+  [string]$ReleaseEvidence # required only to PUBLISH; not to build
 )
+# Default is a release candidate: the real installer, for installing and testing.
+# Publishing still needs evidence, so an unvalidated build cannot become a release.
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
 $root = Split-Path -Parent $here
@@ -23,8 +25,12 @@ Step "Agent Hub $version"
 # ── 1. Freeze ────────────────────────────────────────────────────────────────
 # build-core.ps1 fetches payloads, stages, runs the behaviour tests and freezes.
 Step 'Building the Windows package'
-$buildArgs = @()
-if ($ReleaseEvidence) { $buildArgs += @('-ReleaseEvidence', $ReleaseEvidence) } else { $buildArgs += '-TestOnly' }
+# Hashtable, not an array: splatting an array passes elements POSITIONALLY, so a
+# switch like -Candidate would silently bind to the first positional parameter.
+$buildArgs = @{}
+if ($ReleaseEvidence)  { $buildArgs['ReleaseEvidence'] = $ReleaseEvidence }
+elseif ($TestOnly)     { $buildArgs['TestOnly'] = $true }
+else                   { $buildArgs['Candidate'] = $true }
 & (Join-Path $here 'build-core.ps1') @buildArgs
 if ($LASTEXITCODE -ne 0) { Fail 'Build failed. Nothing was published.' }
 
@@ -41,8 +47,9 @@ $iscc = Get-ChildItem "$env:LOCALAPPDATA\Programs", "${env:ProgramFiles(x86)}", 
 if (-not $iscc) { Fail 'Inno Setup is not installed. Get it from https://jrsoftware.org/isdl.php' }
 
 $isccArgs = @("/DSourceDir=$package", (Join-Path $here 'AgentHub.iss'))
-if (-not $ReleaseEvidence) { $isccArgs = @('/DTestOnly') + $isccArgs }
-else { $isccArgs = @("/DReleaseEvidence=$ReleaseEvidence") + $isccArgs }
+if ($ReleaseEvidence)  { $isccArgs = @("/DReleaseEvidence=$ReleaseEvidence") + $isccArgs }
+elseif ($TestOnly)     { $isccArgs = @('/DTestOnly') + $isccArgs }
+else                   { $isccArgs = @('/DCandidate') + $isccArgs }
 & $iscc @isccArgs | Select-Object -Last 3
 if ($LASTEXITCODE -ne 0) { Fail 'Installer compilation failed.' }
 
@@ -57,6 +64,10 @@ if (-not $All) {
   exit 0
 }
 
+if (-not $ReleaseEvidence) {
+  Fail ('Publishing needs a completed clean-machine release-evidence file. ' +
+        'Install and test the candidate first, then re-run with -ReleaseEvidence.')
+}
 Step 'Requesting the macOS and Linux builds'
 if ((git -C $root status --porcelain) -ne $null) {
   Fail 'Commit your changes first — CI builds from what is pushed, not from this folder.'

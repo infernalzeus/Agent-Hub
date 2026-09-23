@@ -4,6 +4,15 @@
 #ifndef AppVersion
   #define AppVersion "0.1.3"
 #endif
+; Three modes:
+;   TestOnly   - separate app, obviously not the real thing
+;   Candidate  - the real installer, for installing and testing. NOT publishable.
+;   (neither)  - public release; requires completed clean-machine evidence.
+;
+; Candidate exists because the evidence file asserts that clean-machine testing has
+; already passed, which is the testing you do BY installing. Gating the build on it
+; made the real installer impossible to produce for the purpose of validating it.
+; The gate belongs on publishing, and that is where it stays.
 #ifdef TestOnly
   #define AppName "Agent Hub Test"
   #define InstallDir "Agent Hub Test"
@@ -13,14 +22,17 @@
     #error Test package must contain TEST-ONLY.txt.
   #endif
 #else
-  #ifndef ReleaseEvidence
-    #error Public installer requires completed clean-Windows ReleaseEvidence.
-  #endif
-  #if !FileExists(ReleaseEvidence)
-    #error Release evidence file not found.
-  #endif
+  ; A test package can never become a real installer, in either remaining mode.
   #if FileExists(SourceDir + "\TEST-ONLY.txt")
-    #error A test package cannot become a public installer.
+    #error A test package cannot become a real installer.
+  #endif
+  #ifndef Candidate
+    #ifndef ReleaseEvidence
+      #error Public installer requires completed clean-machine ReleaseEvidence, or /DCandidate to build one for testing.
+    #endif
+    #if !FileExists(ReleaseEvidence)
+      #error Release evidence file not found.
+    #endif
   #endif
   #define AppName "Agent Hub"
   #define InstallDir "Agent Hub"

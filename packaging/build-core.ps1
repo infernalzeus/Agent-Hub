@@ -1,5 +1,6 @@
 param(
-  [switch]$TestOnly,
+  [switch]$TestOnly,     # separate app, clearly not the real thing
+  [switch]$Candidate,    # the real installer, for installing and testing; not publishable
   [string]$Version = '',
   [string]$Python = 'python',
   [string]$ReleaseEvidence
@@ -11,8 +12,9 @@ if (-not $Version) {
   # Resolved before the evidence check below, which compares against it.
   $Version = (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'release-manifest.json') -Raw | ConvertFrom-Json).version
 }
-if (-not $TestOnly) {
-  if (-not $ReleaseEvidence) { throw 'Public release is gated. Use -TestOnly for a local test build, or supply completed clean-Windows ReleaseEvidence.' }
+if ($TestOnly -and $Candidate) { throw 'Pick one: -TestOnly or -Candidate.' }
+if (-not $TestOnly -and -not $Candidate) {
+  if (-not $ReleaseEvidence) { throw 'Publishing is gated. Use -Candidate to build the real installer for testing, -TestOnly for a throwaway, or supply completed clean-machine ReleaseEvidence.' }
   $evidence = Get-Content -LiteralPath $ReleaseEvidence -Raw | ConvertFrom-Json
   if ($evidence.version -ne $Version -or -not $evidence.clean_windows_profile -or -not $evidence.all_now_passed -or -not $evidence.deferred_passed -or -not $evidence.no_private_data -or -not $evidence.notes) {
     throw 'Release evidence must identify this version and record clean-Windows, all-now, deferred, privacy checks and test notes.'
@@ -22,7 +24,7 @@ $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $work = Join-Path $root ".release-work\$stamp"
 $stage = Join-Path $work 'source'
 $venv = Join-Path $root '.release-venv'
-$out = Join-Path $root "release\$(if ($TestOnly) {'test'} else {'candidate'})-$Version-$stamp"
+$out = Join-Path $root "release\$(if ($TestOnly) {'test'} elseif ($Candidate) {'candidate'} else {'release'})-$Version-$stamp"
 New-Item -ItemType Directory -Force $work | Out-Null
 if (-not (Test-Path -LiteralPath "$venv\Scripts\python.exe")) {
   & $Python -m venv $venv
@@ -82,11 +84,17 @@ try {
 $package = Join-Path $out 'AgentHub'
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'release-manifest.json') -Destination $package
 if ($TestOnly) {
-  'LOCAL TEST BUILD ONLY. Not clean-Windows verified. Not for publication.' | Set-Content (Join-Path $package 'TEST-ONLY.txt')
+  'LOCAL TEST BUILD ONLY. Not clean-machine verified. Not for publication.' | Set-Content (Join-Path $package 'TEST-ONLY.txt')
+} elseif ($Candidate) {
+  # Deliberately NOT named TEST-ONLY.txt: this IS the real installer. The marker
+  # records that clean-machine validation has not happened yet, which is what the
+  # release-evidence file will assert once it has.
+  "RELEASE CANDIDATE $Version. Real installer, built for testing. Clean-machine validation not yet recorded, so this must not be published." |
+    Set-Content (Join-Path $package 'RELEASE-CANDIDATE.txt')
 } else {
   Copy-Item -LiteralPath $ReleaseEvidence -Destination (Join-Path $out 'release-evidence.json')
 }
-$label = if ($TestOnly) {'TEST-ONLY'} else {$Version}
+$label = if ($TestOnly) {'TEST-ONLY'} elseif ($Candidate) {"$Version-rc"} else {$Version}
 Compress-Archive -LiteralPath $package -DestinationPath (Join-Path $out "AgentHub-Windows-$label.zip")
 Write-Host "Package: $package"
 Write-Host 'No upload, publication, commit, or changes to the working Hub were performed.'
