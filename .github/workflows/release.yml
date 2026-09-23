@@ -62,13 +62,15 @@ jobs:
                     -Filter ISCC.exe -Recurse -ErrorAction SilentlyContinue |
                   Select-Object -First 1 -ExpandProperty FullName
           if (-not $iscc) { throw "Inno Setup (ISCC.exe) not found on this runner." }
-          & $iscc /DTestOnly "/DSourceDir=$pkg" packaging\AgentHub.iss
+          # AppVersion is required by AgentHub.iss; read it from the manifest.
+          $ver = (Get-Content packaging/release-manifest.json -Raw | ConvertFrom-Json).version
+          & $iscc /DCandidate "/DSourceDir=$pkg" "/DAppVersion=$ver" packaging\AgentHub.iss
 
       - name: Build (macOS / Linux)
         if: matrix.os != 'windows-latest'
         run: |
           chmod +x packaging/build-core.sh
-          packaging/build-core.sh --test-only
+          packaging/build-core.sh --candidate
 
       - uses: actions/upload-artifact@v4
         with:

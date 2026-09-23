@@ -88,12 +88,12 @@ $cbWin   = New-Check 'Windows'  24 416 110 $true
 $cbMac   = New-Check 'macOS'   144 416 110 $false
 $cbLinux = New-Check 'Linux'   264 416 110 $false
 $form.Controls.AddRange(@($cbWin, $cbMac, $cbLinux))
-$form.Controls.Add((New-Label 'macOS and Linux are built by GitHub Actions - they cannot be built on this PC.' 24 442 496 $muted 8.5 $false))
+$form.Controls.Add((New-Label 'Ticking macOS or Linux pushes a tag; GitHub Actions builds those two.' 24 442 496 $muted 8.5 $false))
 
 # ── what kind of build ───────────────────────────────────────────────────────
 $form.Controls.Add((New-Label 'Kind of build' 24 474 200 $green 9.5 $true))
 $cbTest = New-Check 'Test build - installs separately as "Agent Hub Test", never published' 24 496 496 $false
-$cbPublish = New-Check 'Publish to GitHub when the build succeeds' 24 522 496 $false
+$cbPublish = New-Check 'Publish - upload this installer to a draft GitHub release' 24 522 496 $false
 $cbTested = New-Check 'I installed and tested this build on a clean machine' 44 548 476 $false
 $cbTested.ForeColor = $muted
 $form.Controls.AddRange(@($cbTest, $cbPublish, $cbTested))
@@ -155,11 +155,32 @@ $buildArgs = @{ Yes = $true; Version = $versionBox.Text.Trim() }
 if ($notes) { $buildArgs['Notes'] = $notes }
 if ($cbTest.Checked) { $buildArgs['TestOnly'] = $true }
 
+# macOS and Linux are built by GitHub Actions, so ticking either means "push a tag".
+# This is independent of publishing - previously these boxes did nothing at all
+# unless Publish was also ticked.
+if ($cbMac.Checked -or $cbLinux.Checked) { $buildArgs['CI'] = $true }
+
 if ($cbPublish.Checked) {
     if (-not $cbTested.Checked) {
         [System.Windows.Forms.MessageBox]::Show(
             "Publishing needs the clean-machine test confirmed.`n`nInstall this build, try it, then tick the box.",
             'Not yet', 'OK', 'Warning') | Out-Null
+        exit 1
+    }
+    if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+        $answer = [System.Windows.Forms.MessageBox]::Show(
+            "GitHub CLI is needed to upload the installer to a release.`n`n" +
+            "Install it now with winget?`n`n" +
+            "(You will then need to run 'gh auth login' once.)",
+            'GitHub CLI missing', 'YesNo', 'Question')
+        if ($answer -eq [System.Windows.Forms.DialogResult]::Yes) {
+            Write-Host 'Installing GitHub CLI...'
+            winget install --id GitHub.cli --exact --accept-package-agreements --accept-source-agreements
+            Write-Host ''
+            Write-Host 'Now run:  gh auth login' -ForegroundColor Yellow
+            Write-Host 'Then build again with Publish ticked.'
+            exit 0
+        }
         exit 1
     }
     # The attestation, written down. Same file the command line would take.
@@ -169,7 +190,7 @@ if ($cbPublish.Checked) {
        notes = "Confirmed in the build dialog on $(Get-Date -Format 'yyyy-MM-dd HH:mm')."
     } | ConvertTo-Json | Set-Content -LiteralPath $evidence -Encoding UTF8
     $buildArgs['ReleaseEvidence'] = $evidence
-    if ($cbMac.Checked -or $cbLinux.Checked) { $buildArgs['All'] = $true }
+    $buildArgs['Publish'] = $true
 }
 
 Write-Host ''

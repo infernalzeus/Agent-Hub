@@ -6,7 +6,8 @@
 # adding a feature or a skill needs no change to any of this.
 [CmdletBinding()]
 param(
-  [switch]$All,             # also tag + push so CI builds macOS and Linux
+  [switch]$Publish,         # create the GitHub release and upload this installer
+  [switch]$CI,              # push a tag so GitHub Actions builds macOS and Linux
   [switch]$TestOnly,        # throwaway build installed as a separate "Agent Hub Test"
   [string[]]$Notes,         # patch notes; prompted for when omitted and running interactively
   [switch]$NoBump,          # rebuild the current version instead of moving the patch number on
@@ -124,28 +125,84 @@ $installer = Get-ChildItem (Split-Path -Parent $package) -Filter '*Setup.exe' |
 Write-Host "`nInstaller: $($installer.FullName)" -ForegroundColor Green
 Write-Host ("Size: {0:N0} MB" -f ($installer.Length / 1MB))
 
-# ── 3. macOS + Linux, on their own machines ──────────────────────────────────
-if (-not $All) {
-  Write-Host "`nWindows only. Re-run with /all to build macOS and Linux too." -ForegroundColor Yellow
+# ── 3. Publish ───────────────────────────────────────────────────────────────
+if (-not $Publish -and -not $CI) {
+  Write-Host "`nBuilt, not published. Tick Publish in the dialog when you have tested it." -ForegroundColor Yellow
   exit 0
 }
 
-if (-not $ReleaseEvidence) {
-  Fail ('Publishing needs a completed clean-machine release-evidence file. ' +
-        'Install and test the candidate first, then re-run with -ReleaseEvidence.')
-}
-Step 'Requesting the macOS and Linux builds'
-if ((git -C $root status --porcelain) -ne $null) {
-  Fail 'Commit your changes first — CI builds from what is pushed, not from this folder.'
-}
-$tag = "v$version"
-if ((git -C $root tag --list $tag)) { Fail "Tag $tag already exists. Build again without -NoBump to move the patch number on." }
-# Annotate the tag with the notes, so the release description is already written.
-$entry = Get-ChangelogEntry $here $version
-if ($entry) { git -C $root tag -a $tag -m "Agent Hub $version" -m $entry } else { git -C $root tag $tag }
-git -C $root push origin $tag
-if ($LASTEXITCODE -ne 0) { Fail 'Could not push the tag; CI was not started.' }
+if ($TestOnly) { Fail 'A test build is never published.' }
 
-Write-Host "`nPushed $tag. GitHub Actions is building macOS and Linux now:" -ForegroundColor Green
-Write-Host '  https://github.com/infernalzeus/Agent-Hub/actions'
-Write-Host 'It attaches all three installers to a DRAFT release. Review it, then publish.'
+$repo = 'infernalzeus/Agent-Hub'
+$tag  = "v$version"
+
+# The build writes the version bump and the changelog, so the tree is ALWAYS dirty
+# at this point. Commit exactly those two files - nothing else - so the tag points
+# at the version it claims to be.
+$versionFiles = @('packaging/CHANGELOG.md', 'packaging/release-manifest.json')
+$dirty = git -C $root status --porcelain
+$staged = @()
+foreach ($f in $versionFiles) {
+  if ($dirty -match [regex]::Escape($f)) { git -C $root add -- $f; $staged += $f }
+}
+if ($staged) {
+  git -C $root commit -q -m "Agent Hub $version" -m "Version bump and changelog for $tag."
+  Write-Host "  committed: $($staged -join ', ')"
+}
+$others = (git -C $root status --porcelain) -split "`n" | Where-Object { $_.Trim() }
+if ($others) {
+  Write-Host "  note: $($others.Count) other file(s) left uncommitted - commit them yourself if they belong in this release" -ForegroundColor DarkGray
+}
+
+if (git -C $root tag --list $tag) {
+  Fail "Tag $tag already exists. Build a new version, or delete the tag first."
+}
+$entry = Get-ChangelogEntry $here $version
+if ($entry) { git -C $root tag -a $tag -m "Agent Hub $version" -m $entry } else { git -C $root tag -a $tag -m "Agent Hub $version" }
+
+Step 'Pushing to GitHub'
+git -C $root push origin HEAD
+if ($LASTEXITCODE -ne 0) { Fail 'Push failed. Nothing was released; the tag is still local.' }
+git -C $root push origin $tag
+if ($LASTEXITCODE -ne 0) { Fail 'Tag push failed. Nothing was released.' }
+Write-Host "  pushed $tag"
+
+# ── the release itself ───────────────────────────────────────────────────────
+$gh = (Get-Command gh -ErrorAction SilentlyContinue).Source
+if (-not $gh) {
+  Write-Host ''
+  Write-Host 'GitHub CLI is not installed, so the installer cannot be uploaded automatically.' -ForegroundColor Yellow
+  Write-Host '  Install it once:  winget install GitHub.cli'
+  Write-Host '  Then sign in:     gh auth login'
+  Write-Host ''
+  Write-Host "The tag is pushed, so you can also do it by hand:"
+  Write-Host "  https://github.com/$repo/releases/new?tag=$tag"
+  Write-Host "  Attach: $($installer.FullName)"
+  exit 1
+}
+
+Step 'Creating the release'
+$notesFile = Join-Path $env:TEMP "agent-hub-$tag-notes.md"
+if ($entry) { $entry | Set-Content -LiteralPath $notesFile -Encoding UTF8 }
+else { "Agent Hub $version" | Set-Content -LiteralPath $notesFile -Encoding UTF8 }
+
+# Draft, so nothing goes public until you have looked at it.
+& $gh release create $tag $installer.FullName --repo $repo --title "Agent Hub $version" --notes-file $notesFile --draft
+if ($LASTEXITCODE -ne 0) {
+  Write-Host 'Could not create the release. If it already exists, upload to it with:' -ForegroundColor Yellow
+  Write-Host "  gh release upload $tag `"$($installer.FullName)`" --repo $repo --clobber"
+  Fail 'Release creation failed.'
+}
+
+$url = & $gh release view $tag --repo $repo --json url --jq .url 2>$null
+Write-Host ''
+Write-Host "Draft release created with Agent-Hub-Setup.exe attached." -ForegroundColor Green
+if ($url) { Write-Host "  $url" }
+Write-Host '  It is a DRAFT - open it and press Publish release to make the download live.'
+
+if ($CI) {
+  Write-Host ''
+  Write-Host "GitHub Actions is building macOS and Linux for $tag and will attach them to the same release:"
+  Write-Host "  https://github.com/$repo/actions"
+  Write-Host '  That workflow has never run before, so watch the first one.' -ForegroundColor DarkGray
+}

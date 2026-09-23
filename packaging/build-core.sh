@@ -6,19 +6,22 @@
 # cross-compile, so this runs on the target OS — in practice a GitHub Actions
 # runner (see .github/workflows/release.yml).
 #
-#   packaging/build-core.sh --test-only
+#   packaging/build-core.sh --candidate      real build, for testing
+#   packaging/build-core.sh --test-only      throwaway
 #   packaging/build-core.sh --release-evidence path/to/evidence.json
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(dirname "$HERE")"
 TEST_ONLY=0
+CANDIDATE=0
 EVIDENCE=""
 VERSION=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --test-only) TEST_ONLY=1 ;;
+    --candidate) CANDIDATE=1 ;;
     --release-evidence) EVIDENCE="$2"; shift ;;
     --version) VERSION="$2"; shift ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
@@ -29,7 +32,7 @@ done
 PYTHON="${PYTHON:-python3}"
 [ -n "$VERSION" ] || VERSION="$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['version'])" "$HERE/release-manifest.json")"
 
-if [ "$TEST_ONLY" -eq 0 ]; then
+if [ "$TEST_ONLY" -eq 0 ] && [ "$CANDIDATE" -eq 0 ]; then
   # Same gate as the Windows script: no public build without recorded evidence.
   [ -n "$EVIDENCE" ] || { echo "Public release is gated. Use --test-only, or supply --release-evidence." >&2; exit 1; }
   "$PYTHON" - "$EVIDENCE" "$VERSION" <<'PY'
@@ -49,8 +52,10 @@ case "$(uname -s)" in
   Darwin) PLATFORM="macOS-$(uname -m)" ;;
   *)      PLATFORM="linux-$(uname -m)" ;;
 esac
-LABEL=$([ "$TEST_ONLY" -eq 1 ] && echo "TEST-ONLY" || echo "$VERSION")
-OUT="$ROOT/release/$([ "$TEST_ONLY" -eq 1 ] && echo test || echo candidate)-$VERSION-$STAMP"
+MODE=release
+[ "$TEST_ONLY" -eq 1 ] && MODE=test
+[ "$CANDIDATE" -eq 1 ] && MODE=candidate
+OUT="$ROOT/release/$MODE-$VERSION-$STAMP"
 
 mkdir -p "$WORK"
 [ -x "$VENV/bin/python" ] || "$PYTHON" -m venv "$VENV"
@@ -84,6 +89,9 @@ PACKAGE="$OUT/AgentHub"
 cp "$HERE/release-manifest.json" "$PACKAGE/"
 if [ "$TEST_ONLY" -eq 1 ]; then
   echo 'LOCAL TEST BUILD ONLY. Not clean-machine verified. Not for publication.' > "$PACKAGE/TEST-ONLY.txt"
+elif [ "$CANDIDATE" -eq 1 ]; then
+  # Real build, for installing and testing. Mirrors build-core.ps1's candidate mode.
+  echo "RELEASE CANDIDATE $VERSION. Clean-machine validation not yet recorded." > "$PACKAGE/RELEASE-CANDIDATE.txt"
 else
   cp "$EVIDENCE" "$OUT/release-evidence.json"
 fi
@@ -93,9 +101,9 @@ if [ "$(uname -s)" = "Darwin" ]; then
   # Unsigned: notarization needs a paid Apple Developer account, so first launch
   # needs right-click -> Open. Said plainly on the download page.
   hdiutil create -volname "Agent Hub" -srcfolder AgentHub -ov -format UDZO \
-    "Agent-Hub-$LABEL-$PLATFORM.dmg"
+    "Agent-Hub-macOS.dmg"
 else
-  tar -czf "Agent-Hub-$LABEL-$PLATFORM.tar.gz" AgentHub
+  tar -czf "Agent-Hub-Linux.tar.gz" AgentHub
 fi
 
 echo "Package: $PACKAGE"
