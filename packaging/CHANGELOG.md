@@ -10,6 +10,13 @@ name. The version lives here, in `release-manifest.json`, and in the build folde
 
 <!-- BUILD-RELEASE:INSERT-BELOW -->
 
+## 0.1.5
+
+_23 September 2026_
+
+- Architecture section retitled; card titles green; .claude untracked.
+- Installer now shows the patch notes before installing.
+
 ## 0.1.4
 
 _23 September 2026_
@@ -24,4 +31,5 @@ _23 September 2026_
 - First packaged build: bundled payloads, offline setup for media and file tools.
 - Loopback binding by default; Tailscale Serve provides remote access.
 - Missions, PC control, media and the project graph all reachable from one address.
+
 

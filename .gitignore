@@ -23,7 +23,8 @@ Agent Hub.local.vbs
 register-agenthub-protocol.reg
 # Defensive: anything a tool marks machine-local, and stray secret files
 *.local
-.claude/settings.local.json
+# Editor/agent workspace config - local to whoever is working on this.
+.claude/
 secrets*.json
 credentials*.json
 

@@ -10,6 +10,7 @@ param(
   [switch]$TestOnly,        # throwaway build installed as a separate "Agent Hub Test"
   [string[]]$Notes,         # patch notes; prompted for when omitted and running interactively
   [switch]$NoBump,          # rebuild the current version instead of moving the patch number on
+  [switch]$Yes,             # skip the confirm prompt (scripted runs)
   [string]$Version,         # force a version (a minor/major bump is always deliberate)
   [string]$ReleaseEvidence  # required only to PUBLISH; not to build
 )
@@ -63,6 +64,24 @@ if ($Notes) {
   Write-Host '  no patch notes recorded for this build' -ForegroundColor DarkGray
 }
 
+# ──── What exists already ────
+$previous = Get-ChildItem (Join-Path $root 'release') -Directory -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime | Select-Object -Last 1
+if ($previous) { Write-Host "  previous build: $($previous.Name)" }
+else { Write-Host '  previous build: none - this is the first' }
+$installed = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
+             Where-Object { $_.DisplayName -eq 'Agent Hub' } | Select-Object -First 1
+if ($installed) {
+  Write-Host "  installed on this PC: $($installed.DisplayVersion) - the new installer upgrades it in place"
+}
+
+if (-not $Yes) {
+  try {
+    $go = Read-Host "`nCompile $version? [Y/n]"
+    if ($go -and $go.Trim().ToLower().StartsWith('n')) { Write-Host 'Cancelled.'; exit 0 }
+  } catch { }   # no console to confirm on; carry on
+}
+
 # Record BEFORE building, so the package is stamped with the version it ships as.
 if (-not $TestOnly) {
   if ($version -ne $current) { Set-HubVersion $here $version }
@@ -93,7 +112,7 @@ $iscc = Get-ChildItem "$env:LOCALAPPDATA\Programs", "${env:ProgramFiles(x86)}", 
         Select-Object -First 1 -ExpandProperty FullName
 if (-not $iscc) { Fail 'Inno Setup is not installed. Get it from https://jrsoftware.org/isdl.php' }
 
-$isccArgs = @("/DSourceDir=$package", (Join-Path $here 'AgentHub.iss'))
+$isccArgs = @("/DSourceDir=$package", "/DAppVersion=$version", (Join-Path $here 'AgentHub.iss'))
 if ($ReleaseEvidence)  { $isccArgs = @("/DReleaseEvidence=$ReleaseEvidence") + $isccArgs }
 elseif ($TestOnly)     { $isccArgs = @('/DTestOnly') + $isccArgs }
 else                   { $isccArgs = @('/DCandidate') + $isccArgs }
