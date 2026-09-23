@@ -6,9 +6,12 @@
 # adding a feature or a skill needs no change to any of this.
 [CmdletBinding()]
 param(
-  [switch]$All,            # also tag + push so CI builds macOS and Linux
-  [switch]$TestOnly,       # throwaway build installed as a separate "Agent Hub Test"
-  [string]$ReleaseEvidence # required only to PUBLISH; not to build
+  [switch]$All,             # also tag + push so CI builds macOS and Linux
+  [switch]$TestOnly,        # throwaway build installed as a separate "Agent Hub Test"
+  [string[]]$Notes,         # patch notes; prompted for when omitted and running interactively
+  [switch]$NoBump,          # rebuild the current version instead of moving the patch number on
+  [string]$Version,         # force a version (a minor/major bump is always deliberate)
+  [string]$ReleaseEvidence  # required only to PUBLISH; not to build
 )
 # Default is a release candidate: the real installer, for installing and testing.
 # Publishing still needs evidence, so an unvalidated build cannot become a release.
@@ -19,15 +22,59 @@ $root = Split-Path -Parent $here
 function Step($text) { Write-Host "`n=== $text" -ForegroundColor Cyan }
 function Fail($text) { Write-Host "`n$text" -ForegroundColor Red; exit 1 }
 
-$version = (Get-Content -LiteralPath (Join-Path $here 'release-manifest.json') -Raw | ConvertFrom-Json).version
+. (Join-Path $here 'version.ps1')
+
+# ── Version + patch notes ────────────────────────────────────────────────────
+$current = Get-HubVersion $here
+if ($Version) {
+  $version = $Version
+} elseif ($NoBump -or $TestOnly) {
+  $version = $current            # a throwaway build should not consume a version number
+} else {
+  $version = Step-PatchVersion $current
+}
+
+if (-not $Notes -and -not $TestOnly) {
+  # Interactive only: CI and scripted builds pass -Notes (or nothing) and carry on.
+  if (-not $env:CI) {
+    try {
+      Write-Host "`nWhat changed in ${version}? One line each, blank line to finish." -ForegroundColor Cyan
+      Write-Host "(press Enter straight away to skip)" -ForegroundColor DarkGray
+      $collected = @()
+      while ($true) {
+        $line = Read-Host '  -'
+        if (-not $line.Trim()) { break }
+        $collected += $line
+      }
+      $Notes = $collected
+    } catch {
+      # No console to prompt on (CI, a scripted run, a redirected host). Build without notes.
+      Write-Host '  (no console to prompt on - building without notes)' -ForegroundColor DarkGray
+    }
+  }
+}
+
 Step "Agent Hub $version"
+if ($version -ne $current) { Write-Host "  version $current -> $version" }
+if ($Notes) {
+  Write-Host '  patch notes:'
+  $Notes | ForEach-Object { Write-Host "    - $_" }
+} elseif (-not $TestOnly) {
+  Write-Host '  no patch notes recorded for this build' -ForegroundColor DarkGray
+}
+
+# Record BEFORE building, so the package is stamped with the version it ships as.
+if (-not $TestOnly) {
+  if ($version -ne $current) { Set-HubVersion $here $version }
+  if ($Notes) { Add-ChangelogEntry $here $version $Notes }
+}
 
 # ── 1. Freeze ────────────────────────────────────────────────────────────────
 # build-core.ps1 fetches payloads, stages, runs the behaviour tests and freezes.
 Step 'Building the Windows package'
 # Hashtable, not an array: splatting an array passes elements POSITIONALLY, so a
 # switch like -Candidate would silently bind to the first positional parameter.
-$buildArgs = @{}
+$buildArgs = @{ Version = $version }
 if ($ReleaseEvidence)  { $buildArgs['ReleaseEvidence'] = $ReleaseEvidence }
 elseif ($TestOnly)     { $buildArgs['TestOnly'] = $true }
 else                   { $buildArgs['Candidate'] = $true }
@@ -73,8 +120,10 @@ if ((git -C $root status --porcelain) -ne $null) {
   Fail 'Commit your changes first — CI builds from what is pushed, not from this folder.'
 }
 $tag = "v$version"
-if ((git -C $root tag --list $tag)) { Fail "Tag $tag already exists. Bump the version in packaging/release-manifest.json." }
-git -C $root tag $tag
+if ((git -C $root tag --list $tag)) { Fail "Tag $tag already exists. Build again without -NoBump to move the patch number on." }
+# Annotate the tag with the notes, so the release description is already written.
+$entry = Get-ChangelogEntry $here $version
+if ($entry) { git -C $root tag -a $tag -m "Agent Hub $version" -m $entry } else { git -C $root tag $tag }
 git -C $root push origin $tag
 if ($LASTEXITCODE -ne 0) { Fail 'Could not push the tag; CI was not started.' }
 

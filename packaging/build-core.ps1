@@ -83,6 +83,14 @@ try {
 }
 $package = Join-Path $out 'AgentHub'
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'release-manifest.json') -Destination $package
+# Ship the notes with the build, so a folder on disk says what it is.
+. (Join-Path $PSScriptRoot 'version.ps1')
+$notes = Get-ChangelogEntry $PSScriptRoot $Version
+if ($notes) {
+  "# Agent Hub $Version`n`n$notes" | Set-Content (Join-Path $package 'RELEASE-NOTES.md') -Encoding UTF8
+  Write-Host "`nPatch notes for ${Version}:"
+  $notes -split "`n" | ForEach-Object { Write-Host "  $_" }
+}
 if ($TestOnly) {
   'LOCAL TEST BUILD ONLY. Not clean-machine verified. Not for publication.' | Set-Content (Join-Path $package 'TEST-ONLY.txt')
 } elseif ($Candidate) {

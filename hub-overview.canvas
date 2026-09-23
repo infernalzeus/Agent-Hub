@@ -1,0 +1,78 @@
+{
+  "nodes": [
+    {
+      "id": "devices",
+      "type": "text",
+      "text": "## Your devices\nPhone, tablet, laptop — anything you already carry.",
+      "x": -130,
+      "y": -620,
+      "width": 260,
+      "height": 100,
+      "color": "5"
+    },
+    {
+      "id": "tailscale",
+      "type": "text",
+      "text": "## Tailscale\nA private network only your devices can join. Nothing is exposed to the internet.",
+      "x": -130,
+      "y": -460,
+      "width": 260,
+      "height": 110,
+      "color": "5"
+    },
+    {
+      "id": "hub",
+      "type": "text",
+      "text": "# AGENT HUB\nOne address on your PC. Starts tools when you ask, stops them when you stop.",
+      "x": -180,
+      "y": -290,
+      "width": 360,
+      "height": 120,
+      "color": "4"
+    },
+    {
+      "id": "llm",
+      "type": "text",
+      "text": "## Autonomous LLM\nAgents work in isolated git worktrees. You read the diff and decide.",
+      "x": -505,
+      "y": -100,
+      "width": 230,
+      "height": 140
+    },
+    {
+      "id": "control",
+      "type": "text",
+      "text": "## MCP Control\nSpeak to the PC. Learned routines, every action approved.",
+      "x": -245,
+      "y": -100,
+      "width": 230,
+      "height": 140
+    },
+    {
+      "id": "media",
+      "type": "text",
+      "text": "## Media Vault\nDownload, convert, browse your drives, receive from your phone.",
+      "x": 15,
+      "y": -100,
+      "width": 230,
+      "height": 140
+    },
+    {
+      "id": "graph",
+      "type": "text",
+      "text": "## Git Graph\nEvery repo's real state, read live from its git history.",
+      "x": 275,
+      "y": -100,
+      "width": 230,
+      "height": 140
+    }
+  ],
+  "edges": [
+    {"id": "e1", "fromNode": "devices", "fromSide": "bottom", "toNode": "tailscale", "toSide": "top"},
+    {"id": "e2", "fromNode": "tailscale", "fromSide": "bottom", "toNode": "hub", "toSide": "top"},
+    {"id": "e3", "fromNode": "hub", "fromSide": "bottom", "toNode": "llm", "toSide": "top"},
+    {"id": "e4", "fromNode": "hub", "fromSide": "bottom", "toNode": "control", "toSide": "top"},
+    {"id": "e5", "fromNode": "hub", "fromSide": "bottom", "toNode": "media", "toSide": "top"},
+    {"id": "e6", "fromNode": "hub", "fromSide": "bottom", "toNode": "graph", "toSide": "top"}
+  ]
+}

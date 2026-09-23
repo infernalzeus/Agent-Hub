@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1058 708" width="1058" height="708">
+<rect width="1058" height="708" fill="#080c28"/>
+<path d="M529,124 C529,154 529,154 529,184" fill="none" stroke="#00e676" stroke-opacity=".35" stroke-width="2"/>
+<circle cx="529" cy="184" r="3" fill="#00e676" fill-opacity=".55"/>
+<path d="M529,294 C529,324 529,324 529,354" fill="none" stroke="#00e676" stroke-opacity=".35" stroke-width="2"/>
+<circle cx="529" cy="354" r="3" fill="#00e676" fill-opacity=".55"/>
+<path d="M529,474 C529,509 139,509 139,544" fill="none" stroke="#00e676" stroke-opacity=".35" stroke-width="2"/>
+<circle cx="139" cy="544" r="3" fill="#00e676" fill-opacity=".55"/>
+<path d="M529,474 C529,509 399,509 399,544" fill="none" stroke="#00e676" stroke-opacity=".35" stroke-width="2"/>
+<circle cx="399" cy="544" r="3" fill="#00e676" fill-opacity=".55"/>
+<path d="M529,474 C529,509 659,509 659,544" fill="none" stroke="#00e676" stroke-opacity=".35" stroke-width="2"/>
+<circle cx="659" cy="544" r="3" fill="#00e676" fill-opacity=".55"/>
+<path d="M529,474 C529,509 919,509 919,544" fill="none" stroke="#00e676" stroke-opacity=".35" stroke-width="2"/>
+<circle cx="919" cy="544" r="3" fill="#00e676" fill-opacity=".55"/>
+<rect x="399" y="24" width="260" height="100" rx="12" fill="rgba(13,18,71,.75)" stroke="#00e676" stroke-opacity="0.4" stroke-width="1.5"/>
+<text x="529" y="52" fill="#00e676" text-anchor="middle" font-family="Orbitron, Segoe UI, sans-serif" font-size="12" font-weight="700" letter-spacing="0.6">YOUR DEVICES</text>
+<text x="529" y="74" fill="#a8cbb9" text-anchor="middle" font-family="Outfit, Segoe UI, sans-serif" font-size="11">Phone, tablet, laptop — anything you already</text>
+<text x="529" y="89" fill="#a8cbb9" text-anchor="middle" font-family="Outfit, Segoe UI, sans-serif" font-size="11">carry.</text>
+<rect x="399" y="184" width="260" height="110" rx="12" fill="rgba(13,18,71,.75)" stroke="#00e676" stroke-opacity="0.4" stroke-width="1.5"/>
+<text x="529" y="212" fill="#00e676" text-anchor="middle" font-family="Orbitron, Segoe UI, sans-serif" font-size="12" font-weight="700" letter-spacing="0.6">TAILSCALE</text>
+<text x="529" y="234" fill="#a8cbb9" text-anchor="middle" font-family="Outfit, Segoe UI, sans-serif" font-size="11">A private network only your devices can join.</text>
+<text x="529" y="249" fill="#a8cbb9" text-anchor="middle" font-family="Outfit, Segoe UI, sans-serif" font-size="11">Nothing is exposed to the internet.</text>
+<rect x="349" y="354" width="360" height="120" rx="12" fill="rgba(0,230,118,.10)" stroke="#00e676" stroke-opacity="0.85" stroke-width="2"/>
+<text x="529" y="388" fill="#00e676" text-anchor="middle" font-family="Orbitron, Segoe UI, sans-serif" font-size="16" font-weight="700" letter-spacing="1.2">AGENT HUB</text>
+<text x="529" y="414" fill="#a8cbb9" text-anchor="middle" font-family="Outfit, Segoe UI, sans-serif" font-size="11">One address on your PC. Starts tools when you ask, stops them</text>
+<text x="529" y="429" fill="#a8cbb9" text-anchor="middle" font-family="Outfit, Segoe UI, sans-serif" font-size="11">when you stop.</text>
+<rect x="24" y="544" width="230" height="140" rx="12" fill="rgba(13,18,71,.75)" stroke="#00e676" stroke-opacity="0.4" stroke-width="1.5"/>
+<text x="139" y="572" fill="#00e676" text-anchor="middle" font-family="Orbitron, Segoe UI, sans-serif" font-size="12" font-weight="700" letter-spacing="0.6">AUTONOMOUS LLM</text>
+<text x="139" y="594" fill="#a8cbb9" text-anchor="middle" font-family="Outfit, Segoe UI, sans-serif" font-size="11">Agents work in isolated git worktrees.</text>
+<text x="139" y="609" fill="#a8cbb9" text-anchor="middle" font-family="Outfit, Segoe UI, sans-serif" font-size="11">You read the diff and decide.</text>
+<rect x="284" y="544" width="230" height="140" rx="12" fill="rgba(13,18,71,.75)" stroke="#00e676" stroke-opacity="0.4" stroke-width="1.5"/>
+<text x="399" y="572" fill="#00e676" text-anchor="middle" font-family="Orbitron, Segoe UI, sans-serif" font-size="12" font-weight="700" letter-spacing="0.6">MCP CONTROL</text>
+<text x="399" y="594" fill="#a8cbb9" text-anchor="middle" font-family="Outfit, Segoe UI, sans-serif" font-size="11">Speak to the PC. Learned routines, every</text>
+<text x="399" y="609" fill="#a8cbb9" text-anchor="middle" font-family="Outfit, Segoe UI, sans-serif" font-size="11">action approved.</text>
+<rect x="544" y="544" width="230" height="140" rx="12" fill="rgba(13,18,71,.75)" stroke="#00e676" stroke-opacity="0.4" stroke-width="1.5"/>
+<text x="659" y="572" fill="#00e676" text-anchor="middle" font-family="Orbitron, Segoe UI, sans-serif" font-size="12" font-weight="700" letter-spacing="0.6">MEDIA VAULT</text>
+<text x="659" y="594" fill="#a8cbb9" text-anchor="middle" font-family="Outfit, Segoe UI, sans-serif" font-size="11">Download, convert, browse your drives,</text>
+<text x="659" y="609" fill="#a8cbb9" text-anchor="middle" font-family="Outfit, Segoe UI, sans-serif" font-size="11">receive from your phone.</text>
+<rect x="804" y="544" width="230" height="140" rx="12" fill="rgba(13,18,71,.75)" stroke="#00e676" stroke-opacity="0.4" stroke-width="1.5"/>
+<text x="919" y="572" fill="#00e676" text-anchor="middle" font-family="Orbitron, Segoe UI, sans-serif" font-size="12" font-weight="700" letter-spacing="0.6">GIT GRAPH</text>
+<text x="919" y="594" fill="#a8cbb9" text-anchor="middle" font-family="Outfit, Segoe UI, sans-serif" font-size="11">Every repo&#x27;s real state, read live from</text>
+<text x="919" y="609" fill="#a8cbb9" text-anchor="middle" font-family="Outfit, Segoe UI, sans-serif" font-size="11">its git history.</text>
+</svg>
