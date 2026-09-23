@@ -21,6 +21,20 @@ $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
 $root = Split-Path -Parent $here
 
+function Find-Gh {
+    <#  A freshly installed gh is not on PATH until a new shell starts, which is
+        exactly the state you are in right after installing it. Look in the
+        standard install locations too.  #>
+    $cmd = (Get-Command gh -ErrorAction SilentlyContinue).Source
+    if ($cmd) { return $cmd }
+    foreach ($p in @("$env:ProgramFiles\GitHub CLI\gh.exe",
+                     "${env:ProgramFiles(x86)}\GitHub CLI\gh.exe",
+                     "$env:LOCALAPPDATA\Programs\GitHub CLI\gh.exe")) {
+        if (Test-Path -LiteralPath $p) { return $p }
+    }
+    return $null
+}
+
 function Step($text) { Write-Host "`n=== $text" -ForegroundColor Cyan }
 function Fail($text) { Write-Host "`n$text" -ForegroundColor Red; exit 1 }
 
@@ -168,7 +182,7 @@ if ($LASTEXITCODE -ne 0) { Fail 'Tag push failed. Nothing was released.' }
 Write-Host "  pushed $tag"
 
 # ── the release itself ───────────────────────────────────────────────────────
-$gh = (Get-Command gh -ErrorAction SilentlyContinue).Source
+$gh = Find-Gh
 if (-not $gh) {
   Write-Host ''
   Write-Host 'GitHub CLI is not installed, so the installer cannot be uploaded automatically.' -ForegroundColor Yellow

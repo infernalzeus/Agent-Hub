@@ -117,7 +117,7 @@ def manifest() -> dict:
     root = payloads()
     for candidate in ([root / "payloads.json"] if root else []) + [ASSETS / "packaging" / "payloads.json"]:
         try:
-            return json.loads(candidate.read_text(encoding="utf-8"))
+            return json.loads(candidate.read_text(encoding="utf-8-sig"))
         except (OSError, ValueError):
             continue
     return {}

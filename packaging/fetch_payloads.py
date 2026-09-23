@@ -113,7 +113,7 @@ def main() -> int:
                         help="also pre-fetch the large third-party installers")
     args = parser.parse_args()
 
-    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8-sig"))
     ok = True
     print("Bundled payloads (ship inside the installer)")
     good, note = _download(manifest["bundled"]["python"], PAYLOADS / "python", args.check)

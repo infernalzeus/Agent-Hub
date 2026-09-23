@@ -167,7 +167,15 @@ if ($cbPublish.Checked) {
             'Not yet', 'OK', 'Warning') | Out-Null
         exit 1
     }
-    if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+    $ghPath = (Get-Command gh -ErrorAction SilentlyContinue).Source
+    if (-not $ghPath) {
+        foreach ($c in @("$env:ProgramFiles\GitHub CLI\gh.exe",
+                         "${env:ProgramFiles(x86)}\GitHub CLI\gh.exe",
+                         "$env:LOCALAPPDATA\Programs\GitHub CLI\gh.exe")) {
+            if (Test-Path -LiteralPath $c) { $ghPath = $c; break }
+        }
+    }
+    if (-not $ghPath) {
         $answer = [System.Windows.Forms.MessageBox]::Show(
             "GitHub CLI is needed to upload the installer to a release.`n`n" +
             "Install it now with winget?`n`n" +
@@ -188,7 +196,7 @@ if ($cbPublish.Checked) {
     @{ version = $versionBox.Text.Trim(); clean_windows_profile = $true
        all_now_passed = $true; deferred_passed = $true; no_private_data = $true
        notes = "Confirmed in the build dialog on $(Get-Date -Format 'yyyy-MM-dd HH:mm')."
-    } | ConvertTo-Json | Set-Content -LiteralPath $evidence -Encoding UTF8
+    } | ConvertTo-Json | ForEach-Object { Write-Utf8NoBom $evidence $_ }
     $buildArgs['ReleaseEvidence'] = $evidence
     $buildArgs['Publish'] = $true
 }

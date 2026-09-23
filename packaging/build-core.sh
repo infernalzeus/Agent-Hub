@@ -30,7 +30,9 @@ while [ $# -gt 0 ]; do
 done
 
 PYTHON="${PYTHON:-python3}"
-[ -n "$VERSION" ] || VERSION="$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['version'])" "$HERE/release-manifest.json")"
+# utf-8-sig, not utf-8: a manifest written by Windows PowerShell carries a BOM,
+# and json.load rejects it outright. This is what failed the macOS/Linux builds.
+[ -n "$VERSION" ] || VERSION="$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1], encoding='utf-8-sig'))['version'])" "$HERE/release-manifest.json")"
 
 if [ "$TEST_ONLY" -eq 0 ] && [ "$CANDIDATE" -eq 0 ]; then
   # Same gate as the Windows script: no public build without recorded evidence.
