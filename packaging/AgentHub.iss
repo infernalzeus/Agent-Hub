@@ -72,9 +72,16 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\AgentHub.exe"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\AgentHub.exe"; Tasks: desktopicon
+; Starting with Windows is the point of an always-on hub: your phone can only
+; reach it while it is running, so a hub you have to remember to launch is a hub
+; that is down whenever you need it. Offered, never forced.
+Name: "{userstartup}\{#AppName}"; Filename: "{app}\AgentHub.exe"; Tasks: startupicon
 
 [Tasks]
-Name: "desktopicon"; Description: "Create a &desktop shortcut"; Flags: unchecked
+; Ticked by default. This is a program you open daily from several devices, not
+; a tool you run once, so hiding it in the Start menu is the wrong default.
+Name: "desktopicon"; Description: "Create a &desktop shortcut"
+Name: "startupicon"; Description: "Start Agent Hub when I sign in (so your other devices can always reach it)"
 
 [Run]
 Filename: "{app}\AgentHub.exe"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
