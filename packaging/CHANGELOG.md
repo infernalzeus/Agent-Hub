@@ -4,11 +4,18 @@ Written by `Build-Release.cmd`. The newest entry at the top is what the next Git
 Release uses as its description, so what you type at build time is what people read on the
 release page.
 
-The installer filename never changes ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â it is always `Agent-Hub-Setup.exe`, because the
+The installer filename never changes ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â it is always `Agent-Hub-Setup.exe`, because the
 portfolio links to `releases/latest/download/Agent-Hub-Setup.exe` and that resolves by
 name. The version lives here, in `release-manifest.json`, and in the build folder name.
 
 <!-- BUILD-RELEASE:INSERT-BELOW -->
+
+## 0.1.11
+
+_26 September 2026_
+
+- updater for patch notes added
+- agentic pipeline improvement, skill editing
 
 ## 0.1.5
 
