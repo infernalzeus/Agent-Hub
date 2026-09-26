@@ -279,7 +279,7 @@ textarea{min-height:120px;resize:vertical}
 .tjrow:last-of-type{border:0}.tjrow .tp{font:700 10.5px 'Orbitron',monospace;color:var(--accent);text-align:right}.tjrow .tp.w{color:var(--amber)}.tjrow .tp.b{color:var(--red)}.tjrow .tp.mut{color:var(--text-faint);font-weight:400}
 .tsrc{font-size:9.5px;color:var(--text-muted);text-align:right}.tsrc .btn{min-height:28px;padding:5px 8px;font-size:8px}
 .tnote{font-size:11px;color:var(--text-muted);margin-top:8px;line-height:1.5}
-.tmenu{display:none;position:absolute;bottom:100%;left:0;right:0;margin-bottom:6px;max-height:260px;overflow:auto;background:var(--panel);border:1px solid var(--border-bright);border-radius:10px;padding:5px;z-index:9}.tmenu.open{display:block}.tmenu .row{display:flex;gap:10px;align-items:baseline;padding:7px 9px;border-radius:7px;cursor:pointer}.tmenu .row:hover,.tmenu .row.on{background:rgba(0,230,118,.12)}.tmenu .row b{color:var(--accent);font:700 11px 'Orbitron',monospace;letter-spacing:.6px;flex:0 0 auto}.tmenu .row span{font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tmenu .grp{font:700 8px 'Orbitron',monospace;letter-spacing:1.4px;color:var(--text-faint);padding:7px 9px 3px}.tbar{position:relative}.tfold{margin:6px 0 14px}.tfold>summary{cursor:pointer;font:700 9px 'Orbitron',monospace;letter-spacing:1.4px;color:var(--text-muted);padding:8px 2px;list-style:none;display:flex;align-items:center;gap:8px}.tfold>summary::-webkit-details-marker{display:none}.tfold>summary:before{content:'\25B8';transition:transform .15s ease;display:inline-block;opacity:.7}.tfold[open]>summary:before{transform:rotate(90deg)}.tfold>summary:hover{color:var(--ink)}/* your turn: the same amber the rest of the hub uses, with a soft glow */@keyframes tpend{0%,100%{text-shadow:0 0 0 rgba(224,165,60,0)}50%{text-shadow:0 0 9px rgba(224,165,60,.85)}}.tfold>summary.pend{color:var(--amber);animation:tpend 2.6s ease-in-out infinite}@media(prefers-reduced-motion:reduce){.tfold>summary.pend{animation:none;text-shadow:0 0 8px rgba(224,165,60,.8)}}.tfold>summary .pill{font:700 8px 'Orbitron',monospace;letter-spacing:1px;border:1px solid currentColor;border-radius:20px;padding:2px 7px;opacity:.9}
+.brow{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}.brow .bx{flex:1;min-width:240px}.bdest{flex:0 0 auto;text-align:right;display:flex;flex-direction:column;gap:2px;border-left:1px solid var(--border-dim);padding-left:16px;max-width:46%}.bdest .k{font:700 8px 'Orbitron',monospace;letter-spacing:1.4px;color:var(--text-faint)}.bdest b{color:var(--ink);font-size:14px;overflow-wrap:anywhere}.bdest .p{font-size:11px;color:var(--text-muted);overflow-wrap:anywhere}.tmenu{display:none;position:absolute;bottom:100%;left:0;right:0;margin-bottom:6px;max-height:260px;overflow:auto;background:var(--panel);border:1px solid var(--border-bright);border-radius:10px;padding:5px;z-index:9}.tmenu.open{display:block}.tmenu .row{display:flex;gap:10px;align-items:baseline;padding:7px 9px;border-radius:7px;cursor:pointer}.tmenu .row:hover,.tmenu .row.on{background:rgba(0,230,118,.12)}.tmenu .row b{color:var(--accent);font:700 11px 'Orbitron',monospace;letter-spacing:.6px;flex:0 0 auto}.tmenu .row span{font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tmenu .grp{font:700 8px 'Orbitron',monospace;letter-spacing:1.4px;color:var(--text-faint);padding:7px 9px 3px}.tbar{position:relative}.tfold{margin:6px 0 14px}.tfold>summary{cursor:pointer;font:700 9px 'Orbitron',monospace;letter-spacing:1.4px;color:var(--text-muted);padding:8px 2px;list-style:none;display:flex;align-items:center;gap:8px}.tfold>summary::-webkit-details-marker{display:none}.tfold>summary:before{content:'\25B8';transition:transform .15s ease;display:inline-block;opacity:.7}.tfold[open]>summary:before{transform:rotate(90deg)}.tfold>summary:hover{color:var(--ink)}/* your turn: the same amber the rest of the hub uses, with a soft glow */@keyframes tpend{0%,100%{text-shadow:0 0 0 rgba(224,165,60,0)}50%{text-shadow:0 0 9px rgba(224,165,60,.85)}}.tfold>summary.pend{color:var(--amber);animation:tpend 2.6s ease-in-out infinite}@media(prefers-reduced-motion:reduce){.tfold>summary.pend{animation:none;text-shadow:0 0 8px rgba(224,165,60,.8)}}.tfold>summary .pill{font:700 8px 'Orbitron',monospace;letter-spacing:1px;border:1px solid currentColor;border-radius:20px;padding:2px 7px;opacity:.9}
 .tbar{border-top:1px solid var(--border-dim);padding:10px 14px;flex:0 0 auto;background:var(--panel)}
 .tin{display:flex;align-items:center;gap:9px;border:1px solid var(--border-bright);border-radius:12px;padding:6px 10px;background:rgba(0,0,0,.3)}
 .tin .ic{width:20px;height:20px;margin:0;color:var(--accent)}.tin input{flex:1;background:transparent;border:0;color:#d9ffe9;font-size:13px;padding:6px 0;min-width:0}
@@ -634,14 +634,14 @@ function threadBody(d){
   const unchecked = ((d.judge||{}).results || []).filter(r => r.answer==null).length;
   const yours = d.status==='awaiting_review';
   return h
-    + fold(d, 'pipe', 'PIPELINE — who did what, in what order', pipelineBlock(d),
+    + fold(d, 'pipe', 'PIPELINE', pipelineBlock(d),
            {open: d.kind==='orchestrator'})
-    + fold(d, 'judge', 'INDEPENDENT CHECK — not the writer\u2019s opinion of itself', judgeBlock(d),
+    + fold(d, 'judge', 'INDEPENDENT CHECK', judgeBlock(d),
            {open: yours, pending: unchecked>0, pill: unchecked ? unchecked+' NOT CHECKED' : ''})
-    + fold(d, 'work', 'AGENTS — status per step', workBlock(d),
+    + fold(d, 'work', 'AGENTS', workBlock(d),
            {open: d.status==='running', pending: unfinished>0 && d.status==='running',
             pill: unfinished && d.status==='running' ? unfinished+' RUNNING' : ''})
-    + fold(d, 'result', 'RESULT — and what you do next',
+    + fold(d, 'result', 'RESULT',
            bot(who, actionBanner(d) + resultBlock(d)),
            {open: true, pending: yours, pill: yours ? 'YOUR TURN' : ''})
     + repeatBlock(d) + skillBlock(d)
@@ -843,20 +843,35 @@ function bindActions(d){
     document.querySelectorAll('.rmode [data-m]').forEach(x => x.classList.toggle('sel', x===b)); loadResult(d); });
 }
 const RSEL = {};
+// Where the work goes if you apply it. The one fact the banner never carried,
+// and the only thing you cannot read off the buttons.
+function destHtml(d){
+  if(!d.changed) return '';
+  const wt = (d.worktree||'').split(/[\\/]/).pop();
+  return `<div class="bdest"><span class="k">APPLIES TO</span>`
+    + `<b title="${esc(d.project_path||'')}">${esc(d.project_name)}</b>`
+    + `<span class="p">${d.changed} file${d.changed===1?'':'s'}</span>`
+    + `<span class="p" title="the working copy these changes live in now">from ${esc(wt)}</span></div>`;
+}
+
 function actionBanner(d){
-  const n = (d.plan||[]).length, os = ownerSecs(d), t = totalSecs(d), st = d.status;
+  const n = (d.plan||[]).length, os = ownerSecs(d), st = d.status;
+  // How long you waited, not the sum of the busy parts — which is what
+  // 'finished in' means to the person reading it.
+  const t = (d.created && d.ended && d.ended > d.created) ? (d.ended - d.created) : totalSecs(d);
   const fb = (MODELS.find(x=>x.local)||{}).id || '';
   const done = (d.plan||[]).filter(s=>s.status==='done').length;
   const cur = (d.plan||[]).find(s=>s.status==='running');
   const b = (id, cls, txt) => `<button class="btn ${cls||''}" id="${id}">${txt}</button>`;
-  let cls='', title='', text='', btns='';
+  let cls='', title='', text='', btns='', dest='';
   if(st==='needs_input'){ cls='answer'; title='YOUR TURN · REPLY';
     text=`The orchestrator needs ${d.questions.length} answer${d.questions.length>1?'s':''} before it can plan. Nothing has been planned or run yet. Answer in the yellow card below, or take the ★ defaults.`; btns=b('m-discard','stop','DISCARD'); }
   else if(st==='plan_ready'){ cls='dispatch'; title='YOUR TURN · APPROVE';
     text=`The orchestrator finished planning in <b>${os.orch ? fmtS(os.orch) : 'a few seconds'}</b>: <b>${n} step${n===1?'':'s'}</b>. <b>Nothing has run yet</b> — RUN PIPELINE is what starts the agents. Read the pipeline below (click a step to change its agent, model or instructions), then press RUN PIPELINE.`;
     btns=b('m-runplan','go',`RUN PIPELINE (${n} steps)`)+`<label class="ck" style="display:inline-flex;margin:0"><input type="checkbox" id="m-usesug"> use the suggested model per agent</label>`+b('m-discard','stop','DISCARD'); }
   else if(st==='awaiting_review'){ cls='review'; title='YOUR TURN · REVIEW';
-    text=`Finished in <b>${fmtS(t)}</b>${d.verify?` · hub checks ${d.verify.ok?'passed ✓':'failed ✗'}`:''}. Read the <b>result</b> below. <b>APPLY TO PROJECT</b> merges the ${d.changed} file${d.changed===1?'':'s'} into <b>${esc(d.project_name)}</b>; <b>DISCARD</b> throws the work away. Nothing has touched your project yet.`;
+    text=`Finished in <b>${fmtS(t)}</b>${d.verify?` · hub checks ${d.verify.ok?'passed ✓':'failed ✗'}`:''}. Nothing has touched your project yet.`;
+    dest = destHtml(d);
     btns=b('m-apply','go','APPLY TO PROJECT')+b('m-discard','stop','DISCARD')+b('m-continue','','ASK FOR CHANGES…')+b('m-archive','',ic('archive')+'ARCHIVE'); }
   else if(st==='paused'){ cls='paused'; title='PAUSED';
     text=`${esc(d.error||'')} Finished steps are kept. RESUME re-runs the interrupted step and carries on; or open any step and press RE-RUN FROM THIS STEP.`; btns=b('m-resume','go','RESUME')+b('m-discard','stop','DISCARD'); }
@@ -868,7 +883,7 @@ function actionBanner(d){
   else { cls='done'; title = st==='orphaned' ? 'RECOVERED FROM DISK' : sname(st);
     text = st==='applied' ? `Merged into ${esc(d.project_name)}.` : (st==='orphaned' ? 'An old working copy found on disk with no record.' : '');
     btns = (st==='orphaned'?b('m-apply','go','APPLY TO PROJECT')+b('m-discard','stop','DISCARD'):'')+(st==='archived'?'':b('m-archive','',ic('archive')+'ARCHIVE'))+b('m-forget','','CLEAR'); }
-  return `<div class="banner ${cls}"><div class="bt">${title}</div><div class="bx">${text}</div><div class="bb">${btns}</div></div>`;
+  return `<div class="banner ${cls}"><div class="bt">${title}</div><div class="brow"><div class="bx">${text}</div>${dest}</div><div class="bb">${btns}</div></div>`;
 }
 function resultBlock(d){
   const files = (d.changed_files||[]).filter(f=>!/^shared\//.test(f.path));
@@ -878,7 +893,7 @@ function resultBlock(d){
   let sel = RSEL[d.id];
   if(!sel || !files.some(f=>f.path===sel.path)) sel = RSEL[d.id] = {path: files[0].path, mode: 'content'};
   if(!sel.mode) sel.mode = 'content';
-  return `<h2>Result — what the agents produced <span style="color:var(--text-muted)">${files.length} file${files.length===1?'':'s'}</span></h2>
+  return `<h2>Result <span style="color:var(--text-muted)">${files.length} file${files.length===1?'':'s'}</span></h2>
     <div class="rbox"><div class="ftabs">${files.map(f=>`<button class="ftab ${f.path===sel.path?'sel':''}" data-p="${esc(f.path)}"><span style="color:var(--amber)">${esc(f.status)}</span> ${esc(f.path)}</button>`).join('')}</div>
       <div class="rmode"><button class="btn ${sel.mode==='content'?'sel':''}" data-m="content">CONTENT</button><button class="btn ${sel.mode==='diff'?'sel':''}" data-m="diff">DIFF</button></div>
       <div class="rview" id="rview">loading…</div></div>`;
@@ -935,6 +950,11 @@ function ownerSecs(d){        // seconds per node: orch, each step id, gate (fix
     else if(ph.startsWith('nudge')) who = owner;
     else who = (g.agent==='orchestrator') ? 'orch' : owner;
     out[who] = (out[who]||0) + (g.secs||0);
+  }
+  // An orchestrated run's steps are children with their own transcripts, so the
+  // parent's runmap has no segment for them. The step rows carry real clocks.
+  for(const s of (d.plan||[])){
+    if(!out[s.id] && s.started && s.ended) out[s.id] = s.ended - s.started;
   }
   return out;
 }
