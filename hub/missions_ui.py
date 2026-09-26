@@ -279,7 +279,7 @@ textarea{min-height:120px;resize:vertical}
 .tjrow:last-of-type{border:0}.tjrow .tp{font:700 10.5px 'Orbitron',monospace;color:var(--accent);text-align:right}.tjrow .tp.w{color:var(--amber)}.tjrow .tp.b{color:var(--red)}.tjrow .tp.mut{color:var(--text-faint);font-weight:400}
 .tsrc{font-size:9.5px;color:var(--text-muted);text-align:right}.tsrc .btn{min-height:28px;padding:5px 8px;font-size:8px}
 .tnote{font-size:11px;color:var(--text-muted);margin-top:8px;line-height:1.5}
-.tfold{margin:6px 0 14px}.tfold>summary{cursor:pointer;font:700 9px 'Orbitron',monospace;letter-spacing:1.4px;color:var(--text-muted);padding:8px 2px}
+.tmenu{display:none;position:absolute;bottom:100%;left:0;right:0;margin-bottom:6px;max-height:260px;overflow:auto;background:var(--panel);border:1px solid var(--border-bright);border-radius:10px;padding:5px;z-index:9}.tmenu.open{display:block}.tmenu .row{display:flex;gap:10px;align-items:baseline;padding:7px 9px;border-radius:7px;cursor:pointer}.tmenu .row:hover,.tmenu .row.on{background:rgba(0,230,118,.12)}.tmenu .row b{color:var(--accent);font:700 11px 'Orbitron',monospace;letter-spacing:.6px;flex:0 0 auto}.tmenu .row span{font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tmenu .grp{font:700 8px 'Orbitron',monospace;letter-spacing:1.4px;color:var(--text-faint);padding:7px 9px 3px}.tbar{position:relative}.tfold{margin:6px 0 14px}.tfold>summary{cursor:pointer;font:700 9px 'Orbitron',monospace;letter-spacing:1.4px;color:var(--text-muted);padding:8px 2px;list-style:none;display:flex;align-items:center;gap:8px}.tfold>summary::-webkit-details-marker{display:none}.tfold>summary:before{content:'\25B8';transition:transform .15s ease;display:inline-block;opacity:.7}.tfold[open]>summary:before{transform:rotate(90deg)}.tfold>summary:hover{color:var(--ink)}/* your turn: the same amber the rest of the hub uses, with a soft glow */@keyframes tpend{0%,100%{text-shadow:0 0 0 rgba(224,165,60,0)}50%{text-shadow:0 0 9px rgba(224,165,60,.85)}}.tfold>summary.pend{color:var(--amber);animation:tpend 2.6s ease-in-out infinite}@media(prefers-reduced-motion:reduce){.tfold>summary.pend{animation:none;text-shadow:0 0 8px rgba(224,165,60,.8)}}.tfold>summary .pill{font:700 8px 'Orbitron',monospace;letter-spacing:1px;border:1px solid currentColor;border-radius:20px;padding:2px 7px;opacity:.9}
 .tbar{border-top:1px solid var(--border-dim);padding:10px 14px;flex:0 0 auto;background:var(--panel)}
 .tin{display:flex;align-items:center;gap:9px;border:1px solid var(--border-bright);border-radius:12px;padding:6px 10px;background:rgba(0,0,0,.3)}
 .tin .ic{width:20px;height:20px;margin:0;color:var(--accent)}.tin input{flex:1;background:transparent;border:0;color:#d9ffe9;font-size:13px;padding:6px 0;min-width:0}
@@ -596,12 +596,25 @@ function judgeBlock(d){
     return `<div class="tjrow"><span>${esc(lab)}</span><span class="tbar2"><i class="${col}" style="width:${w}%"></i></span><span class="tp ${col}">${esc(val)}</span><span class="tsrc">${r.backend==='rules'?'rules':'local model'}</span></div>`;
   }).join('');
   const rt = j.route || {}, why = (rt.route==='human' && (rt.reasons||[]).length) ? `Flagged for you: ${rt.reasons.map(esc).join('; ')}.` : 'Nothing flagged. Your APPLY or DISCARD is logged next to these answers, so we can measure how often they agree with you.';
-  return `<div class="tbot"><div class="twho">${ic('scale')}INDEPENDENT CHECK<span class="tm2">not the writer's opinion of itself</span></div><div class="tblk">${rows}<div class="tnote">${why}</div></div></div>`;
+  return `<div class="tbot"><div class="tblk">${rows}<div class="tnote">${why}</div></div></div>`;
 }
+// One shape for every part of a thread: a titled fold that says when it is
+// waiting on you. `key` keeps each fold's open state across refreshes.
+function fold(d, key, title, body, opts){
+  if(!body) return '';
+  const o = opts || {};
+  const open = FOLD[d.id+':'+key]!=null ? FOLD[d.id+':'+key] : !!o.open;
+  const pend = o.pending ? ' pend' : '';
+  const pill = o.pill ? `<span class="pill">${esc(o.pill)}</span>` : '';
+  return `<details class="tfold" ${open?'open':''} ontoggle="FOLD['${d.id}:${key}']=this.open;fitPipe()">`
+    + `<summary class="${pend.trim()}">${esc(title)}${pill}</summary>${body}</details>`;
+}
+
 function pipeFold(d, dflt){
   const open = PIPEOPEN[d.id]!=null ? PIPEOPEN[d.id] : dflt;
   return `<details class="tfold" ${open?'open':''} ontoggle="PIPEOPEN['${d.id}']=this.open;fitPipe()"><summary>PIPELINE — who did what, in what order</summary>${pipelineBlock(d)}</details>`;
 }
+const FOLD = {};
 function threadBody(d){
   const st = d.status;
   let h = askBubble(d);
@@ -613,19 +626,120 @@ function threadBody(d){
     return h + bot(`${orb(hero?orbFor(hero.agent):'solving',20)}${hero?esc(hero.agent.toUpperCase()):'ORCHESTRATOR'}<span class="tm2">${hero?'working now':'planning'}</span>`, `<div style="display:flex;gap:16px;align-items:center"><div style="flex:none">${orb(hero?orbFor(hero.agent):'solving',64)}</div><div style="flex:1;min-width:0">${actionBanner(d)}</div></div>`) + workBlock(d) + pipeFold(d, true);
   }
   const who = st==='awaiting_review' ? `${ic('orch')}REVIEW<span class="tm2">YOUR TURN · nothing has touched the project</span>` : `${ic('orch')}${esc(sname(st))}`;
-  return h + workBlock(d) + judgeBlock(d) + bot(who, actionBanner(d) + resultBlock(d)) + repeatBlock(d) + skillBlock(d) + pipeFold(d, false) + (d.kind==='orchestrator' && d.children.length ? planBlock(d) : '') + checksBlock(d);
+  // Order matters: what happened, then whether it can be trusted, then who did
+  // it, then what you do about it. The pipeline led the thread because it is the
+  // only place parallelism is visible, and it used to be last and closed.
+  const steps = d.plan || [];
+  const unfinished = steps.filter(s => s.status!=='done').length;
+  const unchecked = ((d.judge||{}).results || []).filter(r => r.answer==null).length;
+  const yours = d.status==='awaiting_review';
+  return h
+    + fold(d, 'pipe', 'PIPELINE — who did what, in what order', pipelineBlock(d),
+           {open: d.kind==='orchestrator'})
+    + fold(d, 'judge', 'INDEPENDENT CHECK — not the writer\u2019s opinion of itself', judgeBlock(d),
+           {open: yours, pending: unchecked>0, pill: unchecked ? unchecked+' NOT CHECKED' : ''})
+    + fold(d, 'work', 'AGENTS — status per step', workBlock(d),
+           {open: d.status==='running', pending: unfinished>0 && d.status==='running',
+            pill: unfinished && d.status==='running' ? unfinished+' RUNNING' : ''})
+    + fold(d, 'result', 'RESULT — and what you do next',
+           bot(who, actionBanner(d) + resultBlock(d)),
+           {open: true, pending: yours, pill: yours ? 'YOUR TURN' : ''})
+    + repeatBlock(d) + skillBlock(d)
+    + (d.kind==='orchestrator' && d.children.length ? planBlock(d) : '') + checksBlock(d);
 }
+// A tray with a down-arrow — the same idea as the mail clients everyone
+// already knows, drawn in our stroke weight rather than imported.
+ICONS.archive = '<path d="M3 7h18v3H3z"/><path d="M5 10v9h14v-9"/><path d="M12 12v4"/><path d="M10 14l2 2 2-2"/>';
+
 function tbarHtml(d){
   const ph = {needs_input:'Answer with the options above, or type /defaults', plan_ready:'Type /run to start the pipeline, or edit a step first', running:'Agents are working. Type /pause to stop',
     awaiting_review:'Describe what should change, or /apply · /discard', paused:'Type /resume to continue', failed:'Type /resume or /retry'}[d.status] || 'Start a follow-up ask about this project…';
-  return `<div class="tbar"><div class="tin">${ic('send')}<input id="t-in" type="text" autocomplete="off" placeholder="${esc(ph)}"><span class="tkey">Enter</span></div><div class="tslash">/run · /pause · /resume · /apply · /discard · /retry · /status · /defaults · /changes text</div></div>`;
+  return `<div class="tbar"><div id="t-menu" class="tmenu"></div><div class="tin">${ic('send')}<input id="t-in" type="text" autocomplete="off" placeholder="${esc(ph)}"><span class="tkey">Enter</span></div><div class="tslash">Type <b>/</b> for commands, <b>@</b> for agents and skills</div></div>`;
 }
+// ── the / and @ menus ──────────────────────────────────────────────────────────
+// Printing the commands under the box told you they existed but not what they
+// took. These are the real lists, filtered as you type.
+const SLASH = [
+  ['run', 'start the pipeline the orchestrator planned'],
+  ['pause', 'stop the agents where they are'],
+  ['resume', 'carry on from where it paused'],
+  ['apply', 'merge the working copy into your project'],
+  ['discard', 'throw the work away, project untouched'],
+  ['archive', 'put it away without deciding — keeps everything'],
+  ['retry', 'run it again from the start'],
+  ['status', 'steps done, and how long it has taken'],
+  ['defaults', 'answer the orchestrator with its own suggestions'],
+  ['changes <text>', 'ask for a change in words'],
+];
+let MENU = {items: [], sel: 0, kind: null};
+
+async function menuPeople(){
+  // Agents and skills are the two things a follow-up can name.
+  const out = [];
+  try {
+    const a = await jget('/api/agents');
+    for(const p of (a.personas || a.agents || [])) out.push(['agent', p.name, p.mode || 'agent']);
+  } catch(e){}
+  try {
+    const s = await jget('/api/skills');
+    for(const k of (s.library || [])) out.push(['skill', k.name, (k.description||'').split('.')[0]]);
+  } catch(e){}
+  return out;
+}
+
+async function menuOpen(el, d){
+  const v = el.value, at = v.lastIndexOf('@'), sl = v.lastIndexOf('/');
+  const box = $('t-menu'); if(!box) return;
+  let items = [], kind = null;
+  if(sl === 0){
+    kind = '/'; const q = v.slice(1).toLowerCase();
+    items = SLASH.filter(c => c[0].startsWith(q)).map(c => ['cmd', '/'+c[0], c[1]]);
+  } else if(at >= 0 && (at === 0 || /\s/.test(v[at-1]))){
+    kind = '@'; const q = v.slice(at+1).toLowerCase();
+    MENU.cache = MENU.cache || await menuPeople();
+    items = MENU.cache.filter(x => x[1].toLowerCase().includes(q)).slice(0, 40)
+                      .map(x => [x[0], '@'+x[1], x[2]]);
+  }
+  MENU = {...MENU, items, sel: 0, kind, at: kind==='@' ? at : 0};
+  if(!items.length){ box.classList.remove('open'); return; }
+  let last = '';
+  box.innerHTML = items.map((x, i) => {
+    const grp = x[0]!==last ? `<div class="grp">${esc(x[0]==='cmd'?'commands':x[0]+'s')}</div>` : '';
+    last = x[0];
+    return grp + `<div class="row ${i===MENU.sel?'on':''}" data-i="${i}"><b>${esc(x[1])}</b><span>${esc(x[2]||'')}</span></div>`;
+  }).join('');
+  box.classList.add('open');
+  box.querySelectorAll('.row').forEach(r => r.onclick = () => menuPick(el, +r.dataset.i));
+}
+
+function menuPick(el, i){
+  const it = MENU.items[i]; if(!it) return;
+  el.value = (MENU.kind === '/') ? it[1].split(' ')[0] + ' '
+                                 : el.value.slice(0, MENU.at) + it[1] + ' ';
+  $('t-menu').classList.remove('open');
+  el.focus();
+}
+
+function menuKey(e, el, d){
+  const box = $('t-menu');
+  if(!box || !box.classList.contains('open')) return false;
+  if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+    MENU.sel = (MENU.sel + (e.key==='ArrowDown'?1:MENU.items.length-1)) % MENU.items.length;
+    box.querySelectorAll('.row').forEach((r,i) => r.classList.toggle('on', i===MENU.sel));
+    e.preventDefault(); return true;
+  }
+  if(e.key === 'Tab' || e.key === 'Enter'){ menuPick(el, MENU.sel); e.preventDefault(); return true; }
+  if(e.key === 'Escape'){ box.classList.remove('open'); e.preventDefault(); return true; }
+  return false;
+}
+
 function tSend(d){
   const el = $('t-in'); const v = (el.value||'').trim(); if(!v) return; el.value = '';
   const click = (id) => { const b = $(id); if(b) b.click(); else toast('Not available while '+sname(d.status).toLowerCase(), 'err'); };
   if(v[0]==='/'){
     const parts = v.slice(1).split(/\s+/), c = parts.shift(), arg = parts.join(' ');
     const cmds = {run:()=>click('m-runplan'), pause:()=>click('m-abort'), abort:()=>click('m-abort'), resume:()=>click('m-resume'), apply:()=>click('m-apply'), discard:()=>click('m-discard'), retry:()=>click('m-retry'), defaults:()=>click('m-answer-def'),
+      archive:()=>jpost('/api/missions/'+d.id+'/archive').then(()=>{SEL=null;$('pane').style.display='none';$('hollow').style.display='flex';refresh();toast('Archived.')}),
       status:()=>toast(sname(d.status)+' · '+(d.plan||[]).filter(x=>x.status==='done').length+'/'+(d.plan||[]).length+' steps · '+fmtS(totalSecs(d))),
       changes:()=>arg ? jpost('/api/missions/'+d.id+'/continue',{message:arg}).then(refresh) : toast('/changes needs a message','err')};
     (cmds[c] || (()=>toast('Unknown command /'+c,'err')))(); return;
@@ -698,12 +812,22 @@ function bindActions(d){
   on('m-discard', async () => { if(!confirm('Stop this ask and delete its working copy? The row stays as history.')) return; await go('discard'); refresh(); });
   on('m-forget', async () => { await go('forget'); SEL=null; $('pane').style.display='none'; $('hollow').style.display='flex'; refresh(); });
   on('m-abort', () => go('abort').then(refresh));
+  on('m-archive', async () => {
+    await go('archive');            // stops it first if it is still running
+    SEL = null; $('pane').style.display='none'; $('hollow').style.display='flex';
+    refresh(); toast('Archived. It is under ARCHIVE, with its working copy intact.');
+  });
   on('m-retry', async () => { const r = await go('retry'); select(r.id); });
   on('m-retryfb', async () => { const r = await go('retry', {model:fb}); select(r.id); });
   on('m-continue', async () => { const msg = prompt('What should change? (sent to the agents as a follow-up)'); if(!msg) return; await go('continue', {message:msg}); refresh(); });
   on('m-resume', async () => { try { await go('resume'); } catch(e){ toast(e.message,'err'); } refresh(); select(d.id); });
   const bk = $('m-back'); if(bk) bk.onclick = () => { showDetail(false); };
-  const ti = $('t-in'); if(ti) ti.onkeydown = (e) => { if(e.key==='Enter') tSend(d); };
+  const ti = $('t-in');
+  if(ti){
+    ti.oninput = () => menuOpen(ti, d);
+    ti.onkeydown = (e) => { if(menuKey(e, ti, d)) return; if(e.key==='Enter') tSend(d); };
+    ti.onblur = () => setTimeout(() => $('t-menu')?.classList.remove('open'), 150);
+  }
   const ev = $('rp-every'); if(ev) ev.onchange = () => { $('rp-dow').style.display = ev.value==='weekly' ? '' : 'none'; $('rp-dom').style.display = ev.value==='monthly' ? '' : 'none'; };
   on('m-repeat', async () => { try { await jpost('/api/missions/'+d.id+'/repeat', {every:$('rp-every').value, at:$('rp-at').value||'09:00', dow:+$('rp-dow').value, dom:+$('rp-dom').value||1}); toast('Repeat saved'); } catch(e){ toast(e.message,'err'); } $('pane').dataset.full=''; renderDetail(d.id); });
   on('m-unrepeat', async () => { await fetch('/api/schedules/'+$('m-unrepeat').dataset.sid, {method:'DELETE'}); toast('Stopped repeating'); $('pane').dataset.full=''; renderDetail(d.id); });
@@ -733,17 +857,17 @@ function actionBanner(d){
     btns=b('m-runplan','go',`RUN PIPELINE (${n} steps)`)+`<label class="ck" style="display:inline-flex;margin:0"><input type="checkbox" id="m-usesug"> use the suggested model per agent</label>`+b('m-discard','stop','DISCARD'); }
   else if(st==='awaiting_review'){ cls='review'; title='YOUR TURN · REVIEW';
     text=`Finished in <b>${fmtS(t)}</b>${d.verify?` · hub checks ${d.verify.ok?'passed ✓':'failed ✗'}`:''}. Read the <b>result</b> below. <b>APPLY TO PROJECT</b> merges the ${d.changed} file${d.changed===1?'':'s'} into <b>${esc(d.project_name)}</b>; <b>DISCARD</b> throws the work away. Nothing has touched your project yet.`;
-    btns=b('m-apply','go','APPLY TO PROJECT')+b('m-discard','stop','DISCARD')+b('m-continue','','ASK FOR CHANGES…'); }
+    btns=b('m-apply','go','APPLY TO PROJECT')+b('m-discard','stop','DISCARD')+b('m-continue','','ASK FOR CHANGES…')+b('m-archive','',ic('archive')+'ARCHIVE'); }
   else if(st==='paused'){ cls='paused'; title='PAUSED';
     text=`${esc(d.error||'')} Finished steps are kept. RESUME re-runs the interrupted step and carries on; or open any step and press RE-RUN FROM THIS STEP.`; btns=b('m-resume','go','RESUME')+b('m-discard','stop','DISCARD'); }
   else if(st==='running'){ cls='run';
     title = cur ? `WORKING · step ${done+1} of ${n}: ${cur.agent}` : (n ? 'WORKING · hub checks / review' : 'WORKING · the orchestrator is planning');
-    text='Nothing needs you right now. The bar and dots update live; click a step to read its transcript as it happens.'; btns=b('m-abort','stop',(d.kind==='orchestrator'&&n)?'PAUSE':'ABORT'); }
+    text='Nothing needs you right now. The bar and dots update live; click a step to read its transcript as it happens.'; btns=b('m-abort','stop',(d.kind==='orchestrator'&&n)?'PAUSE':'ABORT')+b('m-archive','',ic('archive')+'ARCHIVE'); }
   else if(st==='failed'||st==='timed_out'){ cls='fail'; title='STOPPED · '+sname(st);
-    text=esc(d.error||'The run stopped.'); btns=((n&&d.kind==='orchestrator')?b('m-resume','go','RESUME'):'')+b('m-retry','','RETRY')+(fb?b('m-retryfb','',`RETRY ON ${esc(fb)}`):'')+b('m-discard','stop','DISCARD')+b('m-forget','','CLEAR'); }
+    text=esc(d.error||'The run stopped.'); btns=((n&&d.kind==='orchestrator')?b('m-resume','go','RESUME'):'')+b('m-retry','','RETRY')+(fb?b('m-retryfb','',`RETRY ON ${esc(fb)}`):'')+b('m-discard','stop','DISCARD')+b('m-archive','',ic('archive')+'ARCHIVE')+b('m-forget','','CLEAR'); }
   else { cls='done'; title = st==='orphaned' ? 'RECOVERED FROM DISK' : sname(st);
     text = st==='applied' ? `Merged into ${esc(d.project_name)}.` : (st==='orphaned' ? 'An old working copy found on disk with no record.' : '');
-    btns = (st==='orphaned'?b('m-apply','go','APPLY TO PROJECT')+b('m-discard','stop','DISCARD'):'')+b('m-forget','','CLEAR'); }
+    btns = (st==='orphaned'?b('m-apply','go','APPLY TO PROJECT')+b('m-discard','stop','DISCARD'):'')+(st==='archived'?'':b('m-archive','',ic('archive')+'ARCHIVE'))+b('m-forget','','CLEAR'); }
   return `<div class="banner ${cls}"><div class="bt">${title}</div><div class="bx">${text}</div><div class="bb">${btns}</div></div>`;
 }
 function resultBlock(d){
