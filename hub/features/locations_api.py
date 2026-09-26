@@ -56,6 +56,54 @@ def _tailscale_https() -> dict:
     return out
 
 
+def _lan_ip() -> str | None:
+    """This machine's address on the local network, or None if it has none.
+
+    No packet is sent - connect() on a UDP socket only picks the route the OS
+    would use, which is enough to learn which interface owns the default route.
+    """
+    import socket
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.settimeout(0.4)
+            s.connect(("192.0.2.1", 9))          # TEST-NET-1: reserved, never routed
+            ip = s.getsockname()[0]
+        return ip if not ip.startswith("127.") else None
+    except OSError:
+        return None
+
+
+@routes.get("/api/hub-address")
+async def hub_address(request: web.Request) -> web.Response:
+    """Every address this Hub can be reached on, and which ones work off-device."""
+    import socket
+    from ..config import HOST, PORT
+    loopback = HOST in ("127.0.0.1", "localhost", "::1")
+    out = {
+        "port": PORT,
+        "host": HOST,
+        "loopback_only": loopback,
+        "machine": socket.gethostname(),
+        "addresses": [{"label": "On this PC", "url": f"http://localhost:{PORT}", "scope": "local"}],
+    }
+    ts = _tailscale_https()
+    if ts.get("url"):
+        out["addresses"].append({
+            "label": "Your devices, over Tailscale", "url": ts["url"], "scope": "private",
+            "ready": bool(ts.get("serving")),
+            "hint": None if ts.get("serving") else "Turn on private HTTPS to use this address.",
+        })
+    lan = _lan_ip()
+    if lan:
+        out["addresses"].append({
+            "label": "Same Wi-Fi network", "url": f"http://{lan}:{PORT}", "scope": "lan",
+            "ready": not loopback,
+            "hint": "The Hub is bound to loopback, so this address only answers on this PC."
+                    if loopback else None,
+        })
+    return web.json_response(out)
+
+
 @routes.get("/api/phone-https")
 async def phone_https(request: web.Request) -> web.Response:
     """Browsers only allow a microphone (and reliable sound) on https or localhost; on the tailnet that means the Tailscale serve address."""

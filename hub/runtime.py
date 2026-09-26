@@ -112,6 +112,22 @@ def payloads() -> Path | None:
     return None
 
 
+def version() -> str | None:
+    """What this build calls itself.
+
+    `release-manifest.json` sits beside the exe in an installed build and under
+    packaging/ in a checkout, so try both rather than guess which we are.
+    """
+    for candidate in (ASSETS.parent / "release-manifest.json",
+                      ASSETS / "release-manifest.json",
+                      ASSETS / "packaging" / "release-manifest.json"):
+        try:
+            return str(json.loads(candidate.read_text(encoding="utf-8-sig"))["version"])
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+    return None
+
+
 def manifest() -> dict:
     """payloads.json — what this build carries and what it fetches on request."""
     root = payloads()

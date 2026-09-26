@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "_comment": "Third-party Agent Skills a user can pull on demand. Nothing here ships inside the installer; each entry is cloned from its own repository at a pinned ref when the user asks for it, and lands in the user's skills folder (STATE/skills), never in the program folder. Add an entry to offer a new preset — no code change is needed.",
+  "skills": [
+    {
+      "id": "brag",
+      "name": "brag",
+      "title": "Launch videos",
+      "summary": "Turn a finished project into a short, shareable launch video.",
+      "description": "Gives an agent a full video-production workflow: it reads a project, writes a storyboard and a composition, renders it to MP4, and produces a poster frame and share copy. Rendering runs on this PC through HyperFrames, which brings its own headless Chromium and drives ffmpeg. Your source code is never uploaded.\n\nUse it with a marketing or UI agent, on any application you have built — not only this one. The agent invokes it as /brag from the project folder.",
+      "repo": "https://github.com/latent-spaces/brag",
+      "ref": "v0.3.0",
+      "path": "skills/brag",
+      "licence": "MIT",
+      "publisher": "latent-spaces",
+      "size_mb": 15,
+      "size_note": "mostly bundled music and sound effects, which the renderer needs",
+      "needs": ["git", "node", "ffmpeg"],
+      "keywords": "launch video, marketing, promo, announcement, share copy, hyperframes"
+    }
+  ]
+}

@@ -17,7 +17,6 @@ HERE = Path(__file__).resolve().parent.parent
 # hub/local_settings.py only with a deliberate access policy in place.
 HOST = os.getenv("HUB_HOST", "127.0.0.1")
 PORT = int(os.getenv("HUB_PORT", "8081"))
-VOICEBOX_URL = os.getenv("VOICEBOX_URL", "http://127.0.0.1:17493").rstrip("/")
 
 # Default folders come from locations.BASE (the writable drive with the most free
 # space), never from one developer's disk — this file is public. Real values arrive

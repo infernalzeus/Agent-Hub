@@ -28,6 +28,9 @@ a{color:var(--accent);text-decoration:none}
 .btn:disabled{opacity:.4;cursor:not-allowed}
 .ic{width:15px;height:15px;flex:none}
 main{max-width:880px;margin:0 auto;padding:16px}
+.rt{border:1px solid var(--border-dim);border-radius:9px;padding:9px 11px;margin-top:7px;background:var(--bg)}.rt .h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.rt b{color:var(--ink);font-size:13px;font-weight:600}.rt .meta{font-size:11px;color:var(--text-muted);flex:1;min-width:120px}.rt .steps{font-size:11px;color:var(--text-muted);margin-top:5px;overflow-wrap:anywhere}.tabs{display:flex;gap:7px;margin:10px 0 2px}.tabs .btn.on{background:rgba(0,230,118,.16);border-color:var(--accent)}.rt-empty{font-size:12px;color:var(--text-muted);padding:10px 2px;line-height:1.6}
+.upd{border:1px solid var(--border-bright);border-radius:12px;padding:13px 15px;margin-bottom:16px;background:rgba(0,230,118,.07)}.upd.new{border-color:var(--amber);background:rgba(224,165,60,.09)}.upd b{font:700 10px 'Orbitron',monospace;letter-spacing:1.5px;color:var(--accent)}.upd.new b{color:var(--amber)}.upd p{font-size:12.5px;line-height:1.55;color:var(--ink);margin:7px 0 0}.upd .row{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:10px}.upd pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px ui-monospace,Consolas,monospace;color:var(--text-muted);background:var(--bg);border:1px solid var(--border-dim);border-radius:6px;padding:9px 10px;margin-top:9px;max-height:160px;overflow:auto}
+.addr{border:1px solid var(--border-bright);border-radius:12px;padding:13px 15px;margin-bottom:16px;background:rgba(0,230,118,.05)}.addr b{color:var(--accent);font:700 10px 'Orbitron',monospace;letter-spacing:1.5px}.addr .row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:9px}.addr .lbl{font-size:11px;color:var(--text-muted);flex:0 0 100%}.addr code{flex:1;min-width:180px;font:13px ui-monospace,Consolas,monospace;color:var(--ink);background:var(--bg);border:1px solid var(--border-dim);border-radius:6px;padding:8px 10px;overflow-wrap:anywhere}.addr .warn{font-size:11px;color:var(--amber);flex:0 0 100%;margin-top:2px}
 .welcome{border:1px solid var(--amber);border-radius:12px;padding:14px 16px;margin-bottom:16px;background:rgba(224,165,60,.07)}
 .welcome b{color:var(--amber);font:700 10px 'Orbitron',monospace;letter-spacing:1.5px}.welcome p{font-size:13px;line-height:1.55;color:var(--ink);margin-top:6px}
 h2{font:700 9px 'Orbitron',monospace;letter-spacing:1.6px;color:var(--text-muted);margin:22px 0 8px}
@@ -76,18 +79,89 @@ function toast(t){ const e=$('toast'); e.textContent=t; e.style.display='block';
 
 let DATA = null, CUR = {}, ERR = {};
 const GROUPS = ['PROJECTS','MISSIONS','KNOWLEDGE','FILES','TOOLS'];
-let MCPS = [], HTTPS = null;
-async function load(){ try{ MCPS = (await jget('/api/mcp')).servers; }catch(e){ MCPS = []; } try{ HTTPS = await jget('/api/phone-https'); }catch(e){ HTTPS = null; } DATA = await jget('/api/locations'); CUR = {}; ERR = {}; DATA.items.forEach(i => CUR[i.key] = JSON.parse(JSON.stringify(i.value))); render(); }
+let MCPS = [], HTTPS = null, ADDR = null, UPD = null, ROUTINES = null, RTAB = 'mcp';
+async function load(){ try{ ROUTINES = (await jget('/api/pc/routines')).routines || []; }catch(e){ ROUTINES = null; } try{ UPD = await jget('/api/update'); }catch(e){ UPD = null; } try{ ADDR = await jget('/api/hub-address'); }catch(e){ ADDR = null; } try{ MCPS = (await jget('/api/mcp')).servers; }catch(e){ MCPS = []; } try{ HTTPS = await jget('/api/phone-https'); }catch(e){ HTTPS = null; } DATA = await jget('/api/locations'); CUR = {}; ERR = {}; DATA.items.forEach(i => CUR[i.key] = JSON.parse(JSON.stringify(i.value))); render(); }
 const chip = (s) => s ? `<span class="chip ${esc(s.level)}">${esc(s.msg)}</span>` : '';
+
+function updateCard(){
+  if(!UPD || !UPD.current) return '';
+  const when = UPD.checked_at ? new Date(UPD.checked_at*1000).toLocaleString() : 'never';
+  if(UPD.newer){
+    return `<div class="upd new"><b>AGENT HUB ${esc(UPD.latest)} IS AVAILABLE</b>`
+      + `<p>You are on ${esc(UPD.current)}. Updating keeps your locations, ingested apps and your own skills \u2014 `
+      + `they live outside the program folder.</p>`
+      + (UPD.notes ? `<pre>${esc(UPD.notes)}</pre>` : '')
+      + `<div class="row"><button class="btn go" id="do-update">UPDATE NOW</button>`
+      + (UPD.page ? `<a class="btn" href="${esc(UPD.page)}" target="_blank" rel="noopener">RELEASE NOTES</a>` : '')
+      + `<button class="btn" id="chk-update">CHECK AGAIN</button></div>`
+      + `<div class="row" id="upd-msg"></div></div>`;
+  }
+  const line = UPD.error ? esc(UPD.error)
+    : (UPD.latest ? `Version ${esc(UPD.current)} \u2014 up to date. Last checked ${esc(when)}.`
+                  : `Version ${esc(UPD.current)}. No published release found yet.`);
+  return `<div class="upd"><b>THIS BUILD</b><p>${line}</p>`
+    + `<div class="row"><button class="btn" id="chk-update">CHECK FOR UPDATES</button></div>`
+    + `<div class="row" id="upd-msg"></div></div>`;
+}
+
+function addressCard(){
+  if(!ADDR) return '';
+  const rows = ADDR.addresses.map(a => `<div class="row"><span class="lbl">${esc(a.label)}</span>`
+    + `<code>${esc(a.url)}</code>`
+    + `<button class="btn" data-copy="${esc(a.url)}">COPY</button>`
+    + (a.hint ? `<span class="warn">${esc(a.hint)}</span>` : '') + '</div>').join('');
+  return `<div class="addr"><b>THIS HUB'S ADDRESS</b>${rows}`
+    + `<div class="row"><span class="lbl">Open one of these on your phone or tablet and add it to the home screen. `
+    + `This card stays here, so you can come back for it any time.</span></div></div>`;
+}
 
 function render(){
   const first = !DATA.configured;
-  let h = first ? `<div class="welcome"><b>WELCOME — WHERE SHOULD AGENT HUB READ AND WRITE?</b><p>Everything below is prefilled with what was found on this computer. Change what you like, then press SAVE. Nothing is created until you save, and you can come back to this page any time (OpenCode card, LOCATIONS).</p></div>` : '';
+  let h = updateCard() + addressCard();
+  h += first ? `<div class="welcome"><b>WELCOME — WHERE SHOULD AGENT HUB READ AND WRITE?</b><p>Everything below is prefilled with what was found on this computer. Change what you like, then press SAVE. Nothing is created until you save, and you can come back to this page any time (OpenCode card, LOCATIONS).</p></div>` : '';
   for(const g of GROUPS){
     const items = DATA.items.filter(i => i.group===g); if(!items.length) continue;
     h += `<h2>${g}</h2>` + items.map(itemHtml).join('') + (g==='TOOLS' ? extraTools() : '');
   }
   $('main').innerHTML = h;
+  document.querySelectorAll('[data-rtab]').forEach(b => b.onclick = () => { RTAB = b.dataset.rtab; render(); });
+  document.querySelectorAll('[data-rstatus]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    try{ await jsend('POST','/api/pc/routines/'+encodeURIComponent(b.dataset.rstatus)+'/status', {status: b.dataset.to});
+         ROUTINES = (await jget('/api/pc/routines')).routines || []; render(); }
+    catch(e){ b.disabled = false; const m = $('rt-msg-'+b.dataset.rstatus); if(m) m.textContent = String(e.message||e); }
+  });
+  document.querySelectorAll('[data-run]').forEach(b => b.onclick = async () => {
+    const id = b.dataset.run, m = $('rt-msg-'+id);
+    b.disabled = true; const was = b.textContent; b.textContent = 'RUNNING\u2026';
+    try{ const r = await jsend('POST','/api/pc/routines/'+encodeURIComponent(id)+'/run');
+         if(m) m.textContent = r.say || (r.ok ? 'Done.' : 'It refused.');
+         ROUTINES = (await jget('/api/pc/routines')).routines || []; render(); }
+    catch(e){ b.disabled = false; b.textContent = was; if(m) m.textContent = String(e.message||e); }
+  });
+  const chk = $('chk-update');
+  if(chk) chk.onclick = async () => {
+    chk.disabled = true; const was = chk.textContent; chk.textContent = 'CHECKING\u2026';
+    try{ UPD = await jget('/api/update?refresh=1'); render(); }
+    catch(e){ chk.disabled = false; chk.textContent = was; $('upd-msg').textContent = String(e.message||e); }
+  };
+  const doUpd = $('do-update');
+  if(doUpd) doUpd.onclick = async () => {
+    doUpd.disabled = true; doUpd.textContent = 'DOWNLOADING\u2026';
+    $('upd-msg').textContent = 'Fetching the installer. This can take a minute on a slow connection.';
+    try{
+      const r = await jsend('POST','/api/update/install');
+      $('upd-msg').textContent = r.message || 'The installer is starting.';
+      doUpd.textContent = 'INSTALLER STARTED';
+    }catch(e){
+      doUpd.disabled = false; doUpd.textContent = 'UPDATE NOW';
+      $('upd-msg').textContent = String(e.message||e);
+    }
+  };
+  document.querySelectorAll('[data-copy]').forEach(b => b.onclick = async () => {
+    try{ await navigator.clipboard.writeText(b.dataset.copy); }catch(e){ return; }
+    const was = b.textContent; b.textContent = 'COPIED'; setTimeout(() => b.textContent = was, 1200);
+  });
   bind();
   if(location.hash === '#pc-control') requestAnimationFrame(() => $('pc-control')?.scrollIntoView({block:'start', behavior:'instant'}));
 }
@@ -104,6 +178,49 @@ function itemHtml(i){
   const st = i.status||{};
   return `<div class="loc">${head}<div class="lin"><input type="text" data-k="${k}" value="${esc(CUR[k]||'')}" placeholder="${i.required?'':'not set'}">${i.kind==='folder'?`<button class="btn" data-browse="${k}">BROWSE</button>`:''}${st.create?`<button class="btn" data-create="${k}">CREATE</button>`:''}${!i.required&&CUR[k]?`<button class="btn" data-clear="${k}">CLEAR</button>`:''}</div>${e?`<div class="err">${esc(e)}</div>`:''}</div>`;
 }
+function routineRow(r){
+  const when = r.updated ? new Date(r.updated*1000).toLocaleString() : '';
+  const tone = r.status==='trusted' ? 'ok' : (r.status==='disabled' ? 'error' : 'warn');
+  const acted = r.successes + r.failures;
+  return `<div class="rt"><div class="h"><b>${esc(r.title)}</b>`
+    + `<span class="chip ${tone}">${esc(r.status)}</span>`
+    + `<span class="chip">${r.tool==='launch'||r.tool==='App' ? 'launch' : esc(r.steps)+' step'+(r.steps===1?'':'s')}</span>`
+    + (r.profile ? `<span class="chip">${esc(r.profile)}</span>` : '')
+    + (r.lowest_match!=null ? `<span class="chip ${r.lowest_match>=0.9?'ok':(r.lowest_match>=0.8?'warn':'error')}">lowest match ${Math.round(r.lowest_match*100)}%</span>` : '')
+    + `<span class="meta">${r.successes} ok \u00b7 ${r.failures} failed${acted?' \u00b7 last used '+esc(when):''}</span>`
+    + ((r.tool==='ui'||r.tool==='surface') && r.status!=='disabled' ? `<button class="btn" data-run="${esc(r.id)}">RUN</button>` : '')
+    + `<button class="btn ${r.status==='disabled'?'go':'stop'}" data-rstatus="${esc(r.id)}" data-to="${r.status==='disabled'?'candidate':'disabled'}">`
+    + `${r.status==='disabled'?'ENABLE':'DISABLE'}</button></div>`
+    + `<div class="steps">${esc(r.intent)}</div>`
+    + `<div class="steps" id="rt-msg-${esc(r.id)}"></div></div>`;
+}
+
+function routinesCard(){
+  if(ROUTINES === null) return '';
+  const mcp = ROUTINES.filter(r => (r.kind||'mcp')==='mcp');
+  const machine = ROUTINES.filter(r => (r.kind||'mcp')==='machine');
+  const tab = (id, label, n) => `<button class="btn ${RTAB===id?'on':''}" data-rtab="${id}">${label} (${n})</button>`;
+  let body;
+  if(RTAB === 'mcp'){
+    body = mcp.length ? mcp.map(routineRow).join('')
+      : `<div class="rt-empty">Nothing learned yet. Ask TALK to open an application and it is saved here as a
+         candidate; two clean runs make it trusted.</div>`;
+  } else {
+    body = machine.length ? machine.map(routineRow).join('')
+      : `<div class="rt-empty">Nothing recorded yet. These are sequences you teach by
+         <b>doing them once</b> \u2014 for games and anything else with no accessible controls. Each step remembers a
+         small picture of what it clicked and finds it again before clicking, so a weak match stops instead of
+         guessing. A routine carries a profile: <b>reflex</b> for gameplay (punctual, strict),
+         <b>patient</b> for installs and uploads (waits for the screen, not the clock), <b>balanced</b> otherwise.</div>`;
+  }
+  return `<div class="loc" id="routines"><div class="lh"><b>Learned routines</b>`
+    + `<span class="chip">${ROUTINES.length} saved</span></div>`
+    + `<div class="lp">What the hub has learned to do on this PC. A routine only replays onto the screen it was
+       recorded against; if that screen changed it refuses rather than clicking blind.</div>`
+    + `<div class="tabs">${tab('mcp','MCP ROUTINES',mcp.length)}${tab('machine','MACHINE ROUTINES',machine.length)}</div>`
+    + body + `</div>`;
+}
+
 function extraTools(){
   let h = '';
   const w = MCPS.find(x => x.name==='windows');
@@ -116,6 +233,7 @@ function extraTools(){
       <div class="lin"><input type="text" readonly value="${esc(HTTPS.url)}" id="https-url"><button class="btn" id="https-copy">COPY</button></div>
       ${HTTPS.serving ? '' : `<div class="lp" style="margin-top:8px">Not serving yet. Run this once in a terminal on this PC: <code>${esc(HTTPS.command)}</code></div>`}</div>`;
   }
+  h += routinesCard();
   return h;
 }
 let vt = {};

@@ -1393,6 +1393,14 @@ async def _run(m: Mission) -> None:
         await _prepare(m, wt, data_dir)
         S.save(m)
 
+    # Every default model in the hub is reached THROUGH Ollama, cloud Nemotron
+    # included, so a mission launched on a cold Ollama died with an opaque
+    # "Cannot connect to API" thrown from inside OpenCode. The direct-call path
+    # has started it on demand for a while; this path never did.
+    if not str(m.model or "").startswith(("opencode/", "anthropic/", "openai/")):
+        if not await _ensure_ollama():
+            logger.warning("mission %s: Ollama did not come up; the run may not reach its model", m.id)
+
     jsonl = data_dir / "mission.jsonl"
     if m.kind == "orchestrator":
         await _run_orchestrator(m, wt, data_dir, jsonl)

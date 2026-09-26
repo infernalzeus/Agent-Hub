@@ -56,6 +56,9 @@ hub/agent_knowledge/agents_user/
 hub/agent_knowledge/agent_overrides.json
 hub/agent_knowledge/model_policy.json
 hub/apps.json
+# Runtime state written beside the code when running from source.
+hub/update.json
+hub/onboarding.json
 hub/ingested_apps/
 
 # ── Build & release output — never in the repo (assets go to GitHub Releases) ──
@@ -79,3 +82,6 @@ hub/data/
 packaging/release-deny.local.txt
 # Written by the build dialog when you confirm the clean-machine test.
 release-evidence.json
+
+# Skills pulled from the catalogue: someone else's repo, often tens of MB.
+hub/agent_knowledge/skills_installed/

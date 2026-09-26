@@ -14,7 +14,7 @@ import re
 import shutil
 
 EXTENSIONS = {'.py', '.json', '.js', '.css', '.html', '.md', '.txt', '.png', '.svg', '.jpg', '.jpeg', '.ico', '.pdf', '.zip', '.gz', '.yaml', '.yml', '.sh', '.ts', '.tsx', '.cjs', '.mjs'}
-PRIVATE = {'local_settings.py', 'locations.json', 'apps.json', 'onboarding.json', 'cookies.txt', 'client_secrets.json', 'credentials', 'data', '__pycache__', '.git', 'ingested_apps', 'skills_compiled', 'logs'}
+PRIVATE = {'local_settings.py', 'locations.json', 'apps.json', 'onboarding.json', 'cookies.txt', 'client_secrets.json', 'credentials', 'data', '__pycache__', '.git', 'ingested_apps', 'skills_compiled', 'skills_installed', 'logs'}
 ROOT_FILES = ('app.py', 'favicon.png', 'favicon-64.png', 'favicon-256.png', 'favicon.ico', 'requirements-youtube.txt')
 
 
@@ -41,12 +41,18 @@ def stage(root: Path, destination: Path, packaging: Path | None = None):
             target = destination / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, target)
+    # Record the skills THIS build ships, so an installed Hub can tell them from the
+    # ones its user wrote and move the user's somewhere an uninstall cannot reach.
+    shipped = destination / 'hub' / 'agent_knowledge' / 'skills'
+    if shipped.is_dir():
+        names = sorted(p.name for p in shipped.iterdir() if p.is_dir())
+        (shipped / '.shipped').write_text('\n'.join(names) + '\n', encoding='utf-8')
     (destination / 'youtube').mkdir()
     for name in ('ytdl.py', 'yt_upload.py'):
         shutil.copy2(root / 'youtube' / name, destination / 'youtube' / name)
     # Packaging scripts the frozen app runs as children, outside the app allowlist.
     (destination / 'packaging').mkdir(parents=True, exist_ok=True)
-    for name in ('agenthub_launcher.py', 'speech_worker.py'):
+    for name in ('agenthub_launcher.py', 'speech_worker.py', 'vision_worker.py'):
         shutil.copy2(packaging / name, destination / 'packaging' / name)
     # Bundled payloads (wheels, the Python installer). Copied in rather than
     # referenced, so the staged tree is exactly what gets frozen and the tests

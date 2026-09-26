@@ -33,86 +33,13 @@ import time
 from pathlib import Path
 from urllib.parse import quote, quote_plus
 
-import aiohttp
 from aiohttp import web
 
 from .. import agent_knowledge, decide as DEC
-from ..config import VOICEBOX_URL, logger
+from ..config import logger
 from .. import runtime as RT
 
 routes = web.RouteTableDef()
-
-
-async def _voicebox_state() -> dict:
-    """Read the optional, local Voicebox service without making TALK depend on it."""
-    timeout = aiohttp.ClientTimeout(total=3)
-    try:
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(f"{VOICEBOX_URL}/health") as response:
-                if response.status != 200:
-                    return {"online": False, "profiles": [], "reason": f"Voicebox returned {response.status}"}
-                health = await response.json()
-            async with session.get(f"{VOICEBOX_URL}/profiles") as response:
-                profiles = await response.json() if response.status == 200 else []
-                profiles.sort(key=lambda item: 0 if str(item.get("name", "")) == "Hub · Personal Voice" else 1)
-            async with session.get(f"{VOICEBOX_URL}/models/status") as response:
-                models = (await response.json()).get("models", []) if response.status == 200 else []
-    except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as exc:
-        return {"online": False, "profiles": [], "reason": str(exc)[:100]}
-    return {
-        "online": True,
-        "profiles": [
-            {"id": str(item.get("id", "")), "name": str(item.get("name", "Profile")),
-             "type": str(item.get("voice_type", "")), "engine": item.get("default_engine"),
-             "ready": str(item.get("voice_type", "")) == "preset" or bool(item.get("sample_count"))}
-            for item in profiles if item.get("id") and str(item.get("id")) != "6332e75b-b73e-4950-8b46-2606d832ab0a"
-        ],
-        "model_ready": bool(health.get("model_loaded")),
-        "downloaded_models": [item.get("display_name") for item in models if item.get("downloaded")],
-    }
-
-
-@routes.get("/api/voice/voicebox")
-async def api_voicebox(request: web.Request) -> web.Response:
-    return web.json_response(await _voicebox_state())
-
-
-@routes.post("/api/voice/voicebox/speak")
-async def api_voicebox_speak(request: web.Request) -> web.Response:
-    """Generate locally with an existing Voicebox profile and relay WAV audio to TALK."""
-    body = await _body(request)
-    text = _speakable(str(body.get("text") or ""))
-    profile = str(body.get("profile") or "")
-    if not text or not profile:
-        raise web.HTTPBadRequest(text="choose a Voicebox profile first")
-    state = await _voicebox_state()
-    if not state["online"]:
-        raise web.HTTPServiceUnavailable(text="Voicebox is not running on this PC")
-    if profile not in {item["id"] for item in state["profiles"]}:
-        raise web.HTTPBadRequest(text="that Voicebox profile is no longer available")
-    timeout = aiohttp.ClientTimeout(total=90)
-    try:
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(f"{VOICEBOX_URL}/speak", json={"text": text, "profile": profile, "language": "en"}) as response:
-                if response.status != 200:
-                    raise web.HTTPServiceUnavailable(text=(await response.text())[:160])
-                generation = await response.json()
-            generation_id = str(generation.get("id") or "")
-            if not generation_id:
-                raise web.HTTPServiceUnavailable(text="Voicebox did not start speech generation")
-            for _ in range(80):
-                await asyncio.sleep(0.5)
-                async with session.get(f"{VOICEBOX_URL}/audio/{quote(generation_id, safe='')}") as audio_response:
-                    if audio_response.status == 200:
-                        audio = await audio_response.read()
-                        content_type = audio_response.headers.get("Content-Type", "audio/wav").split(";", 1)[0]
-                        if audio:
-                            return web.Response(body=audio, content_type=content_type)
-                    elif audio_response.status >= 500:
-                        raise web.HTTPServiceUnavailable(text=(await audio_response.text())[:160])
-    except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
-        raise web.HTTPServiceUnavailable(text=f"Voicebox did not finish: {str(exc)[:120]}")
-    raise web.HTTPGatewayTimeout(text="Voicebox did not finish in time")
 
 # ── what the assistant can do ────────────────────────────────────────────────────────────────────────────────────────
 PAGES = {"missions": "/missions", "agents": "/agents", "graph": "/graph", "locations": "/setup", "hub": "/"}
