@@ -544,6 +544,23 @@ textarea{min-height:200px;resize:vertical;font-family:ui-monospace,Consolas,mono
 .note{font-size:11px;color:var(--amber);margin-top:8px}
 .smith{width:24px;height:24px;border-radius:6px;background:radial-gradient(circle at 50% 35%,#0e2a22,#07120f);vertical-align:-7px;margin-right:7px;flex:none}
 .smith-a{width:76px;height:76px;flex:none;border-radius:12px;background:rgba(0,0,0,.35);border:1px solid var(--border-dim)}
+@keyframes skl-glow{0%,100%{box-shadow:0 0 0 rgba(224,165,60,0)}50%{box-shadow:0 0 10px rgba(224,165,60,.75)}}
+#btn-skills.has-new{border-color:rgba(224,165,60,.75);color:#e0a53c;animation:skl-glow 2.4s ease-in-out infinite}
+@media(prefers-reduced-motion:reduce){#btn-skills.has-new{animation:none;box-shadow:0 0 8px rgba(224,165,60,.7)}}
+.skl-count{font-size:10px;color:var(--text-muted);letter-spacing:1px}
+#skl-modal{display:none}#skl-modal.open,#skl-scrim.open{display:block}
+.skl{border:1px solid rgba(0,230,118,.22);border-radius:10px;padding:11px 13px;margin-bottom:8px;background:rgba(8,12,40,.72)}
+.skl.add{border-color:rgba(224,165,60,.42);background:rgba(224,165,60,.06)}
+.skl summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.skl summary::-webkit-details-marker{display:none}
+.skl summary:before{content:'\25B8';color:rgba(0,230,118,.6);transition:transform .15s ease;display:inline-block}
+.skl[open] summary:before{transform:rotate(90deg)}
+.skl .nm{font-weight:600;color:#d9ffe9}
+.skl .sm{color:rgba(0,230,118,.52);font-size:12px;flex:1;min-width:140px}
+.skl .body{margin-top:9px;font-size:12.5px;line-height:1.6;color:rgba(0,230,118,.78);white-space:pre-wrap}
+.skl .meta{margin-top:8px;font-size:11px;color:rgba(0,230,118,.45)}
+.skl .row{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap;align-items:center}
+.skl-msg{font-size:12px;color:#e0a53c}
 .secthead{font-family:'Orbitron',monospace;font-size:9px;letter-spacing:1.5px;color:var(--accent);margin:22px 2px 8px}
 .secthead span{color:var(--text-muted);letter-spacing:.3px;font-family:'Outfit',sans-serif;font-size:11.5px;margin-left:8px}
 .btn-icon{display:inline-flex;align-items:center;justify-content:center;position:relative;
@@ -580,8 +597,18 @@ textarea{min-height:200px;resize:vertical;font-family:ui-monospace,Consolas,mono
   <span class="brand">AGENTS</span>
   <button class="btn-icon" id="btn-create" title="Create agent" aria-label="Create agent">__SMITH_ICON_BIG__<span class="plus-badge">+</span></button>
   <span class="spacer"></span>
+  <button class="btn" id="btn-skills" title="The skill library every agent can reach">SKILLS</button>
   <a class="btn" href="/missions">MISSIONS</a>
   <a class="btn" href="/graph">GRAPH</a>
+</div>
+<div class="scrim" id="skl-scrim"></div>
+<div class="modal" id="skl-modal">
+  <h2>SKILLS <span id="skl-count" class="skl-count"></span>
+    <button class="btn" id="skl-close" style="float:right">CLOSE</button></h2>
+  <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px">
+    Every agent session can reach these. Add a preset below, or press NEW SKILL to have
+    Agent Smith write one from a description.</p>
+  <div id="skills"></div>
 </div>
 <div style="font-size:11px;color:var(--text-muted);margin:12px 0">
   Personas ship in the repo (<code>hub/agent_knowledge/agents/</code>) and are copied into every
@@ -696,7 +723,100 @@ async function load(){
     + sec('ORCHESTRATOR', 'takes your ask, asks you what it needs, plans the steps — writes no project code', orch)
     + sec('SUBAGENTS', 'each does one step of a plan; also runnable directly. Tag = the work type that offers it', subs, true)
     + sec('OTHER UTILITY', 'not part of plans', other);
+  bindSkills();
+  loadSkills();
 }
+// ── the skill library ────────────────────────────────────────────────────────────────
+let SKILLS = null;
+
+function skillCard(s){
+  const origin = s.origin === 'yours' ? 'yours'
+               : s.origin === 'added' ? 'added by you'
+               : s.origin === 'vendored' ? 'third-party'
+               : s.origin === 'wiki-concept' ? 'from your wiki' : 'built in';
+  const kw = (s.keywords||[]).slice(0,6).join(' · ');
+  const removable = s.origin === 'yours' || s.origin === 'added';
+  return `<details class="skl"><summary><span class="nm">${esc(s.name)}</span>`
+    + `<span class="tag">${esc(origin)}</span>`
+    + `<span class="sm">${esc((s.description||'').split('. ')[0]).slice(0,110)}</span></summary>`
+    + `<div class="body">${esc(s.description||'')}</div>`
+    + (kw ? `<div class="meta">${esc(kw)}</div>` : '')
+    + (removable ? `<div class="row"><button class="btn" onclick="removeSkill('${esc(s.name)}')">REMOVE</button></div>` : '')
+    + `</details>`;
+}
+
+function catalogueCard(e){
+  const needs = (e.needs||[]).join(', ');
+  return `<details class="skl add"><summary><span class="nm">${esc(e.name)}</span>`
+    + `<span class="tag">available</span>`
+    + `<span class="sm">${esc(e.title||'')} \u2014 ${esc(e.summary||'')}</span></summary>`
+    + `<div class="body">${esc(e.description||'')}</div>`
+    + `<div class="meta">${esc(e.publisher||'')} · ${esc(e.licence||'')} · pinned at ${esc(e.ref||'')}`
+    + (e.size_mb ? ` · about ${esc(e.size_mb)} MB${e.size_note?' ('+esc(e.size_note)+')':''}` : '')
+    + (needs ? ` · needs ${esc(needs)}` : '') + `</div>`
+    + `<div class="row">`
+    + `<button class="btn" onclick="installSkill('${esc(e.id)}',this)">ADD TO MY AGENTS</button>`
+    + `<a class="btn" href="${esc(e.repo)}" target="_blank" rel="noopener">SOURCE</a>`
+    + `<span class="skl-msg" id="skl-msg-${esc(e.id)}"></span></div></details>`;
+}
+
+function bindSkills(){
+  const b = $('btn-skills'); if(b) b.onclick = () => openSkills(true);
+  const c = $('skl-close');  if(c) c.onclick = () => openSkills(false);
+  const s = $('skl-scrim');  if(s) s.onclick = () => openSkills(false);
+  document.addEventListener('keydown', e => { if(e.key === 'Escape') openSkills(false); });
+}
+
+async function loadSkills(){
+  try { SKILLS = await jget('/api/skills'); } catch(e){ SKILLS = null; return; }
+  const all = (SKILLS.catalogue||[]);
+  const add = all.filter(e => !e.installed);   // once installed it lives in the library, not the shop
+  const pending = add.length;
+  const btn = $('btn-skills');
+  if(btn){
+    btn.classList.toggle('has-new', pending > 0);
+    btn.title = pending ? pending + ' skill' + (pending>1?'s':'') + ' available to add'
+                        : SKILLS.library.length + ' skills every agent can reach';
+  }
+  const cnt = $('skl-count');
+  if(cnt) cnt.textContent = SKILLS.library.length + ' installed'
+                          + (pending ? ' \u00b7 ' + pending + ' available' : '');
+  $('skills').innerHTML =
+      (add.length
+        ? `<div class="secthead">SKILLS YOU CAN ADD<span>pulled from their own repository at a pinned version, into your skills folder</span></div>`
+          + add.map(catalogueCard).join('')
+        : '')
+    + `<div class="secthead">SKILL LIBRARY<span>${SKILLS.library.length} skills every agent session can reach</span></div>`
+    + SKILLS.library.map(skillCard).join('');
+}
+
+function openSkills(open){
+  $('skl-modal').classList.toggle('open', open);
+  $('skl-scrim').classList.toggle('open', open);
+}
+
+window.installSkill = async (id, btn) => {
+  const msg = $('skl-msg-'+id);
+  btn.disabled = true; btn.textContent = 'ADDING\u2026';
+  if(msg) msg.textContent = 'Downloading. This runs once.';
+  try {
+    const r = await jpost('/api/skills/install/'+encodeURIComponent(id));
+    if(msg) msg.textContent = 'Added at ' + r.ref + '.';
+    await loadSkills();
+  } catch(e){
+    btn.disabled = false; btn.textContent = 'ADD TO MY AGENTS';
+    if(msg) msg.textContent = String(e.message||e);
+  }
+};
+
+window.removeSkill = async (name) => {
+  try {
+    const r = await fetch('/api/skills/'+encodeURIComponent(name), {method:'DELETE'});
+    if(!r.ok) throw new Error(await r.text());
+    await loadSkills();
+  } catch(e){ alert(String(e.message||e)); }
+};
+
 window.toggleDef = (n) => { const e=$('def-'+n); e.style.display = e.style.display==='block'?'none':'block'; };
 window.delAgent = async (n) => { if(!confirm('Delete your agent "'+n+'"?'))return;
   await fetch('/api/opencode/agents/'+encodeURIComponent(n),{method:'DELETE'}); load(); };

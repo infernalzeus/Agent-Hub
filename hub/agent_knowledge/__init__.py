@@ -20,14 +20,50 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from pathlib import Path
 
-from .. import locations as _LOC
+from .. import locations as _LOC, runtime as _RT
 from ..config import logger
 
 WIKI_ROOT = Path(_LOC.get("wiki_root") or (_LOC.BASE / "_no_wiki"))     # unset = a folder that does not exist, so wiki features stay off
 WIKI_ENTITIES = WIKI_ROOT / "entities"
-SKILLS_DIR = Path(__file__).parent / "skills"
+SKILLS_DIR = Path(__file__).parent / "skills"          # shipped with the build; read-only once installed
+SHIPPED_LIST = SKILLS_DIR / ".shipped"                 # written by stage_release.py
+# What the user writes must never live in the program folder: an uninstall takes
+# that folder, and a build cannot tell its own skills from theirs. From source
+# STATE is the repo's own hub/, so this stays inside the checkout where it belongs.
+USER_SKILLS_DIR = (_RT.STATE / "skills") if _RT.PACKAGED else SKILLS_DIR
+# Skills pulled from someone else's repository are never this repo's work, so they
+# never go in it. Gitignored from source; alongside the user's own when installed.
+INSTALLED_SKILLS_DIR = (_RT.STATE / "skills") if _RT.PACKAGED else (SKILLS_DIR.parent / "skills_installed")
+
+
+def _migrate_user_skills() -> None:
+    """One-way move of anything in the shipped dir that the build did not ship.
+
+    Runs only for an installed build, and only when the build left a manifest -
+    without one there is no honest way to tell the two apart, so nothing moves.
+    """
+    if not _RT.PACKAGED or USER_SKILLS_DIR == SKILLS_DIR or not SHIPPED_LIST.is_file():
+        return
+    try:
+        shipped = {line.strip() for line in SHIPPED_LIST.read_text(encoding="utf-8").splitlines() if line.strip()}
+    except OSError:
+        return
+    for directory in sorted(p for p in SKILLS_DIR.glob("*/") if p.is_dir()):
+        if directory.name in shipped:
+            continue
+        target = USER_SKILLS_DIR / directory.name
+        try:
+            USER_SKILLS_DIR.mkdir(parents=True, exist_ok=True)
+            if target.exists():                      # already migrated; the copy left behind is stale
+                shutil.rmtree(directory)
+            else:
+                shutil.move(str(directory), str(target))
+            logger.info("moved your skill %r out of the program folder into %s", directory.name, USER_SKILLS_DIR)
+        except OSError as exc:
+            logger.warning("could not move skill %r: %s", directory.name, exc)
 # Per-provider/per-model sampling overrides (temperature, top_p, ...), keyed
 # exactly like opencode.json's own `provider.<name>.models.<model>.options` —
 # deep-merged in, so setting one model's temperature never touches another's
@@ -226,7 +262,9 @@ def list_skills() -> list[dict]:
     SKILL.md (YAML frontmatter + body). `keywords` is Hub's own relevance
     hint, carried under the spec's free-form `metadata:` block; it has no
     effect on OpenCode's native matcher, which keys off `description`."""
-    roots = [SKILLS_DIR,
+    roots = [USER_SKILLS_DIR,          # yours wins a name clash: you wrote it most recently
+             INSTALLED_SKILLS_DIR,     # then what you pulled
+             SKILLS_DIR,
              SKILLS_DIR.parent / "skills_vendor",
              SKILLS_DIR.parent / "skills_generated"]
     out: list[dict] = []
@@ -266,7 +304,11 @@ def skills_overview() -> list[dict]:
     for s in list_skills():
         fm = _parse_frontmatter(s["path"])
         meta = fm.get("metadata") if isinstance(fm.get("metadata"), dict) else {}
-        if gen_root in s["path"].parents:
+        if INSTALLED_SKILLS_DIR != SKILLS_DIR and INSTALLED_SKILLS_DIR in s["path"].parents:
+            origin = "added"
+        elif USER_SKILLS_DIR != SKILLS_DIR and USER_SKILLS_DIR in s["path"].parents:
+            origin = "yours"
+        elif gen_root in s["path"].parents:
             origin = "wiki-concept"
         elif vendor_root in s["path"].parents:
             origin = "vendored"

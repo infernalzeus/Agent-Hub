@@ -35,7 +35,7 @@ import shutil
 from pathlib import Path
 
 from ..config import logger
-from . import SKILLS_DIR, WIKI_ROOT, list_skills
+from . import SKILLS_DIR, USER_SKILLS_DIR, INSTALLED_SKILLS_DIR, WIKI_ROOT, list_skills
 
 GENERATED_DIR = Path(__file__).parent / "skills_generated"
 VENDOR_DIR = Path(__file__).parent / "skills_vendor"
@@ -45,9 +45,9 @@ VENDOR_DIR = Path(__file__).parent / "skills_vendor"
 # ~5 MB of bundled fonts.
 PUBLISH_TARGETS = [
     (Path.home() / ".config" / "opencode" / "skills",
-     {"hand-written", "vendored", "wiki-concept"}),
+     {"yours", "added", "hand-written", "vendored", "wiki-concept"}),
     (Path.home() / ".claude" / "skills",
-     {"hand-written", "wiki-concept"}),
+     {"yours", "added", "hand-written", "wiki-concept"}),
 ]
 
 # Files at/above this size are hashed by (path, size) instead of by content,
@@ -190,7 +190,10 @@ def _dir_digest(root: Path, *, skip: set[str] = frozenset()) -> str:
 
 
 # source root -> origin tag, in precedence order (earlier wins a name clash).
-_SOURCE_ROOTS = [
+# From source the two are the same folder, and everything in it is the repo's own
+# work - listing it twice would relabel the whole library as the user's.
+_SOURCE_ROOTS = ([(lambda: USER_SKILLS_DIR, "yours")] if USER_SKILLS_DIR != SKILLS_DIR else []) + [
+    (lambda: INSTALLED_SKILLS_DIR, "added"),
     (lambda: SKILLS_DIR, "hand-written"),
     (lambda: VENDOR_DIR, "vendored"),
     (lambda: GENERATED_DIR, "wiki-concept"),
@@ -268,6 +271,13 @@ def publish_skills() -> dict:
 def sync_all() -> dict:
     """compile wiki skills, then publish the whole library. Safe to call at
     every hub start; best-effort, never raises."""
+    try:
+        # Before anything reads the library: rescue anything the user wrote into
+        # the program folder in an older build. One-way, and a no-op from source.
+        from . import _migrate_user_skills
+        _migrate_user_skills()
+    except Exception as exc:
+        logger.warning("skills_sync: user-skill migration skipped: %s", exc)
     try:
         compile_wiki_skills()
     except Exception as exc:

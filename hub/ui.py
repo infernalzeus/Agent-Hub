@@ -384,6 +384,11 @@ body.edit-mode .drag-handle{display:block}
 #edit-toggle.on,.restart-btn#edit-toggle.on{box-shadow:inset 0 1px 0 rgba(210,225,255,.5),inset 0 -1px 2px rgba(0,0,0,.4),0 2px 6px rgba(0,0,0,.5),0 0 16px var(--g);border-color:var(--accent)}
 #edit-toggle.on svg{filter:drop-shadow(0 0 5px var(--g))}
 .restart-btn{text-decoration:none}
+/* A newer release exists. Slow and soft: this is an invitation, not an alarm. */
+@keyframes hub-update-pulse{0%,100%{filter:none}50%{filter:drop-shadow(0 0 7px rgba(0,230,118,.9))}}
+#loc-btn.update-ready{animation:hub-update-pulse 2.4s ease-in-out infinite}
+#loc-btn.update-ready .loc-marker{fill:#00e676;stroke:#00e676}
+@media(prefers-reduced-motion:reduce){#loc-btn.update-ready{animation:none;filter:drop-shadow(0 0 6px rgba(0,230,118,.85))}}
 #edit-toggle{--g:rgba(255,154,31,.85)}#edit-toggle svg{stroke:#ff9a1f;filter:drop-shadow(0 0 3px rgba(255,154,31,.8))}
 #edit-toggle svg .ul{stroke:#fff}
 #loc-btn{--g:rgba(56,182,255,.85)}#loc-btn svg{width:20px;height:20px;stroke:#38b6ff;filter:drop-shadow(0 0 3px rgba(56,182,255,.85))}
@@ -1819,6 +1824,17 @@ function ytdlDisconnectWs() {
 })();
 </script>
 <script>__PICKER_JS__</script>
+<script>
+// Cached server-side for hours, so this costs a local request, not a GitHub round trip.
+fetch('/api/update', {cache:'no-store'}).then(r => r.ok ? r.json() : null).then(u => {
+  if (!u || !u.newer) return;
+  const pin = document.getElementById('loc-btn');
+  if (!pin) return;
+  pin.classList.add('update-ready');
+  pin.title = 'Agent Hub ' + u.latest + ' is available — you have ' + u.current;
+  pin.setAttribute('aria-label', pin.title);
+}).catch(() => {});
+</script>
 __VOICE_WIDGET__
 </body>
 </html>

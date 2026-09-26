@@ -1,19 +1,27 @@
 """Save what a finished ask taught the hub as a reusable skill, with the user approving every byte.
 
   POST /api/missions/{id}/skill-draft     one model call drafts a SKILL.md from the ask -> {name, markdown, exists, existing}
-  POST /api/skills/save                   {name, markdown, overwrite?}  writes hub/agent_knowledge/skills/<name>/SKILL.md
+  POST /api/skills/save                   {name, markdown, overwrite?}  writes the skill into the USER's skills dir
+  GET  /api/skills                        the installed library plus the catalogue of presets still available
+  POST /api/skills/install/{id}           clone one catalogue preset at its pinned tag
+  DELETE /api/skills/{name}               remove one of the user's own skills
 
 Nothing is written by the draft. A skill that already exists is never replaced silently: the save is refused (409) with the current text
 until the caller repeats it with overwrite=true, which the UI only offers after showing the user both versions.
 """
 from __future__ import annotations
 
+import asyncio
+import json
 import re
+import shutil
+import tempfile
 from pathlib import Path
 
 from aiohttp import web
 
-from .. import agent_knowledge
+from .. import agent_knowledge, runtime as RT
+from ..config import logger
 from . import missions as M
 
 routes = web.RouteTableDef()
@@ -27,7 +35,8 @@ _SYSTEM = (
 
 
 def _skill_dir(name: str) -> Path:
-    return agent_knowledge.SKILLS_DIR / name
+    # Always the user's root. A skill you saved is yours, not part of the build.
+    return agent_knowledge.USER_SKILLS_DIR / name
 
 
 def _parse(md: str) -> dict:
@@ -97,3 +106,115 @@ async def api_save(request: web.Request) -> web.Response:
     d.mkdir(parents=True, exist_ok=True)
     f.write_text(md + "\n", encoding="utf-8")
     return web.json_response({"ok": True, "path": str(f)})
+
+
+# ── the catalogue: third-party skills a user can pull on demand ────────────────────────────────────────────────────
+
+CATALOGUE = Path(agent_knowledge.__file__).parent / "skills_catalogue.json"
+
+
+def catalogue() -> list[dict]:
+    """Presets from skills_catalogue.json, each marked with whether it is installed.
+
+    Read fresh every call: a preset added to the JSON should appear without a restart.
+    """
+    try:
+        entries = json.loads(CATALOGUE.read_text(encoding="utf-8-sig")).get("skills", [])
+    except (OSError, ValueError) as exc:
+        logger.warning("skill catalogue unreadable: %s", exc)
+        return []
+    have = {s["name"] for s in agent_knowledge.list_skills()}
+    out = []
+    for e in entries:
+        if not isinstance(e, dict) or not e.get("id") or not e.get("repo"):
+            continue
+        out.append({**e, "installed": e.get("name", e["id"]) in have})
+    return out
+
+
+def _tool_missing(entry: dict) -> str | None:
+    """Which prerequisite is absent, phrased for someone who did not read the docs."""
+    for tool in entry.get("needs", []):
+        if tool == "ffmpeg":
+            managed = RT.STATE / "runtimes/media/bin/ffmpeg.exe"
+            if managed.is_file() or shutil.which("ffmpeg"):
+                continue
+            return "ffmpeg. Set up Media Vault, or put ffmpeg on PATH."
+        exe = "npx" if tool == "node" else tool
+        if not shutil.which(exe):
+            return {"git": "Git.", "node": "Node.js."}.get(tool, tool + ".")
+    return None
+
+
+@routes.get("/api/skills")
+async def api_skills(request: web.Request) -> web.Response:
+    """The whole picture: what is in the library, and what can still be added."""
+    return web.json_response({"library": agent_knowledge.skills_overview(),
+                              "catalogue": catalogue(),
+                              "user_dir": str(agent_knowledge.USER_SKILLS_DIR)})
+
+
+@routes.post("/api/skills/install/{id}")
+async def api_install(request: web.Request) -> web.Response:
+    """Clone one catalogue entry at its pinned ref into the user's skills folder.
+
+    A tag, never a branch: `main` is whatever someone pushed this morning, and a
+    skill that changes under the user is not a skill they can rely on.
+    """
+    wanted = request.match_info["id"]
+    entry = next((e for e in catalogue() if e["id"] == wanted), None)
+    if entry is None:
+        raise web.HTTPNotFound(text=f"no catalogue entry {wanted!r}")
+    missing = _tool_missing(entry)
+    if missing:
+        raise web.HTTPBadRequest(text="This skill needs " + missing)
+
+    name = entry.get("name", entry["id"])
+    if not NAME_RX.match(name):
+        raise web.HTTPBadRequest(text=f"catalogue entry {wanted!r} has an unusable skill name")
+
+    def _clone() -> tuple[bool, str]:
+        with tempfile.TemporaryDirectory() as tmp:
+            run = RT.run(["git", "clone", "--depth", "1", "--branch", entry["ref"],
+                          entry["repo"], tmp + "/src"], 900)
+            if run.returncode:
+                return False, (run.stderr or run.stdout)[-3000:]
+            source = Path(tmp) / "src" / entry.get("path", ".")
+            if not (source / "SKILL.md").is_file():
+                return False, f"{entry['repo']} {entry['ref']} has no {entry.get('path')}/SKILL.md. The upstream layout changed."
+            target = agent_knowledge.INSTALLED_SKILLS_DIR / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.rmtree(target, ignore_errors=True)
+            shutil.copytree(source, target)
+            return True, str(target)
+
+    ok, detail = await asyncio.to_thread(_clone)
+    if not ok:
+        raise web.HTTPBadGateway(text=detail)
+    try:
+        from ..agent_knowledge.skills_sync import publish_skills
+        await asyncio.to_thread(publish_skills)
+    except Exception as exc:                                  # publishing is best effort
+        logger.warning("skill %s installed but not published: %s", name, exc)
+    logger.info("installed catalogue skill %s (%s) at %s", name, entry["ref"], detail)
+    return web.json_response({"ok": True, "name": name, "ref": entry["ref"], "path": detail})
+
+
+@routes.delete("/api/skills/{name}")
+async def api_remove(request: web.Request) -> web.Response:
+    """Remove a skill from the user's folder. Shipped skills are not ours to delete."""
+    name = request.match_info["name"]
+    if not NAME_RX.match(name):
+        raise web.HTTPBadRequest(text="bad skill name")
+    target = next((d / name for d in (agent_knowledge.USER_SKILLS_DIR,
+                                      agent_knowledge.INSTALLED_SKILLS_DIR)
+                   if d != agent_knowledge.SKILLS_DIR and (d / name).is_dir()), None)
+    if target is None:
+        raise web.HTTPNotFound(text=f"{name} is not one of your skills; shipped skills cannot be removed")
+    shutil.rmtree(target)
+    try:
+        from ..agent_knowledge.skills_sync import publish_skills
+        await asyncio.to_thread(publish_skills)
+    except Exception:
+        pass
+    return web.json_response({"ok": True, "name": name})

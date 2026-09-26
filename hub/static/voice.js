@@ -4,11 +4,11 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   const KEY = 'hubVoiceSession';
-  const S = { on: false, speaking: false, pending: null, history: [], stream: null, ctx: null, an: null, whisper: null, voice: null, voiceboxProfile: null, voiceboxOnline: false, mode: 'tts', mute: false,
+  const S = { on: false, speaking: false, pending: null, history: [], stream: null, ctx: null, an: null, whisper: null, voice: null, mute: false,
               audio: null, actx: null, stop: null, carry: null, turn: 0, capture: 0, listen: 0, busy: false,
               requests: new Set(), loop: null, compact: location.pathname === '/missions', expanded: false, context: null };
   const BUF = new Uint8Array(1024);
-  try { S.voice = localStorage.getItem('hubVoiceName'); S.mode = 'tts'; S.mute = localStorage.getItem('hubVoiceMute') === '1'; } catch (e) {}
+  try { S.voice = localStorage.getItem('hubVoiceName'); S.mute = localStorage.getItem('hubVoiceMute') === '1'; } catch (e) {}
 
   // A deadline covers the response body as well as connection setup. Cancelling a turn ignores late replies.
   async function request(u, b, raw, timeout) {
@@ -84,10 +84,9 @@
       let done = false, node = null, deadline = null, audioUrl = null;
       const fin = () => { if (!done) { done = true; clearTimeout(deadline); if (audioUrl) URL.revokeObjectURL(audioUrl); S.stop = null; resolve(); } };
       S.stop = () => { try { if (S.audio) S.audio.pause(); } catch (e) {} try { if (node) node.stop(); } catch (e) {} try { speechSynthesis.cancel(); } catch (e) {} fin(); };
-      const useVoicebox = S.mode === 'voicebox' && S.voiceboxOnline && S.voiceboxProfile;
-      deadline = setTimeout(() => { if (!done && S.stop) S.stop(); }, useVoicebox ? 110000 : 45000);
+      deadline = setTimeout(() => { if (!done && S.stop) S.stop(); }, 45000);
       try {
-        const ab = await request(useVoicebox ? '/api/voice/voicebox/speak' : '/api/voice/speak', useVoicebox ? { text, profile: S.voiceboxProfile } : { text, voice: S.voice || undefined }, 'speech', useVoicebox ? 100000 : 20000);
+        const ab = await request('/api/voice/speak', { text, voice: S.voice || undefined }, 'speech', 20000);
         if (done) return;
         try {
           if (S.actx) { await S.actx.resume(); const buf = await S.actx.decodeAudioData(ab.slice(0)); if (done) return; node = S.actx.createBufferSource(); node.buffer = buf; node.connect(S.actx.destination); node.onended = fin; node.start(); return; }

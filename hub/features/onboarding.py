@@ -23,6 +23,10 @@ FILE = RT.STATE / 'onboarding.json'
 _task = None
 _state_lock = threading.RLock()
 _busy = asyncio.Lock()
+# The two that make a Hub a Hub. Shown first, and starred. Nothing is forced:
+# 'Set up as I use it' still walks past all of them.
+RECOMMENDED = ('tailscale', 'agents')
+
 CAPABILITIES = {
     'tailscale': ('Private device access', 'Install Tailscale, then sign in on this PC and every device using the same tailnet.'),
     'speech': ('TALK speech', 'Install isolated speech tools. Download only the model you select below.'),
@@ -32,6 +36,7 @@ CAPABILITIES = {
     'smb': ('Shared drive', 'Connect through Windows so Agent Hub never receives or stores a password.'),
     'agents': ('Agents and ingested apps', 'Install Node.js, Git and OpenCode plus an isolated Python runtime for app ingestion.'),
     'projects': ('Project discovery', 'Scan a folder you select, review the results, then add only the repositories you want.'),
+    'vision': ('Screen recording', 'Install the imaging tools that let a recorded routine find what it clicked. Needed only for machine routines.'),
 }
 
 
@@ -175,6 +180,13 @@ def install_one(capability: str, options: dict) -> tuple[str, str]:
             return 'failed', log
         ok, log = RT.install('apps', ['aiohttp', 'pytest', 'pillow'])
         return ('ready' if ok else 'failed'), ('Agent runtime and app-ingestion Python ready. Connect your model provider in OpenCode.' if ok else log)
+    if capability == 'vision':
+        ok, log = RT.install('vision', ['numpy', 'pillow'])
+        if not ok:
+            return 'failed', log
+        if not RT.modules_ready('vision', ['numpy', 'PIL']):
+            return 'failed', 'The imaging runtime installed but did not import. Retry setup.'
+        return 'ready', 'Screen recording is ready. Record a routine from Locations.'
     if capability == 'smb':
         return 'needs-input', 'Enter a share such as \\server\\share, connect through Windows, then test and save it.'
     return 'needs-input', 'Choose a folder to scan, then select the repositories to add.'
