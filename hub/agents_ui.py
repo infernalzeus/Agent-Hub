@@ -781,11 +781,16 @@ async function loadSkills(){
   const cnt = $('skl-count');
   if(cnt) cnt.textContent = SKILLS.library.length + ' installed'
                           + (pending ? ' \u00b7 ' + pending + ' available' : '');
+  // Always shown. Hiding it when the catalogue happened to be empty left no
+  // way to add anything at all.
   $('skills').innerHTML =
-      (add.length
-        ? `<div class="secthead">SKILLS YOU CAN ADD<span>pulled from their own repository at a pinned version, into your skills folder</span></div>`
-          + add.map(catalogueCard).join('')
-        : '')
+      `<div class="secthead">SKILLS YOU CAN ADD<span>pulled from their own repository at a pinned version, into your skills folder</span></div>`
+    + (add.length ? add.map(catalogueCard).join('')
+                  : `<div class="skl"><div class="body">Everything in the catalogue is installed. You can still
+                     write one: <b>NEW SKILL</b> has Agent Smith draft it from a description, and you approve the
+                     text before it is saved.</div>
+                     <div class="row"><button class="btn" onclick="newSkill()">NEW SKILL</button>
+                     <a class="btn" href="https://github.com/latent-spaces/brag" target="_blank" rel="noopener">BROWSE UPSTREAM</a></div></div>`)
     + `<div class="secthead">SKILL LIBRARY<span>${SKILLS.library.length} skills every agent session can reach</span></div>`
     + SKILLS.library.map(skillCard).join('');
 }
@@ -794,6 +799,13 @@ function openSkills(open){
   $('skl-modal').classList.toggle('open', open);
   $('skl-scrim').classList.toggle('open', open);
 }
+
+window.newSkill = () => {
+  // Agent Smith already drafts personas from a description; skills use the same
+  // route, so this points at the ask box rather than inventing a second flow.
+  location.href = '/missions?ask=' + encodeURIComponent(
+    'Write a reusable skill for my agents about: ');
+};
 
 window.installSkill = async (id, btn) => {
   const msg = $('skl-msg-'+id);

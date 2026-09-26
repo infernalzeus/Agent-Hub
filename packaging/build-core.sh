@@ -98,6 +98,54 @@ else
   cp "$EVIDENCE" "$OUT/release-evidence.json"
 fi
 
+
+# A frozen folder with no instructions reads as a copy of the source tree, which
+# is exactly what it looked like to the first person who opened it.
+write_readme() {
+  cat > "$PACKAGE/README-FIRST.txt" <<READMEEOF
+Agent Hub $VERSION
+
+WHAT THIS IS
+  One app that runs on this machine and serves a web interface your phone,
+  tablet and laptop can open. Nothing runs on anyone else's server.
+
+RUN IT
+  ./agent-hub
+
+  ...then open the address it prints. The first run shows a setup page where you
+  choose which optional tools to install; nothing is installed until you ask.
+
+IF ./agent-hub WILL NOT START
+  chmod +x agent-hub AgentHub
+  ./AgentHub                 # the binary directly, same thing
+
+REACHING IT FROM ANOTHER DEVICE
+  Agent Hub binds 127.0.0.1 - it is not on your network by default. Install
+  Tailscale on this machine and your phone, sign both into the same tailnet,
+  then run:  tailscale serve --bg 8081
+  The Locations page inside the Hub shows every address it answers on.
+
+WHAT IS IN THIS FOLDER
+  agent-hub        the launcher you run
+  AgentHub         the program itself
+  _internal/       its libraries and data - not meant to be edited
+  payloads/        offline installers for the optional tools
+
+  The .vbs launcher in the source repository is Windows-only and is not here.
+
+STOPPING IT
+  Ctrl-C in the terminal, or the power menu inside the Hub.
+READMEEOF
+  cat > "$PACKAGE/agent-hub" <<'LAUNCHEOF'
+#!/bin/sh
+# Start Agent Hub from wherever this folder happens to live.
+cd "$(dirname "$(readlink -f "$0")")" || exit 1
+exec ./AgentHub "$@"
+LAUNCHEOF
+  chmod +x "$PACKAGE/agent-hub" "$PACKAGE/AgentHub" 2>/dev/null || true
+}
+write_readme
+
 cd "$OUT"
 if [ "$(uname -s)" = "Darwin" ]; then
   # Unsigned: notarization needs a paid Apple Developer account, so first launch

@@ -75,10 +75,15 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: agent-hub-${{ matrix.name }}
+          # Name the products. `*.exe` also matched the frozen AgentHub.exe and the
+          # bundled python installer; `*.tar.gz` matched a payload. Every platform
+          # carries those payloads, so publish then saw the same filename in four
+          # artifact folders, uploaded it four times at once, and GitHub 404'd on
+          # the asset-metadata update — which is what failed the job.
           path: |
-            release/**/*.exe
-            release/**/*.dmg
-            release/**/*.tar.gz
+            release/**/Agent-Hub-Setup.exe
+            release/**/Agent-Hub-macOS.dmg
+            release/**/Agent-Hub-Linux.tar.gz
           if-no-files-found: error
 
   publish:
@@ -97,7 +102,12 @@ jobs:
       - name: Attach to the release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*
+          # Name them. A recursive glob also attached the raw AgentHub.exe and the
+          # bundled python-3.13.7 installer, which are build inputs, not downloads.
+          files: |
+            artifacts/**/Agent-Hub-Setup.exe
+            artifacts/**/Agent-Hub-macOS.dmg
+            artifacts/**/Agent-Hub-Linux.tar.gz
           fail_on_unmatched_files: false   # a platform may have failed; attach the rest
           draft: true                      # a human decides when it goes public
           generate_release_notes: true

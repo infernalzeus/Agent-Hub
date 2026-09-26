@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -731,6 +732,12 @@ def _ingest_brief(url: str, id_hint: str, name: str | None, emoji: str | None) -
         "reach it over the tailnet.\n\n"
         "Do NOT start its web server to verify — a compile/import check plus "
         "reading the entrypoint is enough (a running server blocks forever).\n\n"
+        f"The command must run on THIS operating system ({platform.system()}). A Procfile "
+        "is written for the deployment target, not for here: gunicorn and uwsgi are "
+        "Unix-only and will not import on Windows. Prefer a platform-specific file the "
+        "repo already ships (Procfile.windows, run.bat, a manage.py runserver task), "
+        "otherwise the framework's own server — and say in HUB_INGEST.md which you chose "
+        "and why.\n\n"
         "Write `app-hub.json` at the repo root (schema below; `serve` is always "
         '"direct") and `HUB_INGEST.md` (what it is, how it runs, the port, anything '
         "unusual — a DB, an API key, a build step). " + " ".join(hint) + "\n\n"
@@ -2763,6 +2770,27 @@ async def api_discard(request: web.Request) -> web.Response:
     as `discarded` (history). Use /forget to remove the row entirely."""
     await discard(request.match_info["id"])
     return web.json_response({"ok": True})
+
+
+@routes.post("/api/missions/{id}/archive")
+async def api_archive(request: web.Request) -> web.Response:
+    """Put it away without deciding on it.
+
+    Gmail's archive, not its delete: the working copy and the transcript stay, so
+    an archived ask can still be read and its diff still applied. A run that is
+    still going is stopped first — archiving something mid-flight and leaving it
+    running would be the worst of both.
+    """
+    mid = request.match_info["id"]
+    m = S.m.get(mid)
+    if not m:
+        raise web.HTTPNotFound(text="no such ask")
+    if m.status in ("running", "queued", "blocked"):
+        await abort(mid)
+    async with S.lock(mid):
+        m.status = "archived"
+        S.save(m)
+    return web.json_response({"ok": True, "status": "archived"})
 
 
 @routes.post("/api/missions/{id}/forget")
