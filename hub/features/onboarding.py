@@ -34,7 +34,7 @@ CAPABILITIES = {
     'files': ('File Browser', 'Use the included read-only browser with a folder you choose.'),
     'media': ('Media Vault', 'Create media folders and install yt-dlp and ffmpeg in an isolated runtime.'),
     'smb': ('Shared drive', 'Connect through Windows so Agent Hub never receives or stores a password.'),
-    'agents': ('AUTO LLM — agents and ingested apps', 'Install Node.js, Git and the OpenCode runtime, plus an isolated Python runtime for app ingestion. Claude Code, if you have it, is the second runtime and needs no key.'),
+    'agents': ('Auto-LLM — agents and ingested apps', 'Install Node.js, Git and the OpenCode runtime, plus an isolated Python runtime for app ingestion. Claude Code, if you have it, is the second runtime and needs no key.'),
     'projects': ('Project discovery', 'Scan a folder you select, review the results, then add only the repositories you want.'),
     'vision': ('Screen recording', 'Install the imaging tools that let a recorded routine find what it clicked. Needed only for machine routines.'),
 }
@@ -179,7 +179,7 @@ def install_one(capability: str, options: dict) -> tuple[str, str]:
         if not ok:
             return 'failed', log
         ok, log = RT.install('apps', ['aiohttp', 'pytest', 'pillow'])
-        return ('ready' if ok else 'failed'), ('AUTO LLM is ready. Connect a model provider with `opencode auth login`, or pick the Claude Code runtime on a mission to use a Claude subscription instead of a key.' if ok else log)
+        return ('ready' if ok else 'failed'), ('Auto-LLM is ready. Add a model provider key in LOCATIONS, or pick the Claude Code runtime on a mission to use a Claude subscription instead of a key.' if ok else log)
     if capability == 'vision':
         ok, log = RT.install('vision', ['numpy', 'pillow'])
         if not ok:
@@ -249,7 +249,7 @@ FREE_PROVIDERS = [
 
 
 def llm_access() -> dict:
-    """What AUTO LLM can actually talk to right now.
+    """What Auto-LLM can actually talk to right now.
 
     Two independent routes: OpenCode with a provider credential, or Claude Code
     with a subscription. Either is enough; neither means the first mission fails

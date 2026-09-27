@@ -1458,9 +1458,35 @@ async def _finalize(m: Mission, wt: Path, data_dir: Path, rc: int, stop: bool) -
                         m.error = (data_dir / "mission.log").read_text(encoding="utf-8")[-400:]
                     except Exception:
                         m.error = f"exit {rc}"
+        # An ingest's whole deliverable is app-hub.json. Without it there is
+        # nothing to review and APPLY can only refuse, so calling it "awaiting
+        # review" sends the user to an empty screen to find that out. Seen for
+        # real: a model answered BLOCKED on its first tool call, never listing
+        # the folder, and the mission still looked finished.
+        if m.kind == "ingest-app" and m.status == "awaiting_review"                 and not (wt / "app-hub.json").is_file():
+            m.status = "failed"
+            m.error = m.error or _last_words(data_dir) or                 "the agent finished without writing app-hub.json, so there is nothing to wire in"
         if m.status == "awaiting_review":
             _shadow(m)
         S.save(m)
+
+
+def _last_words(data_dir: Path) -> str:
+    """The agent's final message, for an error the user can actually act on."""
+    try:
+        lines = (data_dir / "mission.jsonl").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return ""
+    for line in reversed(lines):
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        if d.get("type") == "text":
+            text = ((d.get("part") or {}).get("text") or "").strip()
+            if text:
+                return text[:400]
+    return ""
 
 
 _IDLE_NUDGE = (
