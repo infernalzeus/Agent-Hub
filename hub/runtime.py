@@ -66,9 +66,10 @@ def python_for(capability: str) -> Path:
     return Path(sys.executable)
 
 
-def run(cmd: list[str], timeout: int = 900) -> subprocess.CompletedProcess:
+def run(cmd: list[str], timeout: int = 900, env: dict | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
-                          timeout=timeout, creationflags=0x08000000 if os.name == "nt" else 0)
+                          timeout=timeout, env=env,
+                          creationflags=0x08000000 if os.name == "nt" else 0)
 
 
 def usable_python(path: str) -> bool:

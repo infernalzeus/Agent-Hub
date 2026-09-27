@@ -1,10 +1,18 @@
+<div align="center">
+
+<img src="favicon-256.png" width="120" height="120" alt="Agent Hub">
+
 # Agent Hub
 
 **Your most powerful PC tools. At your fingertips, any device.**
 
+</div>
+
 One address on your own private network. Your phone, tablet and laptop reach the PC at
 home; the PC runs the work. Nothing is exposed to the internet, and nothing leaves your
 [Tailscale](https://tailscale.com/) network.
+
+<img src="docs/architecture.svg" alt="Agent Hub drawn as a circuit board: phone, tablet and laptop reach one address through Tailscale; the Hub feeds the autonomous LLM pipeline, PC control and the media vault." width="100%">
 
 ---
 
@@ -40,7 +48,7 @@ Describe a task. An agent picks it up and works in **its own git worktree** — 
 copy of your repo. You read the diff and decide:
 
 ```
-OpenCode ─▸ Missions ─▸ Dispatch ─┬─▸ Worktree ─▸ Review ─▸ Apply  (or discard)
+AUTO LLM ─▸ Missions ─▸ Dispatch ─┬─▸ Worktree ─▸ Review ─▸ Apply  (or discard)
                                   └─▸ Orchestrator
 ```
 
@@ -104,7 +112,10 @@ opt-in — skip anything you won't use):
   control*, not just a local web page — install it if that's the point for you.
 - **Any app you want fronted** (Movie Clipper, etc.) — your own repo, already runnable on
   its own. Hub only spawns/proxies it; see [Adding a new app](#adding-a-new-app).
-- **[OpenCode](https://github.com/sst/opencode)**, installed separately, if you want the
+- **A runtime for AUTO LLM.** Either **[OpenCode](https://github.com/sst/opencode)** (needs a model
+  provider: `opencode auth login`) or **Claude Code** (uses a Claude subscription, no key). The
+  runtime is chosen per mission; AUTO LLM is the capability, these are what it dispatches to.
+  Installed separately, if you want the
   AI-coding-session feature. Point `OPENCODE_ROOT` (`hub/features/opencode.py`) at it.
 - **YouTube upload/download** — only if you use those cards; see steps 3–4 below.
 

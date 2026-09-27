@@ -59,6 +59,9 @@ hub/apps.json
 # Runtime state written beside the code when running from source.
 hub/update.json
 hub/onboarding.json
+
+# Provider API keys the user typed into the Hub. A secret, per machine.
+hub/provider_keys.json
 hub/ingested_apps/
 
 # ── Build & release output — never in the repo (assets go to GitHub Releases) ──

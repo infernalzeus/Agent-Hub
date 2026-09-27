@@ -80,7 +80,8 @@ function toast(t){ const e=$('toast'); e.textContent=t; e.style.display='block';
 let DATA = null, CUR = {}, ERR = {};
 const GROUPS = ['PROJECTS','MISSIONS','KNOWLEDGE','FILES','TOOLS'];
 let MCPS = [], HTTPS = null, ADDR = null, UPD = null, ROUTINES = null, RTAB = 'mcp';
-async function load(){ try{ ROUTINES = (await jget('/api/pc/routines')).routines || []; }catch(e){ ROUTINES = null; } try{ UPD = await jget('/api/update'); }catch(e){ UPD = null; } try{ ADDR = await jget('/api/hub-address'); }catch(e){ ADDR = null; } try{ MCPS = (await jget('/api/mcp')).servers; }catch(e){ MCPS = []; } try{ HTTPS = await jget('/api/phone-https'); }catch(e){ HTTPS = null; } DATA = await jget('/api/locations'); CUR = {}; ERR = {}; DATA.items.forEach(i => CUR[i.key] = JSON.parse(JSON.stringify(i.value))); render(); }
+let KEYS = null, KEYMSG = {};
+async function load(){ try{ KEYS = await jget('/api/llm/keys'); }catch(e){ KEYS = null; } try{ ROUTINES = (await jget('/api/pc/routines')).routines || []; }catch(e){ ROUTINES = null; } try{ UPD = await jget('/api/update'); }catch(e){ UPD = null; } try{ ADDR = await jget('/api/hub-address'); }catch(e){ ADDR = null; } try{ MCPS = (await jget('/api/mcp')).servers; }catch(e){ MCPS = []; } try{ HTTPS = await jget('/api/phone-https'); }catch(e){ HTTPS = null; } DATA = await jget('/api/locations'); CUR = {}; ERR = {}; DATA.items.forEach(i => CUR[i.key] = JSON.parse(JSON.stringify(i.value))); render(); }
 const chip = (s) => s ? `<span class="chip ${esc(s.level)}">${esc(s.msg)}</span>` : '';
 
 function updateCard(){
@@ -121,10 +122,25 @@ function render(){
   h += first ? `<div class="welcome"><b>WELCOME — WHERE SHOULD AGENT HUB READ AND WRITE?</b><p>Everything below is prefilled with what was found on this computer. Change what you like, then press SAVE. Nothing is created until you save, and you can come back to this page any time (OpenCode card, LOCATIONS).</p></div>` : '';
   for(const g of GROUPS){
     const items = DATA.items.filter(i => i.group===g); if(!items.length) continue;
-    h += `<h2>${g}</h2>` + items.map(itemHtml).join('') + (g==='TOOLS' ? extraTools() : '');
+    h += `<h2>${g}</h2>` + items.map(itemHtml).join('')
+       + (g==='MISSIONS' ? providersCard() : '') + (g==='TOOLS' ? extraTools() : '');
   }
   $('main').innerHTML = h;
   document.querySelectorAll('[data-rtab]').forEach(b => b.onclick = () => { RTAB = b.dataset.rtab; render(); });
+  document.querySelectorAll('[data-keysave]').forEach(b => b.onclick = async () => {
+    const id = b.dataset.keysave, box = $('key-'+id), key = (box.value||'').trim();
+    if(!key){ KEYMSG[id] = 'Paste a key first.'; render(); return; }
+    b.disabled = true; b.textContent = 'CHECKING\u2026';
+    try{ const r = await jsend('POST','/api/llm/keys',{provider:id, key});
+         KEYMSG[id] = r.msg || 'Saved.'; KEYS = await jget('/api/llm/keys'); render(); toast('Connected'); }
+    catch(e){ KEYMSG[id] = (e.data && e.data.msg) || String(e.message||e); KEYS = await jget('/api/llm/keys'); render(); }
+  });
+  document.querySelectorAll('[data-keyrm]').forEach(b => b.onclick = async () => {
+    const id = b.dataset.keyrm; b.disabled = true;
+    try{ await jsend('DELETE','/api/llm/keys/'+encodeURIComponent(id));
+         KEYMSG[id] = 'Removed from this PC.'; KEYS = await jget('/api/llm/keys'); render(); }
+    catch(e){ KEYMSG[id] = String(e.message||e); render(); }
+  });
   document.querySelectorAll('[data-rstatus]').forEach(b => b.onclick = async () => {
     b.disabled = true;
     try{ await jsend('POST','/api/pc/routines/'+encodeURIComponent(b.dataset.rstatus)+'/status', {status: b.dataset.to});
@@ -184,7 +200,9 @@ function routineRow(r){
   const acted = r.successes + r.failures;
   return `<div class="rt"><div class="h"><b>${esc(r.title)}</b>`
     + `<span class="chip ${tone}">${esc(r.status)}</span>`
-    + `<span class="chip">${r.tool==='launch'||r.tool==='App' ? 'launch' : esc(r.steps)+' step'+(r.steps===1?'':'s')}</span>`
+    + `<span class="chip">${r.tool==='launch'||r.tool==='App' ? 'launch'
+         : r.tool==='recipe' ? 'recipe'
+         : esc(r.steps)+' step'+(r.steps===1?'':'s')}</span>`
     + (r.profile ? `<span class="chip">${esc(r.profile)}</span>` : '')
     + (r.lowest_match!=null ? `<span class="chip ${r.lowest_match>=0.9?'ok':(r.lowest_match>=0.8?'warn':'error')}">lowest match ${Math.round(r.lowest_match*100)}%</span>` : '')
     + `<span class="meta">${r.successes} ok \u00b7 ${r.failures} failed${acted?' \u00b7 last used '+esc(when):''}</span>`
@@ -199,12 +217,20 @@ function routinesCard(){
   if(ROUTINES === null) return '';
   const mcp = ROUTINES.filter(r => (r.kind||'mcp')==='mcp');
   const machine = ROUTINES.filter(r => (r.kind||'mcp')==='machine');
+  const recipes = ROUTINES.filter(r => r.kind==='ingest');
   const tab = (id, label, n) => `<button class="btn ${RTAB===id?'on':''}" data-rtab="${id}">${label} (${n})</button>`;
   let body;
   if(RTAB === 'mcp'){
     body = mcp.length ? mcp.map(routineRow).join('')
       : `<div class="rt-empty">Nothing learned yet. Ask TALK to open an application and it is saved here as a
          candidate; two clean runs make it trusted.</div>`;
+  } else if(RTAB === 'ingest'){
+    body = recipes.length ? recipes.map(routineRow).join('')
+      : `<div class="rt-empty">Nothing learned yet. The first time you ingest an app, the agent works out
+         how to start it; that answer is kept here as a <b>recipe</b> for that shape of project
+         (Django with a manage.py, a Node app with a package.json, and so on). The second app of the same
+         shape is wired in with <b>no model call at all</b> \u2014 seconds instead of minutes.
+         A recipe stores the command, not the port, so two apps of one shape never collide.</div>`;
   } else {
     body = machine.length ? machine.map(routineRow).join('')
       : `<div class="rt-empty">Nothing recorded yet. These are sequences you teach by
@@ -217,8 +243,41 @@ function routinesCard(){
     + `<span class="chip">${ROUTINES.length} saved</span></div>`
     + `<div class="lp">What the hub has learned to do on this PC. A routine only replays onto the screen it was
        recorded against; if that screen changed it refuses rather than clicking blind.</div>`
-    + `<div class="tabs">${tab('mcp','MCP ROUTINES',mcp.length)}${tab('machine','MACHINE ROUTINES',machine.length)}</div>`
+    + `<div class="tabs">${tab('mcp','MCP ROUTINES',mcp.length)}${tab('machine','MACHINE ROUTINES',machine.length)}${tab('ingest','APP RECIPES',recipes.length)}</div>`
     + body + `</div>`;
+}
+
+function providersCard(){
+  if(!KEYS) return '';
+  const row = (p) => {
+    const msg = KEYMSG[p.id] || '';
+    const bad = /reject|not|could not|does not/.test(msg);
+    return `<div class="loc" style="margin:7px 0">`
+      + `<div class="lh"><b>${esc(p.label)}</b>`
+      + (p.configured ? `<span class="chip" style="color:var(--accent);border-color:var(--border-bright)">CONNECTED</span>`
+                      : `<span class="chip">not connected</span>`)
+      + (p.configured && !p.in_hub ? `<span class="chip">added in opencode</span>` : '')
+      + `<span style="flex:1"></span>`
+      + `<a class="btn" href="${esc(p.create)}" target="_blank" rel="noopener">GET A KEY \u2197</a>`
+      + (p.in_hub ? `<button class="btn" data-keyrm="${p.id}">REMOVE</button>` : '')
+      + `</div>`
+      + `<div class="lin" style="display:flex;gap:7px;margin-top:7px">`
+      + `<input type="password" autocomplete="off" spellcheck="false" id="key-${p.id}"`
+      + ` placeholder="${p.configured ? 'Paste a new key to replace it' : 'Paste the key here'}">`
+      + `<button class="btn go" data-keysave="${p.id}">CHECK &amp; SAVE</button></div>`
+      + (msg ? `<div class="lp" style="margin:6px 0 0;color:${bad?'var(--danger,#ff6b6b)':'var(--accent)'}">${esc(msg)}</div>` : '');
+  };
+  const n = KEYS.providers.filter(p => p.configured).length;
+  return `<div class="loc" id="providers"><div class="lh"><b>Model providers</b>`
+    + `<span class="chip">${n} connected</span></div>`
+    + `<div class="lp">Where AUTO LLM gets its thinking. Paste a key and the hub asks the provider whether it
+       works before saving it \u2014 a bad key is refused here instead of failing a mission ten minutes in.
+       The key is stored on this PC only, outside your project folders, and is never shown again or sent
+       anywhere except that provider. A Claude or Codex subscription needs no key: pick that runtime on a
+       mission instead.</div>`
+    + KEYS.providers.map(row).join('')
+    + (KEYS.other.length ? `<div class="lp">Also connected through opencode: ${esc(KEYS.other.join(', '))}</div>` : '')
+    + `</div>`;
 }
 
 function extraTools(){

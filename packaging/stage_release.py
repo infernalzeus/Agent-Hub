@@ -14,7 +14,7 @@ import re
 import shutil
 
 EXTENSIONS = {'.py', '.json', '.js', '.css', '.html', '.md', '.txt', '.png', '.svg', '.jpg', '.jpeg', '.ico', '.pdf', '.zip', '.gz', '.yaml', '.yml', '.sh', '.ts', '.tsx', '.cjs', '.mjs'}
-PRIVATE = {'local_settings.py', 'locations.json', 'apps.json', 'onboarding.json', 'cookies.txt', 'client_secrets.json', 'credentials', 'data', '__pycache__', '.git', 'ingested_apps', 'skills_compiled', 'skills_installed', 'logs'}
+PRIVATE = {'local_settings.py', 'locations.json', 'apps.json', 'onboarding.json', 'provider_keys.json', 'cookies.txt', 'client_secrets.json', 'credentials', 'data', '__pycache__', '.git', 'ingested_apps', 'skills_compiled', 'skills_installed', 'logs'}
 ROOT_FILES = ('app.py', 'favicon.png', 'favicon-64.png', 'favicon-256.png', 'favicon.ico', 'requirements-youtube.txt')
 
 

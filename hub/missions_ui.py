@@ -517,7 +517,7 @@ function card(m,child){
   const dotCls = m.status==='running' ? 'running' : m.status;
   return `<div class="card ${child?'child':''} ${need?'needs':''} ${m.id===SEL?'sel':''} ${open?'open':''}" data-id="${m.id}" title="${need?esc(need[2]):''}">
     <div class="pj">${ic('folder')}${esc(m.project_name)}</div>
-    <div class="top"><span class="dot ${dotCls}"></span>${need?`<span class="tag-act tag-${need[1]}">${need[0]}</span>`:`<span style="font-size:10.5px;color:var(--text-muted);letter-spacing:.4px">${esc(sname(m.status))}</span>`}${prof}${m.runtime==='claude-code'?'<span class="pill">claude</span>':''}<span class="spacer"></span>
+    <div class="top"><span class="dot ${dotCls}"></span>${need?`<span class="tag-act tag-${need[1]}">${need[0]}</span>`:`<span style="font-size:10.5px;color:var(--text-muted);letter-spacing:.4px">${esc(sname(m.status))}</span>`}${prof}${m.runtime==='claude-code'?'<span class="pill">claude</span>':''}${m.model?`<span class="pill" title="${esc(m.model)}${m.model_note?' \u2014 '+esc(m.model_note):''}">${esc(shortM(m.model))}${m.model_note?' \u26a0':''}</span>`:''}<span class="spacer"></span>
       <span style="font-size:10px;color:var(--text-faint)">${ago(m.created)}</span><span class="chev">${ic(open?'chevu':'chevd')}</span></div>
     <div class="asktxt">${esc(m.brief)}</div>
     ${open ? deep(m) : `<div class="mt">${m.changed?`<span>${m.changed} file${m.changed>1?'s':''}</span>`:''}${cardTime(m)}${cardModels(m)}</div>`}

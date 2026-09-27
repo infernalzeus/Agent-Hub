@@ -46,6 +46,15 @@
 AppId={{{#InstanceId}}
 AppName={#AppName}
 AppVersion={#AppVersion}
+; The asset filename has to stay fixed — releases/latest/download resolves by
+; exact name, so versioning it would break every download link on the site. Put
+; the version in the FILE instead: right-click the installer, Properties,
+; Details. Add/Remove Programs reads these too.
+VersionInfoVersion={#AppVersion}
+VersionInfoProductVersion={#AppVersion}
+VersionInfoProductName={#AppName}
+VersionInfoCompany=InfernalZeus
+VersionInfoDescription={#AppName} {#AppVersion} installer
 AppPublisher=InfernalZeus
 DefaultDirName={localappdata}\{#InstallDir}
 DefaultGroupName={#AppName}

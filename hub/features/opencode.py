@@ -43,6 +43,7 @@ from ..agent_knowledge import status as ak_status
 from ..config import PORT as HUB_PORT, logger
 from ..platform_win import _assign_to_job
 from ..runtime import capability_ready
+from . import llm_keys as LLMK
 
 # ── constants ──────────────────────────────────────────────────────────────
 OPENCODE_ROOT = Path(LOC.get("opencode_home"))
@@ -200,6 +201,9 @@ def _probe_models_cli(timeout: float = 10.0) -> list[dict]:
     try:
         env = os.environ.copy()
         env["OPENCODE_CONFIG"] = OPENCODE_CONFIG
+        # Without credentials `models` lists only what needs none, so the picker
+        # would show a short list and look broken.
+        LLMK.inject(env)
         out = subprocess.run([OPENCODE_EXE, "models"], capture_output=True, text=True,
                              timeout=timeout, env=env).stdout
     except Exception as exc:
@@ -676,6 +680,7 @@ class Runtime:
         env["PYTHONIOENCODING"] = "utf-8"
         env["OPENCODE_CONFIG"] = str(session_cfg)
         env["XDG_DATA_HOME"] = str(data_dir)      # per-project opencode.db — no shared "current project" row
+        LLMK.inject(env)                          # ...which is also where auth.json would be looked for
         if AUTH_ENABLED:
             env["OPENCODE_SERVER_USERNAME"] = SERVER_USERNAME
             env["OPENCODE_SERVER_PASSWORD"] = SERVER_PASSWORD

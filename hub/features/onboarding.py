@@ -34,7 +34,7 @@ CAPABILITIES = {
     'files': ('File Browser', 'Use the included read-only browser with a folder you choose.'),
     'media': ('Media Vault', 'Create media folders and install yt-dlp and ffmpeg in an isolated runtime.'),
     'smb': ('Shared drive', 'Connect through Windows so Agent Hub never receives or stores a password.'),
-    'agents': ('Agents and ingested apps', 'Install Node.js, Git and OpenCode plus an isolated Python runtime for app ingestion.'),
+    'agents': ('AUTO LLM — agents and ingested apps', 'Install Node.js, Git and the OpenCode runtime, plus an isolated Python runtime for app ingestion. Claude Code, if you have it, is the second runtime and needs no key.'),
     'projects': ('Project discovery', 'Scan a folder you select, review the results, then add only the repositories you want.'),
     'vision': ('Screen recording', 'Install the imaging tools that let a recorded routine find what it clicked. Needed only for machine routines.'),
 }
@@ -179,7 +179,7 @@ def install_one(capability: str, options: dict) -> tuple[str, str]:
         if not ok:
             return 'failed', log
         ok, log = RT.install('apps', ['aiohttp', 'pytest', 'pillow'])
-        return ('ready' if ok else 'failed'), ('Agent runtime and app-ingestion Python ready. Connect your model provider in OpenCode.' if ok else log)
+        return ('ready' if ok else 'failed'), ('AUTO LLM is ready. Connect a model provider with `opencode auth login`, or pick the Claude Code runtime on a mission to use a Claude subscription instead of a key.' if ok else log)
     if capability == 'vision':
         ok, log = RT.install('vision', ['numpy', 'pillow'])
         if not ok:
@@ -230,6 +230,62 @@ async def body(request):
     if not isinstance(value, dict):
         raise web.HTTPBadRequest(text='Send a JSON object.')
     return value
+
+
+# Free tiers worth registering, in the order I would try them. Rate limits move
+# constantly, so this lists what to run rather than promising what you will get.
+# `auth login` PROMPTS for a key — it cannot go and get one. So each entry says
+# where to create the key first, which is the step that was missing.
+FREE_PROVIDERS = [
+    ("google", "Google AI Studio", "Gemini Flash. The most generous free tier; no card.",
+     "https://aistudio.google.com/apikey"),
+    ("groq", "Groq", "Very fast on open-weight models.",
+     "https://console.groq.com/keys"),
+    ("openrouter", "OpenRouter", "One key across many providers, with its own failover.",
+     "https://openrouter.ai/keys"),
+    ("mistral", "Mistral", "Permanent free tier.",
+     "https://console.mistral.ai/api-keys"),
+]
+
+
+def llm_access() -> dict:
+    """What AUTO LLM can actually talk to right now.
+
+    Two independent routes: OpenCode with a provider credential, or Claude Code
+    with a subscription. Either is enough; neither means the first mission fails
+    with a provider error and no explanation.
+    """
+    from . import opencode as OCM
+    out = {"opencode_credentials": 0, "providers": [], "claude_code": False,
+           "ollama": False, "free_providers": FREE_PROVIDERS}
+    exe = Path(OCM.OPENCODE_EXE)
+    # The hub runs opencode from its own folder and never puts it on PATH, so the
+    # only command a user can actually run is one carrying this path.
+    out["opencode_exe"] = str(exe) if exe.is_file() else ""
+    if exe.is_file():
+        # Count with the same credentials a mission gets, not with whatever
+        # happens to be in the user's default data home.
+        from . import llm_keys as LLMK
+        run = RT.run([str(exe), "auth", "list"], 60, env=LLMK.inject(dict(os.environ)))
+        text = (run.stdout or "") + (run.stderr or "")
+        import re as _re
+        found = _re.search(r"(\d+)\s+credential", text)
+        out["opencode_credentials"] = int(found.group(1)) if found else 0
+        out["providers"] = sorted({ln.strip().split()[0] for ln in text.splitlines()
+                                   if ln.strip() and ln.strip()[0].isalpha()
+                                   and "credential" not in ln.lower()})[:8]
+    out["claude_code"] = bool(shutil.which("claude"))
+    # The same path missions.py starts on a cold boot, plus PATH.
+    ollama_app = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Ollama" / "ollama app.exe"
+    out["ollama"] = ollama_app.is_file() or bool(shutil.which("ollama"))
+    out["ready"] = out["opencode_credentials"] > 0 or out["claude_code"] or out["ollama"]
+    return out
+
+
+@routes.get("/api/onboarding/llm")
+async def api_llm_access(request: web.Request) -> web.Response:
+    """Read-only. Never logs in — a credential is typed by you, into opencode."""
+    return web.json_response(await asyncio.to_thread(llm_access))
 
 
 @routes.get('/onboarding')
