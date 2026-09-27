@@ -35,6 +35,7 @@ from .. import decide as DEC
 from ..config import logger
 from ..platform_win import _assign_to_job
 from ..runtime import python_for
+from . import llm_keys as LLMK
 from . import opencode as OCM   # reuse worktree / model / merge / materialize helpers
 from . import claude_runtime as CRT   # second runtime: Claude Code CLI, alongside OpenCode
 
@@ -44,6 +45,11 @@ MISSIONS_DIR = OCM.WORKTREES / "_missions"
 MISSION_TIMEOUT = 600          # a mission running longer than this is flagged/timed out
 LOCAL_MISSION_TIMEOUT = 1200  # ollama/* runs re-read the whole prompt every step — slower, not stuck
 STALL_SECS = 150               # one model call with no event for this long = stalled gateway/model: kill it, fail over
+# Silence is not the only way to be stuck. A model can narrate continuously and
+# still make no move; that reads as healthy to STALL_SECS and eats the whole
+# mission budget. This clock only moves when the agent DOES something.
+NO_PROGRESS_SECS = 300         # no tool call / step finished for this long = failing over
+LOCAL_NO_PROGRESS_SECS = 600   # a local model thinks between moves; give it longer
 LOCAL_STALL_SECS = 420         # a big local model re-reading the prompt is slow, not stuck
 QUIET_DONE_SECS = 20           # idle this long after the agent's final "stop" → done
 EVENT_KEEP = 300               # events held in memory per mission for the SSE tail
@@ -148,7 +154,10 @@ class Store:
 
     def load(self) -> None:
         MISSIONS_DIR.mkdir(parents=True, exist_ok=True)
-        for f in MISSIONS_DIR.glob("*.json"):
+        # Mission records are <id>.json. The folder also holds schedules.json and
+        # the decision log, so a bare *.json glob tried to build a Mission out of
+        # a list and warned on every start.
+        for f in MISSIONS_DIR.glob("m*.json"):
             try:
                 d = json.loads(f.read_text(encoding="utf-8"))
                 m = Mission(**d)
@@ -715,7 +724,8 @@ async def _clone_for_ingest(url: str, slug: str, branch: str | None) -> dict:
     return {"worktree": wt, "branch": wbranch, "base": base}
 
 
-def _ingest_brief(url: str, id_hint: str, name: str | None, emoji: str | None) -> str:
+def _ingest_brief(url: str, id_hint: str, name: str | None, emoji: str | None,
+                  is_local: bool = False) -> str:
     hint = []
     if name:
         hint.append(f'Use the name "{name}".')
@@ -724,8 +734,10 @@ def _ingest_brief(url: str, id_hint: str, name: str | None, emoji: str | None) -
     if emoji:
         hint.append(f'Use the emoji "{emoji}".')
     return (
-        f"This folder is a fresh clone of {url}. Onboard it as a hub app.\n\n"
-        "Work out: framework · the one-shot install command · the argv command to "
+        (f"This folder is an app already installed on this PC ({url}). Do NOT change it, "
+         "do NOT install anything, and do NOT move it. Work out how to START it.\n\n"
+         if is_local else f"This folder is a fresh clone of {url}. Onboard it as a hub app.\n\n")
+        + "Work out: framework · the one-shot install command · the argv command to "
         "run its web server (`$PYTHON` token for Python) · the PORT it listens on "
         "(if configurable, pick a free port in 8110-8199 and pin it) · a health "
         "path that returns 200. Make it bind 0.0.0.0 (via env/args) so the hub can "
@@ -750,22 +762,86 @@ def _ingest_brief(url: str, id_hint: str, name: str | None, emoji: str | None) -
 async def dispatch_ingest(url: str, name: str | None = None, emoji: str | None = None,
                           branch: str | None = None) -> Mission:
     url = (url or "").strip()
+    local = None
     if not re.match(r"^(https?://|git@)", url):
-        raise ValueError("give an http(s):// or git@ URL")
+        # A path, not a URL: the app is already here. This is the common case —
+        # wiring in something you built, not fetching something you have not.
+        candidate = Path(url).expanduser()
+        if not candidate.is_dir():
+            raise ValueError("give an http(s):// or git@ URL, or a folder on this PC")
+        local = candidate.resolve()
     mid = _new_id()
     raw = (name or url.rstrip("/").split("/")[-1]).replace(".git", "")
     id_hint = re.sub(r"[^a-z0-9]+", "-", raw.lower()).strip("-") or "app"
+    # A shape we have started before needs no model at all. This is the whole
+    # point of a recipe: the second Django app costs seconds, not minutes.
+    if local is not None:
+        from . import ingest_recipes as IR
+        sig = IR.signature(local)
+        known = IR.find(sig)
+        if known:
+            taken = {int(a.get("port") or 0) for a in config.APPS.values()}
+            man = IR.manifest_from(known, local, id_hint, name or id_hint, taken)
+            if man:
+                logger.info("ingest: recipe %s matched %s — no model call", known["id"], local)
+                return await _register_from_recipe(m_id=mid, folder=local, manifest=man,
+                                                   recipe_id=known["id"], emoji=emoji)
+            logger.info("ingest: recipe matched but no free port; falling back to the agent")
+
     slug = f"ingest-{id_hint[:24]}--{mid}"
-    wt = await _clone_for_ingest(url, slug, (branch or "").strip() or None)
-    m = Mission(id=mid, project_slug=id_hint, project_path=url,
+    if local is not None:
+        # Examined in place. Nothing is copied, nothing is branched: the agent is
+        # working out how to START this app, not changing it.
+        wt = {"worktree": local, "branch": "", "base": ""}
+    else:
+        wt = await _clone_for_ingest(url, slug, (branch or "").strip() or None)
+    m = Mission(id=mid, project_slug=id_hint, project_path=str(local) if local else url,
                 project_name=(name or id_hint).strip() or id_hint,
-                brief=_ingest_brief(url, id_hint, name, emoji),
+                brief=_ingest_brief(url, id_hint, name, emoji, is_local=local is not None),
                 agent="app-ingestor", kind="ingest-app", status="running",
                 worktree=str(wt["worktree"]), branch=wt["branch"], base_branch=wt["base"])
     S.m[mid] = m
     S.events[mid] = deque(maxlen=EVENT_KEEP)
     S.save(m)
     asyncio.create_task(_run(m))
+    return m
+
+
+async def _register_from_recipe(*, m_id: str, folder: Path, manifest: dict,
+                                recipe_id: str, emoji: str | None) -> "Mission":
+    """Wire the app in immediately, and leave a record that says how.
+
+    Still a Mission, so it appears on the board and can be archived like anything
+    else — but it arrives already applied, because nothing was guessed: the
+    command came from a recipe that has worked twice on this shape.
+    """
+    from . import ingest_recipes as IR
+    manifest = {**manifest, "emoji": emoji or manifest.get("emoji") or "\U0001F4E6"}
+    entry = {
+        "id": manifest["id"], "name": manifest["name"], "emoji": manifest["emoji"],
+        "cwd": str(folder), "cmd": [str(a) for a in manifest["cmd"]],
+        "port": int(manifest["port"]), "serve": manifest.get("serve") or "proxy",
+        "base_path": f"/app/{manifest['id']}", "health_path": manifest.get("health_path") or "/",
+        "idle_minutes": int(manifest.get("idle_minutes") or 20),
+        "install": manifest.get("install"), "env": manifest.get("env") or {},
+        "builtin": False, "source": str(folder), "hidden": False,
+    }
+    app_registry.add(entry)
+    config.reload_apps()
+    from ..supervisor import rebuild_app_procs   # local, as the agent path does
+    rebuild_app_procs()
+    IR.remember(IR.signature(folder), manifest, success=True)
+
+    m = Mission(id=m_id, project_slug=manifest["id"], project_path=str(folder),
+                project_name=manifest["name"],
+                brief=f"Wired in {folder} using the learned recipe for this kind of app. "
+                      f"No model was called.",
+                agent="app-ingestor", kind="ingest-app", status="applied",
+                worktree=str(folder), branch="", base_branch="")
+    m.ended = time.time()
+    S.m[m_id] = m
+    S.events[m_id] = deque(maxlen=EVENT_KEEP)
+    S.save(m)
     return m
 
 
@@ -786,21 +862,29 @@ async def _apply_ingest(m: Mission) -> dict:
     if aid in config.APPS:
         return {"ok": False, "reason": f"an app '{aid}' is already wired in — remove it first"}
 
-    dest = app_registry.INGESTED / aid
-    if dest.exists():
-        shutil.rmtree(dest, ignore_errors=True)
-    dest.parent.mkdir(parents=True, exist_ok=True)
+    # An app that was already on this PC stays where it is. Copying it into the
+    # hub would fork it: you would edit one copy and run the other.
+    in_place = not str(m.worktree).startswith(str(OCM.WORKTREES))
+    if in_place:
+        dest = Path(m.worktree)
+    else:
+        dest = app_registry.INGESTED / aid
+        if dest.exists():
+            shutil.rmtree(dest, ignore_errors=True)
+        dest.parent.mkdir(parents=True, exist_ok=True)
     ignore = shutil.ignore_patterns(
         ".git", ".ocdata", ".opencode", "AGENTS.md", "opencode.json", "app-hub.json",
         "HUB_INGEST.md", ".agent-hub-base", ".agent-hub-origin",
         ".agent-hub-ready-to-push", "__pycache__", "*.pyc")
-    await asyncio.get_running_loop().run_in_executor(
-        None, lambda: shutil.copytree(wt, dest, ignore=ignore))
+    if not in_place:
+        await asyncio.get_running_loop().run_in_executor(
+            None, lambda: shutil.copytree(wt, dest, ignore=ignore))
 
     entry = {
         "id": aid, "name": man.get("name") or m.project_name or aid,
         "emoji": man.get("emoji") or "\U0001F4E6",
-        "cwd": f"$HUB/ingested_apps/{aid}",
+        # Movie Clipper's shape: an absolute path to where the app really lives.
+        "cwd": str(dest) if in_place else f"$HUB/ingested_apps/{aid}",
         "cmd": [str(a) for a in man["cmd"]], "port": int(man["port"]),
         "serve": man.get("serve") or "direct",
         "base_path": man.get("base_path") or f"/app/{aid}",
@@ -818,13 +902,23 @@ async def _apply_ingest(m: Mission) -> dict:
                 stderr=asyncio.subprocess.PIPE)
             _, err = await asyncio.wait_for(p.communicate(), timeout=900)
             if p.returncode != 0:
-                shutil.rmtree(dest, ignore_errors=True)
+                if not in_place:                      # never delete the user's own folder
+                    shutil.rmtree(dest, ignore_errors=True)
                 return {"ok": False, "reason": "install failed:\n"
                         + (err or b"").decode("utf-8", "replace")[-600:]}
             (dest / ".hub-installed").write_text("ok", encoding="utf-8")
         except Exception as exc:
-            shutil.rmtree(dest, ignore_errors=True)
+            if not in_place:
+                shutil.rmtree(dest, ignore_errors=True)
             return {"ok": False, "reason": f"install error: {exc}"}
+
+    # What you APPLIED is, by definition, what worked on this shape. Keep it, so
+    # the next app of the same shape costs no model call at all.
+    try:
+        from . import ingest_recipes as IR
+        IR.remember(IR.signature(Path(m.worktree)), {**man, "id": aid}, success=True)
+    except Exception as exc:                   # learning is a bonus, never a blocker
+        logger.warning("ingest: could not save a recipe: %s", exc)
 
     app_registry.add(entry)
     config.reload_apps()
@@ -924,6 +1018,7 @@ async def _stream_one(m: Mission, wt: Path, data_dir: Path, agent: str, brief: s
     env["PYTHONIOENCODING"] = "utf-8"
     env["XDG_DATA_HOME"] = str(data_dir)
     env["OPENCODE_CONFIG"] = str(wt / "opencode.json")
+    LLMK.inject(env)
 
     cmd = [OCM.OPENCODE_EXE, "run", "--dir", str(wt), "--agent", agent, "--format", "json"]
     if m.model:
@@ -945,16 +1040,30 @@ async def _stream_one(m: Mission, wt: Path, data_dir: Path, agent: str, brief: s
     m.pid = proc.pid
     S.procs[m.id] = proc
 
-    st = {"last": time.monotonic(), "stop": False}
+    # "last" = any output at all. "moved" = the agent actually did something.
+    st = {"last": time.monotonic(), "moved": time.monotonic(), "stop": False}
 
     mdl = m.model or ""
-    stall = LOCAL_STALL_SECS if (mdl.startswith("ollama/") and not mdl.endswith(":cloud")) else STALL_SECS
+    local = mdl.startswith("ollama/") and not mdl.endswith(":cloud")
+    stall = LOCAL_STALL_SECS if local else STALL_SECS
+    no_progress = LOCAL_NO_PROGRESS_SECS if local else NO_PROGRESS_SECS
 
     async def _quiet_killer() -> None:
         while proc.returncode is None:
             await asyncio.sleep(8)
             if not st["stop"] and time.monotonic() - st["last"] > stall:
                 m.error = f"stalled: no response for {stall}s from {mdl} — failing over to the next model"
+                S.events[m.id].append({"type": "error", "error": m.error})
+                logger.warning("missions %s: %s", m.id, m.error)
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+                return
+            if not st["stop"] and time.monotonic() - st["moved"] > no_progress:
+                waited = int(time.monotonic() - st["moved"])
+                m.error = (f"stalled: {mdl} kept talking but did nothing for {waited}s "
+                           f"— failing over to the next model")
                 S.events[m.id].append({"type": "error", "error": m.error})
                 logger.warning("missions %s: %s", m.id, m.error)
                 try:
@@ -1002,6 +1111,11 @@ async def _stream_one(m: Mission, wt: Path, data_dir: Path, agent: str, brief: s
                         m.error = ("OpenCode is too old for the free tier (provider returned 426). Update it: "
                                    "setup banner -> Update OpenCode, or `npm install opencode-ai@latest` in the "
                                    "OpenCode folder. Raw: " + m.error[:200])
+                # A move is a tool call or a finished step. Text and step_start are
+                # the model thinking aloud, which is exactly what the old clock
+                # mistook for health.
+                if ev.get("type") in ("tool_use", "step_finish"):
+                    st["moved"] = time.monotonic()
                 if ev.get("type") == "step_finish" and (ev.get("part") or {}).get("reason") == "stop":
                     st["stop"] = True
     except Exception as exc:
@@ -2265,6 +2379,7 @@ async def continue_(mid: str, msg: str) -> None:
     env = os.environ.copy()
     env["XDG_DATA_HOME"] = str(wt / ".ocdata")
     env["OPENCODE_CONFIG"] = str(wt / "opencode.json")
+    LLMK.inject(env)
     cmd = [OCM.OPENCODE_EXE, "run", "--dir", str(wt), "--continue", "--format", "json", msg]
     m.status = "running"
     m.ended = None
@@ -2541,6 +2656,7 @@ async def api_agent_draft(request: web.Request) -> web.Response:
     env = os.environ.copy()
     env["XDG_DATA_HOME"] = str(wt / ".ocdata")
     env["OPENCODE_CONFIG"] = str(OCM.OPENCODE_CONFIG)
+    LLMK.inject(env)
     proc = await asyncio.create_subprocess_exec(
         OCM.OPENCODE_EXE, "run", "--dir", str(wt), "--agent", "agent-smith",
         "--format", "json", ask,
