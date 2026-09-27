@@ -48,7 +48,7 @@ Describe a task. An agent picks it up and works in **its own git worktree** — 
 copy of your repo. You read the diff and decide:
 
 ```
-AUTO LLM ─▸ Missions ─▸ Dispatch ─┬─▸ Worktree ─▸ Review ─▸ Apply  (or discard)
+Auto-LLM ─▸ Missions ─▸ Dispatch ─┬─▸ Worktree ─▸ Review ─▸ Apply  (or discard)
                                   └─▸ Orchestrator
 ```
 
@@ -112,9 +112,9 @@ opt-in — skip anything you won't use):
   control*, not just a local web page — install it if that's the point for you.
 - **Any app you want fronted** (Movie Clipper, etc.) — your own repo, already runnable on
   its own. Hub only spawns/proxies it; see [Adding a new app](#adding-a-new-app).
-- **A runtime for AUTO LLM.** Either **[OpenCode](https://github.com/sst/opencode)** (needs a model
+- **A runtime for Auto-LLM.** Either **[OpenCode](https://github.com/sst/opencode)** (needs a model
   provider: `opencode auth login`) or **Claude Code** (uses a Claude subscription, no key). The
-  runtime is chosen per mission; AUTO LLM is the capability, these are what it dispatches to.
+  runtime is chosen per mission; Auto-LLM is the capability, these are what it dispatches to.
   Installed separately, if you want the
   AI-coding-session feature. Point `OPENCODE_ROOT` (`hub/features/opencode.py`) at it.
 - **YouTube upload/download** — only if you use those cards; see steps 3–4 below.

@@ -28,7 +28,14 @@ a{color:var(--accent);text-decoration:none}
 .btn:disabled{opacity:.4;cursor:not-allowed}
 .ic{width:15px;height:15px;flex:none}
 main{max-width:880px;margin:0 auto;padding:16px}
-.rt{border:1px solid var(--border-dim);border-radius:9px;padding:9px 11px;margin-top:7px;background:var(--bg)}.rt .h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.rt b{color:var(--ink);font-size:13px;font-weight:600}.rt .meta{font-size:11px;color:var(--text-muted);flex:1;min-width:120px}.rt .steps{font-size:11px;color:var(--text-muted);margin-top:5px;overflow-wrap:anywhere}.tabs{display:flex;gap:7px;margin:10px 0 2px}.tabs .btn.on{background:rgba(0,230,118,.16);border-color:var(--accent)}.rt-empty{font-size:12px;color:var(--text-muted);padding:10px 2px;line-height:1.6}
+.rt{border:1px solid var(--border-dim);border-radius:9px;padding:9px 11px;margin-top:7px;background:var(--bg)}.rt .h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.rt b{color:var(--ink);font-size:13px;font-weight:600}.rt .meta{font-size:11px;color:var(--text-muted);flex:1;min-width:120px}.rt .steps{font-size:11px;color:var(--text-muted);margin-top:5px;overflow-wrap:anywhere}.tabs{display:flex;gap:7px;margin:10px 0 2px}
+.foldh{cursor:pointer;user-select:none}
+.tw{transition:transform .15s ease;opacity:.8}.tw.down{transform:rotate(90deg)}
+.foldb{margin-top:9px}
+.prow{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--border-dim)}
+.pedit{padding:0 0 10px}
+.chip.ok{color:var(--accent);border-color:var(--border-bright)}
+.kmask{font-family:ui-monospace,Consolas,monospace;font-size:11px;color:var(--text-muted);letter-spacing:.5px;background:var(--bg-mid);border:1px solid var(--border-dim);border-radius:5px;padding:2px 7px}.tabs .btn.on{background:rgba(0,230,118,.16);border-color:var(--accent)}.rt-empty{font-size:12px;color:var(--text-muted);padding:10px 2px;line-height:1.6}
 .upd{border:1px solid var(--border-bright);border-radius:12px;padding:13px 15px;margin-bottom:16px;background:rgba(0,230,118,.07)}.upd.new{border-color:var(--amber);background:rgba(224,165,60,.09)}.upd b{font:700 10px 'Orbitron',monospace;letter-spacing:1.5px;color:var(--accent)}.upd.new b{color:var(--amber)}.upd p{font-size:12.5px;line-height:1.55;color:var(--ink);margin:7px 0 0}.upd .row{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:10px}.upd pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px ui-monospace,Consolas,monospace;color:var(--text-muted);background:var(--bg);border:1px solid var(--border-dim);border-radius:6px;padding:9px 10px;margin-top:9px;max-height:160px;overflow:auto}
 .addr{border:1px solid var(--border-bright);border-radius:12px;padding:13px 15px;margin-bottom:16px;background:rgba(0,230,118,.05)}.addr b{color:var(--accent);font:700 10px 'Orbitron',monospace;letter-spacing:1.5px}.addr .row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:9px}.addr .lbl{font-size:11px;color:var(--text-muted);flex:0 0 100%}.addr code{flex:1;min-width:180px;font:13px ui-monospace,Consolas,monospace;color:var(--ink);background:var(--bg);border:1px solid var(--border-dim);border-radius:6px;padding:8px 10px;overflow-wrap:anywhere}.addr .warn{font-size:11px;color:var(--amber);flex:0 0 100%;margin-top:2px}
 .welcome{border:1px solid var(--amber);border-radius:12px;padding:14px 16px;margin-bottom:16px;background:rgba(224,165,60,.07)}
@@ -42,7 +49,8 @@ h2{font:700 9px 'Orbitron',monospace;letter-spacing:1.6px;color:var(--text-muted
 input[type=text],select{flex:1;min-width:0;background:var(--bg);border:1px solid var(--border-dim);color:var(--ink);border-radius:6px;padding:9px 10px;font-size:13px;outline:none;font-family:ui-monospace,Consolas,monospace}
 input[type=text]:focus,select:focus{border-color:var(--accent)}select{flex:0 0 auto;font-family:'Outfit',sans-serif}
 .chip{font-size:10.5px;border:1px solid var(--border-dim);border-radius:999px;padding:2px 9px;color:var(--text-muted)}
-.chip.ok{color:var(--accent);border-color:var(--border-bright)}.chip.warn{color:var(--amber);border-color:var(--amber)}.chip.error{color:var(--red);border-color:var(--red)}
+.chip.ok{color:var(--accent);border-color:var(--border-bright)}
+.kmask{font-family:ui-monospace,Consolas,monospace;font-size:11px;color:var(--text-muted);letter-spacing:.5px;background:var(--bg-mid);border:1px solid var(--border-dim);border-radius:5px;padding:2px 7px}.chip.warn{color:var(--amber);border-color:var(--amber)}.chip.error{color:var(--red);border-color:var(--red)}
 .src{display:grid;grid-template-columns:1fr;gap:7px;padding:10px 0;border-top:1px solid var(--border-dim)}.src:first-of-type{border-top:0;padding-top:2px}
 .src .meta{display:flex;gap:9px;align-items:center;flex-wrap:wrap;font-size:12px}.ck{display:inline-flex;align-items:center;gap:6px;color:var(--text-muted);font-size:12px}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
@@ -80,7 +88,7 @@ function toast(t){ const e=$('toast'); e.textContent=t; e.style.display='block';
 let DATA = null, CUR = {}, ERR = {};
 const GROUPS = ['PROJECTS','MISSIONS','KNOWLEDGE','FILES','TOOLS'];
 let MCPS = [], HTTPS = null, ADDR = null, UPD = null, ROUTINES = null, RTAB = 'mcp';
-let KEYS = null, KEYMSG = {};
+let KEYS = null, KEYMSG = {}, KEYOPEN = '', FOLD = {};
 async function load(){ try{ KEYS = await jget('/api/llm/keys'); }catch(e){ KEYS = null; } try{ ROUTINES = (await jget('/api/pc/routines')).routines || []; }catch(e){ ROUTINES = null; } try{ UPD = await jget('/api/update'); }catch(e){ UPD = null; } try{ ADDR = await jget('/api/hub-address'); }catch(e){ ADDR = null; } try{ MCPS = (await jget('/api/mcp')).servers; }catch(e){ MCPS = []; } try{ HTTPS = await jget('/api/phone-https'); }catch(e){ HTTPS = null; } DATA = await jget('/api/locations'); CUR = {}; ERR = {}; DATA.items.forEach(i => CUR[i.key] = JSON.parse(JSON.stringify(i.value))); render(); }
 const chip = (s) => s ? `<span class="chip ${esc(s.level)}">${esc(s.msg)}</span>` : '';
 
@@ -126,6 +134,15 @@ function render(){
        + (g==='MISSIONS' ? providersCard() : '') + (g==='TOOLS' ? extraTools() : '');
   }
   $('main').innerHTML = h;
+  document.querySelectorAll('[data-fold]').forEach(b => {
+    const go = () => { FOLD[b.dataset.fold] = b.dataset.open !== '1'; render(); };
+    b.onclick = go;
+    b.onkeydown = (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } };
+  });
+  document.querySelectorAll('[data-keyopen]').forEach(b => b.onclick = () => {
+    KEYOPEN = (KEYOPEN === b.dataset.keyopen) ? '' : b.dataset.keyopen; render();
+    const f = $('key-'+KEYOPEN); if(f) f.focus();
+  });
   document.querySelectorAll('[data-rtab]').forEach(b => b.onclick = () => { RTAB = b.dataset.rtab; render(); });
   document.querySelectorAll('[data-keysave]').forEach(b => b.onclick = async () => {
     const id = b.dataset.keysave, box = $('key-'+id), key = (box.value||'').trim();
@@ -239,45 +256,68 @@ function routinesCard(){
          guessing. A routine carries a profile: <b>reflex</b> for gameplay (punctual, strict),
          <b>patient</b> for installs and uploads (waits for the screen, not the clock), <b>balanced</b> otherwise.</div>`;
   }
-  return `<div class="loc" id="routines"><div class="lh"><b>Learned routines</b>`
-    + `<span class="chip">${ROUTINES.length} saved</span></div>`
-    + `<div class="lp">What the hub has learned to do on this PC. A routine only replays onto the screen it was
+  const inner = `<div class="lp">What the hub has learned to do on this PC. A routine only replays onto the screen it was
        recorded against; if that screen changed it refuses rather than clicking blind.</div>`
     + `<div class="tabs">${tab('mcp','MCP ROUTINES',mcp.length)}${tab('machine','MACHINE ROUTINES',machine.length)}${tab('ingest','APP RECIPES',recipes.length)}</div>`
-    + body + `</div>`;
+    + body;
+  return fold('routines', 'Learned routines',
+              `<span class="chip">${ROUTINES.length} saved</span>`, inner, false);
+}
+
+function fold(id, title, chip, body, openByDefault){
+  const open = (FOLD[id] === undefined) ? !!openByDefault : FOLD[id];
+  return `<div class="loc" id="${id}">`
+    + `<div class="lh foldh" data-fold="${id}" data-open="${open?1:0}" role="button" tabindex="0">`
+    + `<svg class="ic tw ${open?'down':''}" viewBox="0 0 24 24" fill="none" stroke="currentColor"`
+    + ` stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>`
+    + `<b>${title}</b>${chip}</div>`
+    + (open ? `<div class="foldb">${body}</div>` : '') + `</div>`;
 }
 
 function providersCard(){
   if(!KEYS) return '';
+  const on = KEYS.providers.filter(p => p.configured);
   const row = (p) => {
-    const msg = KEYMSG[p.id] || '';
-    const bad = /reject|not|could not|does not/.test(msg);
-    return `<div class="loc" style="margin:7px 0">`
-      + `<div class="lh"><b>${esc(p.label)}</b>`
-      + (p.configured ? `<span class="chip" style="color:var(--accent);border-color:var(--border-bright)">CONNECTED</span>`
-                      : `<span class="chip">not connected</span>`)
-      + (p.configured && !p.in_hub ? `<span class="chip">added in opencode</span>` : '')
+    const open = KEYOPEN === p.id, msg = KEYMSG[p.id] || '';
+    const bad = /reject|not |could not|does not/.test(msg);
+    let h = `<div class="prow">`
+      + `<b>${esc(p.label)}</b>`
+      + (p.configured ? `<span class="chip ok">CONNECTED</span>` : '')
+      + (p.hint ? `<code class="kmask">${esc(p.hint)}</code>` : '')
+      + (p.checked ? `<span class="chip">checked ${new Date(p.checked*1000)
+            .toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'})}</span>` : '')
+      + (p.configured && !p.in_hub ? `<span class="chip">via opencode — no key held here</span>` : '')
       + `<span style="flex:1"></span>`
-      + `<a class="btn" href="${esc(p.create)}" target="_blank" rel="noopener">GET A KEY \u2197</a>`
-      + (p.in_hub ? `<button class="btn" data-keyrm="${p.id}">REMOVE</button>` : '')
-      + `</div>`
-      + `<div class="lin" style="display:flex;gap:7px;margin-top:7px">`
-      + `<input type="password" autocomplete="off" spellcheck="false" id="key-${p.id}"`
-      + ` placeholder="${p.configured ? 'Paste a new key to replace it' : 'Paste the key here'}">`
-      + `<button class="btn go" data-keysave="${p.id}">CHECK &amp; SAVE</button></div>`
-      + (msg ? `<div class="lp" style="margin:6px 0 0;color:${bad?'var(--danger,#ff6b6b)':'var(--accent)'}">${esc(msg)}</div>` : '');
+      + `<button class="btn" data-keyopen="${p.id}">${open ? 'CLOSE' : (p.configured ? 'REPLACE' : 'CONNECT')}</button>`
+      + `</div>`;
+    if(open){
+      h += `<div class="pedit">`
+        + `<div class="lp" style="margin:0 0 7px">Create a key at`
+        + ` <a href="${esc(p.create)}" target="_blank" rel="noopener">${esc(p.create.replace(/^https:\/\//,''))} \u2197</a>,`
+        + ` then paste it here.</div>`
+        + `<div style="display:flex;gap:7px;flex-wrap:wrap">`
+        + `<input type="password" autocomplete="off" spellcheck="false" id="key-${p.id}"`
+        + ` style="flex:1 1 220px" placeholder="Paste the key">`
+        + `<button class="btn go" data-keysave="${p.id}">CHECK &amp; SAVE</button>`
+        + (p.in_hub ? `<button class="btn" data-keyrm="${p.id}">REMOVE</button>` : '')
+        + `</div>`
+        + (msg ? `<div class="lp" style="margin:7px 0 0;color:${bad?'#ff6b6b':'var(--accent)'}">${esc(msg)}</div>` : '')
+        + `</div>`;
+    } else if(msg){
+      h += `<div class="lp" style="margin:0 0 6px;color:${bad?'#ff6b6b':'var(--accent)'}">${esc(msg)}</div>`;
+    }
+    return h;
   };
-  const n = KEYS.providers.filter(p => p.configured).length;
-  return `<div class="loc" id="providers"><div class="lh"><b>Model providers</b>`
-    + `<span class="chip">${n} connected</span></div>`
-    + `<div class="lp">Where AUTO LLM gets its thinking. Paste a key and the hub asks the provider whether it
-       works before saving it \u2014 a bad key is refused here instead of failing a mission ten minutes in.
-       The key is stored on this PC only, outside your project folders, and is never shown again or sent
-       anywhere except that provider. A Claude or Codex subscription needs no key: pick that runtime on a
-       mission instead.</div>`
+  const chip = on.length
+    ? `<span class="chip ok">${on.map(p => esc(p.label)).join(', ')}</span>`
+    : `<span class="chip">none connected</span>`;
+  const body = `<div class="lp">Where Auto-LLM gets its thinking. The hub asks the provider whether a key works
+       before saving it, keeps it on this PC outside your project folders, and never shows it again.
+       A Claude or Codex subscription needs no key \u2014 pick that runtime on a mission instead.</div>`
     + KEYS.providers.map(row).join('')
-    + (KEYS.other.length ? `<div class="lp">Also connected through opencode: ${esc(KEYS.other.join(', '))}</div>` : '')
-    + `</div>`;
+    + (KEYS.other.length ? `<div class="lp">Also connected through opencode: ${esc(KEYS.other.join(', '))}</div>` : '');
+  // Open on a machine that cannot run a mission yet; otherwise stay out of the way.
+  return fold('providers', 'Model providers', chip, body, on.length === 0);
 }
 
 function extraTools(){

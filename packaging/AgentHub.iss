@@ -75,6 +75,13 @@ RestartApplications=no
   InfoBeforeFile={#SourceDir}\RELEASE-NOTES.md
 #endif
 
+[Registry]
+; Where the hub keeps worktrees, mission records and downloads. locations.py
+; reads this and derives every folder default from it. Removed on uninstall, so
+; an uninstall leaves no setting behind - the data itself is never touched.
+Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "AGENTHUB_WORK_ROOT"; \
+  ValueData: "{code:GetDataDir}"; Flags: uninsdeletevalue
+
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 
@@ -94,3 +101,46 @@ Name: "startupicon"; Description: "Start Agent Hub when I sign in (so your other
 
 [Run]
 Filename: "{app}\AgentHub.exe"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+var DataDirPage: TInputDirWizardPage;
+
+procedure InitializeWizard;
+var Default: String;
+begin
+  { The program is small and belongs on the system drive; the data grows without
+    limit, so it is offered separately rather than assumed to live beside it. }
+  Default := ExpandConstant('{sd}\AgentHub');
+  DataDirPage := CreateInputDirPage(wpSelectDir,
+    'Where should Agent Hub keep your data?',
+    'Working copies of your projects, mission records and downloads.',
+    'This is separate from the program itself, because it grows: every mission an agent runs' + #13#10 +
+    'makes a private copy of the repository it is working on. Pick a drive with room.' + #13#10#13#10 +
+    'You can change this later in Agent Hub under LOCATIONS.',
+    False, '');
+  DataDirPage.Add('');
+  DataDirPage.Values[0] := Default;
+end;
+
+function GetDataDir(Param: String): String;
+begin
+  Result := DataDirPage.Values[0];
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if CurPageID = DataDirPage.ID then
+  begin
+    if Trim(DataDirPage.Values[0]) = '' then
+    begin
+      MsgBox('Choose a folder for Agent Hub''s data.', mbError, MB_OK);
+      Result := False;
+    end
+    else if not ForceDirectories(DataDirPage.Values[0]) then
+    begin
+      MsgBox('That folder could not be created. Pick another one.', mbError, MB_OK);
+      Result := False;
+    end;
+  end;
+end;

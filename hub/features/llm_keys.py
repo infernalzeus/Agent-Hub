@@ -34,6 +34,7 @@ import asyncio
 import json
 import os
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -89,7 +90,10 @@ def _write(data: dict) -> None:
 
 def store(provider: str, key: str) -> None:
     data = _read()
-    data[provider] = {"type": "api", "key": key}
+    # `type` and `key` are opencode's shape and are passed through untouched; the
+    # two extra fields are the hub's own and are what the panel shows back.
+    data[provider] = {"type": "api", "key": key,
+                      "checked": int(time.time()), "tail": key[-4:]}
     _write(data)
     logger.info("llm_keys: stored a credential for %s", provider)   # never the key
 
@@ -119,9 +123,14 @@ def _own_auth_file() -> dict:
 
 
 def merged() -> dict:
-    """Every credential OpenCode should see. Hub keys win: they were typed last."""
+    """Every credential OpenCode should see. Hub keys win: they were typed last.
+
+    `checked` and `tail` are stripped: they are the panel's, not opencode's, and
+    an unexpected field in an auth entry is not worth the risk.
+    """
     out = _own_auth_file()
-    out.update(_read())
+    for pid, entry in _read().items():
+        out[pid] = {k: v for k, v in entry.items() if k in ("type", "key")}
     return out
 
 
@@ -179,11 +188,19 @@ def verify(provider: str, key: str, timeout: float = 15.0) -> tuple[bool, str]:
 async def api_list(request: web.Request) -> web.Response:
     """Which providers are configured, and where to get a key. No keys returned."""
     have = set(providers())
-    mine = set(_read())
+    mine = _read()
+    def shown(pid: str) -> dict:
+        """What a connected provider shows: that it is connected, and just enough
+        of the key to tell which one it is. Never the key."""
+        entry = mine.get(pid) or {}
+        tail = entry.get("tail")
+        return {"hint": ("•" * 8 + tail) if tail else "",
+                "checked": entry.get("checked")}
+
     return web.json_response({
         "providers": [
-            {"id": pid, "label": label, "create": create,
-             "configured": pid in have, "in_hub": pid in mine}
+            dict(id=pid, label=label, create=create,
+                 configured=pid in have, in_hub=pid in mine, **shown(pid))
             for pid, (label, create, _v) in PROVIDERS.items()
         ],
         "other": sorted(have - set(PROVIDERS)),

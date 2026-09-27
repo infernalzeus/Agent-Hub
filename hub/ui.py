@@ -726,7 +726,7 @@ __SETUP_LINK__
       <!-- The card is named for what it does, not for the runtime behind it:
            OpenCode is one of two (Claude Code is the other), and the site calls
            this capability AUTONOMOUS LLM. -->
-      <div class="card-name">AUTO LLM</div>
+      <div class="card-name">Auto-LLM</div>
       <div class="card-status" id="oc-status-line"><span class="status-dot"></span>agents &amp; missions</div>
     </div>
     __TALK_BUTTON__
