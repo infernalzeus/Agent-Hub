@@ -35,7 +35,17 @@ main{max-width:880px;margin:0 auto;padding:16px}
 .prow{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--border-dim)}
 .pedit{padding:0 0 10px}
 .chip.ok{color:var(--accent);border-color:var(--border-bright)}
-.kmask{font-family:ui-monospace,Consolas,monospace;font-size:11px;color:var(--text-muted);letter-spacing:.5px;background:var(--bg-mid);border:1px solid var(--border-dim);border-radius:5px;padding:2px 7px}.tabs .btn.on{background:rgba(0,230,118,.16);border-color:var(--accent)}.rt-empty{font-size:12px;color:var(--text-muted);padding:10px 2px;line-height:1.6}
+.kmask{font-family:ui-monospace,Consolas,monospace;font-size:11px;color:var(--text-muted);letter-spacing:.5px;background:var(--bg-mid);border:1px solid var(--border-dim);border-radius:5px;padding:2px 7px}
+.recbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:9px 0;font-size:11px;letter-spacing:1px}
+.recbar.live b{color:#ff6b6b}
+.recdot{width:9px;height:9px;border-radius:50%;background:#ff6b6b;animation:recpulse 1.1s infinite}
+@keyframes recpulse{0%,100%{opacity:1}50%{opacity:.25}}
+.reclist{max-height:280px;overflow:auto;margin-top:6px}
+.recstep{display:flex;align-items:center;gap:9px;padding:6px 0;border-top:1px solid var(--border-dim);font-size:12px}
+.recstep.off{opacity:.4;text-decoration:line-through}
+.recnum{min-width:22px;color:var(--text-muted);font-size:10.5px}
+.recnote{color:var(--ink)}
+.tabs .btn.on{background:rgba(0,230,118,.16);border-color:var(--accent)}.rt-empty{font-size:12px;color:var(--text-muted);padding:10px 2px;line-height:1.6}
 .upd{border:1px solid var(--border-bright);border-radius:12px;padding:13px 15px;margin-bottom:16px;background:rgba(0,230,118,.07)}.upd.new{border-color:var(--amber);background:rgba(224,165,60,.09)}.upd b{font:700 10px 'Orbitron',monospace;letter-spacing:1.5px;color:var(--accent)}.upd.new b{color:var(--amber)}.upd p{font-size:12.5px;line-height:1.55;color:var(--ink);margin:7px 0 0}.upd .row{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:10px}.upd pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px ui-monospace,Consolas,monospace;color:var(--text-muted);background:var(--bg);border:1px solid var(--border-dim);border-radius:6px;padding:9px 10px;margin-top:9px;max-height:160px;overflow:auto}
 .addr{border:1px solid var(--border-bright);border-radius:12px;padding:13px 15px;margin-bottom:16px;background:rgba(0,230,118,.05)}.addr b{color:var(--accent);font:700 10px 'Orbitron',monospace;letter-spacing:1.5px}.addr .row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:9px}.addr .lbl{font-size:11px;color:var(--text-muted);flex:0 0 100%}.addr code{flex:1;min-width:180px;font:13px ui-monospace,Consolas,monospace;color:var(--ink);background:var(--bg);border:1px solid var(--border-dim);border-radius:6px;padding:8px 10px;overflow-wrap:anywhere}.addr .warn{font-size:11px;color:var(--amber);flex:0 0 100%;margin-top:2px}
 .welcome{border:1px solid var(--amber);border-radius:12px;padding:14px 16px;margin-bottom:16px;background:rgba(224,165,60,.07)}
@@ -49,8 +59,7 @@ h2{font:700 9px 'Orbitron',monospace;letter-spacing:1.6px;color:var(--text-muted
 input[type=text],select{flex:1;min-width:0;background:var(--bg);border:1px solid var(--border-dim);color:var(--ink);border-radius:6px;padding:9px 10px;font-size:13px;outline:none;font-family:ui-monospace,Consolas,monospace}
 input[type=text]:focus,select:focus{border-color:var(--accent)}select{flex:0 0 auto;font-family:'Outfit',sans-serif}
 .chip{font-size:10.5px;border:1px solid var(--border-dim);border-radius:999px;padding:2px 9px;color:var(--text-muted)}
-.chip.ok{color:var(--accent);border-color:var(--border-bright)}
-.kmask{font-family:ui-monospace,Consolas,monospace;font-size:11px;color:var(--text-muted);letter-spacing:.5px;background:var(--bg-mid);border:1px solid var(--border-dim);border-radius:5px;padding:2px 7px}.chip.warn{color:var(--amber);border-color:var(--amber)}.chip.error{color:var(--red);border-color:var(--red)}
+.chip.warn{color:var(--amber);border-color:var(--amber)}.chip.error{color:var(--red);border-color:var(--red)}
 .src{display:grid;grid-template-columns:1fr;gap:7px;padding:10px 0;border-top:1px solid var(--border-dim)}.src:first-of-type{border-top:0;padding-top:2px}
 .src .meta{display:flex;gap:9px;align-items:center;flex-wrap:wrap;font-size:12px}.ck{display:inline-flex;align-items:center;gap:6px;color:var(--text-muted);font-size:12px}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
@@ -89,7 +98,8 @@ let DATA = null, CUR = {}, ERR = {};
 const GROUPS = ['PROJECTS','MISSIONS','KNOWLEDGE','FILES','TOOLS'];
 let MCPS = [], HTTPS = null, ADDR = null, UPD = null, ROUTINES = null, RTAB = 'mcp';
 let KEYS = null, KEYMSG = {}, KEYOPEN = '', FOLD = {};
-async function load(){ try{ KEYS = await jget('/api/llm/keys'); }catch(e){ KEYS = null; } try{ ROUTINES = (await jget('/api/pc/routines')).routines || []; }catch(e){ ROUTINES = null; } try{ UPD = await jget('/api/update'); }catch(e){ UPD = null; } try{ ADDR = await jget('/api/hub-address'); }catch(e){ ADDR = null; } try{ MCPS = (await jget('/api/mcp')).servers; }catch(e){ MCPS = []; } try{ HTTPS = await jget('/api/phone-https'); }catch(e){ HTTPS = null; } DATA = await jget('/api/locations'); CUR = {}; ERR = {}; DATA.items.forEach(i => CUR[i.key] = JSON.parse(JSON.stringify(i.value))); render(); }
+let REC = null, RECDROP = {}, RECMSG = '', RECTIMER = null;
+async function load(){ try{ REC = await jget('/api/pc/record'); }catch(e){ REC = null; } try{ KEYS = await jget('/api/llm/keys'); }catch(e){ KEYS = null; } try{ ROUTINES = (await jget('/api/pc/routines')).routines || []; }catch(e){ ROUTINES = null; } try{ UPD = await jget('/api/update'); }catch(e){ UPD = null; } try{ ADDR = await jget('/api/hub-address'); }catch(e){ ADDR = null; } try{ MCPS = (await jget('/api/mcp')).servers; }catch(e){ MCPS = []; } try{ HTTPS = await jget('/api/phone-https'); }catch(e){ HTTPS = null; } DATA = await jget('/api/locations'); CUR = {}; ERR = {}; DATA.items.forEach(i => CUR[i.key] = JSON.parse(JSON.stringify(i.value))); render(); }
 const chip = (s) => s ? `<span class="chip ${esc(s.level)}">${esc(s.msg)}</span>` : '';
 
 function updateCard(){
@@ -139,6 +149,40 @@ function render(){
     b.onclick = go;
     b.onkeydown = (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } };
   });
+  const recRefresh = async () => { try{ REC = await jget('/api/pc/record'); }catch(e){} render(); };
+  const s1 = $('rec-start'); if(s1) s1.onclick = async () => {
+    s1.disabled = true; RECMSG = '';
+    try{ REC = await jsend('POST','/api/pc/record/start'); RECDROP = {}; render(); }
+    catch(e){ RECMSG = String(e.message||e); render(); }
+  };
+  const s2 = $('rec-stop'); if(s2) s2.onclick = async () => {
+    s2.disabled = true; s2.textContent = 'STOPPING\u2026';
+    try{ REC = await jsend('POST','/api/pc/record/stop'); render(); }
+    catch(e){ RECMSG = String(e.message||e); render(); }
+  };
+  document.querySelectorAll('[data-recdrop]').forEach(b => b.onclick = () => {
+    const n = b.dataset.recdrop; RECDROP[n] = !RECDROP[n]; render();
+  });
+  const s3 = $('rec-save'); if(s3) s3.onclick = async () => {
+    const intent = ($('rec-name').value||'').trim();
+    if(!intent){ RECMSG = 'Give it a name first.'; render(); return; }
+    s3.disabled = true; s3.textContent = 'SAVING\u2026';
+    try{
+      await jsend('POST','/api/pc/record/save', {intent, title: intent,
+           profile: $('rec-profile').value, drop: Object.keys(RECDROP).filter(k => RECDROP[k]).map(Number)});
+      await jsend('POST','/api/pc/record/discard');
+      RECDROP = {}; RECMSG = ''; toast('Routine saved as a candidate');
+      ROUTINES = (await jget('/api/pc/routines')).routines || []; await recRefresh();
+    }catch(e){ RECMSG = String(e.message||e); render(); }
+  };
+  const s4 = $('rec-discard'); if(s4) s4.onclick = async () => {
+    try{ await jsend('POST','/api/pc/record/discard'); RECDROP = {}; RECMSG = ''; await recRefresh(); }
+    catch(e){ RECMSG = String(e.message||e); render(); }
+  };
+  // While a recording runs the user is in another window, so the panel polls
+  // rather than waiting for them to come back and refresh it.
+  clearInterval(RECTIMER);
+  if(REC && REC.running) RECTIMER = setInterval(recRefresh, 1500);
   document.querySelectorAll('[data-keyopen]').forEach(b => b.onclick = () => {
     KEYOPEN = (KEYOPEN === b.dataset.keyopen) ? '' : b.dataset.keyopen; render();
     const f = $('key-'+KEYOPEN); if(f) f.focus();
@@ -249,12 +293,12 @@ function routinesCard(){
          shape is wired in with <b>no model call at all</b> \u2014 seconds instead of minutes.
          A recipe stores the command, not the port, so two apps of one shape never collide.</div>`;
   } else {
-    body = machine.length ? machine.map(routineRow).join('')
+    body = recorderBox() + (machine.length ? machine.map(routineRow).join('')
       : `<div class="rt-empty">Nothing recorded yet. These are sequences you teach by
          <b>doing them once</b> \u2014 for games and anything else with no accessible controls. Each step remembers a
          small picture of what it clicked and finds it again before clicking, so a weak match stops instead of
          guessing. A routine carries a profile: <b>reflex</b> for gameplay (punctual, strict),
-         <b>patient</b> for installs and uploads (waits for the screen, not the clock), <b>balanced</b> otherwise.</div>`;
+         <b>patient</b> for installs and uploads (waits for the screen, not the clock), <b>balanced</b> otherwise.</div>`);
   }
   const inner = `<div class="lp">What the hub has learned to do on this PC. A routine only replays onto the screen it was
        recorded against; if that screen changed it refuses rather than clicking blind.</div>`
@@ -272,6 +316,61 @@ function fold(id, title, chip, body, openByDefault){
     + ` stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>`
     + `<b>${title}</b>${chip}</div>`
     + (open ? `<div class="foldb">${body}</div>` : '') + `</div>`;
+}
+
+function recorderBox(){
+  if(!REC) return '';
+  if(!REC.available){
+    return `<div class="rt-empty">${esc(REC.why || 'Recording is not available on this machine.')}</div>`;
+  }
+  if(REC.running){
+    return `<div class="recbar live">`
+      + `<span class="recdot"></span><b>RECORDING</b>`
+      + `<span class="chip">${REC.steps.length} step${REC.steps.length===1?'':'s'}</span>`
+      + `<span class="chip">${REC.seconds}s</span>`
+      + `<span style="flex:1"></span>`
+      + `<button class="btn go" id="rec-stop">STOP</button></div>`
+      + `<div class="lp">Do the thing once, then press STOP \u2014 or press <b>Esc</b>, which is not recorded.
+         Everything you click and type is captured while this runs, so leave passwords out of it.
+         The session stops itself after ${Math.round(REC.max_seconds/60)} minutes.</div>`
+      + (REC.steps.length ? `<div class="reclist">${REC.steps.map(recRow).join('')}</div>` : '');
+  }
+  if(REC.steps && REC.steps.length){
+    const kept = REC.steps.filter(s => !RECDROP[s.ordinal]).length;
+    return `<div class="recbar"><b>RECORDED</b>`
+      + `<span class="chip">${kept} of ${REC.steps.length} step${REC.steps.length===1?'':'s'}</span>`
+      + (REC.window ? `<span class="chip">${esc(REC.window)}</span>` : '')
+      + (REC.stopped_by ? `<span class="chip">stopped by ${esc(REC.stopped_by)}</span>` : '')
+      + `</div>`
+      + `<div class="lp">Check it before you keep it. Drop anything you did not mean to do.</div>`
+      + `<div class="reclist">${REC.steps.map(recRow).join('')}</div>`
+      + `<div class="lin" style="display:flex;gap:7px;flex-wrap:wrap;margin-top:9px">`
+      + `<input id="rec-name" style="flex:1 1 220px" placeholder="What does this routine do? e.g. start the daily build">`
+      + `<select id="rec-profile" class="btn" style="padding:8px">`
+      + `<option value="balanced">balanced \u2014 waits for the screen</option>`
+      + `<option value="reflex">reflex \u2014 punctual, strict (gameplay)</option>`
+      + `<option value="patient">patient \u2014 waits a long time (installs)</option>`
+      + `</select>`
+      + `<button class="btn go" id="rec-save">SAVE ROUTINE</button>`
+      + `<button class="btn" id="rec-discard">DISCARD</button></div>`
+      + (RECMSG ? `<div class="lp" style="color:var(--accent)">${esc(RECMSG)}</div>` : '');
+  }
+  return `<div class="lin" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">`
+    + `<button class="btn go" id="rec-start">RECORD A ROUTINE</button>`
+    + `<span class="lp" style="margin:0;flex:1 1 220px">Press record, do it once, press STOP.
+       While it runs it sees everything you click and type, so keep passwords out of the recording.</span></div>`
+    + (RECMSG ? `<div class="lp" style="color:#ff6b6b">${esc(RECMSG)}</div>` : '');
+}
+
+function recRow(s){
+  const dropped = !!RECDROP[s.ordinal];
+  return `<div class="recstep${dropped?' off':''}">`
+    + `<span class="recnum">${s.ordinal + 1}</span>`
+    + `<span class="recnote">${esc(s.note)}</span>`
+    + (s.has_anchor ? `<span class="chip" title="a picture of what it clicked, matched again on replay">anchor</span>` : '')
+    + (s.delay_ms > 250 ? `<span class="chip">after ${(s.delay_ms/1000).toFixed(1)}s</span>` : '')
+    + `<span style="flex:1"></span>`
+    + `<button class="btn" data-recdrop="${s.ordinal}">${dropped ? 'KEEP' : 'DROP'}</button></div>`;
 }
 
 function providersCard(){

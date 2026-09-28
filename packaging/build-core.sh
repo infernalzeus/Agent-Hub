@@ -119,6 +119,13 @@ IF ./agent-hub WILL NOT START
   chmod +x agent-hub AgentHub
   ./AgentHub                 # the binary directly, same thing
 
+AGENTS NEED A MODEL
+  The Hub runs without one - files, media and browsing all work. For missions
+  and app ingestion, open LOCATIONS inside the Hub and add a provider key under
+  Model providers; several providers have a free tier. An existing Claude or
+  Codex subscription needs no key: pick that runtime on the mission instead. A
+  local model through Ollama also works.
+
 REACHING IT FROM ANOTHER DEVICE
   Agent Hub binds 127.0.0.1 - it is not on your network by default. Install
   Tailscale on this machine and your phone, sign both into the same tailnet,

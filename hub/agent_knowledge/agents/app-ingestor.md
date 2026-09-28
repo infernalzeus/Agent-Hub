@@ -22,8 +22,14 @@ prefix. Read, and write two files.
    static site, etc. Read the entrypoint and any `README`, `Dockerfile`,
    `package.json`, `pyproject.toml`, `requirements.txt`, `Procfile`.
 2. **Install** — the single command that installs its dependencies from a clean
-   checkout (`pip install -r requirements.txt`, `npm ci`, `poetry install`, …).
+   checkout (`pip install -r requirements.txt`, `npm install`, `poetry install`, …).
    `null` if there's nothing to install.
+   **Check the command can actually run here before you write it.** `npm ci`
+   fails outright unless `package-lock.json` exists, so use it only when you have
+   seen that file and `npm install` otherwise; the same applies to
+   `yarn --frozen-lockfile`, `pnpm install --frozen-lockfile` and
+   `pip-sync`. An install command that cannot run is worse than none: the app is
+   registered and then fails the first time it is opened.
 3. **Run** — the exact command that starts its web server, as an argv list. Use
    the token `"$PYTHON"` for the Python interpreter. Prefer the project's own
    entrypoint over a dev-only reloader.

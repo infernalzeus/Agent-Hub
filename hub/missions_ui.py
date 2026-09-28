@@ -289,7 +289,7 @@ textarea{min-height:120px;resize:vertical}
 .dial button{border:1px solid var(--border-dim);border-radius:8px;padding:9px 4px;background:transparent;color:var(--text-muted);font:700 8.5px 'Orbitron',monospace;letter-spacing:.8px;line-height:1.4;cursor:pointer}
 .dial button.on{background:rgba(0,230,118,.16);border-color:var(--accent);color:#d9ffe9}
 @media (max-width:720px){.tact{grid-template-columns:96px 1fr 40px}.tact .tmod{display:none}.tjrow{grid-template-columns:1fr 70px;grid-auto-rows:auto}.tjrow .tbar2,.tjrow .tsrc{grid-column:auto}.tjrow .tbar2{display:none}.tmsg{max-width:96%}.tbar{padding:8px 10px}.tslash{display:none}}
-.dot.paused{background:var(--amber);box-shadow:0 0 6px var(--amber)}
+.dot.paused,.dot.stopped{background:var(--amber);box-shadow:0 0 6px var(--amber)}
 h1.asktitle{font-size:16px;line-height:1.35;font-weight:600}
 .banner{border:1px solid var(--border-dim);border-radius:10px;padding:12px 14px;margin:0 0 14px;display:grid;gap:6px}
 .banner .bt{font-family:'Orbitron',monospace;font-size:10px;letter-spacing:1.5px;font-weight:700}
@@ -442,7 +442,7 @@ const NEEDS = {needs_input:['REPLY','answer','the orchestrator has questions —
   plan_ready:['APPROVE','dispatch','a plan is ready — edit it, then press RUN PIPELINE'],
   awaiting_review:['REVIEW','review','work is finished — read the result, then APPLY or DISCARD'],
   paused:['RESUME','resume','paused — press RESUME to continue from the interrupted step']};
-const SN = {needs_input:'REPLY',plan_ready:'APPROVE',awaiting_review:'REVIEW',paused:'PAUSED',running:'WORKING',queued:'QUEUED',blocked:'BLOCKED',proposed:'PLANNED',failed:'FAILED',timed_out:'TIMED OUT',applied:'APPLIED',discarded:'DISCARDED',orphaned:'RECOVERED'};
+const SN = {needs_input:'REPLY',plan_ready:'APPROVE',awaiting_review:'REVIEW',paused:'PAUSED',running:'WORKING',queued:'QUEUED',blocked:'BLOCKED',proposed:'PLANNED',failed:'FAILED',stopped:'STOPPED',timed_out:'TIMED OUT',applied:'APPLIED',discarded:'DISCARDED',orphaned:'RECOVERED'};
 const sname = (s) => SN[s] || String(s||'').replace('_',' ').toUpperCase();
 const ACTIVE = ['running','queued','blocked','proposed'];
 let HIST_OPEN = false;
@@ -586,7 +586,7 @@ function workBlock(d){
   return `<div class="tbot"><div class="twho">${head}<span class="tm2">${live?'live, from the mission events':'per step'} · model calls are queued to suit the model</span></div><div class="tblk">${rows}${gate}</div></div>`;
 }
 function judgeBlock(d){
-  const j = d.judge; if(!j || !['awaiting_review','applied','failed','timed_out'].includes(d.status)) return '';
+  const j = d.judge; if(!j || !['awaiting_review','applied','failed','timed_out','stopped'].includes(d.status)) return '';
   const rows = j.results.map(r=>{
     const lab = JLAB[r.id] || (j.questions||{})[r.id] || r.id;
     if(r.answer==null) return `<div class="tjrow"><span>${esc(lab)}</span><span class="tbar2"></span><span class="tp mut">not checked</span><span class="tsrc">${r.id==='claims_supported' ? `<button class="btn" id="m-judge">${ic('scale')}CHECK NOW</button>` : ''}</span></div>`;

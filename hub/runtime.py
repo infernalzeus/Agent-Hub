@@ -66,6 +66,26 @@ def python_for(capability: str) -> Path:
     return Path(sys.executable)
 
 
+def resolve_argv0(cmd: list[str]) -> list[str]:
+    """Turn a command name into the file it actually is.
+
+    Windows resolves `npm` to `npm.CMD` through PATHEXT, but only in a shell:
+    CreateProcess does not, so spawning a bare `npm` raises WinError 2 on a
+    machine where npm plainly works. Resolving argv[0] here fixes that without
+    going through a shell, which would bring quoting problems of its own.
+
+    A command that is already a path, or that cannot be found, is returned
+    unchanged so the caller still reports the original name in its error.
+    """
+    if not cmd:
+        return cmd
+    first = str(cmd[0])
+    if os.sep in first or (os.altsep and os.altsep in first):
+        return [first, *[str(a) for a in cmd[1:]]]
+    found = shutil.which(first)
+    return [found or first, *[str(a) for a in cmd[1:]]]
+
+
 def run(cmd: list[str], timeout: int = 900, env: dict | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
                           timeout=timeout, env=env,

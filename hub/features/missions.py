@@ -36,6 +36,7 @@ from ..config import logger
 from ..platform_win import _assign_to_job
 from ..runtime import python_for
 from . import llm_keys as LLMK
+from .. import runtime as RT
 from . import opencode as OCM   # reuse worktree / model / merge / materialize helpers
 from . import claude_runtime as CRT   # second runtime: Claude Code CLI, alongside OpenCode
 
@@ -79,7 +80,10 @@ def _looks_transient(text: str) -> bool:
     return bool(text and _TRANSIENT_RE.search(text))
 
 _ACTIVE = {"running", "queued", "blocked", "proposed"}
-_TERMINAL = {"applied", "discarded", "failed", "timed_out"}
+# `stopped` is terminal like the rest: the run is over. It is kept distinct
+# from `failed` because the difference between "it broke" and "you stopped
+# it" is the difference between a bug report and a decision.
+_TERMINAL = {"applied", "discarded", "failed", "timed_out", "stopped"}
 
 # a mission's private working copy on disk is "<project-slug[:32]>--m<hex8>"
 _MID_RE = re.compile(r"^(?P<slug>.+)--(?P<mid>m[0-9a-f]{8})$")
@@ -724,8 +728,70 @@ async def _clone_for_ingest(url: str, slug: str, branch: str | None) -> dict:
     return {"worktree": wt, "branch": wbranch, "base": base}
 
 
+# Folders that are never the answer and would crowd out the ones that are.
+_LISTING_SKIP = {".git", ".ocdata", ".opencode", "node_modules", "__pycache__",
+                 ".venv", "venv", "dist", "build", ".next", ".pytest_cache", ".idea",
+                 # The hub's own scaffolding, and the files this very mission is
+                 # meant to produce. Listing app-hub.json as one of "the app's
+                 # files" invites the agent to conclude the job is already done.
+                 "AGENTS.md", "opencode.json", "app-hub.json", "HUB_INGEST.md"}
+
+
+def _folder_listing(folder: Path, limit: int = 60) -> str:
+    """The folder as a tree the agent can read without calling a tool.
+
+    Two levels: enough to show `web/app.py` or `src/index.js`, not so much that a
+    big repo buries the entrypoint.
+    """
+    try:
+        if not folder.is_dir():
+            return ""
+    except OSError:
+        return ""
+    lines: list[str] = []
+    try:
+        for child in sorted(folder.iterdir(), key=lambda p: (p.is_dir(), p.name.lower())):
+            if len(lines) >= limit:
+                lines.append("  ... (more)")
+                break
+            if child.name in _LISTING_SKIP or child.name.startswith("."):
+                continue
+            if child.is_dir():
+                lines.append(f"  {child.name}/")
+                try:
+                    for sub_child in sorted(child.iterdir())[:8]:
+                        if sub_child.name in _LISTING_SKIP or sub_child.name.startswith("."):
+                            continue
+                        lines.append(f"    {child.name}/{sub_child.name}"
+                                     + ("/" if sub_child.is_dir() else ""))
+                except OSError:
+                    pass
+            else:
+                lines.append(f"  {child.name}")
+    except OSError:
+        return ""
+    return "\n".join(lines)
+
+
+def _shape_hint(folder: Path) -> str:
+    """What the hub's own detector makes of it \u2014 stated, not guessed at."""
+    try:
+        from . import ingest_recipes as IR
+        sig = IR.signature(folder)
+    except Exception:
+        return ""
+    if sig.get("kind") in (None, "", "unknown"):
+        return ""
+    bits = [f'It looks like a **{sig["kind"]}** project']
+    if sig.get("markers"):
+        bits.append("(found " + ", ".join(f"`{m}`" for m in sig["markers"][:4]) + ")")
+    if sig.get("entry"):
+        bits.append(f'with `{sig["entry"]}` as the likely entrypoint')
+    return " ".join(bits) + ". Confirm that by reading the files before you rely on it."
+
+
 def _ingest_brief(url: str, id_hint: str, name: str | None, emoji: str | None,
-                  is_local: bool = False) -> str:
+                  is_local: bool = False, folder: Path | None = None) -> str:
     hint = []
     if name:
         hint.append(f'Use the name "{name}".')
@@ -733,10 +799,22 @@ def _ingest_brief(url: str, id_hint: str, name: str | None, emoji: str | None,
         hint.append(f'Suggested id: "{id_hint}".')
     if emoji:
         hint.append(f'Use the emoji "{emoji}".')
+    listing = _folder_listing(folder) if folder else ""
+    shape = _shape_hint(folder) if folder else ""
+    # Measured: without this, one run in three answered "no project files exist"
+    # without ever listing the directory. The files are not in doubt, so they are
+    # stated rather than left for the agent to discover.
+    facts = ""
+    if listing:
+        facts = ("THE FOLDER CONTAINS (read any of these you need):\n" + listing + "\n\n"
+                 + (shape + "\n\n" if shape else "")
+                 + "These files exist. If you think the folder is empty, you are reading the "
+                   "wrong path \u2014 re-read the one above rather than answering BLOCKED.\n\n")
     return (
         (f"This folder is an app already installed on this PC ({url}). Do NOT change it, "
          "do NOT install anything, and do NOT move it. Work out how to START it.\n\n"
          if is_local else f"This folder is a fresh clone of {url}. Onboard it as a hub app.\n\n")
+        + facts
         + "Work out: framework · the one-shot install command · the argv command to "
         "run its web server (`$PYTHON` token for Python) · the PORT it listens on "
         "(if configurable, pick a free port in 8110-8199 and pin it) · a health "
@@ -797,7 +875,8 @@ async def dispatch_ingest(url: str, name: str | None = None, emoji: str | None =
         wt = await _clone_for_ingest(url, slug, (branch or "").strip() or None)
     m = Mission(id=mid, project_slug=id_hint, project_path=str(local) if local else url,
                 project_name=(name or id_hint).strip() or id_hint,
-                brief=_ingest_brief(url, id_hint, name, emoji, is_local=local is not None),
+                brief=_ingest_brief(url, id_hint, name, emoji, is_local=local is not None,
+                                    folder=Path(local) if local else None),
                 agent="app-ingestor", kind="ingest-app", status="running",
                 worktree=str(wt["worktree"]), branch=wt["branch"], base_branch=wt["base"])
     S.m[mid] = m
@@ -843,6 +922,47 @@ async def _register_from_recipe(*, m_id: str, folder: Path, manifest: dict,
     S.events[m_id] = deque(maxlen=EVENT_KEEP)
     S.save(m)
     return m
+
+
+# Install commands that need a lockfile, and what to fall back to without one.
+# The agent is told this too, but a prompt is advice: an install command that
+# cannot run registers the app and then fails the first time it is opened, which
+# is a worse failure than refusing to register it at all.
+_LOCKED_INSTALLS = {
+    ("npm", "ci"): ("package-lock.json", ["npm", "install"]),
+    ("pnpm", "install", "--frozen-lockfile"): ("pnpm-lock.yaml", ["pnpm", "install"]),
+    ("yarn", "--frozen-lockfile"): ("yarn.lock", ["yarn"]),
+    ("yarn", "install", "--frozen-lockfile"): ("yarn.lock", ["yarn", "install"]),
+}
+
+
+def _repair_manifest(path: Path, folder: Path) -> str:
+    """Fix what we can prove is wrong, in the file itself. Returns a note, or ''."""
+    try:
+        man = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    note = _fix_lockfile_install(man, folder)
+    if note:
+        try:
+            path.write_text(json.dumps(man, indent=2) + "\n", encoding="utf-8")
+        except OSError:
+            return ""
+    return note
+
+
+def _fix_lockfile_install(man: dict, folder: Path) -> str:
+    """Swap a lockfile-only install for one that works here. Returns a note, or ''."""
+    cmd = tuple(str(a) for a in (man.get("install") or []))
+    rule = _LOCKED_INSTALLS.get(cmd)
+    if not rule:
+        return ""
+    lockfile, fallback = rule
+    if (folder / lockfile).is_file():
+        return ""
+    man["install"] = fallback
+    return (f"install changed from `{' '.join(cmd)}` to `{' '.join(fallback)}`: "
+            f"there is no {lockfile} in this project, so the original would have failed")
 
 
 async def _apply_ingest(m: Mission) -> dict:
@@ -896,6 +1016,8 @@ async def _apply_ingest(m: Mission) -> dict:
     }
     if entry["install"]:
         icmd = [str(python_for("apps")) if a == "$PYTHON" else a for a in entry["install"]]
+        # `npm` is `npm.CMD` on Windows and CreateProcess will not find it.
+        icmd = RT.resolve_argv0(icmd)
         try:
             p = await asyncio.create_subprocess_exec(
                 *icmd, cwd=str(dest), stdout=asyncio.subprocess.DEVNULL,
@@ -1466,6 +1588,13 @@ async def _finalize(m: Mission, wt: Path, data_dir: Path, rc: int, stop: bool) -
         if m.kind == "ingest-app" and m.status == "awaiting_review"                 and not (wt / "app-hub.json").is_file():
             m.status = "failed"
             m.error = m.error or _last_words(data_dir) or                 "the agent finished without writing app-hub.json, so there is nothing to wire in"
+        elif m.kind == "ingest-app" and m.status == "awaiting_review":
+            # Correct the manifest now, not at APPLY: what you read on the review
+            # screen has to be what actually runs.
+            note = _repair_manifest(wt / "app-hub.json", Path(m.project_path))
+            if note:
+                m.model_note = ((m.model_note + " · ") if m.model_note else "") + note
+                logger.info("missions %s: %s", m.id, note)
         if m.status == "awaiting_review":
             _shadow(m)
         S.save(m)
@@ -2209,7 +2338,7 @@ async def resume(mid: str, from_step: str | None = None) -> Mission:
     """Continue a paused/failed/finished pipeline: finished steps are kept (their files stay in the working copy),
     the rest re-run. `from_step` re-runs that step and everything after it."""
     m = S.m.get(mid)
-    if not m or m.kind != "orchestrator" or not m.plan or m.status not in ("paused", "failed", "timed_out", "awaiting_review"):
+    if not m or m.kind != "orchestrator" or not m.plan or m.status not in ("paused", "failed", "timed_out", "stopped", "awaiting_review"):
         raise web.HTTPBadRequest(text="nothing to resume here")
     order = _topo(m.plan)
     if from_step:
@@ -2316,7 +2445,7 @@ async def abort(mid: str) -> None:
         if m.kind == "orchestrator" and m.plan:
             m.status, m.error = "paused", "paused by you — RESUME continues from the interrupted step"
         else:
-            m.status, m.error = "failed", m.error or "aborted"
+            m.status, m.error = "stopped", "stopped by you"
         m.ended = time.time()
         try:
             m.changed_files = await OCM.ak_status.worktree_changed_files(Path(m.worktree))
