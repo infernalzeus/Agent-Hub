@@ -9,6 +9,7 @@ import aiohttp
 
 from .config import APPS, logger
 from .platform_win import _assign_to_job
+from . import runtime
 
 
 # ── Process supervision ─────────────────────────────────────────────────────
@@ -61,8 +62,10 @@ async def ensure_started(ap: AppProc, timeout: float = 20.0) -> None:
         env.update(cfg.get("env", {}))
 
         logger.info("Starting %s ...", cfg["name"])
+        # Same reason as the install step: a command that works in a shell is
+        # not necessarily a file CreateProcess can open.
         ap.proc = await asyncio.create_subprocess_exec(
-            *cfg["cmd"],
+            *runtime.resolve_argv0(cfg["cmd"]),
             cwd=str(cfg["cwd"]),
             env=env,
             stdout=asyncio.subprocess.DEVNULL,

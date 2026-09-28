@@ -31,9 +31,25 @@ from .config import logger
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
-# Paths that must stay reachable without a token or an Origin, because they are
-# how a client bootstraps in the first place, or are read-only by nature.
-EXEMPT_PREFIXES = ("/api/onboarding/",)
+# Nothing is exempt any more, and the empty tuple is kept deliberately so the
+# reasoning survives.
+#
+# This used to hold "/api/onboarding/", on the grounds that setup is how a client
+# bootstraps. But GET is never blocked here anyway, so the exemption only ever
+# applied to WRITES - and the writes under that prefix include
+# install/{capability}, which downloads and runs software, plus the project
+# folders, the SMB connection and the HTTPS switch.
+#
+# Two things made that reachable. Running from source, onboarding's own
+# same-origin check is not installed at all (it is guarded by RT.PACKAGED).
+# Packaged, that check reads `if origin and ...`, so a request carrying NO Origin
+# header passes it - which is exactly what a script or a forged request looks
+# like, and what every other write on the Hub requires an integration token for.
+#
+# Measured before the change: a cross-origin POST to
+# /api/onboarding/install/<name> reached the handler, and only a bogus capability
+# name stopped it.
+EXEMPT_PREFIXES: tuple[str, ...] = ()
 
 
 def _allowed_hostnames() -> set[str]:
