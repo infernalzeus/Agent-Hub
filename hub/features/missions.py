@@ -150,6 +150,7 @@ class Store:
         self.m: dict[str, Mission] = {}
         self.events: dict[str, deque] = {}          # id -> recent parsed events
         self.procs: dict[str, asyncio.subprocess.Process] = {}
+        self._seen: dict[str, str] = {}             # id -> last status announced
         self.timeouts: set[str] = set()             # pipeline missions whose current step was killed by the watchdog
         self._locks: dict[str, asyncio.Lock] = {}
 
@@ -179,12 +180,40 @@ class Store:
             except Exception as exc:
                 logger.warning("missions: could not load %s: %s", f.name, exc)
 
+    # Statuses worth telling the rest of the Hub about, and which event each is.
+    # save() runs on every streamed chunk, so an event is published only when the
+    # status actually *changes* into one of these - otherwise one mission would
+    # trigger an automation hundreds of times.
+    _ANNOUNCE = {
+        "applied": "mission.finished", "discarded": "mission.finished",
+        "failed": "mission.finished", "timed_out": "mission.finished",
+        "stopped": "mission.finished", "awaiting_review": "mission.finished",
+        "needs_input": "mission.needs_you", "plan_ready": "mission.needs_you",
+        "paused": "mission.needs_you",
+    }
+
     def save(self, m: Mission) -> None:
         try:
             (MISSIONS_DIR / f"{m.id}.json").write_text(
                 json.dumps(asdict(m), indent=2), encoding="utf-8")
         except Exception as exc:
             logger.warning("missions: could not save %s: %s", m.id, exc)
+        self._announce(m)
+
+    def _announce(self, m: Mission) -> None:
+        was = self._seen.get(m.id)
+        if was == m.status:
+            return
+        self._seen[m.id] = m.status
+        kind = self._ANNOUNCE.get(m.status)
+        if not kind or was is None and m.status not in ("needs_input", "plan_ready"):
+            # `was is None` means this process has not seen the mission before -
+            # a hub restart re-reads every mission from disk, and announcing all
+            # of their old statuses would fire every automation at boot.
+            return
+        from .. import events
+        events.publish(kind, {"mission": m.id, "status": m.status,
+                              "project": m.project_slug, "brief": (m.brief or "")[:200]})
 
     def forget(self, mid: str) -> None:
         self.m.pop(mid, None)
@@ -1140,6 +1169,17 @@ async def _stream_one(m: Mission, wt: Path, data_dir: Path, agent: str, brief: s
     env["PYTHONIOENCODING"] = "utf-8"
     env["XDG_DATA_HOME"] = str(data_dir)
     env["OPENCODE_CONFIG"] = str(wt / "opencode.json")
+    # So an agent can use the Hub it is running inside, instead of rebuilding
+    # things the Hub already does. The token is scoped to the automatable
+    # endpoints only - it cannot reach the power menu or the provider keys - and
+    # the `agent-hub-api` skill, generated from the live routes, explains it.
+    try:
+        from . import capabilities as _C
+        from ..config import HOST as _H, PORT as _P
+        env["AGENTHUB_URL"] = f"http://{_H or '127.0.0.1'}:{_P}"
+        env["AGENTHUB_TOKEN"] = _C._token()
+    except Exception as exc:                      # a mission must still run without it
+        logger.warning("missions: no hub token for this run: %s", exc)
     LLMK.inject(env)
 
     cmd = [OCM.OPENCODE_EXE, "run", "--dir", str(wt), "--agent", agent, "--format", "json"]

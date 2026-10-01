@@ -1,0 +1,21 @@
+[
+  {
+    "id": "994c631e1530c143",
+    "name": "automations (internal)",
+    "hash": "bb59a10e5f314da750901aaf98de0711d9dbece996fad18b63119e15c3b33077",
+    "scopes": [
+      "/api/apps",
+      "/api/automations",
+      "/api/graph",
+      "/api/locations",
+      "/api/missions",
+      "/api/pc/machine/",
+      "/api/start/",
+      "/api/status",
+      "/api/youtube-dl/",
+      "/api/youtube/"
+    ],
+    "created": 1790825182.508269,
+    "last_used": null
+  }
+]

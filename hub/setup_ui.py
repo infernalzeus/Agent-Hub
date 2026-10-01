@@ -75,7 +75,27 @@ input[type=text]:focus,select:focus{border-color:var(--accent)}select{flex:0 0 a
 .dirs div{display:flex;align-items:center;gap:8px;padding:9px 11px;font-size:13px;color:var(--ink);cursor:pointer;border-bottom:1px solid var(--border-dim)}.dirs div:hover{background:rgba(0,230,118,.08)}
 .dirs .git{margin-left:auto;font-size:9.5px;color:var(--accent);border:1px solid var(--border-bright);border-radius:999px;padding:1px 7px}
 .toast{position:fixed;left:50%;bottom:76px;transform:translateX(-50%);background:var(--bg-mid);border:1px solid var(--border-bright);border-radius:8px;padding:9px 14px;font-size:12.5px;color:var(--ink);z-index:40;display:none}
-@media (max-width:720px){main{padding:12px}.lin{flex-wrap:wrap}.lin input{flex:1 1 100%}.btn{flex:1 1 auto}.sticky{padding:8px 10px}}
+/* Two panes: the sections on the left, one section's settings on the right.
+   The list used to be one scroll of every setting the hub has, which meant
+   hunting for the one you came to change. */
+.pane{display:grid;grid-template-columns:208px minmax(0,1fr);gap:18px;align-items:start}
+.nav{position:sticky;top:12px;display:flex;flex-direction:column;gap:2px}
+.nav button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;cursor:pointer;
+  font:600 12px 'Outfit',sans-serif;letter-spacing:.3px;color:var(--text-muted);
+  background:transparent;border:1px solid transparent;border-radius:8px;padding:9px 11px}
+.nav button:hover{color:var(--ink);background:rgba(0,230,118,.06)}
+.nav button.on{color:var(--accent);border-color:var(--border-bright);background:rgba(0,230,118,.10)}
+.nav .nb{margin-left:auto;display:flex;gap:5px;align-items:center}
+/* An unsaved edit in a section you are not looking at still saves, so it has to
+   be visible from here - otherwise SAVE writes things you cannot see. */
+.nav .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 7px var(--accent)}
+.nav .dot.need{background:var(--amber);box-shadow:0 0 7px var(--amber)}
+.sect h2{margin-top:0}
+@media (max-width:720px){main{padding:12px}.lin{flex-wrap:wrap}.lin input{flex:1 1 100%}.btn{flex:1 1 auto}.sticky{padding:8px 10px}
+  /* No room for a rail: the sections become a row of chips you swipe. */
+  .pane{grid-template-columns:minmax(0,1fr);gap:12px}
+  .nav{position:static;flex-direction:row;overflow-x:auto;gap:6px;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+  .nav button{width:auto;flex:0 0 auto;white-space:nowrap;border-color:var(--border-dim)}}
 </style></head><body>
 <div class="bar"><a class="btn" href="/"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>HUB</a>
   <span class="brand">LOCATIONS</span><span style="flex:1"></span><a class="btn" href="/missions">MISSIONS</a></div>
@@ -96,10 +116,23 @@ function toast(t){ const e=$('toast'); e.textContent=t; e.style.display='block';
 
 let DATA = null, CUR = {}, ERR = {};
 const GROUPS = ['PROJECTS','MISSIONS','KNOWLEDGE','FILES','TOOLS'];
+// The left rail. `group` is the settings group a section shows (null = none of
+// the saved locations, just cards). Order is the order you meet them.
+const SECTIONS = [
+  {id:'hub',       label:'This hub',   group:null},
+  {id:'projects',  label:'Projects',   group:'PROJECTS'},
+  {id:'missions',  label:'Missions',   group:'MISSIONS'},
+  {id:'knowledge', label:'Knowledge',  group:'KNOWLEDGE'},
+  {id:'files',     label:'Files',      group:'FILES'},
+  {id:'tools',     label:'Tools',      group:'TOOLS'},
+];
+let SEC = (location.hash || '').replace('#','');
+if(!SECTIONS.some(x => x.id === SEC)) SEC = '';
 let MCPS = [], HTTPS = null, ADDR = null, UPD = null, ROUTINES = null, RTAB = 'mcp';
 let KEYS = null, KEYMSG = {}, KEYOPEN = '', FOLD = {};
+let YTA = null, YTMSG = '', YTOPEN = false;
 let REC = null, RECDROP = {}, RECMSG = '', RECTIMER = null;
-async function load(){ try{ REC = await jget('/api/pc/record'); }catch(e){ REC = null; } try{ KEYS = await jget('/api/llm/keys'); }catch(e){ KEYS = null; } try{ ROUTINES = (await jget('/api/pc/routines')).routines || []; }catch(e){ ROUTINES = null; } try{ UPD = await jget('/api/update'); }catch(e){ UPD = null; } try{ ADDR = await jget('/api/hub-address'); }catch(e){ ADDR = null; } try{ MCPS = (await jget('/api/mcp')).servers; }catch(e){ MCPS = []; } try{ HTTPS = await jget('/api/phone-https'); }catch(e){ HTTPS = null; } DATA = await jget('/api/locations'); CUR = {}; ERR = {}; DATA.items.forEach(i => CUR[i.key] = JSON.parse(JSON.stringify(i.value))); render(); }
+async function load(){ try{ REC = await jget('/api/pc/record'); }catch(e){ REC = null; } try{ KEYS = await jget('/api/llm/keys'); }catch(e){ KEYS = null; } try{ ROUTINES = (await jget('/api/pc/routines')).routines || []; }catch(e){ ROUTINES = null; } try{ UPD = await jget('/api/update'); }catch(e){ UPD = null; } try{ ADDR = await jget('/api/hub-address'); }catch(e){ ADDR = null; } try{ MCPS = (await jget('/api/mcp')).servers; }catch(e){ MCPS = []; } try{ HTTPS = await jget('/api/phone-https'); }catch(e){ HTTPS = null; } try{ YTA = await jget('/api/youtube/accounts'); }catch(e){ YTA = null; } DATA = await jget('/api/locations'); CUR = {}; ERR = {}; DATA.items.forEach(i => CUR[i.key] = JSON.parse(JSON.stringify(i.value))); render(); }
 const chip = (s) => s ? `<span class="chip ${esc(s.level)}">${esc(s.msg)}</span>` : '';
 
 function updateCard(){
@@ -136,14 +169,44 @@ function addressCard(){
 
 function render(){
   const first = !DATA.configured;
-  let h = updateCard() + addressCard();
-  h += first ? `<div class="welcome"><b>WELCOME — WHERE SHOULD AGENT HUB READ AND WRITE?</b><p>Everything below is prefilled with what was found on this computer. Change what you like, then press SAVE. Nothing is created until you save, and you can come back to this page any time (OpenCode card, LOCATIONS).</p></div>` : '';
-  for(const g of GROUPS){
-    const items = DATA.items.filter(i => i.group===g); if(!items.length) continue;
-    h += `<h2>${g}</h2>` + items.map(itemHtml).join('')
-       + (g==='MISSIONS' ? providersCard() : '') + (g==='TOOLS' ? extraTools() : '');
+  // On a fresh install the required folders are the thing to do first; after
+  // that, landing on the hub's own card is the least surprising.
+  if(!SEC) SEC = first ? 'projects' : 'hub';
+  const cur = SECTIONS.find(x => x.id === SEC) || SECTIONS[0];
+
+  const nav = SECTIONS.map(x => {
+    const its = x.group ? DATA.items.filter(i => i.group === x.group) : [];
+    const need = its.some(i => i.required && !CUR[i.key] ||
+                               (i.kind === 'sources' && i.required && !(CUR[i.key]||[]).length));
+    const edited = its.some(i => dirty(i.key));
+    const upd = x.id === 'hub' && UPD && UPD.available;
+    return `<button data-sec="${x.id}" class="${x.id===SEC?'on':''}">${esc(x.label)}`
+      + `<span class="nb">`
+      + (need ? `<span class="dot need" title="something required is not set"></span>` : '')
+      + (edited ? `<span class="dot" title="unsaved change"></span>` : '')
+      + (upd ? `<span class="chip warn">UPDATE</span>` : '')
+      + `</span></button>`;
+  }).join('');
+
+  let body = '';
+  if(cur.id === 'hub') body += updateCard() + addressCard();
+  if(first && cur.id === 'projects')
+    body += `<div class="welcome"><b>WELCOME — WHERE SHOULD AGENT HUB READ AND WRITE?</b><p>Each section on the left holds one kind of setting, prefilled with what was found on this computer. Project folders are the only ones the hub cannot run without. Change what you like, then press SAVE — it saves every section at once, and nothing is created until you do.</p></div>`;
+  if(cur.group){
+    const items = DATA.items.filter(i => i.group === cur.group);
+    body += `<h2>${cur.group}</h2>` + items.map(itemHtml).join('');
   }
-  $('main').innerHTML = h;
+  if(cur.id === 'missions') body += providersCard();
+  if(cur.id === 'tools') body += ytCard() + extraTools();
+
+  $('main').innerHTML = `<div class="pane"><nav class="nav">${nav}</nav><div class="sect">${body}</div></div>`;
+  document.querySelectorAll('[data-sec]').forEach(b => b.onclick = () => {
+    SEC = b.dataset.sec;
+    // A real URL per section, so the back button and a bookmark both work.
+    history.replaceState(null, '', '#' + SEC);
+    render(); window.scrollTo({top:0});
+  });
+  saveMsg();
   document.querySelectorAll('[data-fold]').forEach(b => {
     const go = () => { FOLD[b.dataset.fold] = b.dataset.open !== '1'; render(); };
     b.onclick = go;
@@ -201,6 +264,29 @@ function render(){
     try{ await jsend('DELETE','/api/llm/keys/'+encodeURIComponent(id));
          KEYMSG[id] = 'Removed from this PC.'; KEYS = await jget('/api/llm/keys'); render(); }
     catch(e){ KEYMSG[id] = String(e.message||e); render(); }
+  });
+  const yo = $('yt-open'); if(yo) yo.onclick = () => { YTOPEN = !YTOPEN; YTMSG = ''; render(); };
+  const ys = $('yt-save'); if(ys) ys.onclick = async () => {
+    const tag = ($('yt-tag').value || '').trim(), f = $('yt-file').files[0];
+    if(!tag){ YTMSG = 'Give the channel a name first.'; render(); return; }
+    if(!f){ YTMSG = 'Choose the client_secrets.json you downloaded from Google.'; render(); return; }
+    ys.disabled = true; ys.textContent = 'ADDING\u2026';
+    try{
+      // Read it here rather than asking for a path: the file is the user's own
+      // download and the browser will not hand us an absolute path anyway.
+      const secrets = await f.text();
+      await jsend('POST','/api/youtube/accounts',{tag, secrets});
+      YTA = await jget('/api/youtube/accounts'); YTOPEN = false; YTMSG = '';
+      render(); toast('Channel added');
+    }catch(e){ YTMSG = String(e.message||e); render(); }
+  };
+  document.querySelectorAll('[data-ytrm]').forEach(b => b.onclick = async () => {
+    const tag = b.dataset.ytrm;
+    if(!confirm('Forget '+tag+' on this PC? Its Google sign-in is deleted here; nothing changes at Google.')) return;
+    b.disabled = true;
+    try{ await jsend('DELETE','/api/youtube/accounts/'+encodeURIComponent(tag));
+         YTA = await jget('/api/youtube/accounts'); YTMSG = tag+' removed from this PC.'; render(); }
+    catch(e){ YTMSG = String(e.message||e); render(); }
   });
   document.querySelectorAll('[data-rstatus]').forEach(b => b.onclick = async () => {
     b.disabled = true;
@@ -306,6 +392,24 @@ function routinesCard(){
     + body;
   return fold('routines', 'Learned routines',
               `<span class="chip">${ROUTINES.length} saved</span>`, inner, false);
+}
+
+function dirty(k){
+  const it = (DATA.items || []).find(i => i.key === k);
+  return it ? JSON.stringify(CUR[k]) !== JSON.stringify(it.value) : false;
+}
+
+// With sections hidden, SAVE could write edits the user cannot see. Say how many
+// and where, so the button never does more than it appears to.
+function saveMsg(){
+  const keys = (DATA.items || []).map(i => i.key).filter(dirty);
+  const el = $('msg'); if(!el) return;
+  if(!keys.length){ el.textContent = 'Nothing changes until you press SAVE.'; return; }
+  const where = [...new Set(keys.map(k => {
+    const g = (DATA.items.find(i => i.key === k) || {}).group;
+    return (SECTIONS.find(x => x.group === g) || {}).label || g;
+  }))];
+  el.textContent = `${keys.length} unsaved change${keys.length>1?'s':''} in ${where.join(', ')}. SAVE applies all of them.`;
 }
 
 function fold(id, title, chip, body, openByDefault){
@@ -419,6 +523,44 @@ function providersCard(){
   return fold('providers', 'Model providers', chip, body, on.length === 0);
 }
 
+function ytCard(){
+  if(!YTA) return '';
+  const bad = /not |could not|already|cannot|reserved|use letters|needs a name/i.test(YTMSG);
+  const row = (a) => `<div class="prow"><b>${esc(a.tag)}</b>`
+    + (a.authorized ? `<span class="chip ok">SIGNED IN</span>`
+                    : `<span class="chip">signs in on first upload</span>`)
+    + (a.where === 'local_settings.py' ? `<span class="chip">from local_settings.py</span>` : '')
+    + `<span style="flex:1"></span>`
+    + (a.where === 'folder' ? `<button class="btn" data-ytrm="${esc(a.tag)}">REMOVE</button>` : '')
+    + `</div>`;
+  let body = `<div class="lp">Channels this PC can upload to. Each one keeps its own Google sign-in,
+       stored here and nowhere else \u2014 an update leaves them signed in. Removing a channel forgets it
+       on this PC only; it does not touch anything at Google.</div>`;
+  body += YTA.length ? YTA.map(row).join('')
+                     : `<div class="lp">No channels yet. Add one to turn on uploading.</div>`;
+  body += `<div class="prow"><span style="flex:1"></span>`
+    + `<button class="btn" id="yt-open">${YTOPEN ? 'CLOSE' : 'ADD A CHANNEL'}</button></div>`;
+  if(YTOPEN){
+    body += `<div class="pedit">`
+      + `<div class="lp" style="margin:0 0 7px">In`
+      + ` <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console \u2197</a>`
+      + ` enable <b>YouTube Data API v3</b>, then create an OAuth client ID of type <b>Desktop app</b>`
+      + ` and download its JSON. Name the channel whatever you will recognise on the upload screen.</div>`
+      + `<div style="display:flex;gap:7px;flex-wrap:wrap">`
+      + `<input type="text" id="yt-tag" style="flex:1 1 160px" placeholder="Channel name, e.g. My Channel"`
+      + ` spellcheck="false" autocomplete="off">`
+      + `<input type="file" id="yt-file" accept="application/json,.json" style="flex:1 1 200px">`
+      + `<button class="btn go" id="yt-save">ADD</button></div>`
+      + (YTMSG ? `<div class="lp" style="margin:7px 0 0;color:${bad?'#ff6b6b':'var(--accent)'}">${esc(YTMSG)}</div>` : '')
+      + `</div>`;
+  } else if(YTMSG){
+    body += `<div class="lp" style="margin:0 0 6px;color:${bad?'#ff6b6b':'var(--accent)'}">${esc(YTMSG)}</div>`;
+  }
+  const chip = YTA.length ? `<span class="chip ok">${YTA.length} channel${YTA.length>1?'s':''}</span>`
+                          : `<span class="chip">none added</span>`;
+  return fold('ytacc', 'YouTube channels', chip, body, false);
+}
+
 function extraTools(){
   let h = '';
   const w = MCPS.find(x => x.name==='windows');
@@ -436,7 +578,7 @@ function extraTools(){
 }
 let vt = {};
 function bind(){
-  document.querySelectorAll('input[data-k]').forEach(inp => inp.oninput = () => { CUR[inp.dataset.k] = inp.value; clearTimeout(vt[inp.dataset.k]);
+  document.querySelectorAll('input[data-k]').forEach(inp => inp.oninput = () => { CUR[inp.dataset.k] = inp.value; saveMsg(); clearTimeout(vt[inp.dataset.k]);
     vt[inp.dataset.k] = setTimeout(async () => { try{ const r = await jsend('POST','/api/locations/validate',{key:inp.dataset.k,value:inp.value}); $('st-'+inp.dataset.k).innerHTML = chip(r); }catch(e){} }, 400); });
   document.querySelectorAll('[data-src]').forEach(el => el.onchange = el.oninput = () => { const n = +el.dataset.src, f = el.dataset.f; CUR.project_sources[n][f] = el.type==='checkbox' ? el.checked : el.value; });
   document.querySelectorAll('[data-browse]').forEach(b => b.onclick = () => pick(CUR[b.dataset.browse], p => { CUR[b.dataset.browse] = p; render(); }));
@@ -487,6 +629,13 @@ $('save').onclick = async () => {
   }catch(e){ ERR = (e.data && e.data.errors) || {}; render(); $('msg').textContent = 'Not saved: fix the marked rows.'; }
   $('save').disabled = false;
 };
+// The hash names the section, so a bookmark or a typed #files has to move the
+// page even though changing it never reloads anything.
+window.addEventListener('hashchange', () => {
+  const want = (location.hash || '').replace('#','');
+  if(want && want !== SEC && SECTIONS.some(x => x.id === want)){ SEC = want; render(); }
+});
+
 load().catch(e => { $('main').innerHTML = '<div class="err">Could not load locations: '+esc(e.message)+'</div>'; });
 </script></body></html>"""
 

@@ -23,9 +23,15 @@ SHORTCUTS = [
 # Omit to use whatever "python3.11" resolves to on PATH.
 YT_DL_PYTHON = r"C:\path\to\python3.11.exe"
 
-# ── Optional: YouTube channels you can upload to ─────────────────────────────
-# The tag is the label the uploader shows. Put each channel's OAuth files under
-# youtube/credentials/<tag>/ (that folder is gitignored). Omit for no uploading.
+# ── YouTube channels: nothing to do here ─────────────────────────────────────
+# Add them in Settings (TOOLS → YouTube channels) instead. Each one is a folder
+# under youtube/credentials/<name>/ holding the OAuth client you download from
+# Google, and the hub reads that folder directly - so there is no list to keep in
+# step with it and no channel tag baked into this file.
+#
+# YOUTUBE_ACCOUNTS below is still read, for installs that set channels up this way
+# before Settings could. Entries keep working at whatever paths they name, and a
+# folder of the same name wins over them. New installs should leave it out.
 #
 # import os.path as _p
 # _CRED = _p.join(_p.dirname(_p.dirname(_p.abspath(__file__))), "youtube", "credentials")

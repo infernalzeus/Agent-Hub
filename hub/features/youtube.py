@@ -15,8 +15,9 @@ from aiohttp import web, WSMsgType
 
 from ..request_security import ensure_ws_origin
 
+from . import youtube_accounts as YTA
 from ..config import (
-    YOUTUBE_ACCOUNTS, MC_OUTPUT_DIR, YT_UPLOAD_SCRIPT,
+    MC_OUTPUT_DIR, YT_UPLOAD_SCRIPT,
     YT_DL_PYTHON, YT_DL_SCRIPT, YT_DL_AUDIO_DIR, YT_DL_VIDEO_DIR,
     YT_DL_COOKIES, YT_DL_COOKIES_BROWSER, logger,
 )
@@ -327,7 +328,28 @@ async def _ytdl_stream_download(args: list[str]) -> None:
 
 @routes.get("/api/youtube/accounts")
 async def yt_accounts(request: web.Request) -> web.Response:
-    return web.json_response(list(YOUTUBE_ACCOUNTS.keys()))
+    return web.json_response(YTA.accounts())
+
+
+@routes.post("/api/youtube/accounts")
+async def yt_account_add(request: web.Request) -> web.Response:
+    """Register a channel from the client_secrets.json the user downloaded."""
+    data = await request.json()
+    try:
+        acc = YTA.add(str(data.get("tag") or ""), str(data.get("secrets") or ""))
+    except ValueError as exc:
+        raise web.HTTPBadRequest(text=str(exc))
+    except OSError as exc:
+        raise web.HTTPInternalServerError(text=f"could not write the credentials: {exc}")
+    return web.json_response(acc)
+
+
+@routes.delete("/api/youtube/accounts/{tag}")
+async def yt_account_forget(request: web.Request) -> web.Response:
+    tag = request.match_info["tag"]
+    if not YTA.forget(tag):
+        raise web.HTTPNotFound(text=f"no channel named {tag} on this PC")
+    return web.json_response({"ok": True})
 
 
 @routes.get("/api/youtube/sources")
@@ -363,9 +385,10 @@ async def yt_upload(request: web.Request) -> web.Response:
 
     data = await request.json()
     account_tag = data.get("account", "")
-    account = YOUTUBE_ACCOUNTS.get(account_tag)
+    account = YTA.paths(account_tag)
     if not account:
-        raise web.HTTPBadRequest(text=f"Unknown account: {account_tag}")
+        raise web.HTTPBadRequest(
+            text=f"No credentials for {account_tag!r} on this PC. Add the channel in Settings.")
 
     video_path = (data.get("video_path") or "").strip()
     title = (data.get("title") or "").strip()

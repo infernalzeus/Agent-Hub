@@ -38,6 +38,7 @@ from ..config import logger
 from . import SKILLS_DIR, USER_SKILLS_DIR, INSTALLED_SKILLS_DIR, WIKI_ROOT, list_skills
 
 GENERATED_DIR = Path(__file__).parent / "skills_generated"
+HUB_SKILL_DIR = Path(__file__).parent / "skills_hub"
 VENDOR_DIR = Path(__file__).parent / "skills_vendor"
 
 # (target dir, origins allowed in it). Vendored skills go to OpenCode only —
@@ -197,6 +198,10 @@ _SOURCE_ROOTS = ([(lambda: USER_SKILLS_DIR, "yours")] if USER_SKILLS_DIR != SKIL
     (lambda: SKILLS_DIR, "hand-written"),
     (lambda: VENDOR_DIR, "vendored"),
     (lambda: GENERATED_DIR, "wiki-concept"),
+    # Written from the Hub's own routing table on each start. Its own root
+    # because compile_wiki_skills() rebuilds GENERATED_DIR from scratch and
+    # would delete anything else living there.
+    (lambda: HUB_SKILL_DIR, "generated"),
 ]
 
 

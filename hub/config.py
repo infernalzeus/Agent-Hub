@@ -72,10 +72,15 @@ SHORTCUTS: list[dict] = []
 YT_UPLOAD_SCRIPT = str(HERE / "youtube" / "yt_upload.py")
 MC_OUTPUT_DIR = Path(os.getenv("MC_OUTPUT_DIR") or _loc.get("outputs"))
 
-# Your YouTube channels, keyed by a short tag you choose. Empty here on purpose:
-# a channel tag names a real account, so it belongs in hub/local_settings.py
-# (gitignored) alongside its credentials. See local_settings.example.py.
-# The credential files themselves are gitignored under youtube/credentials/.
+# Your YouTube channels live in Settings, one folder each under YT_CRED_DIR, and
+# are read from disk by features/youtube_accounts.py rather than listed here - a
+# channel tag names a real account, so it is never baked into the public repo and
+# a fresh install has none. Gitignored, outside the release payload, and the
+# installer does not delete it, so channels survive an update.
+YT_CRED_DIR = str(HERE / "youtube" / "credentials")
+
+# Still read, for installs that configured channels the old way before Settings
+# could do it: hub/local_settings.py (gitignored). See local_settings.example.py.
 YOUTUBE_ACCOUNTS: dict[str, dict] = {}
 
 # ── YouTube download ─────────────────────────────────────────────────────────

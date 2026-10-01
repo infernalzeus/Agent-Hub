@@ -1272,7 +1272,11 @@ async function ytToggle() {
   ]);
 
   const accSel = document.getElementById('yt-account');
-  accSel.innerHTML = accounts.map(a => `<option value="${a}">${a}</option>`).join('');
+  // A channel with no token has never been authorized: say so here rather than
+  // letting the first upload stop halfway on a Google sign-in the user expected.
+  accSel.innerHTML = accounts.map(a =>
+    `<option value="${a.tag}">${a.tag}${a.authorized ? '' : ' — needs sign-in'}</option>`).join('');
+  if (!accounts.length) accSel.innerHTML = '<option value="">No channels — add one in Settings</option>';
 
   ytSourcesEl.innerHTML = '';
   if (!sources.length) {
