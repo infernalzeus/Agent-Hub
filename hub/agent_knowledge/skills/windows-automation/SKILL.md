@@ -2,6 +2,7 @@
 name: windows-automation
 description: "General Windows automation — PowerShell, Task Scheduler, services, VBScript, registry, path/process gotchas. Relevant when the task involves: windows, powershell, vbs, vbscript, registry, reg, batch, cmd, task-scheduler, service."
 metadata:
+  topic: "This machine"
   keywords: "windows, powershell, vbs, vbscript, registry, reg, batch, cmd, task-scheduler, service"
   origin: hand-written
 ---

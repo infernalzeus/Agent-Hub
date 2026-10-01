@@ -2,6 +2,7 @@
 name: sql-database-design
 description: "Schema design, indexing, migrations, and query conventions — any relational-DB project. Relevant when the task involves: sql, database, postgres, mysql, sqlite, schema, migration, index, orm."
 metadata:
+  topic: "Code & build"
   keywords: "sql, database, postgres, mysql, sqlite, schema, migration, index, orm"
   origin: hand-written
 ---

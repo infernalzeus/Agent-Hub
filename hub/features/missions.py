@@ -906,7 +906,7 @@ async def dispatch_ingest(url: str, name: str | None = None, emoji: str | None =
                 project_name=(name or id_hint).strip() or id_hint,
                 brief=_ingest_brief(url, id_hint, name, emoji, is_local=local is not None,
                                     folder=Path(local) if local else None),
-                agent="app-ingestor", kind="ingest-app", status="running",
+                agent="scout", kind="ingest-app", status="running",
                 worktree=str(wt["worktree"]), branch=wt["branch"], base_branch=wt["base"])
     S.m[mid] = m
     S.events[mid] = deque(maxlen=EVENT_KEEP)
@@ -944,7 +944,7 @@ async def _register_from_recipe(*, m_id: str, folder: Path, manifest: dict,
                 project_name=manifest["name"],
                 brief=f"Wired in {folder} using the learned recipe for this kind of app. "
                       f"No model was called.",
-                agent="app-ingestor", kind="ingest-app", status="applied",
+                agent="scout", kind="ingest-app", status="applied",
                 worktree=str(folder), branch="", base_branch="")
     m.ended = time.time()
     S.m[m_id] = m

@@ -2,6 +2,7 @@
 name: unity-csharp-game
 description: "Unity 6 / C# game development conventions (neon-warfare style projects). Relevant when the task involves: unity, csharp, cs, prefab, neon-warfare, gamedev."
 metadata:
+  topic: "Code & build"
   keywords: "unity, csharp, cs, prefab, neon-warfare, gamedev"
   origin: hand-written
 ---

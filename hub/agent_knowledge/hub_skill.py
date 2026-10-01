@@ -27,10 +27,10 @@ DIR = Path(__file__).parent / "skills_hub" / NAME
 
 _DESCRIPTION = (
     "Use the Agent Hub running on this machine: download or upload video, list "
-    "and dispatch missions, start a fronted app, read the project graph, replay a "
-    "recorded desktop routine. Use when a task mentions the hub, an app it fronts "
-    "(Movie Clipper, File Browser), YouTube downloads or uploads, or when work "
-    "needs something already running on this PC rather than something to build."
+    "and dispatch missions, start an app it fronts, read the project graph, replay "
+    "a recorded desktop routine. Use when a task mentions the hub or one of the apps "
+    "it lists, video downloads or uploads, or when the work needs something already "
+    "running on this PC rather than something to build."
 )
 
 

@@ -110,6 +110,23 @@ async def phone_https(request: web.Request) -> web.Response:
     return web.json_response(await asyncio.get_running_loop().run_in_executor(None, _tailscale_https))
 
 
+@routes.get("/api/locations/known")
+async def known_folders(request: web.Request) -> web.Response:
+    """Folders the Hub locates by itself, so nobody adds them as a project.
+
+    Its own install folder, and the second-brain vault when one is set. Both are
+    read-only and both already appear in the graph; this endpoint exists so the
+    Settings page can say so, rather than leaving a person wondering why the Hub
+    is not in their list.
+    """
+    from ..agent_knowledge import projects as pj
+    out = []
+    for path, name, cat in pj._known_folders():
+        out.append({"name": name, "path": str(path), "category": cat,
+                    "exists": path.is_dir()})
+    return web.json_response(out)
+
+
 @routes.get("/api/locations/state")
 async def locations_state(request: web.Request) -> web.Response:
     return web.json_response({"configured": LOC.configured()})

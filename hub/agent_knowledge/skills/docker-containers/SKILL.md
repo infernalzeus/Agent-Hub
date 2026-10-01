@@ -2,6 +2,7 @@
 name: docker-containers
 description: "Writing Dockerfiles and compose setups that build fast, stay small, and run safely — layer caching, multi-stage builds, non-root, .dockerignore. Relevant when the task involves: docker, dockerfile, container, compose, image, build, oci, devcontainer."
 metadata:
+  topic: "Code & build"
   keywords: "docker, dockerfile, container, compose, image, oci, devcontainer, containerize"
   origin: hand-written
 ---

@@ -2,6 +2,7 @@
 name: rest-api-design
 description: "Language-agnostic REST/API design — resource shapes, status codes, versioning, error responses. Relevant when the task involves: api, rest, http, endpoint, json, webhook, graphql."
 metadata:
+  topic: "Code & build"
   keywords: "api, rest, http, endpoint, json, webhook, graphql"
   origin: hand-written
 ---

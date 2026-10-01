@@ -2,6 +2,7 @@
 name: browser-control
 description: "Driving a browser programmatically to accomplish a task (not just test) — Playwright/CDP, headed vs headless, using an existing logged-in session, when to skip the browser for an API. Relevant when the task involves: browser automation, playwright, puppeteer, selenium, CDP, headless chrome, web scraping, filling a form, clicking through a site, claude-in-chrome."
 metadata:
+  topic: "This machine"
   keywords: "browser-automation, playwright, puppeteer, selenium, cdp, headless, scraping, web-automation, chromedriver"
   origin: hand-written
 ---

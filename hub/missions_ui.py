@@ -328,7 +328,8 @@ details.fold summary{cursor:pointer;padding:10px 0;font-family:'Orbitron',monosp
 .arch-facts{margin-top:16px;border-top:1px solid var(--border-dim);padding-top:12px}
 .arch-facts dt{font-family:'Orbitron',monospace;font-size:9.5px;letter-spacing:1px;color:var(--blue);margin-top:10px}
 .arch-facts dd{margin:3px 0 0;font-size:12.5px;color:var(--text-muted);line-height:1.5}
-</style></head>
+</style><link rel="stylesheet" href="/theme.css">
+</head>
 <body>
 <div id="toast"></div>
 <div class="bar">

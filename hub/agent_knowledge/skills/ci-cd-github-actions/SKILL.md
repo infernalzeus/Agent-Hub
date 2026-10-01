@@ -2,6 +2,7 @@
 name: ci-cd-github-actions
 description: "Structuring GitHub Actions workflows that are fast, secure, and don't lie — caching, matrix, least-privilege tokens, required checks, safe deploys. Relevant when the task involves: ci, cd, github-actions, workflow, pipeline, deploy, release, yaml-workflow, runner."
 metadata:
+  topic: "Code & build"
   keywords: "ci, cd, github-actions, workflow, pipeline, deploy, release, runner, gha"
   origin: hand-written
 ---

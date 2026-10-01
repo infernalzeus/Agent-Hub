@@ -2,6 +2,7 @@
 name: desktop-control-windows
 description: "Driving a Windows PC programmatically without a vision model — UI Automation accessibility tree, PowerShell SendKeys, clipboard, direct URL construction. Relevant when the task involves: desktop automation, computer use, GUI automation, windows-use, uiautomation, pywinauto, sendkeys, no-vision agent, controlling an app."
 metadata:
+  topic: "This machine"
   keywords: "desktop-control, computer-use, gui-automation, windows-use, uiautomation, pywinauto, sendkeys, automation, autohotkey, flaui"
   origin: hand-written
 ---

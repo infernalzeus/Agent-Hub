@@ -95,6 +95,7 @@ html,body{min-height:100%;min-height:100dvh;font-family:'Outfit',system-ui,sans-
 .wake-sub{display:none;margin-top:14px;font-family:'Orbitron',monospace;font-size:11px;letter-spacing:1.5px;
   color:var(--text-muted);line-height:1.6;max-width:280px;margin-left:auto;margin-right:auto}
 </style>
+<link rel="stylesheet" href="/theme.css">
 </head>
 <body>
 __SETUP_LINK__

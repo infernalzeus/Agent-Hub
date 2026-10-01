@@ -2,6 +2,7 @@
 name: d3-dataviz-frontend
 description: "D3.js v7 graph/dashboard conventions — deterministic layout, SVG glow effects, layered rendering. Relevant when the task involves: d3, svg, graph, dashboard, dataviz, force-simulation, canvas."
 metadata:
+  topic: "Design & visuals"
   keywords: "d3, svg, graph, dashboard, dataviz, force-simulation, canvas"
   origin: hand-written
 ---

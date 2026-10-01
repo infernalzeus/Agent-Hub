@@ -2,6 +2,7 @@
 name: web-security-basics
 description: "Common web-app security pitfalls — auth, injection, secrets, CORS — for any project handling users/data. Relevant when the task involves: security, auth, authentication, oauth, csrf, xss, cors, secrets, injection."
 metadata:
+  topic: "Code & build"
   keywords: "security, auth, authentication, oauth, csrf, xss, cors, secrets, injection"
   origin: hand-written
 ---

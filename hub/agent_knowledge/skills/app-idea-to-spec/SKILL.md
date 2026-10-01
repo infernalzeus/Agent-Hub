@@ -2,6 +2,7 @@
 name: app-idea-to-spec
 description: "Turning a raw app/project idea into a scoped, buildable spec before writing code. Relevant when the task involves: idea, spec, prd, scope, mvp, brainstorm, product, planning."
 metadata:
+  topic: "Method & craft"
   keywords: "idea, spec, prd, scope, mvp, brainstorm, product, planning"
   origin: hand-written
 ---

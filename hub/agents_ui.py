@@ -562,7 +562,34 @@ textarea{min-height:200px;resize:vertical;font-family:ui-monospace,Consolas,mono
 .skl .row{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap;align-items:center}
 .skl-msg{font-size:12px;color:#e0a53c}
 .secthead{font-family:'Orbitron',monospace;font-size:9px;letter-spacing:1.5px;color:var(--accent);margin:22px 2px 8px}
+/* Picking an agent means knowing the work, not the agent's name - so the page is
+   split by the kind of work, and the families come from the profile rosters
+   rather than a second list here that would drift from them. */
+.pick{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 14px}
+.pick button{font-family:'Orbitron',monospace;font-size:9px;letter-spacing:1.2px;color:var(--text-muted);
+ background:transparent;border:1px solid var(--border-dim);border-radius:999px;padding:7px 13px;cursor:pointer;
+ min-height:34px;white-space:nowrap}
+.pick button:hover{color:var(--ink)}
+.pick button.on{color:var(--accent);border-color:var(--border-bright);background:rgba(0,230,118,.10)}
+.pick .n{color:var(--text-faint);margin-left:6px}
+/* inside the skills drawer the row must scroll, not wrap the drawer open */
+.skl-pick{margin:4px 0 10px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.skl-pick button{flex:0 0 auto}
+.addbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px}
+.addbar .lp{margin:0;font-size:12px;color:var(--text-muted)}
+@media(max-width:720px){
+  /* One swipe row rather than a wrapped block that pushes the agents off-screen. */
+  .pick{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+  .pick button{flex:0 0 auto}
+}
 .secthead span{color:var(--text-muted);letter-spacing:.3px;font-family:'Outfit',sans-serif;font-size:11.5px;margin-left:8px}
+/* A caption and its sentence used to share a line and wrap into each other, which
+   read as one run-on string. The label gets its own line and the text below it. */
+.note-block{font-size:11.5px;color:var(--text-muted);margin-top:9px;line-height:1.55}
+.note-label{display:block;font-family:'Orbitron',monospace;font-size:8px;letter-spacing:1.4px;
+ color:var(--text-faint);margin-bottom:3px}
+.note-why{display:block;margin-top:2px}
+@media(max-width:720px){.secthead span{display:block;margin-left:0;margin-top:3px}}
 .btn-icon{display:inline-flex;align-items:center;justify-content:center;position:relative;
   width:52px;height:52px;min-height:52px;border-radius:14px;flex:none;padding:0;
   border:1px solid var(--border-bright);background:rgba(0,230,118,.1);cursor:pointer;transition:all .15s}
@@ -590,7 +617,8 @@ textarea{min-height:200px;resize:vertical;font-family:ui-monospace,Consolas,mono
   .editrow{grid-template-columns:1fr 1fr}
 }
 .btn .ic{width:15px;height:15px;vertical-align:-3px;margin-right:7px;flex:none}
-</style></head>
+</style><link rel="stylesheet" href="/theme.css">
+</head>
 <body>
 <div class="bar">
   <a class="btn" href="/"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>HUB</a>
@@ -605,9 +633,6 @@ textarea{min-height:200px;resize:vertical;font-family:ui-monospace,Consolas,mono
 <div class="modal" id="skl-modal">
   <h2>SKILLS <span id="skl-count" class="skl-count"></span>
     <button class="btn" id="skl-close" style="float:right">CLOSE</button></h2>
-  <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px">
-    Every agent session can reach these. Add a preset below, or press NEW SKILL to have
-    Agent Smith write one from a description.</p>
   <div id="skills"></div>
 </div>
 <div style="font-size:11px;color:var(--text-muted);margin:12px 0">
@@ -626,6 +651,7 @@ textarea{min-height:200px;resize:vertical;font-family:ui-monospace,Consolas,mono
   </div>
 </details>
 
+<div class="pick" id="pick"></div>
 <div id="list"></div>
 
 <div class="scrim" id="scrim"></div>
@@ -692,8 +718,10 @@ async function load(){
       <div class="settings">
         ${cell('model','MODEL')}${cell('temperature','TEMPERATURE')}${cell('top_p','TOP_P')}${cell('steps','MAX STEPS')}${cell('variant','REASONING')}
       </div>
-      ${p.rationale?`<div style="font-size:11px;color:var(--text-muted);margin-top:8px;line-height:1.5"><span style="font-family:'Orbitron',monospace;font-size:8px;letter-spacing:1.4px;color:var(--text-faint);margin-right:7px">WHY THESE SETTINGS</span>${esc(p.rationale)}</div>`:''}
-      ${(RECS.roles||{})[p.name]?`<div style="font-size:11px;color:var(--blue);margin-top:5px">★ Suggested model: <b>${esc(RECS.roles[p.name].pick)}</b> — ${esc(RECS.roles[p.name].why)}${/^hypothesis/.test(RECS.basis||'')?' <i>(untested guess)</i>':''}</div>`:''}
+      ${p.rationale?`<div class="note-block"><span class="note-label">WHY THESE SETTINGS</span>${esc(p.rationale)}</div>`:''}
+      ${(RECS.roles||{})[p.name]?`<div class="note-block"><span class="note-label">SUGGESTED MODEL</span>
+         <b style="color:var(--blue)">${esc(RECS.roles[p.name].pick)}</b>
+         <span class="note-why">${esc(RECS.roles[p.name].why)}${/^hypothesis/.test(RECS.basis||'')?' (untested guess)':''}</span></div>`:''}
       <div id="edit-${esc(p.name)}" style="display:none;margin-top:10px">
         <div class="editrow">
           <div><label>model</label><select id="e-model-${esc(p.name)}"></select></div>
@@ -711,23 +739,106 @@ async function load(){
   const P = DATA.personas||[];
   const smith = P.filter(p=>p.name==='agent-smith');
   const orch = P.filter(p=>!p.utility && (p.name===prim || p.mode==='primary'));      // Smith is mode:primary too — he must not be listed twice
-  const other = P.filter(p=>p.name==='app-ingestor');
+  const other = P.filter(p=>p.name==='scout');
   const subs = P.filter(p=>![...smith,...orch,...other].includes(p));
   const dept = (n) => Object.values(PROFILES).filter(v=>(v.roster||[]).includes(n)).map(v=>v.label).join(' · ');
   const order = (n) => { const i = Object.values(PROFILES).findIndex(v=>(v.roster||[]).includes(n)); return i<0?99:i; };
   subs.sort((a,b)=>order(a.name)-order(b.name) || a.name.localeCompare(b.name));
   const sec = (title, sub, arr, tagDept) => arr.length ? `<div class="secthead">${title}<span>${sub}</span></div>` +
     arr.map(p => card(p).replace('<span style="flex:1"></span>', (tagDept&&dept(p.name)?`<span class="tag">${esc(dept(p.name))}</span>`:'')+'<span style="flex:1"></span>')).join('') : '';
-  $('list').innerHTML =
-      sec('AGENT SMITH', 'the agent that designs new agents from a plain description', smith)
-    + sec('ORCHESTRATOR', 'takes your ask, asks you what it needs, plans the steps — writes no project code', orch)
-    + sec('SUBAGENTS', 'each does one step of a plan; also runnable directly. Tag = the work type that offers it', subs, true)
-    + sec('OTHER UTILITY', 'not part of plans', other);
+  // The families come from the profile rosters, so adding a profile or moving an
+  // agent between them changes this page without anybody editing it here.
+  const fams = Object.entries(PROFILES).map(([k,v]) => ({
+    key:k, label:v.label, hint:v.hint||'',
+    members: subs.filter(p => (v.roster||[]).includes(p.name))
+  })).filter(f => f.members.length);
+  const RUNS = [...smith, ...orch, ...other];
+  const inFam = new Set(fams.flatMap(f => f.members.map(m => m.name)));
+  const loose = subs.filter(p => !inFam.has(p.name));
+  if(loose.length) fams.push({key:'other', label:'Other', hint:'not offered by any work type', members:loose});
+
+  const TABS = [{key:'run', label:'Runs the hub', n:RUNS.length}]
+    .concat(fams.map(f => ({key:f.key, label:f.label, n:f.members.length})));
+  if(!TABS.some(t => t.key === FAM)) FAM = TABS[0].key;
+
+  $('pick').innerHTML = TABS.map(t =>
+    `<button data-fam="${t.key}" class="${t.key===FAM?'on':''}">${esc(t.label)}<span class="n">${t.n}</span></button>`).join('');
+  document.querySelectorAll('[data-fam]').forEach(b => b.onclick = () => {
+    // load() is fetch-then-draw and the hub is local, so re-running it is the
+    // honest way to redraw without splitting a 900-line page in half today.
+    FAM = b.dataset.fam; location.hash = FAM; load(); window.scrollTo({top:0}); });
+
+  if(FAM === 'run'){
+    $('list').innerHTML =
+        sec('ORCHESTRATOR', 'takes your ask, asks what it needs, plans the steps — writes no project code', orch)
+      + sec('AGENT SMITH', 'designs new agents from a plain description', smith)
+      + sec('BRINGS IN NEW APPS', 'reads an unfamiliar repo and writes the manifest that lets the Hub front it — the orchestrator can call it, or you can run it directly', other);
+  } else {
+    const f = fams.find(x => x.key === FAM);
+    $('list').innerHTML = f ? sec(f.label.toUpperCase(), f.hint, f.members, true) : '';
+  }
   bindSkills();
   loadSkills();
 }
 // ── the skill library ────────────────────────────────────────────────────────────────
 let SKILLS = null;
+// Which family of work is showing. In the hash so it survives a reload and can be
+// linked; a hash change never reloads, so it is also listened for.
+let FAM = (location.hash||'').replace('#','') || 'run';
+let SKTOPIC = '';          // which skill topic the library is showing
+let SKDRAFT = null;        // the skill being written, if any
+
+// Grouped by what the skill helps with, because that is how you look for one.
+// The topic comes from each skill's own frontmatter (ours) or the side map (the
+// vendored and wiki-compiled ones we do not edit), so a skill added later sorts
+// itself without this page being touched.
+// The file a skill has to be, shown from the start so writing one by hand needs
+// no documentation hunt. Agent Smith replaces it; nobody has to use him.
+function skillTemplate(){
+  const topics = [...new Set(((SKILLS||{}).library||[]).map(s=>s.topic).filter(t=>t&&t!=='Other'))].sort();
+  return ['---',
+    'name: my-skill-name',
+    'description: "What it is for, and when an agent should reach for it."',
+    'metadata:',
+    '  topic: "' + (topics[0]||'Code & build') + '"   # one of: ' + topics.join(' | '),
+    '---',
+    '',
+    '# Title',
+    '',
+    'The rules, limits and steps an agent should follow. Keep it general — no',
+    'one-off facts and no names of a particular project’s files.',
+    ''].join(String.fromCharCode(10));
+}
+
+function skillDraftBox(){
+  const d = SKDRAFT;
+  if(!d.md && !d.busy) d.md = skillTemplate();
+  return `<div class="skl add"><div class="body">
+    <div class="row"><input id="sk-desc" placeholder="Describe it and let Agent Smith write it"
+        value="${esc(d.desc||'')}" style="flex:1 1 240px">
+      <button class="btn go" onclick="skillDraft()" ${d.busy?'disabled':''}>
+        ${d.busy?'DRAFTING…':'DRAFT IT'}</button></div>
+    <div class="row" style="margin-top:8px">
+      <input id="sk-name" value="${esc(d.name)}" placeholder="skill-name" style="flex:0 0 200px">
+      <button class="btn go" onclick="skillSave()">SAVE</button>
+      <button class="btn" onclick="skillCancel()">CANCEL</button></div>
+    <textarea id="sk-md" rows="15" spellcheck="false"
+      style="width:100%;margin-top:6px;font-family:monospace;font-size:11.5px">${esc(d.md)}</textarea>
+    ${d.msg ? `<div class="meta" style="color:var(--red)">${esc(d.msg)}</div>` : ''}
+  </div></div>`;
+}
+
+function skillsByTopic(list){
+  const by = {};
+  (list||[]).forEach(s => { (by[s.topic || 'Other'] = by[s.topic || 'Other'] || []).push(s); });
+  const names = Object.keys(by).sort((a,b) =>
+    (a==='Other') - (b==='Other') || by[b].length - by[a].length || a.localeCompare(b));
+  if(!names.some(n => n === SKTOPIC)) SKTOPIC = names[0] || '';
+  const tabs = `<div class="pick skl-pick">` + names.map(n =>
+    `<button data-skt="${esc(n)}" class="${n===SKTOPIC?'on':''}">${esc(n)}<span class="n">${by[n].length}</span></button>`
+  ).join('') + `</div>`;
+  return tabs + (by[SKTOPIC]||[]).map(skillCard).join('');
+}
 
 function skillCard(s){
   const origin = s.origin === 'yours' ? 'yours'
@@ -784,15 +895,14 @@ async function loadSkills(){
   // Always shown. Hiding it when the catalogue happened to be empty left no
   // way to add anything at all.
   $('skills').innerHTML =
-      `<div class="secthead">SKILLS YOU CAN ADD<span>pulled from their own repository at a pinned version, into your skills folder</span></div>`
-    + (add.length ? add.map(catalogueCard).join('')
-                  : `<div class="skl"><div class="body">Everything in the catalogue is installed. You can still
-                     write one: <b>NEW SKILL</b> has Agent Smith draft it from a description, and you approve the
-                     text before it is saved.</div>
-                     <div class="row"><button class="btn" onclick="newSkill()">NEW SKILL</button>
-                     <a class="btn" href="https://github.com/latent-spaces/brag" target="_blank" rel="noopener">BROWSE UPSTREAM</a></div></div>`)
-    + `<div class="secthead">SKILL LIBRARY<span>${SKILLS.library.length} skills every agent session can reach</span></div>`
-    + SKILLS.library.map(skillCard).join('');
+      `<div class="secthead">ADD A SKILL</div>`
+    + (SKDRAFT ? skillDraftBox() : `<div class="addbar"><button class="btn go" onclick="newSkill()">NEW SKILL</button>
+         <span class="lp">Describe it, a model drafts it, you save it.</span></div>`)
+    + (add.length ? add.map(catalogueCard).join('') : '')
+    + `<div class="secthead">SKILL LIBRARY<span>${SKILLS.library.length}</span></div>`
+    + skillsByTopic(SKILLS.library);
+  document.querySelectorAll('[data-skt]').forEach(b => b.onclick = () => {
+    SKTOPIC = b.dataset.skt; loadSkills(); });
 }
 
 function openSkills(open){
@@ -800,12 +910,38 @@ function openSkills(open){
   $('skl-scrim').classList.toggle('open', open);
 }
 
+// Writing a skill is one step: describe it, a model drafts the file, you read it
+// and save. It borrows an agent to phrase the text, which is not the same as
+// needing a mission, a working copy, or a diff to approve.
 window.newSkill = () => {
-  // Agent Smith already drafts personas from a description; skills use the same
-  // route, so this points at the ask box rather than inventing a second flow.
-  location.href = '/missions?ask=' + encodeURIComponent(
-    'Write a reusable skill for my agents about: ');
+  SKDRAFT = {desc:'', md:'', name:'', busy:false, msg:''};   // md fills with the template
+  loadSkills();
 };
+
+window.skillDraft = async () => {
+  const box = $('sk-desc'); if(!box) return;
+  SKDRAFT.desc = box.value.trim();
+  SKDRAFT.md = '';                       // Smith writes the file; drop the template
+  if(!SKDRAFT.desc){ SKDRAFT.msg = 'Say what it should cover.'; loadSkills(); return; }
+  SKDRAFT.busy = true; SKDRAFT.msg = ''; loadSkills();
+  try{
+    const r = await jpost('/api/skills/draft', {description: SKDRAFT.desc});
+    SKDRAFT.md = r.markdown || ''; SKDRAFT.name = r.name || '';
+    SKDRAFT.msg = r.ok ? '' : 'The model returned something that is not a skill file. Try again or edit it below.';
+  }catch(e){ SKDRAFT.msg = String(e.message||e); }
+  SKDRAFT.busy = false; loadSkills();
+};
+
+window.skillSave = async () => {
+  SKDRAFT.md = $('sk-md').value;
+  SKDRAFT.name = $('sk-name').value.trim();
+  try{
+    await jpost('/api/skills/save', {name: SKDRAFT.name, markdown: SKDRAFT.md, overwrite: true});
+    SKDRAFT = null; await loadSkills();
+  }catch(e){ SKDRAFT.msg = String(e.message||e); loadSkills(); }
+};
+
+window.skillCancel = () => { SKDRAFT = null; loadSkills(); };
 
 window.installSkill = async (id, btn) => {
   const msg = $('skl-msg-'+id);
@@ -902,6 +1038,13 @@ $('c-save').onclick = async () => {
     await load();
   } catch(e){ alert('Save failed: '+e.message); }
 };
+// A linked or bookmarked #family must move the page; changing only the hash
+// never reloads, so without this a cold link works and a warm one does nothing.
+window.addEventListener('hashchange', () => {
+  const want = (location.hash||'').replace('#','');
+  if(want && want !== FAM){ FAM = want; load(); }
+});
+
 load();
 </script>
 </body></html>

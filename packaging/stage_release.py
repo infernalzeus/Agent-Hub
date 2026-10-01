@@ -14,7 +14,12 @@ import re
 import shutil
 
 EXTENSIONS = {'.py', '.json', '.js', '.css', '.html', '.md', '.txt', '.png', '.svg', '.jpg', '.jpeg', '.ico', '.pdf', '.zip', '.gz', '.yaml', '.yml', '.sh', '.ts', '.tsx', '.cjs', '.mjs'}
-PRIVATE = {'local_settings.py', 'locations.json', 'apps.json', 'onboarding.json', 'provider_keys.json', 'cookies.txt', 'client_secrets.json', 'credentials', 'data', '__pycache__', '.git', 'ingested_apps', 'skills_compiled', 'skills_installed', 'logs'}
+PRIVATE = {'local_settings.py', 'locations.json', 'apps.json', 'onboarding.json', 'provider_keys.json', 'cookies.txt', 'client_secrets.json', 'credentials', 'data', '__pycache__', '.git', 'ingested_apps', 'skills_compiled', 'skills_installed', 'logs',
+           # state the hub writes beside itself when run from source: a
+           # developer's own theme, automations and run history are theirs,
+           # not something to ship to everyone who installs a build.
+           'theme.json', 'automations.json', 'automation_runs.json',
+           'integration_tokens.json', 'skill_topics_user.json', 'pending_move.json'}
 ROOT_FILES = ('app.py', 'favicon.png', 'favicon-64.png', 'favicon-256.png', 'favicon.ico', 'requirements-youtube.txt')
 
 

@@ -2,6 +2,7 @@
 name: fastapi-dashboard
 description: "FastAPI conventions for data pipeline dashboards (compliance checks, threshold review UIs). Relevant when the task involves: fastapi, dashboard, pydantic, uvicorn, api, threshold."
 metadata:
+  topic: "Code & build"
   keywords: "fastapi, dashboard, pydantic, uvicorn, api, threshold"
   origin: hand-written
 ---

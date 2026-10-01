@@ -294,6 +294,33 @@ _GENERIC_EXTS = {
 }
 
 
+def _clean(v) -> str:
+    """Frontmatter values arrive with their quotes still on - strip them, so
+    `topic: "Code & build"` and `topic: Code & build` are the same topic."""
+    return str(v or "").strip().strip('"').strip("'").strip()
+
+
+_SIDE_TOPICS: "dict | None" = None
+
+
+def _side_topic(name: str) -> str:
+    """Topic for a skill whose SKILL.md is not ours to edit.
+
+    Vendored skills sit beside their own LICENSE.txt and are kept verbatim, and
+    wiki-compiled ones are rebuilt from the vault on every start - so neither can
+    carry a topic in its own frontmatter the way ours do.
+    """
+    global _SIDE_TOPICS
+    if _SIDE_TOPICS is None:
+        try:
+            import json
+            data = json.loads((Path(__file__).parent / "skill_topics.json").read_text(encoding="utf-8"))
+            _SIDE_TOPICS = data.get("topics", {})
+        except Exception:
+            _SIDE_TOPICS = {}
+    return _SIDE_TOPICS.get(name, "")
+
+
 def skills_overview() -> list[dict]:
     """The whole library as plain dicts for the /graph UI + APIs: name,
     description, keyword list, and origin ('hand-written' | 'wiki-concept' |
@@ -315,7 +342,8 @@ def skills_overview() -> list[dict]:
         else:
             origin = meta.get("origin") or "hand-written"
         entry = {"name": s["name"], "description": s["description"],
-                 "keywords": s["keywords"], "origin": origin}
+                 "keywords": s["keywords"], "origin": origin,
+                 "topic": _clean(meta.get("topic")) or _side_topic(s["name"]) or "Other"}
         if meta.get("source_page"):
             entry["source_page"] = meta["source_page"]
         out.append(entry)
@@ -412,7 +440,7 @@ AGENTS_DIR = Path(__file__).parent / "agents"                # baseline, in the 
 USER_AGENTS_DIR = Path(__file__).parent / "agents_user"      # yours, gitignored
 OVERRIDES_FILE = Path(__file__).parent / "agent_overrides.json"   # LLM-settings, gitignored
 # always materialised + always available as a chat target, but not "on the team"
-UTILITY_AGENTS = ("agent-smith", "app-ingestor")
+UTILITY_AGENTS = ("agent-smith", "scout")
 RENDER_TOOL = Path(__file__).resolve().parents[2] / "tools" / "render_png.py"   # HTML/SVG -> PNG via headless Edge/Chrome
 
 

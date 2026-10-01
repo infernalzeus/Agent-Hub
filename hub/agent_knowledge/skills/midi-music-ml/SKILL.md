@@ -2,6 +2,7 @@
 name: midi-music-ml
 description: "Symbolic MIDI ML generation and mastering conventions (cadenza-style projects). Relevant when the task involves: midi, mido, cadenza, lmms, music, sklearn."
 metadata:
+  topic: "Media"
   keywords: "midi, mido, cadenza, lmms, music, sklearn"
   origin: hand-written
 ---

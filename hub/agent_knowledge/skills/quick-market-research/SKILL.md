@@ -2,6 +2,7 @@
 name: quick-market-research
 description: "Fast, practical competitive/market checks before building — what to actually look up and how to use it. Relevant when the task involves: market-research, competitor, competitive-analysis, validation, research."
 metadata:
+  topic: "Data & research"
   keywords: "market-research, competitor, competitive-analysis, validation, research"
   origin: hand-written
 ---
