@@ -1,11 +1,17 @@
 # YouTube credentials (not committed)
 
+**You do not need to do any of this by hand.** In Agent Hub open Settings → TOOLS →
+**YouTube channels** → ADD A CHANNEL, give it a name and pick the JSON you downloaded
+from Google; it is stored here for you, checked before it is saved, and survives
+updates. The rest of this file explains what that folder holds and how to get the
+JSON from Google.
+
 The upload feature needs a Google OAuth client and a per-account token. **Neither is
 included in this repo** — they are ignored by `.gitignore`. Create your own:
 
 ```
 youtube/credentials/
-└── <ACCOUNT_TAG>/            # must match a key in YOUTUBE_ACCOUNTS (hub/local_settings.py)
+└── <ACCOUNT_TAG>/            # the channel name; Settings creates this for you
     ├── client_secrets.json   # you provide (see below)
     └── youtube_token.pickle  # auto-created on first upload after you authorize
 ```

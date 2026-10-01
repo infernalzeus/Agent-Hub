@@ -50,6 +50,8 @@ Thumbs.db
 
 # Compiled-from-wiki skills (rebuilt on every hub start by skills_sync.py)
 hub/agent_knowledge/skills_generated/
+# written from the routing table on every start; never edited by hand
+hub/agent_knowledge/skills_hub/
 
 # Personal agent personas + per-agent LLM-setting overrides (yours, not the repo's)
 hub/agent_knowledge/agents_user/
