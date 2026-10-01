@@ -2,6 +2,7 @@
 name: obsidian-wiki-graph-context
 description: "Working with an Obsidian-based LLM Wiki — markdown knowledge graph as compiled context, not RAG. Relevant when the task involves: obsidian, wiki, markdown, knowledge-graph, wikilink, canvas, second-brain."
 metadata:
+  topic: "Writing & comms"
   keywords: "obsidian, wiki, markdown, knowledge-graph, wikilink, canvas, second-brain"
   origin: hand-written
 ---

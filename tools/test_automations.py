@@ -305,3 +305,30 @@ def test_needs_you_is_announced_even_on_first_sight(tmp_path, monkeypatch):
                   brief="b", agent="coder", kind="single", status="needs_input")
     st.save(m)
     assert [k for k, _ in got] == ["mission.needs_you"]
+
+
+# -- naming a project in a mission step ---------------------------------------
+# Found by litmus test E: a step naming a project inside a collection failed with
+# "no project called ..." because the lookup matched source rows, not the
+# projects discovered inside them - which is most of them.
+def test_a_project_inside_a_collection_can_be_named(monkeypatch):
+    monkeypatch.setattr(A, "_project", A._project)   # real one
+    from hub.agent_knowledge import projects as pj
+    monkeypatch.setattr(pj, "discover_projects", lambda: [
+        {"slug": "inner", "name": "Inner", "path": r"C:\c\inner", "readonly": False}])
+    assert A._project("inner")["path"] == r"C:\c\inner"
+
+
+def test_a_read_only_project_is_refused_with_the_reason(monkeypatch):
+    from hub.agent_knowledge import projects as pj
+    monkeypatch.setattr(pj, "discover_projects", lambda: [
+        {"slug": "vault", "name": "Vault", "path": r"C:\v", "readonly": True}])
+    with pytest.raises(ValueError, match="read-only"):
+        A._project("vault")
+
+
+def test_an_unknown_project_says_so(monkeypatch):
+    from hub.agent_knowledge import projects as pj
+    monkeypatch.setattr(pj, "discover_projects", lambda: [])
+    with pytest.raises(ValueError, match="no project called"):
+        A._project("ghost")

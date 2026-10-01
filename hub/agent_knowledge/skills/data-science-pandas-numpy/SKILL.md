@@ -2,6 +2,7 @@
 name: data-science-pandas-numpy
 description: "pandas/numpy conventions for scientific data pipelines (actigraphy, sleep metrics, compliance checks). Relevant when the task involves: pandas, numpy, csv, dataframe, actigraphy, sleep, epoch, circadian, scipy."
 metadata:
+  topic: "Data & research"
   keywords: "pandas, numpy, csv, dataframe, actigraphy, sleep, epoch, circadian, scipy"
   origin: hand-written
 ---

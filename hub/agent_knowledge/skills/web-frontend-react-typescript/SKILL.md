@@ -2,6 +2,7 @@
 name: web-frontend-react-typescript
 description: "React/TypeScript frontend conventions — state, rendering, types (for founder projects outside the current Python/D3 stack). Relevant when the task involves: react, typescript, ts, tsx, jsx, frontend, next, vite, hooks."
 metadata:
+  topic: "Code & build"
   keywords: "react, typescript, ts, tsx, jsx, frontend, next, vite, hooks"
   origin: hand-written
 ---

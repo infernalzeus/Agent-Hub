@@ -2,6 +2,7 @@
 name: git-workflow-conventions
 description: "Safe git usage inside an OpenCode session — commits, remotes, and what never to do unattended. Relevant when the task involves: git, commit, branch, remote, push, github."
 metadata:
+  topic: "Method & craft"
   keywords: "git, commit, branch, remote, push, github"
   origin: hand-written
 ---

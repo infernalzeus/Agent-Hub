@@ -2,6 +2,7 @@
 name: debugging-methodology
 description: "Language-agnostic method for finding the root cause of a bug fast — reproduce, isolate, bisect, instrument — and knowing when a fix is really a fix. Relevant when the task involves: debug, bug, crash, regression, stack-trace, repro, flaky, root-cause, investigate."
 metadata:
+  topic: "Method & craft"
   keywords: "debug, bug, crash, regression, stacktrace, repro, flaky, root-cause, investigate, heisenbug"
   origin: hand-written
 ---

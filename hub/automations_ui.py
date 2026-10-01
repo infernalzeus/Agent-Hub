@@ -59,7 +59,8 @@ textarea{min-height:62px;resize:vertical}
 .grid{display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center;margin-top:8px}
 .empty{color:var(--text-faint);font-size:13px}
 @media(max-width:720px){.grid{grid-template-columns:1fr}}
-</style></head><body>
+</style><link rel="stylesheet" href="/theme.css">
+</head><body>
 <div class="bar"><a class="btn" href="/">HUB</a><span class="brand">AUTOMATIONS</span>
  <span style="flex:1"></span><a class="btn" href="/missions">MISSIONS</a>
  <button class="btn go" id="new">NEW</button></div>

@@ -2,6 +2,7 @@
 name: llm-app-integration
 description: "Calling an LLM from application code reliably — structured output, retries, context-window budgeting, streaming, cost and latency. Relevant when the task involves: llm, openai, ollama, anthropic, prompt, completion, embedding, rag, agent, tool-call, token."
 metadata:
+  topic: "Code & build"
   keywords: "llm, openai, ollama, anthropic, prompt, completion, embedding, rag, agent, tokens, structured-output, litellm"
   origin: hand-written
 ---

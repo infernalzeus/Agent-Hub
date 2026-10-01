@@ -2,6 +2,7 @@
 name: ffmpeg-video-captions
 description: "Working with ffmpeg for video captioning, cropping, and audio mixing (movie-shorts-clipper style pipelines). Relevant when the task involves: ffmpeg, clipper, movie, captions, srt, whisper, video."
 metadata:
+  topic: "Media"
   keywords: "ffmpeg, clipper, movie, captions, srt, whisper, video"
   origin: hand-written
 ---

@@ -129,6 +129,7 @@ svg#graph:active{cursor:grabbing}
   font-family:'Orbitron',monospace;font-size:12px;letter-spacing:2px;color:var(--text-muted)}
 @media (max-width:520px){header{gap:8px;padding-left:12px;padding-right:12px}.brand{font-size:11px;letter-spacing:1.5px}.back-link{padding:9px 11px;font-size:10px;min-height:36px}}
 </style>
+<link rel="stylesheet" href="/theme.css">
 </head>
 <body>
 <header>

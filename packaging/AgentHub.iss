@@ -127,6 +127,24 @@ begin
   Result := DataDirPage.Values[0];
 end;
 
+{ The last page before anything is written lists what this install changes outside
+  its own folder. Two of those changes are registry values under HKCU, and one of
+  them - the agenthub:// handler - was previously made silently on first run. A
+  per-user registry write needs no admin, but it is still a change to someone's
+  machine, and the honest place to say so is before it happens rather than never. }
+function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo,
+  MemoTypeInfo, MemoComponentsInfo, MemoGroupInfo, MemoTasksInfo: String): String;
+begin
+  Result := MemoDirInfo + NewLine + NewLine
+    + 'Data folder:' + NewLine + Space + DataDirPage.Values[0] + NewLine + NewLine
+    + MemoTasksInfo + NewLine
+    + 'Changes outside these folders:' + NewLine
+    + Space + 'Remembers your data folder (registry, your account only)' + NewLine
+    + Space + 'Registers agenthub:// links so the hub can be opened from a page' + NewLine
+    + Space + '  (added on first run, your account only, no administrator rights)' + NewLine
+    + Space + 'Nothing is written for other users of this PC, and an uninstall removes both.';
+end;
+
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;

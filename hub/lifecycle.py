@@ -145,6 +145,15 @@ def install(app: web.Application) -> None:
             return_exceptions=True,
         )
         logger.info("Cleanup finished in %.1fs", time.monotonic() - t0)
+        # Last thing, after the children are gone and the lock is released: if a
+        # move of the install folder is queued, hand it to a script outside that
+        # folder. It waits for this process to exit before touching anything,
+        # because until then Windows holds these files open.
+        try:
+            from . import install_move
+            install_move.launch()
+        except Exception as exc:
+            logger.warning("install_move: not started: %s", exc)
 
     app.on_startup.append(_on_startup)
     app.on_shutdown.append(_on_shutdown)

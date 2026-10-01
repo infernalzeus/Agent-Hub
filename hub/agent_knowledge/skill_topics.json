@@ -1,0 +1,29 @@
+{
+  "_why": "Topics for skills whose SKILL.md is not ours to edit. Vendored skills are third-party copies kept verbatim beside their LICENSE.txt, and wiki-compiled ones are rebuilt from the vault on every start, so neither can carry a topic in its own frontmatter. Ours declare `metadata.topic` instead; this file is only the fallback, and anything missing from both shows as Other.",
+  "topics": {
+    "academy-guide": "Writing & comms",
+    "algorithmic-art": "Design & visuals",
+    "brand-guidelines": "Design & visuals",
+    "canvas-design": "Design & visuals",
+    "claude-api": "Code & build",
+    "discernment-nudge": "Writing & comms",
+    "doc-coauthoring": "Writing & comms",
+    "frontend-design": "Design & visuals",
+    "internal-comms": "Writing & comms",
+    "mcp-builder": "Code & build",
+    "skill-creator": "Method & craft",
+    "slack-gif-creator": "Media",
+    "theme-factory": "Design & visuals",
+    "web-artifacts-builder": "Design & visuals",
+    "webapp-testing": "Method & craft",
+    "brag": "Media",
+    "llm-json-salvage": "Code & build",
+    "narration-led-vs-clip-led-rendering": "Media",
+    "orthogonal-modes-vs-presets": "Method & craft",
+    "reverse-proxy-base-path": "Code & build",
+    "skill-provenance-and-licensing": "Method & craft",
+    "subprocess-port-aliasing": "Code & build",
+    "validated-instrument-scoring": "Data & research",
+    "agent-hub-api": "This machine"
+  }
+}

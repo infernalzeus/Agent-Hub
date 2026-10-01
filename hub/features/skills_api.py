@@ -34,6 +34,16 @@ _SYSTEM = (
     "names of this project's files, no one-off facts. No preamble, no code fences around the file.")
 
 
+def _unfence(md: str) -> str:
+    """Strip a ``` fence a model wrapped the file in, despite being told not to."""
+    t = md.strip()
+    if t.startswith("```"):
+        t = t.split("\n", 1)[1] if "\n" in t else ""
+    if t.rstrip().endswith("```"):
+        t = t.rstrip()[:-3]
+    return t.strip()
+
+
 def _skill_dir(name: str) -> Path:
     # Always the user's root. A skill you saved is yours, not part of the build.
     return agent_knowledge.USER_SKILLS_DIR / name
@@ -65,6 +75,53 @@ async def draft_text(m: "M.Mission") -> str:
         except Exception as exc:
             last = exc
     raise web.HTTPBadRequest(text=f"the model could not draft it: {str(last)[:100]}")
+
+
+_SYSTEM_PLAIN = (
+    "You write ONE reusable skill file for an AI agent hub from a plain description. Output only the file: YAML frontmatter with `name` "
+    "(kebab-case, 2-4 words), `description` (one sentence saying what it is for and when to use it), and a `metadata:` block containing "
+    "`topic:` set to exactly one of: {topics}. Then a body of at most 25 short lines: the rules, limits, formats and steps an agent should "
+    "follow. Generalise - no one-off facts, no names of a particular project's files. No preamble, no code fences.")
+
+
+@routes.post("/api/skills/draft")
+async def api_draft_plain(request: web.Request) -> web.Response:
+    """Draft a skill from a description. No mission involved.
+
+    Writing a skill is a thing on its own - it borrows an agent to phrase the
+    file, which is not the same as needing a mission, a working copy or a diff to
+    approve. Sending someone to the mission board to write one made a one-step
+    job look like a project.
+    """
+    try:
+        b = await request.json()
+    except Exception:
+        b = {}
+    desc = str(b.get("description") or "").strip()
+    if not desc:
+        raise web.HTTPBadRequest(text="say what the skill should cover")
+    topics = sorted({s.get("topic") for s in agent_knowledge.skills_overview() if s.get("topic")} - {"Other"})
+    system = _SYSTEM_PLAIN.format(topics=", ".join(topics))
+    chain = [x for x in agent_knowledge.model_chain(None, None) if x.startswith("ollama/")]
+    if not chain:
+        raise web.HTTPBadRequest(text="no Ollama model available to draft a skill")
+    await M._ensure_ollama()
+    last = None
+    for mdl in chain[:2]:
+        try:
+            md = (await M._direct_chat(mdl, system, f"The skill should cover: {desc}",
+                                       temperature=0.3, timeout=180)).strip()
+            md = _unfence(md)
+            parsed = _parse(md)
+            name = re.sub(r"[^a-z0-9-]+", "-", str(parsed.get("fm", {}).get("name", "")).lower()).strip("-")[:48]
+            if not NAME_RX.match(name or ""):
+                name = ""
+            return web.json_response({"name": name, "markdown": md, "model": mdl,
+                                      "ok": bool(parsed and name)})
+        except Exception as exc:
+            last = exc
+            logger.info("skill draft on %s failed: %s", mdl, exc)
+    raise web.HTTPBadRequest(text=f"the model could not draft it: {str(last)[:120]}")
 
 
 @routes.post("/api/missions/{id}/skill-draft")

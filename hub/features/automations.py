@@ -262,11 +262,18 @@ async def _run_step(step: dict, run: dict) -> str:
 
 
 def _project(name: str) -> dict:
-    from .. import locations
-    for s in locations.sources():
-        if name in (s.get("slug"), s.get("name"), s.get("path")):
-            return {"slug": s.get("slug") or name, "name": s.get("name") or name,
-                    "path": s.get("path")}
+    """Find a project the way a mission does - by discovery, not by source row.
+
+    A source is a folder you added; a project is what the hub finds inside it.
+    Matching only sources meant any project living in a collection - which is
+    most of them - could not be named by an automation step.
+    """
+    from ..agent_knowledge.projects import discover_projects
+    for p in discover_projects():
+        if name in (p.get("slug"), p.get("name"), p.get("path")):
+            if p.get("readonly"):
+                raise ValueError(f"{name!r} is read-only; missions cannot run on it")
+            return {"slug": p["slug"], "name": p["name"], "path": p["path"]}
     raise ValueError(f"no project called {name!r}")
 
 

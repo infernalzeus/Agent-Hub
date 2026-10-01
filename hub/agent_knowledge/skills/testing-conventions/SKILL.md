@@ -2,6 +2,7 @@
 name: testing-conventions
 description: "Language-agnostic testing philosophy — what to test, test structure, avoiding brittle/useless tests. Relevant when the task involves: test, testing, pytest, jest, unit-test, integration-test, mock, ci."
 metadata:
+  topic: "Method & craft"
   keywords: "test, testing, pytest, jest, unit-test, integration-test, mock, ci"
   origin: hand-written
 ---

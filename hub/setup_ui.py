@@ -54,14 +54,20 @@ h2{font:700 9px 'Orbitron',monospace;letter-spacing:1.6px;color:var(--text-muted
 .loc{border:1px solid var(--border-dim);border-radius:11px;padding:12px 13px;margin-bottom:9px;background:var(--panel)}
 .lh{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.lh b{color:var(--ink);font-size:14px;font-weight:600}
 .req{font:700 8px 'Orbitron',monospace;letter-spacing:1px;color:var(--amber)}
-.lp{font-size:12px;color:var(--text-muted);margin:3px 0 8px;line-height:1.45}
+.lp{font-size:12.5px;color:var(--text-muted);margin:6px 0 10px;line-height:1.6;max-width:72ch}
+/* A setting's first sentence says what the folder IS; the rest says how it
+   behaves. Separating them stops the two reading as one long qualifier. */
+.lp .first{display:block;color:var(--ink);margin-bottom:3px}
+.lh{row-gap:6px}
+@media(max-width:720px){.lp{font-size:13px;line-height:1.65}}
 .lin{display:flex;gap:7px;align-items:center}
 input[type=text],select{flex:1;min-width:0;background:var(--bg);border:1px solid var(--border-dim);color:var(--ink);border-radius:6px;padding:9px 10px;font-size:13px;outline:none;font-family:ui-monospace,Consolas,monospace}
 input[type=text]:focus,select:focus{border-color:var(--accent)}select{flex:0 0 auto;font-family:'Outfit',sans-serif}
 .chip{font-size:10.5px;border:1px solid var(--border-dim);border-radius:999px;padding:2px 9px;color:var(--text-muted)}
 .chip.warn{color:var(--amber);border-color:var(--amber)}.chip.error{color:var(--red);border-color:var(--red)}
 .src{display:grid;grid-template-columns:1fr;gap:7px;padding:10px 0;border-top:1px solid var(--border-dim)}.src:first-of-type{border-top:0;padding-top:2px}
-.src .meta{display:flex;gap:9px;align-items:center;flex-wrap:wrap;font-size:12px}.ck{display:inline-flex;align-items:center;gap:6px;color:var(--text-muted);font-size:12px}
+.src .meta{display:flex;gap:9px;align-items:center;flex-wrap:wrap;font-size:12px}
+.src .meta .lp{flex:1 1 200px}.ck{display:inline-flex;align-items:center;gap:6px;color:var(--text-muted);font-size:12px}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
 .sug{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.sug .chip{cursor:pointer}
 .err{color:var(--red);font-size:12px;margin-top:6px}
@@ -91,12 +97,30 @@ input[type=text]:focus,select:focus{border-color:var(--accent)}select{flex:0 0 a
 .nav .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 7px var(--accent)}
 .nav .dot.need{background:var(--amber);box-shadow:0 0 7px var(--amber)}
 .sect h2{margin-top:0}
+.themes{display:flex;flex-direction:column;gap:6px;margin:10px 0 2px}
+.loc.sub{background:transparent;border-style:dashed}
+.src.fixed{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.src.fixed code{font-size:11.5px;color:var(--text-faint);word-break:break-all;flex:1 1 200px}
+.src.fixed .btn{flex:0 0 auto;padding:5px 9px}
+.src.known{border-top:0;padding:6px 0}
+.src.known code{font-size:11px;color:var(--text-faint);word-break:break-all}
+.trow{display:flex;align-items:baseline;gap:9px;padding:9px 11px;border:1px solid var(--border-dim);
+ border-radius:9px;cursor:pointer;flex-wrap:wrap}
+.trow:hover{border-color:var(--border-bright)}
+.trow input{width:auto;flex:0 0 auto}
+.sws{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-top:8px}
+.sw{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border-dim);border-radius:9px}
+.sw input[type=color]{width:38px;height:38px;padding:0;border-radius:8px;flex:0 0 auto;cursor:pointer;background:transparent}
+.sw span{font-size:11.5px;color:var(--text-muted);line-height:1.45}
+.sw b{display:block;color:var(--ink);font-size:12.5px;font-weight:600}
+@media(max-width:720px){.sws{grid-template-columns:1fr}}
 @media (max-width:720px){main{padding:12px}.lin{flex-wrap:wrap}.lin input{flex:1 1 100%}.btn{flex:1 1 auto}.sticky{padding:8px 10px}
   /* No room for a rail: the sections become a row of chips you swipe. */
   .pane{grid-template-columns:minmax(0,1fr);gap:12px}
   .nav{position:static;flex-direction:row;overflow-x:auto;gap:6px;padding-bottom:4px;-webkit-overflow-scrolling:touch}
   .nav button{width:auto;flex:0 0 auto;white-space:nowrap;border-color:var(--border-dim)}}
-</style></head><body>
+</style><link rel="stylesheet" href="/theme.css">
+</head><body>
 <div class="bar"><a class="btn" href="/"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>HUB</a>
   <span class="brand">LOCATIONS</span><span style="flex:1"></span><a class="btn" href="/missions">MISSIONS</a></div>
 <main id="main"><div style="color:var(--text-muted)">loading…</div></main>
@@ -122,17 +146,18 @@ const SECTIONS = [
   {id:'hub',       label:'This hub',   group:null},
   {id:'projects',  label:'Projects',   group:'PROJECTS'},
   {id:'missions',  label:'Missions',   group:'MISSIONS'},
-  {id:'knowledge', label:'Knowledge',  group:'KNOWLEDGE'},
   {id:'files',     label:'Files',      group:'FILES'},
   {id:'tools',     label:'Tools',      group:'TOOLS'},
+  {id:'appearance',label:'Appearance', group:null},
 ];
 let SEC = (location.hash || '').replace('#','');
 if(!SECTIONS.some(x => x.id === SEC)) SEC = '';
 let MCPS = [], HTTPS = null, ADDR = null, UPD = null, ROUTINES = null, RTAB = 'mcp';
 let KEYS = null, KEYMSG = {}, KEYOPEN = '', FOLD = {};
 let YTA = null, YTMSG = '', YTOPEN = false;
+let THEME = null, KNOWN = [], MOVE = null;
 let REC = null, RECDROP = {}, RECMSG = '', RECTIMER = null;
-async function load(){ try{ REC = await jget('/api/pc/record'); }catch(e){ REC = null; } try{ KEYS = await jget('/api/llm/keys'); }catch(e){ KEYS = null; } try{ ROUTINES = (await jget('/api/pc/routines')).routines || []; }catch(e){ ROUTINES = null; } try{ UPD = await jget('/api/update'); }catch(e){ UPD = null; } try{ ADDR = await jget('/api/hub-address'); }catch(e){ ADDR = null; } try{ MCPS = (await jget('/api/mcp')).servers; }catch(e){ MCPS = []; } try{ HTTPS = await jget('/api/phone-https'); }catch(e){ HTTPS = null; } try{ YTA = await jget('/api/youtube/accounts'); }catch(e){ YTA = null; } DATA = await jget('/api/locations'); CUR = {}; ERR = {}; DATA.items.forEach(i => CUR[i.key] = JSON.parse(JSON.stringify(i.value))); render(); }
+async function load(){ try{ REC = await jget('/api/pc/record'); }catch(e){ REC = null; } try{ KEYS = await jget('/api/llm/keys'); }catch(e){ KEYS = null; } try{ ROUTINES = (await jget('/api/pc/routines')).routines || []; }catch(e){ ROUTINES = null; } try{ UPD = await jget('/api/update'); }catch(e){ UPD = null; } try{ ADDR = await jget('/api/hub-address'); }catch(e){ ADDR = null; } try{ MCPS = (await jget('/api/mcp')).servers; }catch(e){ MCPS = []; } try{ HTTPS = await jget('/api/phone-https'); }catch(e){ HTTPS = null; } try{ YTA = await jget('/api/youtube/accounts'); }catch(e){ YTA = null; } try{ THEME = await jget('/api/theme'); }catch(e){ THEME = null; } try{ KNOWN = await jget('/api/locations/known'); }catch(e){ KNOWN = []; } try{ MOVE = await jget('/api/install-move'); }catch(e){ MOVE = null; } DATA = await jget('/api/locations'); CUR = {}; ERR = {}; DATA.items.forEach(i => CUR[i.key] = JSON.parse(JSON.stringify(i.value))); render(); }
 const chip = (s) => s ? `<span class="chip ${esc(s.level)}">${esc(s.msg)}</span>` : '';
 
 function updateCard(){
@@ -189,15 +214,17 @@ function render(){
   }).join('');
 
   let body = '';
-  if(cur.id === 'hub') body += updateCard() + addressCard();
+  if(cur.id === 'hub') body += updateCard() + addressCard() + moveCard();
   if(first && cur.id === 'projects')
     body += `<div class="welcome"><b>WELCOME — WHERE SHOULD AGENT HUB READ AND WRITE?</b><p>Each section on the left holds one kind of setting, prefilled with what was found on this computer. Project folders are the only ones the hub cannot run without. Change what you like, then press SAVE — it saves every section at once, and nothing is created until you do.</p></div>`;
   if(cur.group){
     const items = DATA.items.filter(i => i.group === cur.group);
-    body += `<h2>${cur.group}</h2>` + items.map(itemHtml).join('');
+    body += `<h2>${cur.group}</h2>` + (cur.group === 'PROJECTS'
+      ? projectBoxes(items) : items.map(itemHtml).join(''));
   }
   if(cur.id === 'missions') body += providersCard();
   if(cur.id === 'tools') body += ytCard() + extraTools();
+  if(cur.id === 'appearance') body += themeCard();
 
   $('main').innerHTML = `<div class="pane"><nav class="nav">${nav}</nav><div class="sect">${body}</div></div>`;
   document.querySelectorAll('[data-sec]').forEach(b => b.onclick = () => {
@@ -265,6 +292,28 @@ function render(){
          KEYMSG[id] = 'Removed from this PC.'; KEYS = await jget('/api/llm/keys'); render(); }
     catch(e){ KEYMSG[id] = String(e.message||e); render(); }
   });
+  const applyTheme = async (payload) => {
+    try{
+      THEME = await jsend('PUT','/api/theme',payload);
+      // Re-fetch the stylesheet rather than reloading: the page keeps its
+      // scroll position and any unsaved folder edits in CUR.
+      const link = [...document.querySelectorAll('link[href^="/theme.css"]')][0];
+      if(link) link.href = '/theme.css?v=' + Date.now();
+      render(); toast('Theme applied');
+    }catch(e){ toast(e.message); }
+  };
+  document.querySelectorAll('input[name="th"]').forEach(r => r.onchange = () => {
+    const w = $('custom-wrap'); if(w) w.style.display = r.value === 'custom' ? '' : 'none';
+    applyTheme(r.value === 'custom'
+      ? {name:'custom', colors:Object.fromEntries([...document.querySelectorAll('[data-col]')].map(i=>[i.dataset.col,i.value]))}
+      : {name:r.value});
+  });
+  document.querySelectorAll('[data-col]').forEach(i => i.onchange = () => applyTheme({
+    name:'custom',
+    colors:Object.fromEntries([...document.querySelectorAll('[data-col]')].map(x=>[x.dataset.col,x.value]))}));
+  const tr = $('th-reset'); if(tr) tr.onclick = () => applyTheme(
+    {name:'custom', colors:Object.fromEntries((THEME.tokens||[]).map(t=>[t.key,t.default]))});
+
   const yo = $('yt-open'); if(yo) yo.onclick = () => { YTOPEN = !YTOPEN; YTMSG = ''; render(); };
   const ys = $('yt-save'); if(ys) ys.onclick = async () => {
     const tag = ($('yt-tag').value || '').trim(), f = $('yt-file').files[0];
@@ -331,13 +380,7 @@ function render(){
 function itemHtml(i){
   const k = i.key, e = ERR[k];
   const head = `<div class="lh"><b>${esc(i.label)}</b>${i.required?'<span class="req">REQUIRED</span>':''}${i.restart?'<span class="chip">applies after a hub restart</span>':''}<span id="st-${k}">${i.kind==='sources'?'':chip(i.status)}</span></div><div class="lp">${esc(i.purpose)}</div>`;
-  if(i.kind==='sources'){
-    const rows = (CUR[k]||[]).map((s,n)=>`<div class="src" data-n="${n}">
-      <div class="lin"><input type="text" data-src="${n}" data-f="path" value="${esc(s.path)}"><button class="btn" data-browse-src="${n}">BROWSE</button><button class="btn stop" data-rm="${n}" aria-label="Remove">${ic('x')}</button></div>
-      <div class="meta"><select data-src="${n}" data-f="kind"><option value="collection" ${s.kind==='collection'?'selected':''}>a folder full of projects</option><option value="project" ${s.kind==='project'?'selected':''}>one project</option></select>
-        <label class="ck"><input type="checkbox" data-src="${n}" data-f="readonly" ${s.readonly?'checked':''}> read-only (agents never write here)</label>${chip((i.sources_status||[])[n])}</div></div>`).join('') || '<div class="lp">No project folders yet. Add one, or pick from the suggestions.</div>';
-    return `<div class="loc" id="loc-${k}">${head}${rows}<div class="row"><button class="btn go" id="add-col">${ic('plus')}ADD A FOLDER OF PROJECTS</button><button class="btn" id="add-proj">${ic('plus')}ADD ONE PROJECT</button><button class="btn" id="suggest">FIND MY PROJECTS</button></div><div class="sug" id="sug"></div>${e?`<div class="err">${esc(e)}</div>`:''}</div>`;
-  }
+  // Project folders are composed by projectBoxes(): two boxes, not one list.
   const st = i.status||{};
   return `<div class="loc">${head}<div class="lin"><input type="text" data-k="${k}" value="${esc(CUR[k]||'')}" placeholder="${i.required?'':'not set'}">${i.kind==='folder'?`<button class="btn" data-browse="${k}">BROWSE</button>`:''}${st.create?`<button class="btn" data-create="${k}">CREATE</button>`:''}${!i.required&&CUR[k]?`<button class="btn" data-clear="${k}">CLEAR</button>`:''}</div>${e?`<div class="err">${esc(e)}</div>`:''}</div>`;
 }
@@ -523,6 +566,127 @@ function providersCard(){
   return fold('providers', 'Model providers', chip, body, on.length === 0);
 }
 
+// Two boundaries, drawn as two boxes, because they behave differently: one is
+// read for context and never written, the other is what missions copy and can
+// publish a diff back into.
+// Only on an installed build: from source there is no install folder to move.
+function moveCard(){
+  if(!MOVE || !MOVE.supported) return '';
+  const r = MOVE.result;
+  const chip = r === 'queued' ? '<span class="chip warn">moves on next restart</span>'
+             : r === 'done'   ? '<span class="chip ok">moved</span>'
+             : r === 'failed' ? '<span class="chip error">not moved</span>' : '';
+  let body = `<div class="lp">Where Agent Hub itself is installed. Your settings, channels and
+      automations are stored elsewhere and do not move.</div>
+    <div class="lin"><input type="text" id="mv-to" value="${esc(MOVE.to || MOVE.here || '')}"
+        ${r==='queued'?'disabled':''}><button class="btn" id="mv-browse">BROWSE</button></div>`;
+  if(r === 'queued'){
+    body += `<div class="lp">Queued. It copies, checks the copy, then removes the old folder \u2014
+       close the hub to start it.</div>
+      <div class="row"><button class="btn stop" id="mv-cancel">CANCEL THE MOVE</button></div>`;
+  } else {
+    body += `<div class="row"><button class="btn" id="mv-save">MOVE ON NEXT RESTART</button></div>`;
+    if(r === 'failed') body += `<div class="err">${esc(MOVE.why||'')}</div>`;
+  }
+  body += `<div class="lp" id="mv-msg"></div>`;
+  return fold('install', 'Install folder', chip, body, r === 'queued' || r === 'failed');
+}
+
+function projectBoxes(items){
+  const srcItem = items.find(i => i.kind === 'sources');
+  const wiki    = items.find(i => i.key === 'wiki_root');
+  const k = srcItem ? srcItem.key : 'project_sources';
+  const all = CUR[k] || [];
+  const ro = all.map((s,n)=>({s,n})).filter(x => x.s.readonly);
+  const rw = all.map((s,n)=>({s,n})).filter(x => !x.s.readonly);
+
+  const dupOf = (path) => all.findIndex(s => s.path && isDup(s.path) && covers(path, s.path));
+  const known = KNOWN.filter(x => x.exists && x.category === 'The hub itself')
+    .map(x => { const n = dupOf(x.path);
+      return `<div class="src fixed"><b>${esc(x.name)}</b><span class="chip">always</span>
+       <code>${esc(x.path)}</code>
+       ${n >= 0 ? `<button class="btn stop" data-rm="${n}" aria-label="Remove the duplicate row">${ic('x')}</button>` : ''}</div>`;
+    }).join('');
+
+  const box1 = `<div class="loc"><div class="lh"><b>Read-only</b>
+      <span class="chip">never written to</span></div>
+    <div class="lp">Read for context. Agents never change anything here.</div>
+    ${known}
+    ${wiki ? `<div class="src"><div class="meta"><b>${esc(wiki.label)}</b>
+        <span class="chip">optional</span>
+        <span class="lp" style="margin:0">An Obsidian vault of notes on your projects, read for context.</span>
+        ${dupOf(CUR.wiki_root) >= 0 ? `<button class="btn stop" data-rm="${dupOf(CUR.wiki_root)}" aria-label="Remove the duplicate row">${ic('x')}</button>` : ''}</div>
+        <div class="lin"><input type="text" data-k="${wiki.key}" value="${esc(CUR[wiki.key]||'')}" placeholder="not set">
+          <button class="btn" data-browse="${wiki.key}">BROWSE</button>
+          ${CUR[wiki.key]?`<button class="btn" data-clear="${wiki.key}">CLEAR</button>`:''}</div></div>` : ''}
+    ${ro.filter(x => !isDup(x.s.path)).map(x => srcRow(k, x.s, x.n)).join('')}
+    <div class="row"><button class="btn" id="add-ro">${ic('plus')}ADD A READ-ONLY FOLDER</button></div></div>`;
+
+  const box2 = `<div class="loc" id="loc-${k}"><div class="lh"><b>Project folders</b>
+      <span class="req">REQUIRED</span></div>
+    <div class="lp">${esc(srcItem ? srcItem.purpose : '')}</div>
+    ${rw.length ? rw.map(x => srcRow(k, x.s, x.n)).join('')
+                : '<div class="lp">None yet.</div>'}
+    <div class="row"><button class="btn go" id="add-col">${ic('plus')}ADD A FOLDER OF PROJECTS</button>
+      <button class="btn" id="add-proj">${ic('plus')}ADD ONE PROJECT</button>
+      <button class="btn" id="suggest">FIND MY PROJECTS</button></div>
+    <div class="sug" id="sug"></div>${ERR[k]?`<div class="err">${esc(ERR[k])}</div>`:''}</div>`;
+
+  return box1 + box2;
+}
+
+// A row pointing at a folder the hub already finds by itself, or at the vault's
+// own repo. Marked rather than hidden: it is the user's row to remove.
+function isDup(path){
+  // Separators are normalised to '/' so there is no backslash literal to escape,
+  // and a parent folder counts as covering the vault inside it.
+  const norm = (x) => String(x||'').split(String.fromCharCode(92)).join('/')
+                        .replace(/\/+$/, '').toLowerCase();
+  const here = norm(path); if(!here) return false;
+  const fixed = (KNOWN||[]).filter(x=>x.exists).map(x=>norm(x.path));
+  const vault = norm(CUR.wiki_root);
+  return fixed.some(f => covers(f, here)) || (!!vault && covers(vault, here));
+}
+
+// Does `a` sit at or inside `b`? Used to tell that a repo row covers the vault
+// folder within it, which is the same thing listed at two depths.
+function covers(a, b){
+  const norm = (x) => String(x||'').split(String.fromCharCode(92)).join('/')
+                        .replace(/\/+$/, '').toLowerCase();
+  const A = norm(a), B = norm(b);
+  return !!A && !!B && (A === B || A.startsWith(B + '/'));
+}
+
+function srcRow(k, s, n){
+  const item = (DATA.items||[]).find(i => i.key === k) || {};
+  return `<div class="src" data-n="${n}">
+    <div class="lin"><input type="text" data-src="${n}" data-f="path" value="${esc(s.path)}">
+      <button class="btn" data-browse-src="${n}">BROWSE</button>
+      <button class="btn stop" data-rm="${n}" aria-label="Remove">${ic('x')}</button></div>
+    <div class="meta"><select data-src="${n}" data-f="kind">
+        <option value="collection" ${s.kind==='collection'?'selected':''}>a folder full of projects</option>
+        <option value="project" ${s.kind==='project'?'selected':''}>one project</option></select>
+      <label class="ck"><input type="checkbox" data-src="${n}" data-f="readonly" ${s.readonly?'checked':''}> read-only</label>
+      ${isDup(s.path)?'<span class="chip warn">already above</span>':''}
+      ${chip((item.sources_status||[])[n])}</div></div>`;
+}
+
+function themeCard(){
+  if(!THEME) return '<div class="loc"><div class="lp">Could not load the theme.</div></div>';
+  const cur = THEME.name, cols = THEME.name==='custom' ? THEME.custom : THEME.colors;
+  const pick = THEME.themes.map(t =>
+    `<label class="trow"><input type="radio" name="th" value="${t.name}" ${t.name===cur?'checked':''}>`
+    + `<b>${esc(t.label)}</b></label>`).join('');
+  const swatches = THEME.tokens.map(t =>
+    `<label class="sw"><input type="color" data-col="${t.key}" value="${esc(cols[t.key]||t.default)}">`
+    + `<b>${esc(t.label)}</b></label>`).join('');
+  const body = `<div class="themes">${pick}</div>`
+    + `<div id="custom-wrap" style="${cur==='custom'?'':'display:none'}">
+         <div class="sws">${swatches}</div>
+         <div class="row"><button class="btn" id="th-reset">RESET</button></div></div>`;
+  return fold('appearance', 'Theme', `<span class="chip ok">${esc((THEME.themes.find(t=>t.name===cur)||{}).label||cur)}</span>`, body, true);
+}
+
 function ytCard(){
   if(!YTA) return '';
   const bad = /not |could not|already|cannot|reserved|use letters|needs a name/i.test(YTMSG);
@@ -565,11 +729,12 @@ function extraTools(){
   let h = '';
   const w = MCPS.find(x => x.name==='windows');
   h += `<div class="loc" id="pc-control"><div class="lh"><b>PC control (Windows MCP)</b>${w ? `<span class="chip ${w.enabled?'warn':'ok'}">${w.enabled?'ON':'off'}</span>${w.installed?'':'<span class="chip error">program missing</span>'}` : '<span class="chip">not set up</span>'}</div>
-    <div class="lp">Lets OpenCode agents click, type, take screenshots, open apps and use the clipboard. ${w ? 'PowerShell, registry, file and process control are excluded ('+esc(w.excluded_tools.join(', '))+'). ' : ''}It is off by default: while ON, the agents in any ask can use it, so switch it on only while you need it.</div>
-    ${w && w.installed ? `<div class="row"><button class="btn" id="mcp-probe">LIST ITS TOOLS (SAFE TEST)</button><button class="btn ${w.enabled?'stop':'go'}" id="mcp-toggle">${w.enabled?'SWITCH OFF':'SWITCH ON'}</button><span class="lp" style="margin:0">applies to the next ask step; restart the OpenCode workspace to apply it there</span></div>` : '<div class="lp">Not installed on this machine.</div>'}</div>`;
+    <div class="lp">Lets agents click, type and use your desktop. Off by default — switch it on only while you need it.</div>
+    ${w && w.excluded_tools && w.excluded_tools.length ? `<div class="lp" style="margin-top:-4px">Excluded: ${esc(w.excluded_tools.join(', '))}.</div>` : ''}
+    ${w && w.installed ? `<div class="row"><button class="btn" id="mcp-probe">LIST ITS TOOLS (SAFE TEST)</button><button class="btn ${w.enabled?'stop':'go'}" id="mcp-toggle">${w.enabled?'SWITCH OFF':'SWITCH ON'}</button><span class="lp" style="margin:0">applies to the next step</span></div>` : '<div class="lp">Not installed on this machine.</div>'}</div>`;
   if(HTTPS && HTTPS.available){
     h += `<div class="loc"><div class="lh"><b>Phone microphone and sound (https)</b><span class="chip ${HTTPS.serving?'ok':'warn'}">${HTTPS.serving?'https is on':'not set up'}</span></div>
-      <div class="lp">Browsers only allow the microphone (and reliable sound) on https. On your phone open the hub at:</div>
+      <div class="lp">The microphone needs https. Open this on your phone:</div>
       <div class="lin"><input type="text" readonly value="${esc(HTTPS.url)}" id="https-url"><button class="btn" id="https-copy">COPY</button></div>
       ${HTTPS.serving ? '' : `<div class="lp" style="margin-top:8px">Not serving yet. Run this once in a terminal on this PC: <code>${esc(HTTPS.command)}</code></div>`}</div>`;
   }
@@ -581,6 +746,18 @@ function bind(){
   document.querySelectorAll('input[data-k]').forEach(inp => inp.oninput = () => { CUR[inp.dataset.k] = inp.value; saveMsg(); clearTimeout(vt[inp.dataset.k]);
     vt[inp.dataset.k] = setTimeout(async () => { try{ const r = await jsend('POST','/api/locations/validate',{key:inp.dataset.k,value:inp.value}); $('st-'+inp.dataset.k).innerHTML = chip(r); }catch(e){} }, 400); });
   document.querySelectorAll('[data-src]').forEach(el => el.onchange = el.oninput = () => { const n = +el.dataset.src, f = el.dataset.f; CUR.project_sources[n][f] = el.type==='checkbox' ? el.checked : el.value; });
+  const mvb = $('mv-browse'); if(mvb) mvb.onclick = () => pick($('mv-to').value, p => { $('mv-to').value = p; });
+  const mvs = $('mv-save'); if(mvs) mvs.onclick = async () => {
+    try{ await jsend('POST','/api/install-move',{to:$('mv-to').value});
+         MOVE = await jget('/api/install-move'); render(); toast('Queued for the next restart'); }
+    catch(e){ $('mv-msg').innerHTML = '<span style="color:var(--red)">'+esc(e.message)+'</span>'; }
+  };
+  const mvc = $('mv-cancel'); if(mvc) mvc.onclick = async () => {
+    await jsend('POST','/api/install-move',{cancel:true});
+    MOVE = await jget('/api/install-move'); render(); };
+  const aro = $('add-ro'); if(aro) aro.onclick = () => {
+    CUR.project_sources = [...(CUR.project_sources||[]), {path:'', kind:'project', readonly:true}];
+    render(); };
   document.querySelectorAll('[data-browse]').forEach(b => b.onclick = () => pick(CUR[b.dataset.browse], p => { CUR[b.dataset.browse] = p; render(); }));
   document.querySelectorAll('[data-browse-src]').forEach(b => b.onclick = () => { const n = +b.dataset.browseSrc; pick(CUR.project_sources[n].path, p => { CUR.project_sources[n].path = p; render(); }); });
   document.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { CUR.project_sources.splice(+b.dataset.rm,1); render(); });

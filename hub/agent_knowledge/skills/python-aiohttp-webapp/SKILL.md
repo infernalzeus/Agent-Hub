@@ -2,6 +2,7 @@
 name: python-aiohttp-webapp
 description: "Python aiohttp web app conventions (Agent Hub-style single-process async services). Relevant when the task involves: aiohttp, python, py, webapp, asyncio."
 metadata:
+  topic: "Code & build"
   keywords: "aiohttp, python, py, webapp, asyncio"
   origin: hand-written
 ---
