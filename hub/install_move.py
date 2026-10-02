@@ -249,7 +249,7 @@ def launch(tmp_dir: "Path | None" = None) -> bool:
     could not start must never stop the Hub from closing.
     """
     row = pending()
-    if row.get("state") != "queued":
+    if row.get("state") != "queued" or not enabled():
         return False
     try:
         import subprocess
@@ -293,9 +293,30 @@ def outcome() -> dict:
 
 
 # -- http ----------------------------------------------------------------------
+def enabled() -> bool:
+    """Whether the move is offered at all.
+
+    It appears only on an installed build - which is exactly where it has never
+    been run, because it cannot be exercised from source. Until a real install
+    has been moved and interrupted on a real machine, it stays off unless
+    somebody deliberately turns it on:
+
+        AGENTHUB_INSTALL_MOVE=1
+
+    Shipping an untested path that can delete a working install, enabled by
+    default, in the one place it was never tested, is not a risk worth taking for
+    a feature nobody has asked to use yet.
+    """
+    import os as _os
+    if not PACKAGED:
+        return False
+    flag = str(_os.environ.get("AGENTHUB_INSTALL_MOVE", "")).strip().lower()
+    return flag in ("1", "true", "yes", "on")
+
+
 @routes.get("/api/install-move")
 async def api_get(request: web.Request) -> web.Response:
-    return web.json_response({"supported": bool(PACKAGED), "here": str(install_dir()),
+    return web.json_response({"supported": enabled(), "here": str(install_dir()),
                               **outcome()})
 
 
