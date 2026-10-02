@@ -203,3 +203,26 @@ def test_posix_gets_a_shell_script_and_windows_a_cmd(packaged, tmp_path):
 
 def test_a_posix_network_path_is_refused(packaged):
     assert "network" in IM.why_not("//server/share/hub")
+
+
+# -- off by default ------------------------------------------------------------
+# It can only appear on an installed build, which is the one place it has never
+# been run. Until a real install has been moved and interrupted, it stays off.
+def test_it_is_not_offered_from_source(monkeypatch):
+    monkeypatch.setattr(IM, "PACKAGED", False)
+    monkeypatch.setenv("AGENTHUB_INSTALL_MOVE", "1")
+    assert IM.enabled() is False
+
+
+def test_it_is_off_on_an_installed_build_unless_turned_on(monkeypatch):
+    monkeypatch.setattr(IM, "PACKAGED", True)
+    monkeypatch.delenv("AGENTHUB_INSTALL_MOVE", raising=False)
+    assert IM.enabled() is False
+    monkeypatch.setenv("AGENTHUB_INSTALL_MOVE", "1")
+    assert IM.enabled() is True
+
+
+def test_a_queued_move_does_not_run_while_it_is_off(packaged, tmp_path, monkeypatch):
+    IM.plan(str(tmp_path / "new-home"))
+    monkeypatch.delenv("AGENTHUB_INSTALL_MOVE", raising=False)
+    assert IM.launch(tmp_path / "temp") is False, "shutdown must not act on it when off"
