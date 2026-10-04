@@ -64,6 +64,8 @@ hub/onboarding.json
 
 # Provider API keys the user typed into the Hub. A secret, per machine.
 hub/provider_keys.json
+# token hashes + scopes for this machine's automations; never the repo's business
+hub/integration_tokens.json
 hub/ingested_apps/
 
 # ── Build & release output — never in the repo (assets go to GitHub Releases) ──
