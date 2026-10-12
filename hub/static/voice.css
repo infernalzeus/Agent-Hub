@@ -45,3 +45,12 @@
 @media (max-width:720px){#voice{right:8px;left:8px;bottom:calc(8px + env(safe-area-inset-bottom));width:auto;max-width:none}#voice .v-log{max-height:36vh}}
 @media (max-width:720px){#voice.compact .v-log{max-height:72px}#voice.expanded .v-log{max-height:32vh}#voice .v-head{letter-spacing:.8px}#voice .vbtn{letter-spacing:.5px;padding:7px 8px}}
 
+
+/* Recording strip: visible wherever TALK is, so STOP and SAVE are never on
+   another page. Amber rather than the accent colour, because a recording is
+   capturing what you do and should not look like an idle control. */
+#voice .v-rec{margin-top:10px;padding:10px;border:1px solid var(--amber,#e0a53c);border-radius:6px;background:rgba(224,165,60,.06)}
+#voice .v-rec-head{display:flex;align-items:center;gap:8px;font:700 9.5px 'Orbitron',monospace;letter-spacing:1.2px;color:var(--amber,#e0a53c)}
+#voice .v-rec-head canvas{width:16px;height:16px;flex:none}
+#voice .v-rec input{width:100%;margin-top:8px;padding:7px 9px;font-size:12px;background:var(--panel,#0d0f12);color:var(--ink,#e8eef5);border:1px solid var(--line,#1f2630);border-radius:4px;box-sizing:border-box}
+#voice .v-rec input:focus{outline:none;border-color:var(--amber,#e0a53c)}

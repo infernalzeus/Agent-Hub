@@ -35,6 +35,7 @@ from .. import decide as DEC, runtime as RT
 from ..config import logger
 from . import mcp as MCP
 from . import pc_control as PC
+from . import routine_sight as SIGHT
 
 routes = web.RouteTableDef()
 ANCHORS = RT.STATE / "data" / "anchors"
@@ -254,6 +255,12 @@ def save_machine_routine(intent: str, title: str, window: str, profile: str,
             png = st.get("anchor_png")
             target = {"kind": "surface", "frac": st.get("frac") or [0.5, 0.5],
                       "note": st.get("note", "")}
+            # An identity is not captured here: the recorder's click handler is a
+            # Windows hook and must return immediately, while reading the
+            # accessibility tree spawns a process. A step learns what it clicked
+            # from its first successful replay instead (routine_sight.adopt).
+            if st.get("element"):
+                target["identity"] = SIGHT.identity(st["element"])
             if png:
                 path = _anchor_path(rid, i)
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -312,6 +319,27 @@ async def _find(anchor_gray, floor: float, ceiling_s: float, poll_s: float,
     return best[0], best[1], best[2], int((time.monotonic() - started) * 1000)
 
 
+def _save_target(routine_id: str, ordinal: int, target: dict) -> None:
+    """Keep what a step learned about finding itself.
+
+    Merges onto whatever is stored rather than replacing it: `record_step_result`
+    writes the drift numbers to the same column, and writing a whole target over
+    the top threw them away.
+
+    Best effort - a routine that ran must not be reported as failed because its
+    bookkeeping could not be written.
+    """
+    try:
+        with PC._db() as db:
+            row = db.execute("SELECT target_json FROM pc_steps WHERE routine_id=? AND ordinal=?",
+                             (routine_id, ordinal)).fetchone()
+            stored = json.loads((row["target_json"] if row else "") or "{}")
+            db.execute("UPDATE pc_steps SET target_json=? WHERE routine_id=? AND ordinal=?",
+                       (SIGHT.to_json({**stored, **target}), routine_id, ordinal))
+    except Exception as exc:
+        logger.info("routine_sight: could not save what step %s learned: %s", ordinal, exc)
+
+
 async def replay_machine_routine(routine: dict, *, grab=None, request: str = "",
                                  policy_override: dict | None = None) -> dict:
     if not ready():
@@ -329,9 +357,35 @@ async def replay_machine_routine(routine: dict, *, grab=None, request: str = "",
     if inproc_ready():
         from PIL import Image                      # lazy; not needed on the worker path
     scores = []
+    learned_one = False          # at most one tree read per replay
     for step in steps:
         target = json.loads(step["target_json"] or "{}")
         sargs = json.loads(step["args_json"] or "{}")
+        # Identity first: ask the accessibility tree where this element is now.
+        # It survives the window moving, the theme changing and a different DPI,
+        # none of which mean the button went anywhere.
+        seen = await SIGHT.find(target)
+        if seen:
+            target = SIGHT.remember(target, SIGHT.BY_TREE, True)
+            _save_target(routine["id"], step["ordinal"], target)
+            scores.append(seen["score"])
+            record_step_result(routine["id"], step["ordinal"], seen["score"], 0)
+            try:
+                await MCP.call_tool("windows", step["tool"],
+                                    {**{k: v for k, v in sargs.items() if k != "delay_ms"},
+                                     "loc": [seen["x"], seen["y"]]})
+            except Exception as exc:
+                PC._record_run(request, "routine", "failed", f"step {step['ordinal']}: {exc}")
+                PC._remember_outcome(routine["id"], False)
+                return {"ok": False, "route": "routine",
+                        "say": f"{routine['title']} failed: {str(exc)[:150]}"}
+            continue
+        if target.get("identity"):
+            # It had an identity and the tree could not find it. Worth recording:
+            # it is how a step learns to stop trusting a name that has gone.
+            target = SIGHT.remember(target, SIGHT.BY_TREE, False)
+            _save_target(routine["id"], step["ordinal"], target)
+
         anchor_path = target.get("anchor")
         if not anchor_path or not Path(anchor_path).is_file():
             PC._record_run(request, "fall-through", "skipped", f"step {step['ordinal']}: anchor missing")
@@ -347,6 +401,20 @@ async def replay_machine_routine(routine: dict, *, grab=None, request: str = "",
         x, y, score, took = await _find(anchor, policy["floor"], policy["ceiling_s"],
                                         policy["poll_s"], grab=grab, anchor_path=anchor_path)
         record_step_result(routine["id"], step["ordinal"], score, took)
+        target = SIGHT.remember(target, SIGHT.BY_PIXELS, score >= policy["floor"])
+        if score >= policy["floor"] and not target.get("identity") and not learned_one:
+            # The pixels found it, so right now we know what is at that point.
+            # Learn the identity from this one good replay; next time the tree
+            # can answer and the picture stops mattering.
+            #
+            # One per replay: reading the tree costs a subprocess, and a routine
+            # with ten unlearned steps should not pay that ten times in a row.
+            # It takes ten replays to learn them all, which is fine - they are
+            # already working by pixels in the meantime.
+            before = target.get("identity")
+            target = await SIGHT.adopt(target, x, y)
+            learned_one = target.get("identity") != before
+        _save_target(routine["id"], step["ordinal"], target)
         scores.append(score)
         if score < policy["floor"]:
             PC._record_run(request, "fall-through", "skipped",

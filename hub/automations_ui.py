@@ -47,6 +47,9 @@ h2{font:700 11px Orbitron,monospace;letter-spacing:2px;color:var(--text-muted);m
 .chip.bad{color:var(--red);border-color:var(--red)}
 .lp{font-size:12.5px;color:var(--text-muted);margin:7px 0 0}
 .steps{margin-top:9px;border-top:1px solid var(--border-dim);padding-top:8px}
+.grid-need{display:grid;grid-template-columns:auto 1fr;gap:7px 10px;align-items:center;margin:9px 0}
+.grid-need label{font-size:12.5px;color:var(--text-muted);white-space:nowrap}
+@media(max-width:720px){.grid-need{grid-template-columns:1fr}}
 .step{display:flex;gap:9px;align-items:baseline;font-size:12.5px;padding:3px 0}
 .step .k{font:600 10px Orbitron,monospace;letter-spacing:1px;color:var(--text-faint);min-width:62px}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--text-faint);flex:0 0 auto}
@@ -90,14 +93,42 @@ function stepLine(s,rs){
 
 function runCard(r){
   const a=(D.automations||[]).find(x=>x.id===r.automation);
-  return `<div class="card wait"><div class="row"><b class="name">${esc(r.name)}</b>
-    <span class="chip warn">WAITING FOR YOU</span><span class="chip">${esc(r.why||'')}</span>
-    <span style="flex:1"></span>
-    <button class="btn go" data-ok="${r.id}">APPROVE</button>
-    <button class="btn stop" data-no="${r.id}">DECLINE</button></div>
-    <div class="lp">This run stopped before a step that is hard to take back. Approving runs that step and carries on.</div>
-    <div class="steps">${(r.steps||[]).map(rs=>{
-      const s=((a&&a.steps)||[]).find(x=>x.id===rs.id)||{kind:rs.kind};return stepLine(s,rs)}).join('')}</div></div>`;
+  // Two different questions, so two different cards. "Shall I?" takes a yes;
+  // "with what?" takes a value, and offering APPROVE there would be nonsense.
+  const asking = r.status === 'awaiting_input';
+  const needs = asking ? (((r.steps||[]).find(s=>s.status==='awaiting_input')||{}).needs || []) : [];
+  const steps = `<div class="steps">${(r.steps||[]).map(rs=>{
+      const s=((a&&a.steps)||[]).find(x=>x.id===rs.id)||{kind:rs.kind};return stepLine(s,rs)}).join('')}</div>`;
+  // When the thing asking is a mission, say so and link straight to it. A run
+  // parked on a question nobody can find is the same as a question never asked.
+  const onMission = r.mission
+    ? `<a class="btn" href="/missions?open=${encodeURIComponent(r.mission)}">OPEN THE ASK</a>` : '';
+  const head = `<div class="card wait"><div class="row"><b class="name">${esc(r.name)}</b>
+    <span class="chip warn">${asking?'NEEDS SOMETHING':'WAITING FOR YOU'}</span>
+    <span class="chip">${esc(r.why||'')}</span><span style="flex:1"></span>${onMission}`;
+  const askedBy = r.waiting_on
+    ? `<div class="lp">${esc(r.waiting_on)}</div>` : '';
+  if(asking){
+    return head + `</div>
+      ${askedBy}
+      <div class="lp">This run cannot go on until you fill these in.</div>
+      <div class="grid-need">${needs.map(n=>`<label>${esc(n.label)}</label>
+        <input data-need="${esc(n.key)}" data-run="${r.id}" placeholder="${esc(n.why||'')}">
+        ${/^answer[0-9]+$/.test(n.key) ? '' : `<label class="ck" style="grid-column:2;font-size:11px"><input type="checkbox" data-keep="${esc(n.key)}" data-run="${r.id}"> remember this about me, so I am not asked again</label>`}`).join('')}</div>
+      <div class="row"><button class="btn go" data-give="${r.id}">CONTINUE</button></div>
+      ${steps}</div>`;
+  }
+  // Two different things wait for approval, and the same two buttons used to
+  // cover both. At a mission's review they act on that mission's work.
+  const atReview = !!r.mission;
+  return head + `
+    <button class="btn go" data-ok="${r.id}">${atReview ? 'APPLY THE WORK' : 'APPROVE'}</button>
+    <button class="btn stop" data-no="${r.id}">${atReview ? 'DISCARD IT' : 'DECLINE'}</button></div>
+    ${askedBy}
+    <div class="lp">${atReview
+      ? 'The mission has finished and nothing has touched your project yet. Applying merges its work and carries on with the next step; discarding throws it away and stops this run.'
+      : 'This run stopped before a step that is hard to take back. Approving runs that step and carries on.'}</div>
+    ${steps}</div>`;
 }
 
 function autoCard(a){
@@ -170,6 +201,13 @@ function wire(){
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
     if(!confirm('Delete this automation? Its run history stays.'))return;
     await jsend('DELETE',`/api/automations/${b.dataset.del}`);await load()});
+  document.querySelectorAll('[data-give]').forEach(b=>b.onclick=async()=>{
+    const rid=b.dataset.give, values={}, remember=[];
+    document.querySelectorAll(`input[data-need][data-run="${rid}"]`).forEach(i=>{ if(i.value.trim()) values[i.dataset.need]=i.value.trim(); });
+    document.querySelectorAll(`input[data-keep][data-run="${rid}"]`).forEach(i=>{ if(i.checked) remember.push(i.dataset.keep); });
+    b.disabled=true;
+    try{ await jsend('POST',`/api/automations/runs/${rid}/provide`,{values, remember}); }catch(e){ alert(e.message); }
+    await load();});
   document.querySelectorAll('[data-ok]').forEach(b=>b.onclick=async()=>{
     b.disabled=true;try{await jsend('POST',`/api/automations/runs/${b.dataset.ok}/approve`,{ok:true})}
     catch(e){alert(e.message)}await load()});

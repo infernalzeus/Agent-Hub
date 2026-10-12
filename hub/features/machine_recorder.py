@@ -307,18 +307,33 @@ async def api_state(request: web.Request) -> web.Response:
                               {"running": False, "steps": [], "seconds": 0})})
 
 
-@routes.post("/api/pc/record/start")
-async def api_start(request: web.Request) -> web.Response:
+def begin() -> dict:
+    """Start a recording, and say what is now being recorded.
+
+    Shared by the page and by TALK: being asked to learn something in the middle
+    of a conversation is the moment recording is most wanted, and two ways of
+    starting it would be two sets of bugs.
+    """
     global _session
     if not available():
-        raise web.HTTPPreconditionRequired(text="recording is not available on this machine")
+        raise RuntimeError("recording is not available on this machine")
     with _guard:
         if _session and _session.running:
-            raise web.HTTPConflict(text="a recording is already running")
+            raise RuntimeError("a recording is already running")
         _session = Session()
         _session.start()
     logger.info("recorder: started")
-    return web.json_response(_session.view())
+    return _session.view()
+
+
+@routes.post("/api/pc/record/start")
+async def api_start(request: web.Request) -> web.Response:
+    try:
+        return web.json_response(begin())
+    except RuntimeError as exc:
+        if "already running" in str(exc):
+            raise web.HTTPConflict(text=str(exc))
+        raise web.HTTPPreconditionRequired(text=str(exc))
 
 
 @routes.post("/api/pc/record/stop")
@@ -351,7 +366,26 @@ async def api_save(request: web.Request) -> web.Response:
         raise web.HTTPBadRequest(text="every step was dropped — nothing to save")
     routine = MR.save_machine_routine(intent, title, s.window, profile, steps)
     logger.info("recorder: saved %s (%d step(s))", intent, len(steps))
-    return web.json_response({"ok": True, "routine": routine})
+    # Recording teaches the hub something; it does not put a square on your home
+    # screen. So the whole wiring for a tile that presses this routine is worked
+    # out now and left in the proposals list, ready to install on one click.
+    # Nothing in the hub produced a proposal before this, which is why that list
+    # was permanently empty and said nothing was waiting to be wired in.
+    proposal = None
+    try:
+        from . import proposals as P
+        proposal = P.propose({
+            "kind": "action_app",
+            "name": title or intent,
+            "why": f"recorded in {s.window or 'a window'}, {len(steps)} step(s)",
+            "from": "recorder",
+            "confidence": None,
+            "wiring": {"name": title or intent, "server": "",
+                       "tools": [{"name": title or intent, "routine": routine["id"]}]},
+        })
+    except Exception as exc:
+        logger.info("recorder: could not offer %s as a tile: %s", intent, exc)
+    return web.json_response({"ok": True, "routine": routine, "proposal": proposal})
 
 
 @routes.post("/api/pc/record/discard")

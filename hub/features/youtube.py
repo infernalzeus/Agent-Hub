@@ -16,6 +16,7 @@ from aiohttp import web, WSMsgType
 from ..request_security import ensure_ws_origin
 
 from . import youtube_accounts as YTA
+from .. import events
 from ..config import (
     MC_OUTPUT_DIR, YT_UPLOAD_SCRIPT,
     YT_DL_PYTHON, YT_DL_SCRIPT, YT_DL_AUDIO_DIR, YT_DL_VIDEO_DIR,
@@ -145,6 +146,9 @@ async def _yt_stream_upload(args: list[str]) -> None:
     yt_state.done = True
     yt_state.ok = (rc == 0)
     await _yt_broadcast({"type": "done", "ok": yt_state.ok, "result": yt_state.result})
+    # Declared in events.KINDS since automations existed, and never published -
+    # so an automation listening for it could never fire. It can now.
+    events.publish("upload.finished", {"ok": yt_state.ok, "result": yt_state.result})
 
 
 # ── YouTube download state (single download at a time) ───────────────────────
@@ -313,6 +317,8 @@ async def _ytdl_stream_download(args: list[str]) -> None:
     ytdl_state.ok = (rc == 0)
     await _ytdl_broadcast({"type": "done", "ok": ytdl_state.ok, "result": ytdl_state.result,
                             "queue_remaining": len(ytdl_state.queue)})
+    events.publish("download.finished", {"ok": ytdl_state.ok, "result": ytdl_state.result,
+                                         "queue_remaining": len(ytdl_state.queue)})
 
     if ytdl_state.queue:
         next_item = ytdl_state.queue.pop(0)

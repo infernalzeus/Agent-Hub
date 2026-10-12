@@ -81,7 +81,14 @@ button,input,select,textarea{font-family:'Outfit',inherit}
   .bar .brand{flex:1 1 auto;margin:0}
   .bar .btn{flex:1 1 0;min-width:0;padding:8px 6px}
   .bar #btn-new{flex:1 0 100%;order:2}
-  .bar #btn-arch,.bar a[href="/agents"],.bar a[href="/graph"]{order:3}.bar #btn-reload{order:3;flex:0 0 42px;align-self:stretch;padding:8px}
+  /* AUTOMATIONS had no order, so it stayed on the title row beside the TALK
+     button, and `min-width:0` let it shrink and clip rather than wrap - on a
+     phone the label was cut in half. The worded buttons now take half a row
+     each and wrap; the icon-only ones keep their own width. */
+  .bar .btn{white-space:nowrap}
+  .bar a[href="/agents"],.bar #autos-btn,.bar a[href="/graph"]{order:3;flex:1 1 calc(50% - 10px)}
+  .bar #btn-arch{order:3;flex:0 0 auto}
+  .bar #btn-reload{order:3;flex:0 0 42px;align-self:stretch;padding:8px}
   .bar #btn-arch .lbl{display:none}
   .card{padding:12px}
   .banner .row .btn,.row .btn{flex:1 1 calc(50% - 8px)}
@@ -328,6 +335,7 @@ details.fold summary{cursor:pointer;padding:10px 0;font-family:'Orbitron',monosp
 .arch-facts{margin-top:16px;border-top:1px solid var(--border-dim);padding-top:12px}
 .arch-facts dt{font-family:'Orbitron',monospace;font-size:9.5px;letter-spacing:1px;color:var(--blue);margin-top:10px}
 .arch-facts dd{margin:3px 0 0;font-size:12.5px;color:var(--text-muted);line-height:1.5}
+.btn.needs-you{color:var(--amber);border-color:var(--amber)}
 </style><link rel="stylesheet" href="/theme.css">
 </head>
 <body>
@@ -338,6 +346,7 @@ details.fold summary{cursor:pointer;padding:10px 0;font-family:'Orbitron',monosp
   <button class="btn go" id="btn-new"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>NEW MISSION</button>
   <span class="spacer"></span>
   <a class="btn" href="/agents">AGENTS</a>
+  <a class="btn" href="/automations" id="autos-btn">AUTOMATIONS<span id="autos-wait"></span></a>
   <a class="btn" href="/graph">GRAPH</a>
   <button class="btn" id="btn-arch"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v5.4"/><circle cx="12" cy="7.7" r="1" fill="currentColor" stroke="none"/></svg><span class="lbl">HOW THIS WORKS</span></button>
   __TALK_BUTTON__
@@ -405,10 +414,36 @@ details.fold summary{cursor:pointer;padding:10px 0;font-family:'Orbitron',monosp
 </div>
 <script>__ORBS_JS__</script>
 <script>
+// An automation is what an ask becomes when you want it again, so it lives with
+// the asks. The count is here because a run that is waiting cannot wait usefully
+// if nobody is told.
+// Polled, not read once. An automation that starts waiting while you are
+// looking at this board is exactly the case that matters, and a count taken at
+// page load can only ever tell you about things that were already stuck.
+async function autosWaiting() {
+  try {
+    const au = await (await fetch('/api/automations', {cache:'no-store'})).json();
+    const waiting = au.waiting || [];
+    const b = document.getElementById('autos-wait'), btn = document.getElementById('autos-btn');
+    if (b) b.textContent = waiting.length ? ' · ' + waiting.length : '';
+    if (btn) {
+      btn.classList.toggle('needs-you', waiting.length > 0);
+      const onMission = waiting.find(r => r.mission);
+      btn.title = waiting.length
+        ? (onMission && onMission.waiting_on
+             ? onMission.waiting_on
+             : waiting.length + ' automation run(s) waiting for you')
+        : 'Automations';
+    }
+  } catch (e) {}
+}
+autosWaiting();
+setInterval(autosWaiting, 10000);
+
 window.__M0 = __M0_JSON__;
 const qs = new URLSearchParams(location.search);
 let SHOW_ORPH = false;
-let SEL = null, MISSIONS = [], PROJECTS = [], AGENTS = [], MODELS = [], PROFILES = {}, poll = null, es = null;
+let SEL = null, MISSIONS = [], PROPOSALS = [], PROJECTS = [], AGENTS = [], MODELS = [], PROFILES = {}, poll = null, es = null;
 const $ = (id) => document.getElementById(id);
 var ICONS = {"send": "<path d=\"M4 12l16-8-6 16-3-7-7-1z\"/>", "chevd": "<path d=\"M6 9l6 6 6-6\"/>", "chevu": "<path d=\"M6 15l6-6 6 6\"/>", "orch": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><circle cx=\"12\" cy=\"12\" r=\"3\" fill=\"currentColor\" stroke=\"none\"/><path d=\"M12 3v4M12 17v4M3 12h4M17 12h4\"/>", "scale": "<path d=\"M12 4v16M6 20h12M5 8h14M5 8l-2 6a3 3 0 006 0zM19 8l-2 6a3 3 0 006 0z\"/>", "plus": "<path d=\"M12 5v14M5 12h14\"/>", "expand": "<path d=\"M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5\"/>", "shrink": "<path d=\"M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5\"/>", "back": "<path d=\"M15 5l-7 7 7 7\"/>", "info": "<circle cx=\"12\" cy=\"12\" r=\"9.5\"/><path d=\"M12 11v5.4\"/><circle cx=\"12\" cy=\"7.7\" r=\"1\" fill=\"currentColor\" stroke=\"none\"/>", "folder": "<path d=\"M3 7.5A1.5 1.5 0 014.5 6H9l2 2.5h8.5A1.5 1.5 0 0121 10v8a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 18z\"/>", "clock": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l3.2 2\"/>", "warn": "<path d=\"M12 4l9.2 16H2.8z\"/><path d=\"M12 10v4.2\"/><circle cx=\"12\" cy=\"17\" r=\".9\" fill=\"currentColor\" stroke=\"none\"/>", "inbox": "<path d=\"M4 13l2.4-7h11.2L20 13v5a1 1 0 01-1 1H5a1 1 0 01-1-1z\"/><path d=\"M4 13h4.6l1 2h4.8l1-2H20\"/>", "tool": "<path d=\"M14.6 6.4a4 4 0 00-5.1 5.1L4 17l3 3 5.5-5.5a4 4 0 005.1-5.1l-2.6 2.6-2.4-.6-.6-2.4z\"/>", "chat": "<path d=\"M4 5.5h16v10.5H9.5L5 20v-4H4z\"/>", "x": "<path d=\"M6 6l12 12M18 6L6 18\"/>"};
 function ic(n){ return `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]||''}</svg>`; }
@@ -436,6 +471,9 @@ async function boot(){
 }
 async function refresh(){
   try { MISSIONS = (await jget('/api/missions')).missions || []; } catch(e){ return; }
+  // Worked out already and waiting for a yes. Read every refresh: a list that is
+  // only fetched once cannot tell you something became ready while you looked.
+  try { PROPOSALS = (await jget('/api/proposals')).proposals || []; } catch(e){ PROPOSALS = []; }
   renderList();
   if (SEL && MISSIONS.some(m=>m.id===SEL)) renderDetail(SEL);
 }
@@ -457,12 +495,29 @@ function renderList(){
   let html = '';
   html += `<div class="sect needs">INBOX <span class="n">${needs.length}</span></div>`;
   html += needs.length ? '<div class="cards">' + needs.map(m=>card(m,false)).join('') + '</div>' : '<div class="listhelp">Inbox zero — nothing is waiting for you.</div>';
+  if(PROPOSALS.length){
+    html += `<div class="sect needs">READY TO WIRE IN <span class="n">${PROPOSALS.length}</span></div><div class="cards">` +
+      PROPOSALS.map(p => `<div class="card"><div class="top"><b>${esc(p.name)}</b></div>
+        <div class="listhelp">${esc(p.why||'')}${p.confidence!=null?' · '+Math.round(p.confidence*100)+'% sure':''}</div>
+        <div class="row" style="margin-top:6px"><button class="btn go" data-padd="${esc(p.id)}">ADD</button><button class="btn" data-pdrop="${esc(p.id)}">DISMISS</button></div></div>`).join('') + '</div>';
+  }
   if(running.length){ html += `<div class="sect run">ACTIVE <span class="n">${running.length}</span><small>agents at work</small></div>` + '<div class="cards">' + running.map(m=>card(m,false)).join('') + '</div>'; }
   html += `<div class="sect hist" id="hist-toggle">${HIST_OPEN?'▾':'▸'} ARCHIVE <span class="n">${hist.length}</span><small>${HIST_OPEN?'click to hide':'applied, discarded, failed — click to show'}</small></div>`;
   if(HIST_OPEN) html += '<div class="cards">' + hist.map(m=>card(m,false)).join('') + '</div>';
   if(orph.length && HIST_OPEN) html += `<div class="listhelp" id="orph-toggle" style="cursor:pointer">${SHOW_ORPH?'▾':'▸'} ${orph.length} old working cop${orph.length===1?'y':'ies'} on disk with no record — click to ${SHOW_ORPH?'hide':'show'}</div>` + (SHOW_ORPH ? '<div class="cards">' + orph.map(m=>card(m,false)).join('') + '</div>' : '');
   $('list').innerHTML = `<div class="mhead"><span class="mtitle">MATRIX</span><span class="info" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-label="How MATRIX works"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v5.4"/><circle cx="12" cy="7.7" r="1" fill="currentColor" stroke="none"/></svg><span class="tip"><div class="th">HOW AN ASK MOVES THROUGH MATRIX</div><ol><li><i>1</i><span><b>ASK</b> — you pick a project and describe the job.</span></li><li class="you"><i>2</i><span><b>REPLY</b> — only if it is unclear: the orchestrator asks up to 3 questions. Nothing has run yet.</span></li><li class="you"><i>3</i><span><b>APPROVE</b> — it shows a plan: steps, agents, order. Edit it, then press RUN PIPELINE.</span></li><li><i>4</i><span><b>WORKING</b> — agents do the steps. Independent steps are decided together; model calls are metered (a local model takes one at a time, cloud a few). Then the hub checks the result.</span></li><li class="you"><i>5</i><span><b>REVIEW</b> — read the result, then APPLY it to your project or DISCARD it.</span></li></ol><div class="tf">Amber steps are your turn. <b>INBOX</b> = waiting on you · <b>ACTIVE</b> = agents at work · <b>ARCHIVE</b> = finished or stopped.</div></span></span><span class="msub">${MISSIONS.filter(m=>m.status!=='orphaned').length} asks</span></div>` + html;
   $('list').scrollTop = keepTop;
+  $('list').querySelectorAll('[data-padd]').forEach(b => b.onclick = async (e) => {
+    e.stopPropagation(); b.disabled = true;
+    try { await jpost('/api/proposals/' + b.dataset.padd + '/accept'); toast('Wired in.'); }
+    catch(err){ toast(err.message, 'err'); }
+    refresh();
+  });
+  $('list').querySelectorAll('[data-pdrop]').forEach(b => b.onclick = async (e) => {
+    e.stopPropagation(); b.disabled = true;
+    try { await fetch('/api/proposals/' + b.dataset.pdrop, {method:'DELETE'}); } catch(err){}
+    refresh();
+  });
   $('hist-toggle').onclick = () => { HIST_OPEN = !HIST_OPEN; renderList(); };
   const ot = $('orph-toggle'); if(ot) ot.onclick = () => { SHOW_ORPH = !SHOW_ORPH; renderList(); };
   document.querySelectorAll('#list .card').forEach(el => el.onclick = () => select(el.dataset.id));
@@ -818,6 +873,18 @@ function bindActions(d){
     SEL = null; $('pane').style.display='none'; $('hollow').style.display='flex';
     refresh(); toast('Archived. It is under ARCHIVE, with its working copy intact.');
   });
+  // Keep a finished ask as something you can run again, optionally on a clock.
+  // The automation is created disabled-of-schedule unless you give one, so this
+  // button can never quietly start running things by itself.
+  on('m-keep', async () => {
+    const name = prompt('Keep this ask as an automation called:', d.project_name + ': ' + (d.brief||'').slice(0,40));
+    if (!name) return;
+    const every = (prompt('Run it on a schedule? daily / weekly / hourly — or leave blank for manual only', '') || '').trim();
+    try {
+      const r = await jpost('/api/automations/from-mission/' + encodeURIComponent(d.id), {name, every});
+      toast('Kept as "' + (r.name||name) + '". It is on the AUTOMATIONS page.');
+    } catch (e) { toast(e.message, 'err'); }
+  });
   on('m-retry', async () => { const r = await go('retry'); select(r.id); });
   on('m-retryfb', async () => { const r = await go('retry', {model:fb}); select(r.id); });
   on('m-continue', async () => { const msg = prompt('What should change? (sent to the agents as a follow-up)'); if(!msg) return; await go('continue', {message:msg}); refresh(); });
@@ -883,18 +950,33 @@ function actionBanner(d){
     text=esc(d.error||'The run stopped.'); btns=((n&&d.kind==='orchestrator')?b('m-resume','go','RESUME'):'')+b('m-retry','','RETRY')+(fb?b('m-retryfb','',`RETRY ON ${esc(fb)}`):'')+b('m-discard','stop','DISCARD')+b('m-archive','',ic('archive')+'ARCHIVE')+b('m-forget','','CLEAR'); }
   else { cls='done'; title = st==='orphaned' ? 'RECOVERED FROM DISK' : sname(st);
     text = st==='applied' ? `Merged into ${esc(d.project_name)}.` : (st==='orphaned' ? 'An old working copy found on disk with no record.' : '');
-    btns = (st==='orphaned'?b('m-apply','go','APPLY TO PROJECT')+b('m-discard','stop','DISCARD'):'')+(st==='archived'?'':b('m-archive','',ic('archive')+'ARCHIVE'))+b('m-forget','','CLEAR'); }
+    // An ask you had to make once is usually an ask you will make again. The
+    // endpoint to keep it as an automation existed from the start with nothing
+    // anywhere that could reach it.
+    btns = (st==='orphaned'?b('m-apply','go','APPLY TO PROJECT')+b('m-discard','stop','DISCARD'):'')
+         + (st==='applied'?b('m-keep','',ic('clock')+'KEEP THIS ASK'):'')
+         + (st==='archived'?'':b('m-archive','',ic('archive')+'ARCHIVE'))+b('m-forget','','CLEAR'); }
   return `<div class="banner ${cls}"><div class="bt">${title}</div><div class="brow"><div class="bx">${text}</div>${dest}</div><div class="bb">${btns}</div></div>`;
+}
+// A mission that answers a question instead of changing files used to show
+// "No project files were changed." and nothing else, while its answer sat in a
+// file inside a worktree nobody opens. The answer is the result in that case.
+function answerBlock(d){
+  if(!d.answer) return '';
+  return `<h2>Answer</h2><div class="rbox" style="padding:12px;white-space:pre-wrap;
+    font-size:13px;line-height:1.5;color:var(--ink);max-height:420px;overflow:auto">${esc(d.answer)}</div>`;
 }
 function resultBlock(d){
   const files = (d.changed_files||[]).filter(f=>!/^shared\//.test(f.path));
   if(!files.length){
+    if(d.answer) return answerBlock(d);
     return (d.status==='awaiting_review'||d.status==='applied') ? '<h2>Result</h2><div class="note" style="color:var(--text-muted)">No project files were changed.</div>' : '';
   }
+  const said = answerBlock(d);
   let sel = RSEL[d.id];
   if(!sel || !files.some(f=>f.path===sel.path)) sel = RSEL[d.id] = {path: files[0].path, mode: 'content'};
   if(!sel.mode) sel.mode = 'content';
-  return `<h2>Result <span style="color:var(--text-muted)">${files.length} file${files.length===1?'':'s'}</span></h2>
+  return said + `<h2>Result <span style="color:var(--text-muted)">${files.length} file${files.length===1?'':'s'}</span></h2>
     <div class="rbox"><div class="ftabs">${files.map(f=>`<button class="ftab ${f.path===sel.path?'sel':''}" data-p="${esc(f.path)}"><span style="color:var(--amber)">${esc(f.status)}</span> ${esc(f.path)}</button>`).join('')}</div>
       <div class="rmode"><button class="btn ${sel.mode==='content'?'sel':''}" data-m="content">CONTENT</button><button class="btn ${sel.mode==='diff'?'sel':''}" data-m="diff">DIFF</button></div>
       <div class="rview" id="rview">loading…</div></div>`;

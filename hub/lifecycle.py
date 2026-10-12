@@ -22,7 +22,21 @@ from .runtime import PACKAGED, STATE, capability_ready
 # refuse a second launch. An installed build has no .vbs, and two installs (the
 # real one and an "Agent Hub Test") must not block each other, so each keeps its
 # lock inside its own per-install state folder.
-HUB_LOCK = (STATE / "agenthub.hub.lock") if PACKAGED else (Path(tempfile.gettempdir()) / "agenthub.hub.lock")
+def _lock_path() -> Path:
+    """Where this hub keeps its "I am running" heartbeat.
+
+    A hub started with its own state folder (`AGENTHUB_STATE_DIR`) is a separate
+    hub - a test instance, or a second install - and must not touch the global
+    file the real launcher watches. It did: an isolated test hub on another port
+    kept refreshing %TEMP%/agenthub.hub.lock, the launcher read that as "a hub is
+    already up", and refused to start the real one.
+    """
+    if PACKAGED or os.environ.get("AGENTHUB_STATE_DIR"):
+        return STATE / "agenthub.hub.lock"
+    return Path(tempfile.gettempdir()) / "agenthub.hub.lock"
+
+
+HUB_LOCK = _lock_path()
 HUB_LOCK_STALE_S = 15
 
 
@@ -60,11 +74,40 @@ async def _start_taildrop_watcher() -> asyncio.subprocess.Process | None:
 
 
 
+async def _watch_inbox() -> None:
+    """Say when a file lands in the phone inbox.
+
+    The Taildrop watcher is `tailscale file get --loop` with its output thrown
+    away, so it cannot tell anyone anything. Polling the folder is the plain way
+    to know, and a few seconds late is soon enough for something that arrives at
+    human speed.
+
+    The first pass only records what is already there - a hub restart must not
+    announce every file you have ever received.
+    """
+    from . import events
+    seen: "set[str] | None" = None
+    while True:
+        try:
+            now = {p.name for p in TAILDROP_DIR.iterdir() if p.is_file()}                 if TAILDROP_DIR.is_dir() else set()
+            if seen is None:
+                seen = now
+            else:
+                for name in sorted(now - seen):
+                    events.publish("inbox.file", {"name": name,
+                                                  "path": str(TAILDROP_DIR / name)})
+                seen = now
+        except Exception as exc:
+            logger.info("inbox watcher: %s", exc)
+        await asyncio.sleep(5)
+
+
 def install(app: web.Application) -> None:
     async def _on_startup(app: web.Application) -> None:
         app["reaper"] = asyncio.create_task(_idle_reaper())
         app["hub_heartbeat"] = asyncio.create_task(_hub_heartbeat())
         app["taildrop"] = await _start_taildrop_watcher()
+        app["inbox_watch"] = asyncio.create_task(_watch_inbox())
         # Suppress the harmless ProactorEventLoop ConnectionResetError traceback
         # (a client — the phone, or a relayed opencode socket — dropping abruptly).
         # MUST be set on the running loop: web.run_app creates its own, so the
@@ -129,6 +172,9 @@ def install(app: web.Application) -> None:
         hb = app.get("hub_heartbeat")
         if hb:
             hb.cancel()
+        iw = app.get("inbox_watch")
+        if iw:
+            iw.cancel()
         try:
             HUB_LOCK.unlink()
         except Exception:

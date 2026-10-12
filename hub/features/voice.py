@@ -46,6 +46,10 @@ PAGES = {"missions": "/missions", "agents": "/agents", "graph": "/graph", "locat
 ACTIONS = {
     "open_page": {"desc": "Open a page: missions, agents, graph, locations, hub.", "args": "page", "confirm": False},
     "status": {"desc": "Say what is waiting for the user and what is running, hub-wide.", "args": "", "confirm": False},
+    # An automation that stops to ask is useless if the answer can only be typed.
+    "automation_waiting": {"desc": "Say which automation runs are waiting, and what each one is waiting for.", "args": "", "confirm": False},
+    "automation_answer": {"desc": "Answer what an automation run asked for, by voice: the value goes to the run that is waiting.", "args": "value, run (optional)", "confirm": True},
+    "automation_approve": {"desc": "Approve the step an automation run is holding at.", "args": "run (optional)", "confirm": True},
     "mission_info": {"desc": "Explain one ask: its state, progress, open questions, checks, and what the user should do next.", "args": "mission", "confirm": False},
     "open_mission": {"desc": "Open the Missions page on one specific ask AND read its summary aloud (use when the user says open it, show me, read it).", "args": "mission", "confirm": False},
     "new_ask": {"desc": "Open the new-ask form filled with the user's words (optionally for a named project).", "args": "text, project", "confirm": False},
@@ -58,7 +62,13 @@ ACTIONS = {
     "ingest_app": {"desc": "Ingest a web app from a git URL so the hub can run it (starts an ingest ask that waits for review).", "args": "url", "confirm": True},
     "pc_control": {"desc": "Switch PC control (Windows MCP: click, type, screenshots, apps, clipboard for OpenCode agents) on or off.", "args": "state: on|off", "confirm": False},
     "pc_direct": {"desc": "Carry out a bounded PC command directly: open Edge, YouTube, Google, or a web search. PC control must be on.", "args": "kind, value (optional)", "confirm": False},
-    "pc_app": {"desc": "Open a named Windows application through the Windows MCP App tool and learn its launch routine.", "args": "app, request", "confirm": False},
+    "pc_app": {"desc": "Open a named Windows application through the Windows MCP App tool and learn its launch routine. 'then' is the rest of the request, if the sentence asked for something inside the app as well.", "args": "app, request, then", "confirm": False},
+    # The three ways the half of a request that lives inside another app's window
+    # can be finished. Each is offered by pc_app's own answer, never chosen by a
+    # model, and each needs a yes: they move a real mouse on a real desktop.
+    "pc_do": {"desc": "Click a named element in an app's window, after the user agreed to it, and keep it as a routine.", "args": "app, then, request, name, control, window", "confirm": True},
+    "pc_pick": {"desc": "List the matching things on screen when more than one could have been meant.", "args": "app, then", "confirm": False},
+    "pc_record": {"desc": "Start recording so the user can demonstrate the step the hub could not work out.", "args": "then", "confirm": True},
     "pc_task": {"desc": "Use a fresh OpenCode Quick Chat with Windows MCP to carry out an explicit desktop request.", "args": "text, state (optional: on)", "confirm": False},
     "mcp_status": {"desc": "Report which MCP servers OpenCode has configured, and what that means the assistant can and cannot do.", "args": "", "confirm": False},
     "list_projects": {"desc": "List the project folders the hub knows.", "args": "", "confirm": False},
@@ -285,6 +295,59 @@ async def run_action(aid: str, args: dict) -> dict:
             need = [m for m in _missions() if m.status in _WAITING][:4]
             more = ("  " + " ".join(f"{m.project_name}: {_SHORT[m.status]}." for m in need)) if need else ""
             return {"say": status_line() + more}
+        if aid in ("automation_waiting", "automation_answer", "automation_approve"):
+            from . import automations as A
+            waiting = A.waiting_runs()
+            if not waiting:
+                return {"say": "Nothing is waiting on an automation."}
+
+            def _pick():
+                want = str(args.get("run") or "").strip().lower()
+                if want:
+                    for r in waiting:
+                        if want in r["id"].lower() or want in r["name"].lower():
+                            return r
+                    return None
+                return waiting[0] if len(waiting) == 1 else None
+
+            if aid == "automation_waiting":
+                lines = []
+                for r in waiting[:4]:
+                    if r["status"] == "awaiting_input":
+                        step = next((x for x in r["steps"] if x["status"] == "awaiting_input"), {})
+                        wants = ", ".join(n["label"] for n in (step.get("needs") or []))
+                        lines.append(f"{r['name']} needs {wants or 'something'}.")
+                    else:
+                        lines.append(f"{r['name']} is waiting for you to approve a step.")
+                return {"say": " ".join(lines), "url": "/automations"}
+
+            run = _pick()
+            if not run:
+                names = ", ".join(r["name"] for r in waiting[:4])
+                return {"say": f"Which one? {names}."}
+
+            if aid == "automation_approve":
+                if run["status"] != "awaiting_approval":
+                    return {"say": f"{run['name']} is waiting for a value, not for approval."}
+                await A.approve(run["id"], True)
+                return {"say": f"Approved. {run['name']} is carrying on.", "url": "/automations"}
+
+            value = str(args.get("value") or "").strip()
+            if not value:
+                return {"say": "Say the value and I'll pass it on."}
+            if run["status"] != "awaiting_input":
+                return {"say": f"{run['name']} is waiting for approval, not for a value."}
+            step = next((x for x in run["steps"] if x["status"] == "awaiting_input"), {})
+            needs = step.get("needs") or []
+            if not needs:
+                return {"say": "That run is not asking for anything just now."}
+            # One value answers the one thing it asked for. Several at once by
+            # voice would be guesswork about which went where.
+            await A.provide(run["id"], {needs[0]["key"]: value})
+            left = [n["label"] for n in (A.get_run(run["id"]) or {}).get("steps", [{}])[0].get("needs", [])]
+            tail = f" It still needs {', '.join(left)}." if left else ""
+            return {"say": f"Noted for {run['name']}.{tail}", "url": "/automations"}
+
         if aid == "list_projects":
             from ..agent_knowledge.projects import discover_projects
             ps = [p for p in discover_projects() if not p.get("readonly")]
@@ -301,7 +364,45 @@ async def run_action(aid: str, args: dict) -> dict:
             return {"say": f"OpenCode has {len(s)} MCP server{'s' if len(s) != 1 else ''}: {names}. I can report on them and switch PC control on or off, but not add or change servers.{extra}"}
         if aid == "pc_app":
             from . import pc_control as PC
-            return await PC.launch_app(str(args.get("app") or ""), str(args.get("request") or args.get("app") or ""))
+            return await PC.launch_app(str(args.get("app") or ""), str(args.get("request") or args.get("app") or ""),
+                                       str(args.get("then") or ""))
+        if aid == "pc_do":
+            from . import pc_control as PC
+            return await PC.do_on_screen(
+                str(args.get("app") or ""), str(args.get("then") or ""),
+                str(args.get("request") or ""), {"name": str(args.get("name") or "")})
+        if aid == "pc_pick":
+            # Several things on screen matched. Reading a list aloud is worse than
+            # showing it, so this hands over to the screen rather than guessing.
+            from . import pc_control as PC
+            try:
+                app = str(args.get("app") or "")
+                got = PC.locate(await PC._raw_tree(app), str(args.get("then") or ""), app)
+                hits = got.get("choices") or ([got["target"]] if got.get("target") else [])
+            except Exception:
+                hits = []
+            names = ", ".join(f"“{h['name']}”" for h in hits[:4])
+            return {"say": (f"Say the exact name and I will click it: {names}." if names
+                            else "I cannot see those on screen any more. Ask again and I will look afresh.")}
+        if aid == "pc_record":
+            from . import machine_recorder as REC
+            if not REC.available():
+                return {"say": "Recording needs Windows and the imaging tools. Set up Screen recording "
+                               "in Setup tools first, then ask me again."}
+            if REC.current() and REC.current().running:
+                return {"say": "A recording is already running — stop or discard it just below, "
+                               "then ask me again."}
+            try:
+                REC.begin()
+            except Exception as exc:
+                return {"say": f"I could not start recording: {str(exc)[:140]}."}
+            then = str(args.get("then") or "it")
+            # No url: sending someone to another page to find STOP and SAVE is
+            # how this failed in practice. The recording strip appears in the
+            # panel they are already in.
+            return {"say": f"Recording. Do it once — {then} — then press STOP, give it a "
+                           f"name and press SAVE, just below. I will keep it as a routine you can "
+                           f"wire in as a button."}
         if aid == "pc_direct":
             from . import mcp as MCP
             if str(args.get("state") or "").lower() == "on":
@@ -462,9 +563,23 @@ _SYSTEM = (
     "question instead of guessing. If they just chat, chat back briefly and offer what you can do.\n\n")
 
 
+_LLM_WHY = ""           # "", "unavailable" (could not be reached or started), or "empty"
+
+
+def _routed(res: dict, heard: str) -> dict:
+    """Wrap a router answer in the same shape every other reply has."""
+    out = _reply(str(res.get("say") or ""), None, "router", heard)
+    out["route"] = res.get("route")
+    return out
+
+
 async def _llm(text: str, history: list, mission_id: "str | None") -> "dict | None":
+    global _LLM_WHY
+    _LLM_WHY = "empty"
+    from . import missions as _M
     chain = [x for x in agent_knowledge.model_chain(None, None) if x.startswith("ollama/")]
     if not chain:
+        _LLM_WHY = "unavailable"
         return None
     msgs = [{"role": "system", "content": _SYSTEM + capabilities_text() + "\n\nHUB STATE:\n" + snapshot(mission_id)}]
     for h in (history or [])[-8:]:
@@ -480,8 +595,10 @@ async def _llm(text: str, history: list, mission_id: "str | None") -> "dict | No
             except Exception:
                 from . import missions as M
                 if not await M._ensure_ollama():
+                    _LLM_WHY = "unavailable"
                     raise
                 d = await DEC._ollama_raw(body)
+            _M.touch_ollama()
             raw = (d.get("message") or {}).get("content") or "{}"
             j = json.loads(raw)
             if isinstance(j, dict) and (str(j.get("say") or "").strip() or str(j.get("action") or "none") != "none"):
@@ -492,8 +609,83 @@ async def _llm(text: str, history: list, mission_id: "str | None") -> "dict | No
     return None
 
 
+# ── what the hub knows about you ──────────────────────────────────────────────────────────────────────────────────────
+# The pattern, in the order it has to happen: a request needs something about
+# you -> the hub does not know it -> it ASKS -> it remembers the answer -> the
+# next time the same request arrives it just works. Without the remembering this
+# is an interrogation; without the asking it is a dead end.
+
+# Which requests need which fact now lives with the routines that need them
+# (converse.py): a routine declares what it needs, instead of this file keeping a
+# second list of phrases. The tuple below is unused and kept only so an old
+# import does not break.
+_NEEDS_FACT = (
+    (re.compile(r"\b(weather|forecast|rain|temperature|how (?:hot|cold|warm))\b", re.I), "location"),
+    (re.compile(r"\bwhat(?:'s| is) it like outside\b", re.I), "location"),
+    (re.compile(r"\b(?:what time|the time)\b.*\b(?:here|for me|local)\b", re.I), "timezone"),
+)
+_TELLING = re.compile(
+    r"^(?:my |the )?(?P<key>location|timezone|time zone|name|units)\s*(?:is|=|:)\s*(?P<value>.+)$", re.I)
+_FORGET = re.compile(r"^forget (?:my |the )?(?P<key>[a-z ]{2,30})$", re.I)
+_WHAT_KNOWN = re.compile(r"^what do you know about me\b|^what have you remembered\b", re.I)
+
+
+def _facts_reply(text: str) -> "dict | None":
+    """Handle anything about the hub's memory of you, before anything else.
+
+    Deterministic on purpose: remembering and forgetting must not depend on a
+    model being available or on it answering in the right shape.
+    """
+    from . import user_facts as F
+    t = (text or "").strip()
+
+    if _WHAT_KNOWN.search(t):
+        return _reply(F.describe(), None, "rules", text)
+
+    m = _FORGET.match(t)
+    if m:
+        key = m.group("key").strip().lower().replace(" ", "_")
+        return _reply(f"Forgotten: I no longer know your {m.group('key').strip()}."
+                      if F.forget(key) else
+                      f"I don't know your {m.group('key').strip()}, so there is nothing to forget.",
+                      None, "rules", text)
+
+    m = _TELLING.match(t)
+    if m:
+        key = m.group("key").lower().replace(" ", "")
+        key = {"timezone": "timezone"}.get(key, key)
+        value = m.group("value").strip(" .")
+        try:
+            F.remember(key, value, how="told")
+        except ValueError as exc:
+            return _reply(str(exc), None, "rules", text)
+        return _reply(f"Noted — your {key} is {value}. I'll use it from now on, and you can "
+                      f"say forget my {key} whenever you like.", None, "rules", text)
+
+    return None
+
+
 async def chat(text: str, history: "list | None" = None, mission_id: "str | None" = None, use_model: bool = True) -> dict:
+    """One request in, one reply out - and a record of which bin it was put in and what ran."""
+    from . import binning as BIN
+    try:
+        decision = BIN.decide(text)
+    except Exception:
+        decision = {"bin": "conversation", "confidence": 0.0, "by": "rules", "why": "could not decide"}
+    out = await _chat(text, history, mission_id, use_model)
+    try:
+        BIN.record(text, decision, {"action": (out.get("action") or {}).get("id"),
+                                    "backend": out.get("backend"), "said": str(out.get("say") or "")[:120]})
+    except Exception:
+        pass
+    return out
+
+
+async def _chat(text: str, history: "list | None" = None, mission_id: "str | None" = None, use_model: bool = True) -> dict:
     heard = text
+    known = _facts_reply(text)
+    if known:
+        return known
     hit = match_rules(text)
     if hit:
         c, arg, _p = hit
@@ -501,6 +693,13 @@ async def chat(text: str, history: "list | None" = None, mission_id: "str | None
         args = {"text": arg} if aid == "new_ask" else dict(args or {})
         say = {"status": status_line(), "pause": "Pause every running ask? Say yes to confirm."}.get(aid) or (f"Opening {args.get('page')}." if aid == "open_page" else f"Starting a new ask: {args.get('text')}.")
         return _reply(say, (aid, args), "rules", heard)
+    # The hub asked a question last turn ("where are you?"); a short reply is its
+    # answer, not a new request. Rules above still win, so "cancel" and "open X"
+    # keep their meaning.
+    from . import converse as CONV
+    pend = await CONV.answer_pending(text)
+    if pend:
+        return _routed(pend, heard)
     t = _clean(text)
     pc = re.fullmatch(r"(?:please )?(?:(enable|start|activate|disable) (?:pc control|mcp)|(?:switch|turn) (?:pc control|mcp) (on|off))(?: please)?", t)
     if pc:
@@ -525,7 +724,19 @@ async def chat(text: str, history: "list | None" = None, mission_id: "str | None
         from . import mcp as MCP
         win = next((x for x in MCP.servers() if x["name"] == "windows"), None)
         if win and win["enabled"]:
-            return _reply(f"Opening {PC.display_app_name(task['app'])} through PC control.", ("pc_app", {"app": task["app"], "request": text}), "rules", heard)
+            # The sentence often carries a second request - "open Apple Music AND
+            # PLAY the ADHD playlist". Opening is a call and happens now; the
+            # rest is inside the app's own window, which is a routine, and
+            # pretending otherwise is how a hub silently does half a job.
+            # This reply is never spoken: pc_app carries its own result, so the
+            # UI says that instead (see voice.js `serverResult`). The second
+            # request therefore has to travel WITH the action, not in this
+            # sentence, or it is dropped between the two calls.
+            name = PC.display_app_name(task["app"])
+            extra = (task.get("then") or "").strip()
+            return _reply(f"Opening {name} through PC control.",
+                          ("pc_app", {"app": task["app"], "request": text, "then": extra}),
+                          "rules", heard)
         return _reply("PC control is off. Switch on the wireframe PC button beside TALK, then ask me to open the application.", None, "rules", heard)
     if re.search(r"\b(open|launch|start)\b.*\b(chrome|firefox|notepad)\b", t):
         from . import mcp as MCP
@@ -540,6 +751,11 @@ async def chat(text: str, history: "list | None" = None, mission_id: "str | None
         return _reply(chit, None, "rules", heard)
     if re.search(r"^(help|what can you do|what do you do|what are your limits)\b", t):
         return _reply(help_text(), None, "rules", heard)
+    # Rungs 2 and 3: a routine that can do it, else an agent that can look it up.
+    # Only then an open model call. `use_model=False` means no agent either.
+    routed = await CONV.handle(text, allow_agent=use_model)
+    if routed:
+        return _routed(routed, heard)
     if use_model:
         try:
             got = await asyncio.wait_for(_llm(text, history or [], mission_id), timeout=35)
@@ -560,6 +776,13 @@ async def chat(text: str, history: "list | None" = None, mission_id: "str | None
                 info = (await run_action("mission_info", args))["say"]
                 return _reply("Opening it. " + info, action, "model", heard)
             return _reply(say, action, "model", heard)
+        if _LLM_WHY == "unavailable":
+            # Say which thing is missing. "Gave nothing usable" read as the model
+            # being bad at the question, when the model was simply not running.
+            return _reply("I can't hold an open conversation right now: the local model isn't running "
+                          "and I couldn't start it. Everything that doesn't need it still works \u2014 "
+                          "opening apps, the weather and the time, your asks, missions and automations.",
+                          None, "rules", heard)
         return _reply("My language model didn't give me anything I could use for that. I can still open pages, say what's waiting, or start an ask. Try asking again, or say what you'd like to do.", None, "rules", heard)
     return _reply("I did not catch a command. Try 'open missions', 'status' or 'new ask to write a post'.", None, "rules", heard)
 
@@ -626,7 +849,29 @@ def _load_model(name: str):
     return _MODEL[name]
 
 
-def _transcribe_file(path: str, name: str, lang: "str | None") -> str:
+def _speech_hint() -> str:
+    """Words the recogniser should expect: the apps actually installed here.
+
+    "Apple Music" was heard as "our music" - ordinary words, so nothing about the
+    transcript looked wrong. Whisper accepts a prompt of expected vocabulary;
+    giving it the installed names is the cheapest accuracy gain available, and
+    the launcher's resolver is the net for what still slips through.
+    """
+    try:
+        from . import pc_control as PC
+        names = list(PC._START_APPS.get("names") or [])
+        used = PC._launch_history()
+    except Exception:
+        return ""
+    ranked = sorted(names, key=lambda n: (-used.get(n.casefold(), 0), len(n)))[:24]
+    if not ranked:
+        return ""
+    head = " ".join(f"Open {n}." for n in ranked[:8])
+    rest = ", ".join(ranked[8:])
+    return (head + (" " + rest + "." if rest else "") + " Agent Hub, missions, automations, the weather.")[:700]
+
+
+def _transcribe_file(path: str, name: str, lang: "str | None", hint: str = "") -> str:
     if RT.PACKAGED:
         r = RT.run([str(RT.python_for("speech")), str(RT.ASSETS / "packaging" / "speech_worker.py"),
                     "transcribe", name, str(RT.STATE / "models"), path, lang or ""], 180)
@@ -634,7 +879,11 @@ def _transcribe_file(path: str, name: str, lang: "str | None") -> str:
             raise RuntimeError(r.stderr[-1000:])
         text = json.loads(r.stdout)["text"]
         return "" if _clean(text) in _HALLUCINATIONS else text
-    segs, _info = _load_model(name).transcribe(path, language=lang, vad_filter=True, beam_size=1, condition_on_previous_text=False)
+    # beam_size 3 rather than 1 (greedy): a little slower on CPU, and the
+    # difference is mostly in exactly the short proper-noun commands used here.
+    segs, _info = _load_model(name).transcribe(path, language=lang, vad_filter=True, beam_size=3,
+                                               condition_on_previous_text=False,
+                                               initial_prompt=hint or None)
     text = " ".join(s.text.strip() for s in segs).strip()
     return "" if _clean(text) in _HALLUCINATIONS else text
 
@@ -658,8 +907,15 @@ async def api_transcribe(request: web.Request) -> web.Response:
         with os.fdopen(fd, "wb") as f:
             f.write(data)
         t0 = time.time()
+        try:                                   # warm the installed-app list; cached after the first call
+            from . import pc_control as PC
+            await PC.start_app_names()
+        except Exception:
+            pass
+        hint = _speech_hint()
         async with _LOCK:
-            text = await asyncio.get_running_loop().run_in_executor(None, _transcribe_file, path, st["model"], request.query.get("lang", "en") or None)
+            text = await asyncio.get_running_loop().run_in_executor(
+                None, _transcribe_file, path, st["model"], request.query.get("lang", "en") or None, hint)
         return web.json_response({"text": text, "model": st["model"], "seconds": round(time.time() - t0, 2)})
     finally:
         try:

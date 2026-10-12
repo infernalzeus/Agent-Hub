@@ -92,3 +92,20 @@ release-evidence.json
 
 # Skills pulled from the catalogue: someone else's repo, often tens of MB.
 hub/agent_knowledge/skills_installed/
+
+# Per-machine hub state written at runtime. These are already excluded from the
+# release payload (packaging/stage_release.py PRIVATE), but nothing kept them
+# out of git: a tile, an automation or a proposal created while using the hub
+# would otherwise be committed to a public repository.
+hub/action_apps.json
+hub/proposals.json
+hub/automations.json
+hub/automation_runs.json
+hub/theme.json
+hub/pending_move.json
+hub/integration_tokens.json
+hub/provider_keys.json
+hub/local_settings.py
+hub/user_facts.json
+# The router's routine log: a record of what was asked and when.
+hub/info_routines.json

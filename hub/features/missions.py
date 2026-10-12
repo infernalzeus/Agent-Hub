@@ -19,6 +19,7 @@ import os
 import platform
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import time
@@ -112,6 +113,11 @@ class Mission:
     error: str = ""
     depends_on: list[str] = field(default_factory=list)
     changed_files: list[dict] = field(default_factory=list)
+    # What the agent actually said. A mission that answers a question rather
+    # than changing files had nowhere to put its answer, so the board showed
+    # "0 changed" and nothing else - the work existed only in a file inside a
+    # worktree the person never opens.
+    answer: str = ""
     agents: list[str] = field(default_factory=list)   # team: ordered relay; parallel: unused
     group_id: str | None = None                       # parallel drafts share one
     session_id: str = ""                              # opencode session, for OPEN TRANSCRIPT
@@ -133,7 +139,8 @@ class Mission:
             "brief": self.brief, "agent": self.agent, "kind": self.kind, "status": self.status,
             "runtime": self.runtime,
             "parent_id": self.parent_id, "model": self.model, "model_note": self.model_note,
-            "changed": len(self.changed_files), "error": self.error[:200],
+            "changed": len(self.changed_files), "answer": self.answer[:4000],
+            "error": self.error[:200],
             "exit_code": self.exit_code, "pid": self.pid,
             "created": self.created, "ended": self.ended, "depends_on": list(self.depends_on),
             "worktree": self.worktree, "agents": list(self.agents), "group_id": self.group_id,
@@ -153,6 +160,11 @@ class Store:
         self._seen: dict[str, str] = {}             # id -> last status announced
         self.timeouts: set[str] = set()             # pipeline missions whose current step was killed by the watchdog
         self._locks: dict[str, asyncio.Lock] = {}
+        # Ids the person has cleared. A mission's own task can still be winding
+        # down after STOP and CLEAR - it saves once more on its way out, which put
+        # the card straight back (found when a cleared "discarded" mission was on
+        # the board after a restart). Nothing may write a cleared mission again.
+        self._gone: set[str] = set()
 
     def lock(self, mid: str) -> asyncio.Lock:
         return self._locks.setdefault(mid, asyncio.Lock())
@@ -193,6 +205,8 @@ class Store:
     }
 
     def save(self, m: Mission) -> None:
+        if m.id in self._gone:
+            return
         try:
             (MISSIONS_DIR / f"{m.id}.json").write_text(
                 json.dumps(asdict(m), indent=2), encoding="utf-8")
@@ -212,10 +226,12 @@ class Store:
             # of their old statuses would fire every automation at boot.
             return
         from .. import events
-        events.publish(kind, {"mission": m.id, "status": m.status,
-                              "project": m.project_slug, "brief": (m.brief or "")[:200]})
+        events.publish(kind, {"mission": m.id, "status": m.status, "kind": m.kind,
+                              "project": m.project_slug, "project_name": m.project_name,
+                              "brief": (m.brief or "")[:200]})
 
     def forget(self, mid: str) -> None:
+        self._gone.add(mid)
         self.m.pop(mid, None)
         self.events.pop(mid, None)
         try:
@@ -1597,6 +1613,60 @@ def _shadow(m: Mission) -> None:
         pass
 
 
+# Files an agent is told to leave an answer in, most explicit first.
+_ANSWER_FILES = ("ANSWER.md", "answer.md", "ANSWER.txt", "answer.txt", "FINDINGS.md")
+# The researcher agent is told to write `shared/RESEARCH-<topic>.md`. That was not
+# in the list above, so its answer was never found and the board fell back to the
+# tail of the transcript, which is usually just "DONE: <path>".
+_ANSWER_GLOBS = ("shared/RESEARCH-*.md", "shared/ANSWER*.md")
+
+
+def _mission_answer(wt: Path, data_dir: Path) -> str:
+    """The mission's answer in words: a written answer file, else what it said.
+
+    Looked for in that order because a file is deliberate - the agent chose to
+    write it - while the transcript tail is a best effort at the same thing.
+    """
+    for name in _ANSWER_FILES:
+        try:
+            f = wt / name
+            if f.is_file():
+                text = f.read_text(encoding="utf-8", errors="replace").strip()
+                if text:
+                    return text[:8000]
+        except OSError:
+            continue
+    for pattern in _ANSWER_GLOBS:
+        try:
+            newest = sorted(wt.glob(pattern), key=lambda f: f.stat().st_mtime, reverse=True)
+            if newest:
+                text = newest[0].read_text(encoding="utf-8", errors="replace").strip()
+                if text:
+                    return text[:8000]
+        except OSError:
+            continue
+    try:
+        jsonl = next(iter(sorted(data_dir.rglob("*.jsonl"))), None)
+    except Exception:
+        jsonl = None
+    return _segment_text(jsonl)[:8000] if jsonl else ""
+
+
+def _answers_note(m: Mission) -> str:
+    """The answers already given, appended to a brief.
+
+    Without this a single agent that asked a question was re-run with the same
+    brief and no sight of the reply, so it could only ask again.
+    """
+    if not m.answers:
+        return ""
+    lines = chr(10).join(f"- {a.get('q', '')} -> {a.get('a', '')}" for a in m.answers if a.get("a"))
+    if not lines:
+        return ""
+    return (chr(10) * 2 + "---" + chr(10)
+            + "ANSWERED ALREADY (do not ask these again):" + chr(10) + lines)
+
+
 async def _finalize(m: Mission, wt: Path, data_dir: Path, rc: int, stop: bool) -> None:
     async with S.lock(m.id):
         m.exit_code = rc
@@ -1605,6 +1675,27 @@ async def _finalize(m: Mission, wt: Path, data_dir: Path, rc: int, stop: bool) -
             m.changed_files = await OCM.ak_status.worktree_changed_files(wt)
         except Exception:
             pass
+        if not m.answer:
+            try:
+                m.answer = _mission_answer(wt, data_dir)
+            except Exception as exc:
+                logger.info("missions %s: could not read an answer: %s", m.id, exc)
+        # `_questions_from_jsonl` was only ever consulted for the orchestrator, so
+        # a single agent that asked something had its question silently dropped
+        # and the mission went to review as though it had decided for itself.
+        if m.status == "running" and m.kind != "orchestrator" and not m.answers:
+            try:
+                asked = _questions_from_jsonl(next(iter(sorted(data_dir.rglob("*.jsonl"))), Path()))
+            except Exception:
+                asked = []
+            if asked and not m.changed_files:
+                m.questions, m.status, m.ended = asked, "needs_input", None
+                S.save(m)
+                return
+            if asked:
+                # It asked AND produced work: the work is reviewable, but the
+                # question must not vanish just because something came out.
+                m.questions = asked
         if m.status == "running":
             if rc == 0 or stop:
                 m.status = "awaiting_review"
@@ -1779,6 +1870,52 @@ Output only the JSON object."""
 
 _OLLAMA_APP = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Ollama" / "ollama app.exe"
 _ollama_starting: asyncio.Lock | None = None
+# Set only when *this hub* launched Ollama. The idle-stop below will only ever
+# stop an Ollama that this process started: one you opened yourself is yours.
+_ollama_hub_started: "float | None" = None
+_ollama_last_use: float = 0.0
+OLLAMA_IDLE_MIN = float(os.environ.get("HUB_OLLAMA_IDLE_MIN", "10"))   # 0 turns it off
+
+
+def touch_ollama() -> None:
+    """Note that something just used the local model."""
+    global _ollama_last_use
+    _ollama_last_use = time.time()
+
+
+def ollama_idle_stop_due(now: "float | None" = None) -> bool:
+    """Whether the Ollama this hub started has been unused long enough to stop.
+
+    Not while any mission is running or queued, because every default model the
+    hub uses goes through Ollama. Not at all for one the hub did not start.
+    """
+    if OLLAMA_IDLE_MIN <= 0 or _ollama_hub_started is None:
+        return False
+    now = now or time.time()
+    if any(m.status in ("running", "queued", "blocked") for m in S.m.values()):
+        return False
+    last = max(_ollama_hub_started, _ollama_last_use,
+               max((m.ended or 0 for m in S.m.values()), default=0))
+    return (now - last) >= OLLAMA_IDLE_MIN * 60
+
+
+async def stop_ollama_if_idle() -> bool:
+    """Stop the hub-started Ollama if it has gone unused. Returns whether it did."""
+    global _ollama_hub_started
+    if not ollama_idle_stop_due():
+        return False
+    try:
+        if os.name == "nt":
+            for image in ("ollama app.exe", "ollama.exe"):
+                subprocess.run(["taskkill", "/IM", image, "/F"], capture_output=True, timeout=15)
+        else:
+            subprocess.run(["pkill", "-x", "ollama"], capture_output=True, timeout=15)
+    except Exception as exc:
+        logger.info("missions: could not stop the idle Ollama: %s", exc)
+        return False
+    logger.info("missions: stopped the Ollama this hub started (idle %.0f min)", OLLAMA_IDLE_MIN)
+    _ollama_hub_started = None
+    return True
 
 
 async def _ensure_ollama(wait: float = 30.0) -> bool:
@@ -1806,6 +1943,8 @@ async def _ensure_ollama(wait: float = 30.0) -> bool:
             subprocess.Popen([str(_OLLAMA_APP)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                              creationflags=0x00000008 | 0x00000200)          # DETACHED_PROCESS | NEW_PROCESS_GROUP
             logger.info("missions: Ollama was not running — started it")
+            global _ollama_hub_started
+            _ollama_hub_started = time.time()
         except Exception as exc:
             logger.warning("missions: could not start Ollama: %s", exc)
             return False
@@ -2433,7 +2572,7 @@ async def _run_team(m: Mission) -> None:
         m.agent = ag                      # surface the current phase on the board
         S.save(m)
         if i == 0:
-            phase_brief = m.brief
+            phase_brief = m.brief + _answers_note(m)
         else:
             phase_brief = (
                 f"{m.brief}\n\n---\nYou are step {i + 1} of {len(team)} in a relay "
@@ -2473,7 +2612,7 @@ async def _release_blocked() -> None:
 async def abort(mid: str) -> None:
     m = S.m.get(mid)
     if not m:
-        return
+        raise web.HTTPNotFound(text="no such mission")
     p = S.procs.get(mid)
     if p and p.returncode is None:
         try:
@@ -2516,26 +2655,70 @@ async def apply(mid: str) -> dict:
     return res
 
 
-async def discard(mid: str) -> None:
+def _force_remove(path: Path) -> bool:
+    """Delete a working copy for real, and say whether it is gone.
+
+    Git writes its object files read-only, and on Windows a read-only file
+    cannot be deleted until that attribute is cleared - one OpenCode snapshot
+    directory here held 592 of them. `rmtree(ignore_errors=True)` swallowed
+    every one of those failures, so `discard` reported a working copy removed
+    while the whole of it was still on disk, and the hub then re-discovered it
+    as an orphan. The board could not be cleared however many times you tried,
+    because nothing was actually being deleted and nothing said so.
+    """
+    def onexc(func, target, exc):
+        try:
+            os.chmod(target, stat.S_IWRITE)
+            func(target)
+        except Exception:
+            pass
+
+    for _ in range(3):
+        if not path.exists():
+            return True
+        try:
+            shutil.rmtree(path, onexc=onexc)
+        except TypeError:                       # Python < 3.12 spells it onerror
+            shutil.rmtree(path, onerror=lambda f, t, e: onexc(f, t, e[1]))
+        except Exception as exc:
+            logger.info("missions: removing %s raised %s", path, exc)
+    return not path.exists()
+
+
+# Mission states where the person has already made their call. Clearing a card
+# from the board afterwards is housekeeping, not a second decision.
+_DECIDED = ("applied", "discarded", "archived")
+
+
+async def discard(mid: str, record: bool = True) -> None:
     m = S.m.get(mid)
     if not m:
-        return
+        raise web.HTTPNotFound(text="no such mission")
     await abort(mid)
     src = Path(m.project_path)
     wt = Path(m.worktree)
     if (src / ".git").exists():
         await OCM._git(src, "worktree", "remove", "--force", str(wt))
         await OCM._git(src, "worktree", "prune")
-    for _ in range(6):
-        if not wt.exists():
-            break
-        await asyncio.get_running_loop().run_in_executor(
-            None, lambda: shutil.rmtree(wt, ignore_errors=True))
-        if not wt.exists():
-            break
-        await asyncio.sleep(0.5)
+    gone = await asyncio.get_running_loop().run_in_executor(None, _force_remove, wt)
+    if not gone:
+        # Say so rather than marking it discarded: a mission whose working copy
+        # is still there is not discarded, and claiming otherwise is what let
+        # the board refill itself.
+        # The mission keeps whatever status it had: it is not discarded, and
+        # inventing a new status here would only put a chip on the board that
+        # nothing knows how to render.
+        logger.warning("missions %s: working copy %s could not be removed", m.id, wt)
+        raise web.HTTPConflict(text=f"The working copy at {wt} could not be deleted, so this is "
+                                    f"not discarded. Close anything using it and try again.")
+    decided = m.status in _DECIDED
     m.status = "discarded"
-    DEC.record_outcome(_decision_log(), m.id, "discarded")
+    # Only a real DISCARD is an outcome. `forget` calls this to remove the working
+    # copy, and used to write "discarded" for work the person had APPLIED - so
+    # tidying the board turned every ship into a discard in the one log used to
+    # measure whether the independent check agrees with the person.
+    if record and not decided:
+        DEC.record_outcome(_decision_log(), m.id, "discarded")
     m.ended = m.ended or time.time()
     S.save(m)
 
@@ -2545,11 +2728,11 @@ async def forget(mid: str) -> None:
     board. Refuses while the mission is still active."""
     m = S.m.get(mid)
     if not m:
-        return
+        raise web.HTTPNotFound(text="no such mission")
     if m.status in _ACTIVE:
         raise web.HTTPBadRequest(text="mission is still active — abort it first")
     try:
-        await discard(mid)          # aborts (no-op), removes the working copy
+        await discard(mid, record=False)          # aborts (no-op), removes the working copy
     except Exception as exc:
         logger.info("missions %s: forget cleanup blip: %s", mid, exc)
     S.forget(mid)
@@ -2868,6 +3051,68 @@ async def api_agent_draft(request: web.Request) -> web.Response:
     mm = re.search(r"```(?:markdown)?\s*(---[\s\S]*?)```", text)
     md = mm.group(1).strip() if mm else ""
     return web.json_response({"markdown": md, "raw": text[-2000:] if not md else ""})
+
+
+async def ask_scratch(agent: str, brief: str, timeout: float = 120.0) -> str:
+    """Run one agent in the project-less scratch workspace and return what it said.
+
+    The answer rung of the router. A question is not an ask about a project: it
+    should not create a worktree on one, wait for review, or leave anything to
+    APPLY. Same mechanism as the agent-smith draft above, which already runs a
+    single agent here; this just returns the text instead of parsing a skill.
+    """
+    # Every default model goes through Ollama, so an agent started with it down
+    # does not fail fast: it retries for over a minute and then reports nothing.
+    # That is exactly what the first live run of this did. Missions guard against
+    # it; the answer rung had skipped the guard.
+    if not await _ensure_ollama():
+        raise RuntimeError("the local model is not running and could not be started")
+    touch_ollama()
+    wt = OCM.SCRATCH_DIR
+    wt.mkdir(parents=True, exist_ok=True)
+    if not (wt / ".git").exists():
+        await OCM._git(wt, "init")
+        await OCM._git(wt, "-c", "user.email=hub@local", "-c", "user.name=Agent Hub",
+                       "commit", "--allow-empty", "-m", "scratch")
+    OCM.materialize_agents(wt, base_branch="base", slug="scratch", headless=True)
+    env = os.environ.copy()
+    env["XDG_DATA_HOME"] = str(wt / ".ocdata")
+    env["OPENCODE_CONFIG"] = str(OCM.OPENCODE_CONFIG)
+    LLMK.inject(env)
+    started = time.time()
+    proc = await asyncio.create_subprocess_exec(
+        OCM.OPENCODE_EXE, "run", "--dir", str(wt), "--agent", agent, "--format", "json", brief,
+        cwd=str(wt), env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+    _assign_to_job(proc.pid)
+    try:
+        out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    except asyncio.TimeoutError:
+        proc.kill()
+        raise TimeoutError(f"{agent} did not answer in {int(timeout)}s")
+    parts, failure = [], ""
+    for line in out.decode("utf-8", "replace").splitlines():
+        try:
+            ev = json.loads(line)
+        except ValueError:
+            continue
+        if ev.get("type") == "error":
+            err = ev.get("error") or {}
+            failure = str((err.get("data") or {}).get("message") or err.get("name") or "the agent reported an error")
+            continue
+        parts.append((ev.get("part") or {}).get("text", ""))
+    text = chr(10).join(p for p in parts if p).strip()
+    if failure and not text:
+        # Say what went wrong. Returning "" made the router tell the person the
+        # agent "finished with nothing to say", which is not what happened.
+        raise RuntimeError(f"the {agent} agent could not run: {failure[:160]}")
+    # An agent told to write a file wrote one during this run; that is the answer.
+    for pattern in _ANSWER_GLOBS:
+        for f in sorted(wt.glob(pattern), key=lambda x: x.stat().st_mtime, reverse=True):
+            if f.stat().st_mtime >= started - 1:
+                body = f.read_text(encoding="utf-8", errors="replace").strip()
+                if body:
+                    return body[:6000]
+    return text[:6000]
 
 
 @routes.get("/api/missions")

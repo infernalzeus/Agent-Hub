@@ -20,6 +20,14 @@ _HTML = """<div id="voice" hidden>
   <div class="v-row"><button type="button" class="vbtn go" id="v-mic">START LISTENING</button><button type="button" class="vbtn" id="v-yes" hidden>YES</button><button type="button" class="vbtn stop" id="v-no" hidden>NO</button></div>
   <div class="v-type"><input type="text" id="v-in" placeholder="Type, or dictate with your keyboard" autocomplete="off"><button type="button" class="vbtn" id="v-go">SEND</button></div>
   <div class="v-hint" id="v-hint" hidden></div>
+  <!-- Shown while a recording is running. It lives here, in the panel you were
+       already using, because being told to "press STOP and SAVE" after being
+       sent to a different page is not an instruction anyone can follow. -->
+  <div class="v-rec" id="v-rec" hidden>
+    <div class="v-rec-head"><canvas data-orb="breathing" data-size="16"></canvas><span id="v-rec-state">Recording</span></div>
+    <input type="text" id="v-rec-name" placeholder="What is this routine called?" autocomplete="off">
+    <div class="v-row"><button type="button" class="vbtn stop" id="v-rec-stop">STOP</button><button type="button" class="vbtn go" id="v-rec-save">SAVE</button><button type="button" class="vbtn" id="v-rec-drop">DISCARD</button></div>
+  </div>
 </div>"""
 
 

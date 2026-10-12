@@ -94,6 +94,15 @@ html,body{min-height:100%;min-height:100dvh;font-family:'Outfit',system-ui,sans-
 .wake-btn.external:hover{transform:none;box-shadow:none}
 .wake-sub{display:none;margin-top:14px;font-family:'Orbitron',monospace;font-size:11px;letter-spacing:1.5px;
   color:var(--text-muted);line-height:1.6;max-width:280px;margin-left:auto;margin-right:auto}
+.proposal-card{display:flex;align-items:center;gap:9px;border-style:dashed}
+.proposal-card .btn{flex:0 0 auto;padding:6px 11px;font-size:10.5px}
+.ing-row{display:flex;align-items:center;gap:8px;padding:8px 0;flex-wrap:wrap}
+/* Matched to .btn: 40px min-height and a 6px radius, or the INGEST button
+   stands ~5px taller than the field beside it with a different corner. */
+.ing-row input{flex:1 1 180px;background:var(--bg-deep,#0a0c3e);border:1px solid var(--border-dim,rgba(0,230,118,.22));
+  color:var(--ink,#d9ffe9);border-radius:6px;padding:10px 12px;min-height:40px;box-sizing:border-box;
+  font:14px Outfit,sans-serif}
+.ing-row input:focus{outline:none;border-color:var(--border-bright,rgba(0,230,118,.6))}
 </style>
 <link rel="stylesheet" href="/theme.css">
 </head>
@@ -414,6 +423,15 @@ body.edit-mode #trash-zone{opacity:1;transform:translateX(-50%) translateY(0)}
 .status-dot{width:6px;height:6px;border-radius:50%;background:var(--text-faint)}
 .status-dot.running{background:var(--accent);box-shadow:0 0 6px var(--accent)}
 .card-actions{display:flex;gap:8px;flex-shrink:0}
+/* The INGEST APP dialog. Its markup is built in JS further down, and the menu
+   page had no styles for it at all - only the offline page did - so the URL
+   field rendered as a browser default beside a themed button, which is what
+   made that row look wrong. Matched to .btn: 40px tall, 6px radius. */
+.ing-row{display:flex;align-items:center;gap:8px;padding:8px 0;flex-wrap:wrap}
+.ing-row input{flex:1 1 180px;min-height:40px;box-sizing:border-box;padding:10px 12px;border-radius:6px;
+  background:var(--bg);border:1px solid var(--border-dim);color:var(--text);
+  font:14px 'Outfit',sans-serif;outline:none}
+.ing-row input:focus{border-color:var(--accent)}
 .btn{font-family:'Orbitron',monospace;font-size:9.5px;letter-spacing:1px;padding:10px 14px;min-height:40px;border-radius:6px;
   display:inline-flex;align-items:center;justify-content:center;
   border:1px solid var(--border-bright);background:transparent;color:var(--accent);cursor:pointer;
@@ -791,6 +809,8 @@ function toast(msg, kind) {
   _toastT = setTimeout(() => el.classList.remove('show'), 4200);
 }
 const appsBefore = document.getElementById('apps-before');
+const ocArea = document.getElementById('opencode-app-area');
+const showAutoLlm = (on) => { if (ocArea) ocArea.hidden = !on; };
 const appsAfter  = document.getElementById('apps-after');
 const ytAppArea   = document.getElementById('yt-app-area');
 const ytdlAppArea = document.getElementById('ytdl-app-area');
@@ -932,6 +952,63 @@ async function loadSetupStatus() {
 }
 loadSetupStatus();
 
+let ACTION_APPS = [];   // tiles backed by MCP verbs, not by a server of their own
+let PROPOSALS = [];     // wiring something worked out, waiting for you to say yes
+const esc0 = (x) => String(x==null?'':x).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// A panel of verbs, drawn here rather than by whatever server supplies them.
+// Opening a tile never runs anything; a button does, one press for one verb.
+async function openActions(t){
+  let host = document.getElementById('act-panel');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'act-panel';
+    host.style.cssText = 'position:fixed;inset:0;z-index:60;display:flex;align-items:center;'
+      + 'justify-content:center;background:rgba(0,0,0,.62)';
+    document.body.appendChild(host);
+  }
+  const draw = (msg) => {
+    host.innerHTML = '<div style="background:var(--panel,#0d1247);border:1px solid var(--border-bright,rgba(0,230,118,.45));'
+      + 'border-radius:12px;padding:14px;max-width:420px;width:92%;max-height:80vh;overflow:auto">'
+      + '<div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">'
+      + '<span style="font-size:20px">' + esc0(t.emoji||'') + '</span>'
+      + '<b style="color:var(--ink,#d9ffe9)">' + esc0(t.name) + '</b>'
+      + '<span style="flex:1"></span><button class="btn" id="act-close">CLOSE</button></div>'
+      + '<div style="display:flex;flex-direction:column;gap:7px">'
+      + t.tools.map(v => {
+          const name = v.name || v, needs = (v.needs || []);
+          return '<button class="btn" data-verb="' + esc0(name) + '" style="text-align:left">' + esc0(name)
+            + (needs.length ? '<span style="opacity:.6"> …</span>' : '') + '</button>';
+        }).join('')
+      + '</div><div id="act-msg" style="font-size:12px;color:var(--text-muted,#a8cbb9);margin-top:10px">'
+      + esc0(msg||'') + '</div></div>';
+    document.getElementById('act-close').onclick = () => host.remove();
+    host.querySelectorAll('[data-verb]').forEach(b => b.onclick = async () => {
+      const name = b.dataset.verb;
+      const spec = (t.tools || []).find(v => (v.name || v) === name) || {};
+      const needs = spec.needs || [];
+      // A verb that takes arguments asks for them, the same way a waiting
+      // automation does, rather than being sent off with nothing.
+      const args = {};
+      for (const n of needs) {
+        const got = prompt(n.label + (n.why ? ' — ' + n.why : ''));
+        if (got === null) return;
+        args[n.key] = got;
+      }
+      b.disabled = true;
+      draw('Running ' + name + '...');
+      try {
+        const r = await fetch('/api/action-apps/' + t.id + '/run', {method:'POST',
+          headers:{'Content-Type':'application/json'}, body: JSON.stringify({tool: name, args})});
+        const text = await r.text();
+        let j = {}; try { j = JSON.parse(text); } catch (e) {}
+        draw(r.ok ? ((j.text||[]).join(' ').slice(0,300) || 'Done.') : text.slice(0,180));
+      } catch (e) { draw(String(e.message || e)); }
+    });
+  };
+  draw('');
+}
+
 let APP_LIST = __APP_LIST_JSON__;   // embedded by the server so every tile paints on the first frame; /api/apps keeps it fresh
 let EDIT = false;
 let _dragCard = null, _dragStartY = 0, _dragPointerId = null;
@@ -998,7 +1075,10 @@ function buildAppCard(info, editable) {
     const smbBtn = document.createElement('a');
     smbBtn.className = 'btn';
     smbBtn.textContent = SMB_SHORTCUT.emoji + ' SMB';
-    smbBtn.href = SMB_SHORTCUT.href;
+    // A Mac's SMB client is refused when it connects by IP number but works by host name (diagnosed 2026-10-10 from the
+    // Windows security log: the Mac's login failed only by number). `href_mac` is that name form; every other device keeps `href`.
+    const onMac = /Macintosh/.test(navigator.userAgent) && !(navigator.maxTouchPoints > 1);   // iPadOS reports "Macintosh" too, but has touch
+    smbBtn.href = (onMac && SMB_SHORTCUT.href_mac) || SMB_SHORTCUT.href;
     smbBtn.title = SMB_SHORTCUT.title;
     actions.appendChild(smbBtn);
   }
@@ -1027,6 +1107,36 @@ function render() {
   for (const info of APP_LIST) {
     if (info.hidden || info.id === 'file-browser') continue;
     appsBefore.appendChild(buildAppCard(info, true));
+  }
+  for (const t of ACTION_APPS) {
+    const card = document.createElement('div');
+    card.className = 'card app-card';
+    card.innerHTML = '<span class="ico" style="font-size:22px">' + esc0(t.emoji || '[]') + '</span>' + esc0(t.name);
+    card.onclick = () => openActions(t);
+    appsBefore.appendChild(card);
+  }
+  // Worked out by something, installed by nobody until you press it. Sits with
+  // INGEST APP because that is where you come to add a thing to the hub.
+  for (const pr of PROPOSALS) {
+    const card = document.createElement('div');
+    card.className = 'card proposal-card';
+    const pct = pr.confidence == null ? '' : ' · ' + Math.round(pr.confidence * 100) + '% sure';
+    card.innerHTML = '<div style="flex:1;min-width:0">'
+      + '<div style="font-weight:600">' + esc0(pr.name) + '</div>'
+      + '<div style="font-size:11.5px;opacity:.72">' + esc0(pr.why || '') + pct + '</div></div>';
+    const yes = document.createElement('button');
+    yes.className = 'btn go'; yes.textContent = 'ADD';
+    yes.onclick = async (e) => { e.stopPropagation();
+      yes.disabled = true;
+      await fetch('/api/proposals/' + pr.id + '/accept', {method:'POST'});
+      refresh(); };
+    const no = document.createElement('button');
+    no.className = 'btn'; no.textContent = 'DISMISS';
+    no.onclick = async (e) => { e.stopPropagation();
+      await fetch('/api/proposals/' + pr.id, {method:'DELETE'});
+      refresh(); };
+    card.appendChild(yes); card.appendChild(no);
+    appsBefore.appendChild(card);
   }
   const add = document.createElement('div');
   add.className = 'card ingest-card';
@@ -1118,17 +1228,71 @@ async function wireOut(info) {
   refresh();
 }
 
+// Adding something to the hub is one question with more than one answer: a web
+// app you point at, or something already worked out and waiting to be installed.
+// Both arrive here, so both are offered here rather than in two unrelated places.
 async function ingestPrompt() {
-  const url = prompt('Git URL of the web app to ingest:');
-  if (!url || !url.trim()) return;
-  const name = prompt('Display name (optional):') || undefined;
-  try {
-    const res = await fetch('/api/apps/ingest', {method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({url: url.trim(), name})});
-    if (!res.ok) throw new Error(await res.text());
-    toast('Ingest mission started — review it on /missions, then APPLY to wire it in.');
-    setTimeout(() => { window.location.href = '/missions'; }, 1200);
-  } catch (e) { toast('Ingest failed: ' + e.message, 'err'); }
+  let ready = [];
+  try { ready = (await (await fetch('/api/proposals', {cache:'no-store'})).json()).proposals || []; }
+  catch (e) {}
+
+  const host = document.createElement('div');
+  host.id = 'ingest-panel';
+  host.style.cssText = 'position:fixed;inset:0;z-index:60;display:flex;align-items:center;'
+    + 'justify-content:center;background:rgba(0,0,0,.62)';
+  document.body.appendChild(host);
+
+  const rows = ready.map(pr => {
+    const pct = pr.confidence == null ? '' : ' \u00b7 ' + Math.round(pr.confidence * 100) + '% sure';
+    return '<div class="ing-row"><div style="flex:1;min-width:0">'
+      + '<div style="font-weight:600">' + esc0(pr.name) + '</div>'
+      + '<div style="font-size:11.5px;opacity:.72">' + esc0(pr.why || '') + pct + '</div></div>'
+      + '<button class="btn go" data-add="' + pr.id + '">ADD</button>'
+      + '<button class="btn" data-drop="' + pr.id + '">DISMISS</button></div>';
+  }).join('');
+
+  host.innerHTML = '<div style="background:var(--panel,#0d1247);border:1px solid var(--border-bright,rgba(0,230,118,.45));'
+    + 'border-radius:12px;padding:15px;max-width:460px;width:92%;max-height:84vh;overflow:auto">'
+    + '<div style="display:flex;align-items:center;margin-bottom:11px">'
+    + '<b style="color:var(--ink,#d9ffe9)">Add to the hub</b><span style="flex:1"></span>'
+    + '<button class="btn" id="ing-close">CLOSE</button></div>'
+    + (rows ? '<div style="font-size:11.5px;opacity:.72;margin-bottom:6px">Worked out already \u2014 press ADD to wire it in</div>' + rows
+            : '<div style="font-size:11.5px;opacity:.72;margin-bottom:10px">Nothing is waiting to be wired in.</div>')
+    + '<div style="border-top:1px solid var(--border-dim,rgba(0,230,118,.22));margin:12px 0 10px"></div>'
+    + '<div style="font-size:11.5px;opacity:.72;margin-bottom:7px">Or bring in a web app from a git URL</div>'
+    + '<div class="ing-row"><input id="ing-url" placeholder="https://github.com/\u2026" style="flex:1">'
+    + '<button class="btn go" id="ing-go">INGEST</button></div>'
+    + '<div id="ing-msg" style="font-size:12px;color:var(--text-muted,#a8cbb9);margin-top:9px"></div></div>';
+
+  const close = () => host.remove();
+  document.getElementById('ing-close').onclick = close;
+  host.onclick = (e) => { if (e.target === host) close(); };
+
+  host.querySelectorAll('[data-add]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    await fetch('/api/proposals/' + b.dataset.add + '/accept', {method: 'POST'});
+    close(); refresh();
+  });
+  host.querySelectorAll('[data-drop]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    await fetch('/api/proposals/' + b.dataset.drop, {method: 'DELETE'});
+    close(); refresh();
+  });
+
+  document.getElementById('ing-go').onclick = async () => {
+    const url = (document.getElementById('ing-url').value || '').trim();
+    const msg = document.getElementById('ing-msg');
+    if (!url) { msg.textContent = 'Paste a git URL first.'; return; }
+    msg.textContent = 'Starting\u2026';
+    try {
+      const res = await fetch('/api/apps/ingest', {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({url})});
+      if (!res.ok) throw new Error(await res.text());
+      close();
+      toast('Ingest mission started \u2014 review it on /missions, then APPLY to wire it in.');
+      setTimeout(() => { window.location.href = '/missions'; }, 1200);
+    } catch (e) { msg.textContent = 'Ingest failed: ' + e.message; }
+  };
 }
 
 const editToggle = document.getElementById('edit-toggle');
@@ -1167,10 +1331,13 @@ async function refresh() {
     await res.json();
     setConn(true);
     downCount = 0;
+    showAutoLlm(true);        // back online: the card's buttons mean something again
     ytAppArea.style.display = '';
     ytdlAppArea.style.display = '';
     powerWrap.style.display = '';
-    { const a = await pApps; if (a) { APP_LIST = a.apps || APP_LIST; } }   // else keep the last list
+    { const a = await pApps; if (a) { APP_LIST = a.apps || APP_LIST; } }
+    try { ACTION_APPS = (await (await fetch('/api/action-apps',{cache:'no-store'})).json()).apps || []; } catch(e) {}
+    try { PROPOSALS = (await (await fetch('/api/proposals',{cache:'no-store'})).json()).proposals || []; } catch(e) {}
     // Lightweight YT-DL status, no websocket — so a device whose card is
     // COLLAPSED (or another device entirely, e.g. phone while PC downloads)
     // still shows "downloading"/"queued" instead of a stale "IDLE" until
@@ -1205,6 +1372,10 @@ async function refresh() {
       appsAfter.innerHTML = '';
       const fbHost = document.getElementById('filebrowser-area');
       if (fbHost) fbHost.innerHTML = '';
+      // Auto-LLM is static markup rather than a rendered card, so clearing the
+      // two app containers left it on screen - on a dormant phone you saw a
+      // working-looking widget whose every button needs the API that is down.
+      showAutoLlm(false);
     }
     // Hub is down → flip to the DORMANT screen. Reloading lets the service worker
     // serve offline.html (it does when the backend errors). Rate-limit so a

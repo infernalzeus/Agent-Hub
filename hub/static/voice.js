@@ -147,17 +147,19 @@
 
   // ---- speaking, with talk-over: the mic keeps recording while the reply plays; if you start talking, the reply stops and what you say is used
   async function speak(text) {
-    if (!text || S.mute) return;
-    const turn = S.turn;
+    if (!text) return;
+    if (S.mute) { hint('Sound is off, so that reply was not spoken. Tap SOUND OFF to turn it back on.'); return; }
+    const turn = S.turn, spokeAt = performance.now();
     S.speaking = true; setState('composing', 'Speaking…');
     let rec = null, barged = false;
     if (S.on && S.stream) { try { rec = makeRec(); } catch (e) { rec = null; } }       // talk-over is always on
     if (rec) {
       let hi = 0, last = performance.now();
-      const watch = () => { if (turn !== S.turn || !S.on || !S.speaking || barged) return; const now = performance.now(); hi = rms() > 0.045 ? hi + (now - last) : 0; last = now; if (hi > 150) { barged = true; if (S.stop) S.stop(); return; } requestAnimationFrame(watch); };
+      const watch = () => { if (turn !== S.turn || !S.on || !S.speaking || barged) return; const now = performance.now(); hi = rms() > 0.07 ? hi + (now - last) : 0; last = now; if (hi > 350) { barged = true; if (S.stop) S.stop(); return; } requestAnimationFrame(watch); };
       watch();
     }
     await play(text);
+    if (barged && performance.now() - spokeAt < 1500) hint('That reply was cut off almost at once: the mic heard noise and took it for you talking. If it keeps happening, use headphones or lower the volume.');
     if (turn !== S.turn) { if (rec) await rec.stop(); return; }
     S.speaking = false;
     if (rec) {
@@ -239,14 +241,53 @@
     const j = await request('/api/voice/act', { id: r.action.id, args: r.action.args });
     if (turn !== S.turn) return;
     log('hub', j.say, j.routine && j.routine.tag); await speak(j.say);
-    if (turn === S.turn && !S.carry && j.url) navigate(j.url);
+    if (turn !== S.turn) return;
+    // An action is allowed to come back with a question. Opening an app can only
+    // do half of "open Apple Music and play the ADHD playlist", and the right
+    // answer to the other half is to ask - which is impossible if a result can
+    // only ever be a statement. Reuses the same pending machinery as a confirm.
+    if (j.action && j.confirm) { S.pending = j; showBtns(true); setState('breathing', 'Waiting for your yes'); return; }
+    if (!S.carry && j.url) navigate(j.url);
+  }
+
+  // ---- recording, shown where you already are
+  // The hub used to answer "record it, then press STOP and SAVE on this page"
+  // and navigate to Setup tools, where those controls are inside one section of
+  // a long page. So the strip lives in this panel instead, and the reply no
+  // longer moves you anywhere.
+  let RECPOLL = null;
+  async function recPaint() {
+    let st = null;
+    try { st = await (await fetch('/api/pc/record')).json(); } catch (e) { st = null; }
+    const box = $('v-rec');
+    if (!st || !st.available || (!st.running && !(st.steps && st.steps.length))) {
+      box.hidden = true;
+      if (RECPOLL) { clearInterval(RECPOLL); RECPOLL = null; }
+      return;
+    }
+    box.hidden = false;
+    const n = (st.steps || []).length;
+    $('v-rec-state').textContent = st.running
+      ? `RECORDING — ${n} step${n === 1 ? '' : 's'}`
+      : `STOPPED — ${n} step${n === 1 ? '' : 's'}, name it and save`;
+    $('v-rec-stop').hidden = !st.running;
+    $('v-rec-save').hidden = !!st.running;
+    if (!RECPOLL) RECPOLL = setInterval(recPaint, 2000);
+  }
+  async function recSend(path, body) {
+    try {
+      const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                   body: JSON.stringify(body || {}) });
+      if (!r.ok) { hint(await r.text()); return null; }
+      return await r.json();
+    } catch (e) { hint(String(e.message || e)); return null; }
   }
 
   // ---- open / close / wiring
   function open(autoStart) {
     $('voice').hidden = false;
     if (window.ThinkingOrbs) window.ThinkingOrbs.mountAll($('voice'), '#00e676');
-    paintOn(); layout();
+    paintOn(); layout(); recPaint();
     if (autoStart && !S.on) { S.on = true; paintOn(); startLoop(); }
   }
   function close() { S.on = false; S.listen++; fresh(); paintOn(); $('voice').hidden = true; }
@@ -271,6 +312,15 @@
     $('v-cancel').onclick = () => { cancelTurn(); S.pending = null; showBtns(false); hint('Reply stopped. An action already sent may still finish; check its status before retrying.'); ready(); };
     $('v-mute').onclick = () => { unlockAudio(); S.mute = !S.mute; if (S.mute && S.stop) S.stop(); try { localStorage.setItem('hubVoiceMute', S.mute ? '1' : '0'); } catch (e) {} paintToggles(); };
     paintToggles();
+    $('v-rec-stop').onclick = async () => { await recSend('/api/pc/record/stop'); recPaint(); };
+    $('v-rec-drop').onclick = async () => { await recSend('/api/pc/record/discard'); recPaint(); };
+    $('v-rec-save').onclick = async () => {
+      const name = $('v-rec-name').value.trim();
+      if (!name) { hint('Give the routine a name first.'); $('v-rec-name').focus(); return; }
+      const got = await recSend('/api/pc/record/save', { intent: name, title: name });
+      if (got) { log('hub', `Saved "${name}". It is listed ready to be wired in as a button.`); $('v-rec-name').value = ''; }
+      recPaint();
+    };
     $('v-yes').onclick = () => { unlockAudio(); if (S.pending) handle('Yes'); };
     $('v-no').onclick = () => { if (S.pending) handle('No'); };
     const send = () => { unlockAudio(); const v = $('v-in').value.trim(); if (v) { $('v-in').value = ''; if (S.stop) S.stop(); handle(v); } };
