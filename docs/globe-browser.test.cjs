@@ -1,0 +1,120 @@
+'use strict';
+// Usage: PLAYWRIGHT_MODULE=<installed package path> node globe-browser.test.cjs
+const {chromium} = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const {pathToFileURL} = require('node:url');
+(async function(){
+  const browser = await chromium.launch({channel:'msedge',headless:true});
+  const report = {checks:[],timing:{}};
+  const errors=[], network=[];
+  try {
+    const context = await browser.newContext({viewport:{width:1100,height:1100},deviceScaleFactor:2,reducedMotion:'reduce'});
+    const page = await context.newPage();
+    page.on('pageerror',e=>errors.push(e.message));
+    page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
+    page.on('request',r=>{if(/^https?:/.test(r.url()))network.push(r.url());});
+    await page.goto(pathToFileURL(path.join(__dirname,'globe-demo.html')).href);
+    await page.waitForTimeout(150);
+    assert.equal(await page.locator('.globe canvas').count(),4);
+    assert.equal(await page.evaluate(()=>demoGlobes[1].stats.frames),1);
+    await page.waitForTimeout(120);
+    assert.equal(await page.evaluate(()=>demoGlobes[1].stats.frames),1);
+    report.checks.push('reduced motion: one frame, then no loop');
+    assert(await page.evaluate(()=>document.querySelector('#demo-138 canvas').width===276));
+    report.checks.push('DPR 2 backing store');
+    const globe=page.locator('#demo-220 canvas');
+    await globe.screenshot({path:'globe-verification/orientation-1.png'});
+    await page.locator('#demo-72 canvas').screenshot({path:'globe-verification/mark-72.png'});
+    await globe.focus();
+    for(let i=0;i<8;i++)await page.keyboard.press('ArrowRight');
+    for(let i=0;i<3;i++)await page.keyboard.press('ArrowUp');
+    await globe.screenshot({path:'globe-verification/orientation-2.png'});
+    for(let i=0;i<9;i++)await page.keyboard.press('ArrowDown');
+    for(let i=0;i<5;i++)await page.keyboard.press('ArrowLeft');
+    await globe.screenshot({path:'globe-verification/orientation-3.png'});
+    assert(!fs.readFileSync('globe-verification/orientation-1.png').equals(fs.readFileSync('globe-verification/orientation-2.png')));
+    report.checks.push('arrow rotations change cloud in still mode');
+    const box=await globe.boundingBox();
+    await page.mouse.move(box.x+box.width*.45,box.y+box.height*.4);
+    const beforeHover=await globe.screenshot();
+    await page.mouse.move(box.x+box.width*.65,box.y+box.height*.6,{steps:8});
+    assert(!beforeHover.equals(await globe.screenshot()));
+    report.checks.push('hover steering rotates in still mode');
+    await page.evaluate(()=>{window.captureCalls=0;const c=document.querySelector('#demo-220 canvas');c.setPointerCapture=function(){captureCalls++;};c.dispatchEvent(new PointerEvent('pointerdown',{pointerId:42,button:0,clientX:50,clientY:50,bubbles:true}));window.dispatchEvent(new PointerEvent('pointermove',{pointerId:42,clientX:53,clientY:50,bubbles:true}));});
+    assert.equal(await page.evaluate(()=>captureCalls),0);
+    await page.evaluate(()=>window.dispatchEvent(new PointerEvent('pointermove',{pointerId:42,clientX:70,clientY:50,bubbles:true})));
+    assert.equal(await page.evaluate(()=>captureCalls),1);
+    await page.evaluate(()=>window.dispatchEvent(new PointerEvent('pointerup',{pointerId:42,bubbles:true})));
+    report.checks.push('pointer capture only after 6 px');
+    await page.evaluate(()=>{captureCalls=0;const c=document.querySelector('#demo-220 canvas');c.dispatchEvent(new PointerEvent('pointerdown',{pointerId:43,pointerType:'touch',button:0,clientX:50,clientY:50,bubbles:true}));window.dispatchEvent(new PointerEvent('pointermove',{pointerId:43,pointerType:'touch',clientX:52,clientY:75,bubbles:true}));});
+    assert.equal(await page.evaluate(()=>captureCalls),0);
+    assert.equal(await globe.evaluate(c=>getComputedStyle(c).touchAction),'pan-y');
+    report.checks.push('vertical touch gesture left to scrolling');
+    // Failure and lifecycle boundaries: initial missing context; late drawing failure.
+    assert(await page.evaluate(()=>{
+      const host=document.createElement('div');host.style.cssText='width:138px;height:138px';host.innerHTML='<img style="display:block" src="assets/agent-hub-mark.png">';document.body.appendChild(host);
+      const original=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(){return null;};
+      let g;try{g=AgentHubGlobe.mount(host);}finally{HTMLCanvasElement.prototype.getContext=original;}
+      const ok=g===null&&!host.querySelector('canvas')&&!host.querySelector('img').hidden;host.remove();return ok;
+    }));
+    assert(await page.evaluate(()=>{
+      const host=document.createElement('div');host.style.cssText='width:138px;height:138px';host.innerHTML='<img style="display:block" src="assets/agent-hub-mark.png">';document.body.appendChild(host);
+      const g=AgentHubGlobe.mount(host,{reducedMotion:true}), c=host.querySelector('canvas'),ctx=c.getContext('2d');
+      ctx.drawImage=function(){throw new Error('simulated drawing failure');};g.setState('dormant');
+      const ok=!host.querySelector('canvas')&&!host.querySelector('img').hidden&&host.querySelector('img').style.visibility==='';host.remove();return ok;
+    }));
+    report.checks.push('initial and late canvas failures restore raster');
+    await page.locator('#state').click();
+    await globe.screenshot({path:'globe-verification/dormant.png'});
+    await page.evaluate(()=>{window.pulses=0;document.querySelector('#demo-220').addEventListener('pulse',()=>pulses++);demoGlobes[2].pulse();});
+    assert.equal(await page.evaluate(()=>pulses),0);
+    report.checks.push('dormant and reduced motion suppress pulses');
+    await page.locator('#state').click();
+    await page.locator('#still').click();
+    await page.waitForTimeout(100);
+    await page.evaluate(()=>{window.samples=[];window.lastMeasured=-1;});
+    for(let i=0;i<180;i++) {
+      await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>{const s=demoGlobes[1].stats;if(s.frames!==lastMeasured){samples.push(s.frameMs);lastMeasured=s.frames;}resolve();})));
+    }
+    report.timing=await page.evaluate(()=>{samples.sort((a,b)=>a-b);return{samples:samples.length,meanMs:samples.reduce((a,b)=>a+b,0)/samples.length,p50Ms:samples[Math.floor(samples.length*.5)],p95Ms:samples[Math.floor(samples.length*.95)],maxMs:samples[samples.length-1],dpr:devicePixelRatio,userAgent:navigator.userAgent};});
+    assert(report.timing.p95Ms<4);
+    report.checks.push('138 px p95 render under 4 ms');
+    const frames=await page.evaluate(()=>demoGlobes[1].stats.frames);
+    await page.waitForTimeout(1000);
+    const fps=await page.evaluate(()=>demoGlobes[1].stats.frames)-frames;
+    assert(fps<=31);report.multiInstanceFps=fps;
+    report.checks.push('multiple instances capped at 30 fps');
+    await page.evaluate(()=>demoGlobes[2].pulse());assert.equal(await page.evaluate(()=>pulses),1);
+    report.checks.push('pulse DOM event in live motion mode');
+    await page.waitForTimeout(6500);assert((await page.evaluate(()=>pulses))>=2);
+    report.checks.push('automatic live pulse every 6 seconds');
+    await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});
+    await page.waitForTimeout(100);
+    const paused=await page.evaluate(()=>demoGlobes.map(g=>g.stats.frames));await page.waitForTimeout(160);
+    assert.deepEqual(await page.evaluate(()=>demoGlobes.map(g=>g.stats.frames)),paused);
+    await page.evaluate(()=>{delete document.hidden;document.dispatchEvent(new Event('visibilitychange'));});
+    report.checks.push('document.hidden pauses renderer');
+    await page.evaluate(()=>{document.body.style.minHeight='4000px';scrollTo(0,3000);});await page.waitForTimeout(150);
+    const offscreen=await page.evaluate(()=>demoGlobes.map(g=>g.stats.frames));await page.waitForTimeout(160);
+    assert.deepEqual(await page.evaluate(()=>demoGlobes.map(g=>g.stats.frames)),offscreen);
+    report.checks.push('IntersectionObserver pauses off-screen globes');
+    await page.evaluate(()=>{scrollTo(0,0);demoGlobes.forEach(g=>g.destroy());});
+    assert.equal(await page.locator('.globe canvas').count(),0);
+    assert(await page.evaluate(()=>Array.from(document.querySelectorAll('.globe img')).every(i=>!i.hidden&&i.style.visibility==='')));
+    report.checks.push('destroy removes canvas and restores images');
+    const small=await browser.newContext({viewport:{width:375,height:812},isMobile:true,hasTouch:true,deviceScaleFactor:3,reducedMotion:'reduce'});
+    const phone=await small.newPage();phone.on('pageerror',e=>errors.push(e.message));await phone.goto(pathToFileURL(path.join(__dirname,'globe-demo.html')).href);
+    assert(await phone.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    assert(await phone.evaluate(()=>document.querySelector('#demo-138 canvas').width===276));
+    await phone.screenshot({path:'globe-verification/mobile.png',fullPage:true});
+    report.checks.push('375 px touch layout; DPR 3 capped at 2');
+    assert.equal(errors.length,0);assert.equal(network.length,0);
+    report.checks.push('file:// loads with no console errors and no network requests');
+    report.consoleErrors=errors;report.networkRequests=network;
+    fs.writeFileSync('globe-verification/browser-report.json',JSON.stringify(report,null,2)+'\n');
+    console.log(JSON.stringify(report,null,2));
+  } finally {await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});
+

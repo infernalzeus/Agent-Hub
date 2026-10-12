@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Agent Hub · Globe lab</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;padding:clamp(12px,4vw,36px);background:radial-gradient(ellipse at 60% 0%,#0d1050,#070a25 65%);color:#d9ffe9;font:14px/1.5 system-ui,sans-serif;min-height:100vh}
+    main{max-width:1100px;margin:auto}h1{font-size:clamp(24px,4vw,38px);letter-spacing:.06em;margin:0;color:#00e676}p{color:#a8cbb9;margin:8px 0 20px}.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:24px 0}
+    button{border:1px solid #00e67666;border-radius:8px;background:#070a25;color:#d9ffe9;font:inherit;padding:9px 14px;cursor:pointer}button:hover,button[aria-pressed=true]{border-color:#00e676;background:#00e67618}button:focus-visible,canvas:focus-visible{outline:2px solid #3ba7ff;outline-offset:4px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,344px),1fr));gap:18px}.card{border:1px solid #00e67638;border-radius:18px;padding:12px;background:#070a2570;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:390px}
+    .globe{position:relative;flex:none;max-width:100%;aspect-ratio:1}.globe img{position:absolute;inset:0;width:100%;height:100%;border-radius:50%}.caption{margin-top:18px;color:#00e676;letter-spacing:.14em;font-size:12px}.timing{font:12px/1.6 ui-monospace,monospace;color:#a8cbb9;min-height:38px;margin-top:8px;text-align:center}#status{font-size:12px;color:#a8cbb9}
+    footer{margin:22px 0;color:#a8cbb9;font-size:12px}.card small{margin-top:5px;color:#a8cbb9}a{color:#3ba7ff}
+  </style>
+</head>
+<body><main>
+  <h1>AGENT HUB</h1>
+  <p>A constellation in motion. The A stays centred.</p>
+  <div class="toolbar">
+    <button id="state" aria-pressed="true">Live</button>
+    <button id="pulse">Pulse</button>
+    <button id="still" aria-pressed="false">Still mode</button>
+    <span id="status" role="status">Hover to turn. Drag to explore. Click the globe to pulse.</span>
+  </div>
+  <div class="grid">
+    <section class="card"><div class="globe" id="demo-72" style="width:72px;height:72px"><img src="assets/agent-hub-mark.png" alt="Agent Hub"></div><div class="caption">72 PX</div><small>Small mark · automatic only</small><div class="timing" data-size="72"></div></section>
+    <section class="card"><div class="globe" id="demo-138" style="width:138px;height:138px"><img src="assets/agent-hub-mark.png" alt="Agent Hub"></div><div class="caption">138 PX</div><small>Hero · hover, drag, or arrow keys</small><div class="timing" data-size="138"></div></section>
+    <section class="card"><div class="globe" id="demo-220" style="width:220px;height:220px"><img src="assets/agent-hub-mark.png" alt="Agent Hub"></div><div class="caption">220 PX</div><small>Dormant page · same design</small><div class="timing" data-size="220"></div></section>
+    <section class="card"><div class="globe" id="demo-320" style="width:320px;height:320px"><img src="assets/agent-hub-mark.png" alt="Agent Hub"></div><div class="caption">320 PX</div><small>Full constellation</small><div class="timing" data-size="320"></div></section>
+  </div>
+  <footer>Touch: begin horizontally to turn; vertical swipes scroll the page. All instances pause off screen. Multiple globes share a 30 fps cap.<br>Frame time measures Canvas rendering, not the time between animation frames. Everything on this page works from a local file.</footer>
+</main>
+<script src="assets/agent-hub-globe.js"></script>
+<script>
+(function(){
+  'use strict';
+  var sizes=[72,138,220,320], globes=[], live=true;
+  var media=window.matchMedia('(prefers-reduced-motion: reduce)'), still=media.matches;
+  var stateButton=document.getElementById('state'), stillButton=document.getElementById('still');
+  function mount(){
+    globes.forEach(function(g){if(g)g.destroy();});
+    globes=sizes.map(function(size){return window.AgentHubGlobe && AgentHubGlobe.mount(document.getElementById('demo-'+size),{size:size,state:live?'live':'dormant',reducedMotion:still});});
+    window.demoGlobes=globes;
+    stillButton.setAttribute('aria-pressed',String(still));
+  }
+  stateButton.onclick=function(){live=!live;stateButton.textContent=live?'Live':'Dormant';stateButton.setAttribute('aria-pressed',String(live));globes.forEach(function(g){if(g)g.setState(live?'live':'dormant');});};
+  document.getElementById('pulse').onclick=function(){globes.forEach(function(g){if(g)g.pulse();});};
+  stillButton.onclick=function(){still=!still;mount();};
+  var timings=document.querySelectorAll('.timing');
+  function readout(){globes.forEach(function(g,i){timings[i].textContent=g?g.stats.frameMs.toFixed(2)+' ms render · '+g.stats.frames+' frames':'Canvas unavailable · raster fallback';});}
+  mount(); readout(); setInterval(readout,500);
+})();
+</script></body></html>
+

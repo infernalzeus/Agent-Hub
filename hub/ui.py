@@ -13,6 +13,7 @@ from .voice_widget import TALK_BUTTON, widget as _widget
 
 _WIDGET = _widget(True)      # conversation popover + orbs, built once
 _PICKER = (Path(__file__).parent / "static" / "picker.js").read_text(encoding="utf-8")
+_GLOBE_JS = (Path(__file__).parent / "static" / "agent-hub-globe.min.js").read_text(encoding="utf-8")
 
 routes = web.RouteTableDef()
 
@@ -73,6 +74,9 @@ html,body{min-height:100%;min-height:100dvh;font-family:'Outfit',system-ui,sans-
   clip-path:circle(47% at 50% 50%);
   -webkit-mask-image:radial-gradient(circle at 50% 50%,#000 86px,transparent 103px);
   mask-image:radial-gradient(circle at 50% 50%,#000 86px,transparent 103px)}
+.hero-globe{position:relative;width:220px;height:220px;margin:0 auto 26px}
+.hero-globe .hero-icon{margin:0}
+.hero-globe canvas:focus-visible{outline:2px solid #3ba7ff;outline-offset:4px}
 .brand{font-family:'Orbitron',monospace;font-size:22px;font-weight:900;color:var(--accent);
   letter-spacing:6px;text-shadow:0 0 20px rgba(0,230,118,.4)}
 .status{font-family:'Orbitron',monospace;font-size:12px;letter-spacing:3px;color:var(--text-faint);margin-top:12px}
@@ -109,12 +113,20 @@ html,body{min-height:100%;min-height:100dvh;font-family:'Outfit',system-ui,sans-
 <body>
 __SETUP_LINK__
 <div class="wrap">
-  <img class="hero-icon" src="/favicon-256.png" alt="Agent Hub">
+  <div class="hero-globe" id="dormant-globe"><img class="hero-icon" src="/favicon-256.png" alt="Agent Hub"></div>
   <div class="brand">AGENT HUB</div>
   <div class="status">DORMANT</div>
   <button type="button" id="wake-btn" class="wake-btn">▶ START</button>
   <div class="wake-sub" id="wake-sub">Agent Hub is dormant. Initiate from PC.</div>
 </div>
+<script src="/static/agent-hub-globe.js"></script>
+<script>
+(function () {
+  if (window.AgentHubGlobe) {
+    window.dormantGlobe = AgentHubGlobe.mount(document.getElementById('dormant-globe'), {size:220,state:'dormant'});
+  }
+})();
+</script>
 <script>
 async function isUp() {
   try {
@@ -185,9 +197,9 @@ if (isWindows()) {
 """
 
 _SW_JS = """\
-const CACHE_NAME = 'agent-hub-offline-v8';
+const CACHE_NAME = 'agent-hub-offline-v9';
 const OFFLINE_URL = '/offline.html';
-const PRECACHE = [OFFLINE_URL, '/favicon-256.png', '/favicon.svg'];
+const PRECACHE = [OFFLINE_URL, '/favicon-256.png', '/favicon.svg', '/theme.css', '/static/agent-hub-globe.js'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -2114,6 +2126,11 @@ _SETUP_LINK = ('<a href="/onboarding" style="position:fixed;bottom:16px;right:16
 
 def _setup_link() -> str:
     return _SETUP_LINK if RT.PACKAGED else ""
+
+
+@routes.get("/static/agent-hub-globe.js")
+async def globe_script(request: web.Request):
+    return web.Response(text=_GLOBE_JS, content_type="application/javascript", charset="utf-8")
 
 
 @routes.get("/offline.html")

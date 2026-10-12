@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Agent Hub globe</title>
+<style>*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% 30%,#0d1050,#070a25 70%);color:#d9ffe9;font:14px/1.6 system-ui,sans-serif;display:grid;place-items:center;padding:22px}main{width:100%;max-width:380px;text-align:center}h1{font-size:18px;letter-spacing:.18em;color:#00e676;margin:0 0 26px}.mark{width:220px;height:220px;position:relative;margin:0 auto 28px}.mark img{width:100%;height:100%;border-radius:50%}p{color:#a8cbb9;font-size:13px;margin:0 0 20px}.buttons{display:flex;justify-content:center;gap:9px}button{font:inherit;color:#d9ffe9;border:1px solid #00e67670;background:#070a25;border-radius:8px;padding:8px 16px;cursor:pointer}button:hover{background:#00e67618;border-color:#00e676}button:focus-visible,canvas:focus-visible{outline:2px solid #3ba7ff;outline-offset:4px}output{display:block;color:#a8cbb9;font:12px ui-monospace,monospace;margin:18px 0}a{color:#3ba7ff;font-size:12px}small{display:block;color:#a8cbb9;font-size:11px;margin-top:18px}</style></head><body><main>
+<h1>AGENT HUB</h1><div class="mark" id="mark"><img src="assets/agent-hub-mark.png" alt="Agent Hub"></div>
+<p>Move across the globe to turn it.<br>Drag to explore. Click to pulse.<br>The A stays centred.</p>
+<div class="buttons"><button id="state" aria-pressed="true">Live</button><button id="pulse">Pulse</button></div>
+<output id="time"></output><a href="globe-demo.html">Open all four sizes</a><small>Arrow keys turn the globe. Vertical touch swipes scroll.</small>
+</main><script src="assets/agent-hub-globe.min.js"></script><script>
+(function(){var g=window.AgentHubGlobe&&AgentHubGlobe.mount(document.getElementById('mark'),{size:220}),live=true;document.getElementById('state').onclick=function(){live=!live;this.textContent=live?'Live':'Dormant';this.setAttribute('aria-pressed',String(live));if(g)g.setState(live?'live':'dormant');};document.getElementById('pulse').onclick=function(){if(g)g.pulse();};setInterval(function(){document.getElementById('time').textContent=g?g.stats.frameMs.toFixed(2)+' ms / frame':'Raster fallback';},500);})();
+</script></body></html>
+
