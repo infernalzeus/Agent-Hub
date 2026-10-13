@@ -1,0 +1,19 @@
+/* Nearest-surface rendering: depth prepass blocks hidden transparent faces. */
+(function(root){'use strict';root.AgentHubDepthSurface={create:function(canvas){
+var gl=canvas.getContext('webgl',{alpha:true,antialias:true,stencil:true,premultipliedAlpha:false});if(!gl)return null;
+function shader(type,text){var s=gl.createShader(type);gl.shaderSource(s,text);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s;}
+var vs=shader(gl.VERTEX_SHADER,'attribute vec3 p;attribute vec2 uv;attribute vec3 bc;varying vec2 t;varying vec3 b;void main(){gl_Position=vec4(p,1.0);t=uv;b=bc;}');
+var fs=shader(gl.FRAGMENT_SHADER,'precision mediump float;varying vec2 t;varying vec3 b;uniform sampler2D cloud;uniform vec2 view;void main(){float well=27.0*b.x*b.y*b.z;vec2 v=t-vec2(0.5,0.6533);float radius=length(v);vec2 bend=(v/(0.12+radius)*0.065+view*0.025)*well;gl_FragColor=texture2D(cloud,clamp(t+bend,0.0,1.0));}');
+var program=gl.createProgram();gl.attachShader(program,vs);gl.attachShader(program,fs);gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));gl.deleteShader(vs);gl.deleteShader(fs);
+var buffer=gl.createBuffer(),texture=gl.createTexture(),data=null,p=gl.getAttribLocation(program,'p'),uv=gl.getAttribLocation(program,'uv'),bc=gl.getAttribLocation(program,'bc'),view=gl.getUniformLocation(program,'view');
+gl.useProgram(program);gl.bindTexture(gl.TEXTURE_2D,texture);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+return {setTexture:function(image){gl.bindTexture(gl.TEXTURE_2D,texture);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image);},draw:function(screen,source,faces,size,bary,q){
+var vertices=0;for(var f=0;f<faces.length;f++)vertices+=faces[f].length;if(!data)data=new Float32Array(vertices*8);
+var offset=0;for(f=0;f<faces.length;f++)for(var k=0;k<faces[f].length;k++){var i=faces[f][k];data[offset++]=screen[i*3]/size*2-1;data[offset++]=1-screen[i*3+1]/size*2;data[offset++]=-screen[i*3+2];data[offset++]=source[i*2]/2048;data[offset++]=source[i*2+1]/2048;data[offset++]=bary[i*3];data[offset++]=bary[i*3+1];data[offset++]=bary[i*3+2];}
+gl.viewport(0,0,canvas.width,canvas.height);gl.useProgram(program);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,data,gl.DYNAMIC_DRAW);gl.enableVertexAttribArray(p);gl.vertexAttribPointer(p,3,gl.FLOAT,false,32,0);gl.enableVertexAttribArray(uv);gl.vertexAttribPointer(uv,2,gl.FLOAT,false,32,12);gl.enableVertexAttribArray(bc);gl.vertexAttribPointer(bc,3,gl.FLOAT,false,32,20);gl.uniform2f(view,q[1]*2,q[0]*2);
+gl.colorMask(true,true,true,true);gl.depthMask(true);gl.clearColor(0,0,0,0);gl.stencilMask(255);gl.clearStencil(0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT|gl.STENCIL_BUFFER_BIT);gl.disable(gl.STENCIL_TEST);gl.enable(gl.DEPTH_TEST);gl.enable(gl.CULL_FACE);gl.frontFace(gl.CCW);gl.cullFace(gl.BACK);
+gl.disable(gl.BLEND);gl.colorMask(false,false,false,false);gl.depthFunc(gl.LESS);gl.drawArrays(gl.TRIANGLES,0,vertices);
+gl.colorMask(true,true,true,true);gl.depthMask(false);gl.depthFunc(gl.EQUAL);gl.enable(gl.STENCIL_TEST);gl.stencilFunc(gl.EQUAL,0,255);gl.stencilOp(gl.KEEP,gl.KEEP,gl.INCR);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.drawArrays(gl.TRIANGLES,0,vertices);
+},destroy:function(){gl.deleteBuffer(buffer);gl.deleteTexture(texture);gl.deleteProgram(program);}};
+}};})(window);
+

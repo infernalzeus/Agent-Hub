@@ -1,0 +1,55 @@
+{
+  "open_missions": {
+    "action": ["open_page", {"page": "missions"}],
+    "templates": [
+      "... (open|show|go to|take me to|bring up|view) ... (mission|missions|ask|asks) ...",
+      "[the] (mission|missions) [page]"
+    ]
+  },
+  "open_agents": {
+    "action": ["open_page", {"page": "agents"}],
+    "templates": [
+      "... (open|show|go to|take me to|bring up|view) ... (agent|agents) ...",
+      "[the] (agent|agents) [page]"
+    ]
+  },
+  "open_graph": {
+    "action": ["open_page", {"page": "graph"}],
+    "templates": [
+      "... (open|show|go to|take me to|bring up|view) ... (graph|projects map) ...",
+      "[the] graph"
+    ]
+  },
+  "open_locations": {
+    "action": ["open_page", {"page": "locations"}],
+    "templates": [
+      "... (open|show|go to|take me to|bring up|change|edit) ... (location|locations|settings|setup|folder|folders|path|paths) ..."
+    ]
+  },
+  "open_hub": {
+    "action": ["open_page", {"page": "hub"}],
+    "templates": [
+      "... (go|take me|back) ... (home|hub|main menu|dashboard) ...",
+      "(home|main menu|dashboard)"
+    ]
+  },
+  "new_ask": {
+    "action": ["new_ask", null],
+    "templates": [
+      "ask [the] hub [to|for] {arg}",
+      "[please] [start|make|create] [a] [new] (ask|mission) [to|for|about|that] {arg}"
+    ]
+  },
+  "status": {
+    "action": ["status", {}],
+    "templates": [
+      "... (status|what's waiting|what is waiting|what are waiting|what's running|what is running|what's happening|what is happening|what's going on|anything waiting|anything needs me|any update|any updates|inbox) ..."
+    ]
+  },
+  "pause_all": {
+    "action": ["pause", {}],
+    "templates": [
+      "... (stop|pause|halt) ... (everything|all|running|agent|agents|ask|asks|mission|missions) ..."
+    ]
+  }
+}

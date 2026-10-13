@@ -124,6 +124,7 @@ hub/info_routines.json
 # Per-machine state the hub writes beside itself when run from source
 /hub/utterance_decisions.jsonl
 /hub/recording_draft.json
+/hub/decision_settings.json
 # Pages experiments not meant to go live
 /docs/core-crystalline.html
 /docs/core-rotation-lab.html
@@ -134,3 +135,6 @@ hub/info_routines.json
 /docs/assets/agent-hub-globe-star-cloud*.js
 /docs/assets/agent-hub-star-cloud-concept.png
 /.internal/
+/hub/models/
+/hub/commands_user.json
+/hub/rea.json

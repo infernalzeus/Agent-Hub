@@ -32,8 +32,10 @@ Everywhere else this reports unavailable rather than half-working.
 """
 from __future__ import annotations
 
+import base64
 import ctypes
 import io
+import json
 import threading
 import time
 from ctypes import wintypes
@@ -41,6 +43,7 @@ from ctypes import wintypes
 from aiohttp import web
 
 from ..config import logger
+from ..runtime import STATE
 from . import machine_routines as MR
 
 routes = web.RouteTableDef()
@@ -49,6 +52,7 @@ routes = web.RouteTableDef()
 MAX_SESSION_S = 15 * 60
 ANCHOR_PX = 96              # the crop stored around a click, in screen pixels
 MAX_STEPS = 200
+DRAFT = STATE / "recording_draft.json"     # written at STOP, so nothing a person did is held only in memory
 
 WH_KEYBOARD_LL = 13
 WH_MOUSE_LL = 14
@@ -245,6 +249,8 @@ class Session:
             if hook:
                 u.UnhookWindowsHookEx(hook)
         self._hooks = []
+        if self.steps:
+            self.save_draft()          # Esc and the timeout end here too
 
     def start(self) -> None:
         self._thread = threading.Thread(target=self._pump, name="machine-recorder",
@@ -266,6 +272,29 @@ class Session:
             thread.join(wait)
             if thread.is_alive():
                 logger.warning("recorder: hook thread did not stop within %.1fs", wait)
+
+    # -- a stopped recording is kept, not lost ---------------------------------
+    def to_draft(self) -> dict:
+        with self._lock:
+            steps = [{**st, "anchor_png": (base64.b64encode(st["anchor_png"]).decode()
+                                           if st.get("anchor_png") else None)} for st in self.steps]
+        return {"window": self.window, "started": self.started, "stopped_by": self.stopped_by, "steps": steps}
+
+    def save_draft(self) -> None:
+        try:
+            DRAFT.parent.mkdir(parents=True, exist_ok=True)
+            DRAFT.write_text(json.dumps(self.to_draft()), encoding="utf-8")
+        except Exception as exc:
+            logger.warning("recorder: could not keep the draft: %s", exc)
+
+    @classmethod
+    def from_draft(cls, d: dict) -> "Session":
+        s = cls()
+        s.window, s.started, s.stopped_by = d.get("window", ""), d.get("started", time.time()), d.get("stopped_by", "")
+        s.steps = [{**st, "anchor_png": (base64.b64decode(st["anchor_png"]) if st.get("anchor_png") else None)}
+                   for st in d.get("steps", [])]
+        s._run = False
+        return s
 
     @property
     def running(self) -> bool:
@@ -292,7 +321,25 @@ _guard = threading.Lock()
 
 
 def current() -> Session | None:
+    """The live session, else the draft left by one that was stopped.
+
+    A stopped recording used to live only in this variable, so a restart, a
+    DISCARD or a hidden panel lost what the person had just demonstrated.
+    """
+    global _session
+    if _session is None and DRAFT.exists():
+        try:
+            _session = Session.from_draft(json.loads(DRAFT.read_text(encoding="utf-8")))
+        except Exception as exc:
+            logger.warning("recorder: unreadable draft ignored: %s", exc)
     return _session
+
+
+def _forget_draft() -> None:
+    try:
+        DRAFT.unlink()
+    except OSError:
+        pass
 
 
 # ── api ───────────────────────────────────────────────────────────────────────
@@ -303,7 +350,7 @@ async def api_state(request: web.Request) -> web.Response:
                                   "why": "Recording needs Windows and the imaging tools "
                                          "(set up Screen recording first)."})
     s = current()
-    return web.json_response({"available": True, **(s.view() if s else
+    return web.json_response({"available": True, "exists": bool(s), **(s.view() if s else
                               {"running": False, "steps": [], "seconds": 0})})
 
 
@@ -320,6 +367,7 @@ def begin() -> dict:
     with _guard:
         if _session and _session.running:
             raise RuntimeError("a recording is already running")
+        _forget_draft()
         _session = Session()
         _session.start()
     logger.info("recorder: started")
@@ -342,6 +390,7 @@ async def api_stop(request: web.Request) -> web.Response:
     if not s:
         raise web.HTTPNotFound(text="nothing is being recorded")
     await __import__("asyncio").to_thread(s.stop, "you")
+    s.save_draft()
     logger.info("recorder: stopped after %d step(s)", len(s.steps))
     return web.json_response(s.view())
 
@@ -366,6 +415,7 @@ async def api_save(request: web.Request) -> web.Response:
         raise web.HTTPBadRequest(text="every step was dropped — nothing to save")
     routine = MR.save_machine_routine(intent, title, s.window, profile, steps)
     logger.info("recorder: saved %s (%d step(s))", intent, len(steps))
+    _forget_draft()
     # Recording teaches the hub something; it does not put a square on your home
     # screen. So the whole wiring for a tile that presses this routine is worked
     # out now and left in the proposals list, ready to install on one click.
@@ -396,4 +446,5 @@ async def api_discard(request: web.Request) -> web.Response:
         s.stop("discarded")
     with _guard:
         _session = None
+    _forget_draft()
     return web.json_response({"ok": True})

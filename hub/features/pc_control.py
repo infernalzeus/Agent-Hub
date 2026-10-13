@@ -146,6 +146,8 @@ def _db():
         # 'machine' = recorded from the screen surface (Phase 3); not written yet.
         if "kind" not in {c[1] for c in db.execute("PRAGMA table_info(pc_routines)")}:
             db.execute("ALTER TABLE pc_routines ADD COLUMN kind TEXT NOT NULL DEFAULT 'mcp'")
+        if "level" not in {c[1] for c in db.execute("PRAGMA table_info(pc_runs)")}:
+            db.execute("ALTER TABLE pc_runs ADD COLUMN level TEXT NOT NULL DEFAULT ''")
         _consolidate_launch_routines(db)
         db.execute("UPDATE pc_routines SET status='trusted', updated=? WHERE status='candidate' AND successes>=2", (time.time(),))
         yield db
@@ -158,9 +160,18 @@ def _intent(app: str) -> str:
     return "open:" + canonical_app_name(app)
 
 
-def _record_run(request: str, route: str, status: str, detail: str) -> None:
+# The lowest level that did the job, recorded with each run. Order of preference:
+#   api      the application's own entry point (a Start-menu launch, a URI scheme)
+#   ui-tree  a named control found in the UI Automation tree and pressed
+#   pointer  a recorded position inside a window
+#   vision   an image matched on screen
+LEVELS = ("api", "ui-tree", "pointer", "vision")
+
+
+def _record_run(request: str, route: str, status: str, detail: str, level: str = "") -> None:
     with _db() as db:
-        db.execute("INSERT INTO pc_runs(created,request,route,status,detail) VALUES(?,?,?,?,?)", (time.time(), request, route, status, detail[:1000]))
+        db.execute("INSERT INTO pc_runs(created,request,route,status,detail,level) VALUES(?,?,?,?,?,?)",
+                   (time.time(), request, route, status, detail[:1000], level if level in LEVELS else ""))
 
 
 def _remember_launch(app: str, success: bool) -> dict:
@@ -414,7 +425,7 @@ async def launch_app(app: str, request: str, then: str = "") -> dict:
                                     f"so I haven't counted that as done."}
 
     routine = _remember_launch(key, True)
-    _record_run(request, route, "done", f"{target} launched.")
+    _record_run(request, route, "done", f"{target} launched.", level="api")
     tag = {"id": routine["id"], "status": routine["status"], "successes": routine["successes"], "tag": "ROUTINE"}
     said = f"Opened {target}." if not corrected else f"Opened {target} — I heard “{heard}”."
     if then:
@@ -620,6 +631,28 @@ def save_ui_routine(intent: str, title: str, window: str, steps: list[dict],
         return dict(db.execute("SELECT * FROM pc_routines WHERE id=?", (rid,)).fetchone())
 
 
+_BLOCKING_FLAGS = ("disabled", "unavailable", "offscreen", "off-screen", "hidden", "collapsed", "read-only")
+
+
+def step_blocker(node: "dict | None", tool: str = "Click") -> str:
+    """Why a step must not run against this element, or "" if it may.
+
+    Checked before every step, not only before the first: a routine that found
+    its screen at the start can still be looking at a greyed-out button three
+    steps later. Taken from how UFO2 verifies a control (present, enabled,
+    visible) before acting.
+    """
+    if not node:
+        return "it is not on screen"
+    flags = str(node.get("flags") or "").lower()
+    for f in _BLOCKING_FLAGS:
+        if re.search(rf"\[\s*{re.escape(f)}\b", flags) or re.search(rf"\b{re.escape(f)}\s*:\s*true", flags):
+            return f"it is {f}"
+    if tool == "Click" and node.get("x") is None:
+        return "it has no position on screen"
+    return ""
+
+
 async def replay_ui_routine(routine: dict, request: str = "") -> dict:
     """Run a stored step sequence, but only onto the screen it was recorded against.
 
@@ -656,6 +689,13 @@ async def replay_ui_routine(routine: dict, request: str = "") -> dict:
                 _remember_outcome(routine["id"], False)
                 return {"ok": False, "route": "fall-through",
                         "say": f"I could not find \"{target.get('name')}\" on screen, so I stopped."}
+            why = step_blocker(found, step["tool"])
+            if why:
+                _record_run(request, "fall-through", "skipped",
+                            f"step {step['ordinal']}: \"{target.get('name')}\" {why}")
+                _remember_outcome(routine["id"], False)
+                return {"ok": False, "route": "fall-through",
+                        "say": f"I stopped at step {step['ordinal'] + 1}: \"{target.get('name')}\" is there but {why}."}
             args["loc"] = [found["x"], found["y"]]
         try:
             await MCP.call_tool("windows", step["tool"], args)
@@ -684,7 +724,7 @@ async def replay_ui_routine(routine: dict, request: str = "") -> dict:
                 "routine": {"id": routine["id"], "status": routine["status"],
                             "successes": routine["successes"], "tag": "ROUTINE"}}
     updated = _remember_outcome(routine["id"], True)
-    _record_run(request, "routine", "done", f"{len(steps)} step(s), window changed")
+    _record_run(request, "routine", "done", f"{len(steps)} step(s), window changed", level="ui-tree")
     return {"ok": True, "route": "routine", "say": f"Ran {routine['title']}.",
             "routine": {"id": routine["id"], "status": updated["status"],
                         "successes": updated["successes"], "tag": "ROUTINE"}}
@@ -1171,9 +1211,25 @@ async def after(app: str, then: str, request: str, tree=None) -> dict:
                     "pc_record", {"app": app, "then": then}, f"Record how to {then}")
 
     why = "nothing in its window is named that" if nodes else "I cannot read its window"
-    return _ask(f"Opened {name}. I cannot {then} myself: {why}. Shall I record it while you do it "
+    seen = _visible_names(nodes)
+    sees = f" I can see: {', '.join(seen)}." if seen else ""
+    return _ask(f"Opened {name}. I cannot {then} myself: {why}.{sees} Shall I record it while you do it "
                 f"once? After that I can do it on my own.",
                 "pc_record", {"app": app, "then": then}, f"Record how to {then}")
+
+
+def _visible_names(nodes: "list[dict]", limit: int = 6) -> "list[str]":
+    """A few things actually on screen, so "I can't find it" says what it *could* see."""
+    out, seen = [], set()
+    for n in nodes or []:
+        nm = str(n.get("name") or "").strip()
+        if (n.get("control") in ("button", "tabitem", "listitem", "hyperlink", "menuitem", "treeitem", "group")
+                and 2 < len(nm) < 36 and nm.casefold() not in seen):
+            seen.add(nm.casefold())
+            out.append(nm)
+        if len(out) >= limit:
+            break
+    return out
 
 
 async def do_on_screen(app: str, then: str, request: str, target: dict, tree=None) -> dict:
@@ -1231,7 +1287,7 @@ async def do_on_screen(app: str, then: str, request: str, target: dict, tree=Non
                                            "args": {"button": "left", "clicks": 1},
                                            "target": ident}],
                             ui_signature(flat, t["window"]))
-    _record_run(request, "discovery", "done", f"pressed {t['control']} {t['name']}, window changed")
+    _record_run(request, "discovery", "done", f"pressed {t['control']} {t['name']}, window changed", level="ui-tree")
     seen = "" if not did["known"] else " The window changed, so it took effect."
     return {"ok": True,
             "say": f"Pressed “{t['name']}” in {name}.{seen} Saved, so next time "

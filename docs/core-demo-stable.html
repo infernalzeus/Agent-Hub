@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Agent Hub · Globe lab</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;padding:clamp(12px,4vw,36px);background:radial-gradient(ellipse at 60% 0%,#0d1050,#070a25 65%);color:#d9ffe9;font:14px/1.5 system-ui,sans-serif;min-height:100vh}
+    main{max-width:1100px;margin:auto}h1{font-size:clamp(24px,4vw,38px);letter-spacing:.06em;margin:0;color:#00e676}p{color:#a8cbb9;margin:8px 0 20px}.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:24px 0}
+    button{border:1px solid #00e67666;border-radius:8px;background:#070a25;color:#d9ffe9;font:inherit;padding:9px 14px;cursor:pointer}button:hover,button[aria-pressed=true]{border-color:#00e676;background:#00e67618}button:focus-visible,canvas:focus-visible{outline:2px solid #3ba7ff;outline-offset:4px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,344px),1fr));gap:18px}.card{border:1px solid #00e67638;border-radius:18px;padding:12px;background:#070a2570;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:390px}
+    .globe{position:relative;flex:none;max-width:100%;aspect-ratio:1}.globe img{position:absolute;inset:0;width:100%;height:100%;border-radius:50%}.caption{margin-top:18px;color:#00e676;letter-spacing:.14em;font-size:12px}.timing{font:12px/1.6 ui-monospace,monospace;color:#a8cbb9;min-height:38px;margin-top:8px;text-align:center}#status{font-size:12px;color:#a8cbb9}
+    footer{margin:22px 0;color:#a8cbb9;font-size:12px}.card small{margin-top:5px;color:#a8cbb9}a{color:#3ba7ff}
+    .toolbar label{display:flex;align-items:center;gap:8px;font-size:12px;color:#a8cbb9}.toolbar select{background:#070a25;color:#d9ffe9;border:1px solid #3ba7ff70;border-radius:6px;padding:7px;font:inherit}.toolbar input{width:90px;accent-color:#3ba7ff}
+    .preview-viewport{width:100%;overflow:auto;padding:16px}.preview-stage{position:relative;flex:none}.preview-stage .globe{max-width:none;transform-origin:top left}.centre-guide{position:absolute;inset:0;pointer-events:none;z-index:4}.centre-guide::before,.centre-guide::after{content:"";position:absolute;background:#ffffffb0}.centre-guide::before{left:calc(50% - 20px);top:50%;width:40px;height:1px}.centre-guide::after{top:calc(50% - 20px);left:50%;height:40px;width:1px}
+  </style>
+</head>
+<body><main>
+  <h1>AGENT HUB CORE DEMO</h1>
+  <p>Choose Star Cloud or Crystalline. Toggle the globe independently; hover turns the sphere and dragging turns its core.</p>
+  <div class="toolbar">
+    <button id="mode-star" aria-pressed="false">Star Cloud</button><button id="mode-crystal" aria-pressed="true">Crystalline</button><button id="globe-toggle" aria-pressed="true">Globe on</button>
+    <label id="depth-control">Face depth <select id="face-depth"><option value="0.16">Strong</option><option value="0.25" selected>Very strong</option><option value="0.36">Deep</option></select></label>
+    <label>Core axis <select id="core-axis"><option value="vertical">Vertical</option><option value="horizontal">Horizontal</option><option value="free">Free rotation</option><option value="depth">Depth / roll</option></select></label><button id="core-reset">Reset core</button>
+    <button id="state" aria-pressed="true">Live</button>
+    <button id="pulse">Pulse</button>
+    <label>Galaxy light <select id="galaxy"><option value="0">Original</option><option value="1">Cobalt / azure</option><option value="2" selected>Cyan / green</option></select></label>
+    <label>Size <select id="size"><option value="220">220 px</option><option value="320">320 px</option><option value="480" selected>480 px</option><option value="640">640 px</option><option value="960">960 px</option></select></label>
+    <label>Coast <input type="range" id="coast" min="0.8" max="8" step="0.2" value="2"><output id="coast-value">2 s</output></label>
+    <label>Zoom <select id="zoom"><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option><option value="3">300%</option></select></label><button id="guide" aria-pressed="false">Centre guide</button>
+    <button id="still" aria-pressed="false">Still mode</button>
+    <span id="status" role="status">Hover to turn. Drag to turn the core. Click the globe to pulse.</span>
+  </div>
+  <div class="grid" style="display:flex;justify-content:center"><section class="card" style="width:100%"><div class="preview-viewport"><div class="preview-stage" id="preview-stage"><div class="globe" id="demo-1" style="width:220px;height:220px"><div class="centre-guide" id="centre-guide" hidden></div></div></div></div><div class="caption">STAR CLOUD</div><small>Glistening crystal facets · no PNG texture</small><small>Centre of mass aligned with the sphere centre</small><div class="timing"></div></section></div>
+  <footer>Higher coast time gives less resistance and longer spinning. Touch: begin horizontally to turn; vertical swipes scroll the page. All instances pause off screen. Multiple globes share a 30 fps cap.<br>Frame time measures Canvas rendering, not the time between animation frames. Everything on this page works from a local file.</footer>
+</main>
+<script src="assets/agent-hub-globe-contained.js"></script>
+<script src="assets/agent-hub-depth-parallax.js"></script><script src="assets/agent-hub-core-parallax-stable.js"></script><script>window.StarCloudCore=window.AgentHubCoreLab;</script>
+<script src="assets/agent-hub-core-crystal-stable.js"></script><script>window.CrystallineCore=window.AgentHubCoreLab;</script>
+<script>
+(function(){'use strict';
+var core=null,globe=null,mode=location.pathname.indexOf('crystalline')>=0?'crystal':'star',showGlobe=true,live=true,still=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function el(id){return document.getElementById(id);}
+function mount(){
+ if(core)core.destroy();if(globe)globe.destroy();core=globe=null;
+ var host=el('demo-1'),size=Number(el('size').value);host.style.transform='none';host.style.width=host.style.height=size+'px';
+ if(showGlobe)globe=AgentHubGlobeStarCloud.mount(host,{size:size,design:Number(el('galaxy').value),state:live?'live':'dormant',reducedMotion:still,resistance:Number(el('coast').value),containCore:true});
+ core=(mode==='star'?StarCloudCore:CrystallineCore).mount(host,{contained:showGlobe});
+ if(core){core.setMode(el('core-axis').value);core.setResistance(el('coast').value);if(core.setParallax)core.setParallax(el('face-depth').value);}
+ el('mode-star').setAttribute('aria-pressed',String(mode==='star'));el('mode-crystal').setAttribute('aria-pressed',String(mode==='crystal'));el('depth-control').hidden=mode!=='star';el('globe-toggle').setAttribute('aria-pressed',String(showGlobe));el('globe-toggle').textContent=showGlobe?'Globe on':'Globe off';el('still').setAttribute('aria-pressed',String(still));document.querySelector('.caption').textContent=mode==='star'?'STAR CLOUD':'CRYSTALLINE';zoom();window.demoCore=core;window.demoGlobes=globe?[globe]:[];
+}
+function zoom(){var size=Number(el('size').value),z=Number(el('zoom').value);el('demo-1').style.transform='scale('+z+')';el('preview-stage').style.width=el('preview-stage').style.height=size*z+'px';if(globe)globe.setQuality(z);if(core)core.resize();}
+el('mode-star').onclick=function(){mode='star';mount();};el('mode-crystal').onclick=function(){mode='crystal';mount();};el('globe-toggle').onclick=function(){showGlobe=!showGlobe;mount();};
+el('state').onclick=function(){live=!live;this.textContent=live?'Live':'Dormant';this.setAttribute('aria-pressed',String(live));if(globe)globe.setState(live?'live':'dormant');};el('pulse').onclick=function(){if(globe)globe.pulse();};
+el('still').onclick=function(){still=!still;mount();};el('galaxy').onchange=mount;el('size').onchange=mount;el('zoom').onchange=zoom;el('core-axis').onchange=function(){if(core)core.setMode(this.value);};el('core-reset').onclick=function(){if(core)core.reset();};el('face-depth').onchange=function(){if(core&&core.setParallax)core.setParallax(this.value);};el('coast').oninput=function(){el('coast-value').textContent=this.value+' s';if(core)core.setResistance(this.value);if(globe)globe.setResistance(this.value);};el('guide').onclick=function(){var guide=el('centre-guide');guide.hidden=!guide.hidden;this.setAttribute('aria-pressed',String(!guide.hidden));};mount();
+})();
+</script></body></html>
+

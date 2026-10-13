@@ -13,7 +13,7 @@ from .voice_widget import TALK_BUTTON, widget as _widget
 
 _WIDGET = _widget(True)      # conversation popover + orbs, built once
 _PICKER = (Path(__file__).parent / "static" / "picker.js").read_text(encoding="utf-8")
-_GLOBE_JS = (Path(__file__).parent / "static" / "agent-hub-globe.min.js").read_text(encoding="utf-8")
+_MARK_JS = (Path(__file__).parent / "static" / "agent-hub-mark.min.js").read_text(encoding="utf-8")
 
 routes = web.RouteTableDef()
 
@@ -56,7 +56,6 @@ _OFFLINE_HTML = """\
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>AGENT HUB — Dormant</title>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -74,9 +73,19 @@ html,body{min-height:100%;min-height:100dvh;font-family:'Outfit',system-ui,sans-
   clip-path:circle(47% at 50% 50%);
   -webkit-mask-image:radial-gradient(circle at 50% 50%,#000 86px,transparent 103px);
   mask-image:radial-gradient(circle at 50% 50%,#000 86px,transparent 103px)}
-.hero-globe{position:relative;width:220px;height:220px;margin:0 auto 26px}
-.hero-globe .hero-icon{margin:0}
+/* Nothing on this page scrolls, so a finger on the globe must turn it, never move the page (Safari included). */
+html{overscroll-behavior:none}
+body{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;overflow:hidden;overscroll-behavior:none;touch-action:none;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.globe-wrap{--g:min(84vw,340px,38vh);position:relative;width:var(--g);height:var(--g);margin:0 auto 26px}
+.hero-globe{position:relative;width:100%;height:100%;margin:0}
+.hero-globe .hero-icon{width:100%;height:100%;margin:0}
 .hero-globe canvas:focus-visible{outline:2px solid #3ba7ff;outline-offset:4px}
+.hero-globe{border-radius:50%}
+/* Keyboard and screen-reader route to the same switch the background tap uses. */
+.shell-key{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.shell-key:focus{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);width:auto;height:auto;clip:auto;
+  padding:8px 14px;border-radius:8px;border:1px solid #00e676;background:#080c28;color:#00e676;font:12px 'Orbitron',monospace;letter-spacing:1px}
 .brand{font-family:'Orbitron',monospace;font-size:22px;font-weight:900;color:var(--accent);
   letter-spacing:6px;text-shadow:0 0 20px rgba(0,230,118,.4)}
 .status{font-family:'Orbitron',monospace;font-size:12px;letter-spacing:3px;color:var(--text-faint);margin-top:12px}
@@ -108,23 +117,79 @@ html,body{min-height:100%;min-height:100dvh;font-family:'Outfit',system-ui,sans-
   font:14px Outfit,sans-serif}
 .ing-row input:focus{outline:none;border-color:var(--border-bright,rgba(0,230,118,.6))}
 </style>
-<link rel="stylesheet" href="/theme.css">
+<link rel="stylesheet" href="/theme.css" media="print" onload="this.media='all'">
 </head>
 <body>
 __SETUP_LINK__
 <div class="wrap">
-  <div class="hero-globe" id="dormant-globe"><img class="hero-icon" src="/favicon-256.png" alt="Agent Hub"></div>
+  <div class="globe-wrap">
+    <div class="hero-globe" id="dormant-globe"><img class="hero-icon" src="/favicon-256.png" alt="Agent Hub"></div>
+  </div>
   <div class="brand">AGENT HUB</div>
   <div class="status">DORMANT</div>
   <button type="button" id="wake-btn" class="wake-btn">▶ START</button>
+  <button type="button" id="shell-key" class="shell-key" aria-pressed="true">Globe on. Press to switch it off.</button>
   <div class="wake-sub" id="wake-sub">Agent Hub is dormant. Initiate from PC.</div>
 </div>
-<script src="/static/agent-hub-globe.js"></script>
+<script src="/static/agent-hub-mark.js"></script>
 <script>
 (function () {
-  if (window.AgentHubGlobe) {
-    window.dormantGlobe = AgentHubGlobe.mount(document.getElementById('dormant-globe'), {size:220,state:'dormant'});
+  // Touch anywhere that is not a control or the globe itself and the shell links up or lets go, with a
+  // turquoise ripple from the point touched. The globe and the START button keep their own behaviour.
+  var host = document.getElementById('dormant-globe'), key = document.getElementById('shell-key'), on = true, mark = null;
+  try { if (localStorage.getItem('agenthub:shell') === 'off') on = false; } catch (e) {}
+  try { if (window.AgentHubMark) mark = AgentHubMark.mount(host, {state: 'dormant', touchLock: true, shell: on}); }
+  catch (e) { mark = null; }
+  window.dormantGlobe = mark;
+  // #debug on the address shows what this phone is actually doing
+  // A page that is killed cannot say why. Leave a note before each touch and clear it on a clean exit; the next
+  // load can then tell whether the last one ended badly, and on what.
+  var crashed = '', lastNote = '';
+  try {
+    var was = localStorage.getItem('agenthub:session');
+    if (was && was.indexOf('open') === 0) crashed = 'previous page did not close cleanly; last: ' + (localStorage.getItem('agenthub:last') || 'nothing');
+    localStorage.setItem('agenthub:session', 'open ' + Date.now());
+  } catch (e) {}
+  function note(what) { lastNote = what; try { localStorage.setItem('agenthub:last', what + ' @' + new Date().toTimeString().slice(0, 8)); } catch (e) {} }
+  function closed() { try { localStorage.setItem('agenthub:session', 'closed ' + Date.now()); } catch (e) {} }
+  window.addEventListener('pagehide', closed);
+  document.addEventListener('pointerdown', function (e) { note('touch ' + Math.round(e.clientX) + ',' + Math.round(e.clientY)); }, true);
+  document.addEventListener('click', function (e) { note('click on ' + ((e.target && (e.target.id || e.target.tagName)) || '?')); }, true);
+  window.addEventListener('error', function (e) { window.__markError = window.__markError || ('js: ' + e.message); });
+  if (/debug/.test(location.hash)) {
+    var box = document.createElement('pre'), t0 = Date.now(), f0 = 0;
+    box.style.cssText = 'position:fixed;left:6px;right:6px;bottom:6px;margin:0;padding:6px 8px;z-index:99;border-radius:6px;'
+      + 'background:rgba(0,0,0,.75);color:#9fffd0;font:10px/1.4 monospace;white-space:pre-wrap;pointer-events:none';
+    document.body.appendChild(box);
+    // checked once, and the context handed straight back: one per second exhausted the GPU and killed the page
+    var gl = false;
+    try { var probe = document.createElement('canvas').getContext('webgl'); gl = !!probe;
+      var lose = probe && probe.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext(); } catch (e) {}
+    setInterval(function () {
+      var st = mark && mark.stats ? mark.stats : {frames: 0, frameMs: 0}, secs = (Date.now() - t0) / 1000;
+      var fps = secs > 0 ? ((st.frames - f0) / secs).toFixed(1) : '0'; f0 = st.frames; t0 = Date.now();
+      box.textContent = [
+        'mark: ' + (mark ? mark.getMode() + (mark.isShell() ? ' shell on' : ' shell off') : 'NOT MOUNTED'),
+        'draws/s ' + fps + '  ms/frame ' + st.frameMs.toFixed(1) + '  dpr ' + devicePixelRatio + '  ' + innerWidth + 'x' + innerHeight,
+        'reduced-motion ' + matchMedia('(prefers-reduced-motion: reduce)').matches + '  webgl ' + !!gl + '  hidden ' + document.hidden,
+        'sw ' + !!(navigator.serviceWorker && navigator.serviceWorker.controller) + '  last error: ' + (window.__markError || 'none'),
+        'lite (no flip): ' + matchMedia('(pointer: coarse)').matches + '  last touch: ' + (lastNote || 'none'),
+        crashed ? 'WARNING ' + crashed : 'previous page closed cleanly',
+      ].join('\\n');
+    }, 1000);
   }
+  function remember(now) {
+    on = now;
+    try { localStorage.setItem('agenthub:shell', on ? 'on' : 'off'); } catch (e) {}
+    key.setAttribute('aria-pressed', String(on));
+    key.textContent = on ? 'Globe on. Press to switch it off.' : 'Globe off. Press to switch it on.';
+  }
+  if (mark) {
+    remember(on);
+    AgentHubMark.tapToToggle(document, mark, host, {rippleIn: document.body, onToggle: remember, ignore: '#shell-key',
+      onTap: function () { note('toggle'); }});
+    key.addEventListener('click', function () { mark.setShell(!mark.isShell()); remember(mark.isShell()); });
+  } else key.hidden = true;
 })();
 </script>
 <script>
@@ -196,14 +261,25 @@ if (isWindows()) {
 </html>
 """
 
+import hashlib as _hashlib
+_OFFLINE_CACHE = "agent-hub-offline-" + _hashlib.sha1((_OFFLINE_HTML + _MARK_JS).encode("utf-8")).hexdigest()[:10]
+
 _SW_JS = """\
-const CACHE_NAME = 'agent-hub-offline-v10';
+const CACHE_NAME = '__CACHE__';
 const OFFLINE_URL = '/offline.html';
-const PRECACHE = [OFFLINE_URL, '/favicon-256.png', '/favicon.svg', '/theme.css', '/static/agent-hub-globe.js'];
+const ESSENTIAL = [OFFLINE_URL];
+const OPTIONAL = ['/favicon-256.png', '/favicon.svg', '/theme.css', '/static/agent-hub-mark.js'];
+// Last resort: if the phone has evicted its cache, a navigation still gets a page, never a browser error.
+const MINIMAL = `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>AGENT HUB - Dormant</title><body style="margin:0;min-height:100vh;display:grid;place-items:center;text-align:center;background:linear-gradient(150deg,#080c28,#0d1050 45%,#18095c);color:#00e676;font:700 14px/1.8 system-ui"><div><div style="font-size:22px;letter-spacing:6px">AGENT HUB</div><div style="opacity:.5;letter-spacing:3px">DORMANT</div></div><script>setInterval(function(){fetch('/api/status',{cache:'no-store'}).then(function(r){if(r.ok)location.reload()}).catch(function(){})},5000)<\\/script>`;
+function dormantPage() {
+  return caches.match(OFFLINE_URL).then((r) => r || new Response(MINIMAL, {status: 200, headers: {'Content-Type': 'text/html; charset=utf-8'}}));
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(ESSENTIAL).then(() => Promise.all(OPTIONAL.map((u) => cache.add(u).catch(() => {})))))
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -220,25 +296,32 @@ self.addEventListener('fetch', (event) => {
     fetch(event.request).then((response) => {
       // tailscale serve stays up even when Agent Hub itself is down, so a dead
       // backend shows up as a real HTTP response (502/503/504), not a network
-      // error — .catch() alone never sees it. Applies to every request, not
-      // just the page navigation — an <img> asset gets the same bad-gateway
-      // response and needs the same cache fallback, or it shows as broken.
-      if (response.ok) return response;
+      // error - .catch() alone never sees it. Applies to every request, not
+      // just the page navigation.
+      if (response.ok) {
+        // keep the dormant page's own files current, and restore them if the phone evicted them
+        const path = new URL(event.request.url).pathname;
+        if (path === OFFLINE_URL || OPTIONAL.indexOf(path) !== -1) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((c) => c.put(event.request, copy)).catch(() => {});
+        }
+        return response;
+      }
       return caches.match(event.request).then((cached) => {
         if (cached) return cached;
-        if (event.request.mode === 'navigate') return caches.match(OFFLINE_URL);
+        if (event.request.mode === 'navigate') return dormantPage();
         return response;
       });
     }).catch(() =>
       caches.match(event.request).then((cached) => {
         if (cached) return cached;
-        if (event.request.mode === 'navigate') return caches.match(OFFLINE_URL);
+        if (event.request.mode === 'navigate') return dormantPage();
         return new Response('', {status: 504, statusText: 'Agent Hub unreachable'});
       })
     )
   );
 });
-"""
+""".replace("__CACHE__", _OFFLINE_CACHE)
 
 _HTML = """\
 <!DOCTYPE html>
@@ -857,7 +940,7 @@ shutdownBtn.onclick = async () => {
   try { await fetch('/api/shutdown', {method: 'POST'}); } catch (e) {}
   setConn(false);
   document.title = 'AGENT HUB — Dormant';
-  setTimeout(() => window.location.reload(), 1500);
+  setTimeout(enterDormant, 1500);
 };
 
 // Restart from the header ⟳. The launcher's supervisor loop relaunches the
@@ -1326,6 +1409,7 @@ function setConn(live) {
 }
 
 async function refresh() {
+  if (window.__hubDormant) return;     // the dormant screen has taken over this window
   try {
     // fire all three at once — they used to run one after another, so the menu waited for the sum
     const _o = (ms) => ({cache: 'no-store', signal: AbortSignal.timeout(ms)});
@@ -1389,20 +1473,59 @@ async function refresh() {
       // working-looking widget whose every button needs the API that is down.
       showAutoLlm(false);
     }
-    // Hub is down → flip to the DORMANT screen. Reloading lets the service worker
-    // serve offline.html (it does when the backend errors). Rate-limit so a
-    // flapping API can't loop.
-    const lastReload = +(sessionStorage.getItem('hubReloadAt') || 0);
-    if (downCount >= 2 && Date.now() - lastReload > 20000) {
-      sessionStorage.setItem('hubReloadAt', String(Date.now()));
-      location.reload();
-    }
+    // Hub is down → show the DORMANT screen right here. A reload depended on the service
+    // worker still holding the page, which a phone can evict; this uses a copy fetched
+    // while the hub was up, so it works with the worker absent or empty.
+    if (downCount >= 2) enterDormant();
   }
+}
+
+// ── Dormant screen that does not depend on the service worker ─────────────────
+const OFFLINE_CACHE = '__OFFLINE_CACHE__';
+let dormantHtml = null, dormantMark = null;
+async function prepareDormant() {
+  try {
+    const [h, m] = await Promise.all([fetch('/offline.html', {cache: 'no-store'}), fetch('/static/agent-hub-mark.js', {cache: 'no-store'})]);
+    if (h.ok) dormantHtml = await h.text();
+    if (m.ok) dormantMark = await m.text();
+    // keep this device's cache stocked too, so a relaunch with the hub down still finds the page
+    if ('caches' in window) {
+      const c = await caches.open(OFFLINE_CACHE);
+      await Promise.all(['/offline.html', '/static/agent-hub-mark.js', '/theme.css', '/favicon-256.png', '/favicon.svg'].map(async (u) => {
+        try { if (!(await c.match(u))) { const r = await fetch(u); if (r.ok) await c.put(u, r); } } catch (e) {}
+      }));
+    }
+  } catch (e) { /* the service worker is still the fallback */ }
+}
+// Everything the live page started - timers, animation loops, sockets - must stop before the dormant page
+// takes the window over, or it keeps running behind it (it did, and a phone does not have the headroom).
+function quiesceLivePage() {
+  try {
+    const t = setTimeout(() => {}, 0); for (let i = t; i > 0; i--) { clearTimeout(i); clearInterval(i); }
+    const r = requestAnimationFrame(() => {}); for (let i = r; i > 0; i--) cancelAnimationFrame(i);
+    (window.__socks || []).forEach((s) => { try { s.onclose = s.onerror = s.onmessage = null; s.close(); } catch (e) {} });
+  } catch (e) {}
+}
+async function enterDormant() {
+  if (window.__hubDormant) return;
+  window.__hubDormant = true;
+  let html = dormantHtml;
+  if (!html && 'caches' in window) {
+    try { const r = await caches.match('/offline.html'); if (r) html = await r.text(); } catch (e) {}
+  }
+  if (!html) { location.reload(); return; }
+  if (dormantMark) {      // inline the script too: nothing else is needed from the network
+    html = html.replace('<script src="/static/agent-hub-mark.js"><\\/script>',
+                        () => '<script>' + dormantMark.replace(/<\\/script/gi, '<\\\\/script') + '<\\/script>');
+  }
+  quiesceLivePage();
+  document.open(); document.write(html); document.close();
 }
 
 render(); renderFileBrowser();      // instant first paint from the embedded list
 refresh();
 setInterval(refresh, 5000);
+setTimeout(prepareDormant, 1500);
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -1580,7 +1703,7 @@ const ytWsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
 let ytWs = null;
 function ytConnectWs() {
   if (ytWs) return;
-  const ws = new WebSocket(`${ytWsProto}//${location.host}/ws/youtube`);
+  const ws = new WebSocket(`${ytWsProto}//${location.host}/ws/youtube`); (window.__socks = window.__socks || []).push(ws);
   ytWs = ws;
   ws.onmessage = ev => {
     const d = JSON.parse(ev.data);
@@ -1767,7 +1890,7 @@ ytdlDownloadBtn.onclick = async () => {
 let ytdlWs = null;
 function ytdlConnectWs() {
   if (ytdlWs) return;
-  const ws = new WebSocket(`${ytWsProto}//${location.host}/ws/youtube-dl`);
+  const ws = new WebSocket(`${ytWsProto}//${location.host}/ws/youtube-dl`); (window.__socks = window.__socks || []).push(ws);
   ytdlWs = ws;
   ws.onmessage = ev => {
     const d = JSON.parse(ev.data);
@@ -2048,6 +2171,7 @@ def _render_menu() -> str:
     shortcuts_json = json.dumps(SHORTCUTS)
     return (_HTML
             .replace("__PICKER_JS__", _PICKER)
+            .replace("__OFFLINE_CACHE__", _OFFLINE_CACHE)
             .replace("__VOICE_WIDGET__", _WIDGET)
             .replace("__TALK_BUTTON__", TALK_BUTTON)
             .replace("__APPS_JSON__", apps_json)
@@ -2128,9 +2252,9 @@ def _setup_link() -> str:
     return _SETUP_LINK if RT.PACKAGED else ""
 
 
-@routes.get("/static/agent-hub-globe.js")
-async def globe_script(request: web.Request):
-    return web.Response(text=_GLOBE_JS, content_type="application/javascript", charset="utf-8")
+@routes.get("/static/agent-hub-mark.js")
+async def mark_script(request: web.Request):
+    return web.Response(text=_MARK_JS, content_type="application/javascript", charset="utf-8")
 
 
 @routes.get("/offline.html")

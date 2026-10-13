@@ -130,11 +130,41 @@
         if (!S.on || capture !== S.capture || listen !== S.listen) return resolve(false);
         const r = rms(), now = performance.now();
         if (r > 0.035) { spoke = true; quiet = 0; } else if (spoke && !quiet) quiet = now;
-        if ((spoke && quiet && now - quiet > 900) || (spoke && now - t0 > 25000) || (!spoke && now - t0 > (noSpeechMs || 15000))) return resolve(spoke);
+        if ((spoke && quiet && now - quiet > 1400) || (spoke && now - t0 > 25000) || (!spoke && now - t0 > (noSpeechMs || 15000))) return resolve(spoke);
         requestAnimationFrame(tick);
       };
       tick();
     });
+  }
+  // A sentence that stops on "and", "then", "open", a comma or "uh" is a pause, not an ending.
+  // Wait a little longer for the rest and join it, up to three times, before anything is sent.
+  const UNFINISHED = /(?:\b(?:and|then|so|but|or|to|the|a|an|my|of|in|on|with|for|play|open|launch|start|um+|uh+|er+|like|please)|[,…-])[\s.]*$/i;
+  // The turn models (Silero VAD + Smart Turn) say whether this is speech and whether it is finished.
+  // They can only make the hub wait longer or drop noise; the sentence-ending check above still applies.
+  async function judgeTurn(blob, turn, reset) {
+    try {
+      const r = await fetch('/api/voice/turn', { method: 'POST', headers: { 'Content-Type': blob.type || 'audio/webm', 'X-Turn': turn, 'X-Reset': reset ? '1' : '0' }, body: blob });
+      return r.ok ? await r.json() : null;
+    } catch (e) { return null; }
+  }
+  async function transcribeWhole(blob, capture, listen) {
+    const turn = 't' + Date.now().toString(36);
+    const j0 = await judgeTurn(blob, turn, true);
+    if (j0 && j0.model && j0.speech !== null && j0.speech < 0.08) return '';       // room noise, not speech
+    let text = await transcribe(blob), j = j0;
+    const unfinished = () => UNFINISHED.test(text) || (j && j.model && j.complete === false);
+    for (let i = 0; i < 3 && unfinished() && S.on && listen === S.listen && capture === S.capture; i++) {
+      setState('listening', 'Listening\u2026');
+      const rec = makeRec(); const spoke = await untilUtteranceEnds(false, 3500); await rec.stop();
+      if (!spoke) break;
+      setState('working', 'Recognising\u2026');
+      const seg = rec.blob();
+      const [more, jn] = await Promise.all([transcribe(seg), judgeTurn(seg, turn, false)]);
+      if (!more) break;
+      j = jn;
+      text = (text.replace(/[,\u2026\s-]+$/, '') + ' ' + more).trim();
+    }
+    return text;
   }
   async function recordUtterance() {
     const rec = makeRec(); orb('listening');
@@ -194,7 +224,7 @@
       if (capture !== S.capture) continue;
       if (!blob) continue;
       setState('working', 'Recognising…');
-      let text = ''; try { text = await transcribe(blob); } catch (e) { if (capture === S.capture && S.on) { setState('breathing', 'Recognition failed'); hint('Please try again, or type your request.'); await new Promise((r) => setTimeout(r, 1500)); } continue; }
+      let text = ''; try { text = await transcribeWhole(blob, capture, listen); } catch (e) { if (capture === S.capture && S.on) { setState('breathing', 'Recognition failed'); hint('Please try again, or type your request.'); await new Promise((r) => setTimeout(r, 1500)); } continue; }
       if (!S.on || listen !== S.listen || capture !== S.capture) continue;
       if (text.replace(/[^\w]/g, '').length < 2) continue;
       hint(''); await handle(text);
@@ -240,7 +270,11 @@
     setState('working', 'Doing it…');
     const j = await request('/api/voice/act', { id: r.action.id, args: r.action.args });
     if (turn !== S.turn) return;
-    log('hub', j.say, j.routine && j.routine.tag); await speak(j.say);
+    log('hub', j.say, j.routine && j.routine.tag); recPaint();
+    // The question's YES / NO appear before the sentence is spoken, not after: a long
+    // spoken answer used to leave the person with a question and nothing to press.
+    if (j.action && j.confirm) { S.pending = j; showBtns(true); setState('breathing', 'Waiting for your yes'); }
+    await speak(j.say);
     if (turn !== S.turn) return;
     // An action is allowed to come back with a question. Opening an app can only
     // do half of "open Apple Music and play the ADHD playlist", and the right
@@ -260,19 +294,20 @@
     let st = null;
     try { st = await (await fetch('/api/pc/record')).json(); } catch (e) { st = null; }
     const box = $('v-rec');
-    if (!st || !st.available || (!st.running && !(st.steps && st.steps.length))) {
+    if (!st || !st.available || (!st.running && !st.exists)) {
       box.hidden = true;
-      if (RECPOLL) { clearInterval(RECPOLL); RECPOLL = null; }
       return;
     }
     box.hidden = false;
     const n = (st.steps || []).length;
     $('v-rec-state').textContent = st.running
       ? `RECORDING — ${n} step${n === 1 ? '' : 's'}`
-      : `STOPPED — ${n} step${n === 1 ? '' : 's'}, name it and save`;
+      : (n ? `STOPPED — ${n} step${n === 1 ? '' : 's'}, name it and save`
+             : 'STOPPED — nothing was captured. Discard it and try again.');
     $('v-rec-stop').hidden = !st.running;
-    $('v-rec-save').hidden = !!st.running;
-    if (!RECPOLL) RECPOLL = setInterval(recPaint, 2000);
+    $('v-rec-save').hidden = !!st.running || !n;
+    $('v-rec-name').hidden = !!st.running || !n;
+    S.recSteps = n;
   }
   async function recSend(path, body) {
     try {
@@ -288,9 +323,10 @@
     $('voice').hidden = false;
     if (window.ThinkingOrbs) window.ThinkingOrbs.mountAll($('voice'), '#00e676');
     paintOn(); layout(); recPaint();
+    if (!RECPOLL) RECPOLL = setInterval(recPaint, 1500);
     if (autoStart && !S.on) { S.on = true; paintOn(); startLoop(); }
   }
-  function close() { S.on = false; S.listen++; fresh(); paintOn(); $('voice').hidden = true; }
+  function close() { S.on = false; S.listen++; fresh(); paintOn(); $('voice').hidden = true; if (RECPOLL) { clearInterval(RECPOLL); RECPOLL = null; } }
   function toggle() { unlockAudio(); if (S.on) { S.on = false; S.listen++; cancelTurn(); S.pending = null; showBtns(false); saveSession(); paintOn(); ready(); } else { S.on = true; paintOn(); startLoop(); } }
 
   async function fillVoices() {
@@ -313,7 +349,10 @@
     $('v-mute').onclick = () => { unlockAudio(); S.mute = !S.mute; if (S.mute && S.stop) S.stop(); try { localStorage.setItem('hubVoiceMute', S.mute ? '1' : '0'); } catch (e) {} paintToggles(); };
     paintToggles();
     $('v-rec-stop').onclick = async () => { await recSend('/api/pc/record/stop'); recPaint(); };
-    $('v-rec-drop').onclick = async () => { await recSend('/api/pc/record/discard'); recPaint(); };
+    $('v-rec-drop').onclick = async () => {
+      if (S.recSteps > 0 && !confirm('Throw away this recording and its ' + S.recSteps + ' steps?')) return;
+      await recSend('/api/pc/record/discard'); recPaint();
+    };
     $('v-rec-save').onclick = async () => {
       const name = $('v-rec-name').value.trim();
       if (!name) { hint('Give the routine a name first.'); $('v-rec-name').focus(); return; }

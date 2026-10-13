@@ -96,7 +96,7 @@ def limits() -> list:
 
 
 # rule patterns for the obvious commands (matched against the lower-cased utterance)
-COMMANDS = [
+_REGEX_COMMANDS = [          # kept only as a fallback if hub/commands.json is missing or unreadable
     {"id": "open_missions", "action": ("open_page", {"page": "missions"}), "rx": [r"\b(open|show|go to|take me to|bring up|view)\b.*\b(missions?|asks?)\b", r"^(the )?missions?( page)?$"]},
     {"id": "open_agents", "action": ("open_page", {"page": "agents"}), "rx": [r"\b(open|show|go to|take me to|bring up|view)\b.*\bagents?\b", r"^(the )?agents?( page)?$"]},
     {"id": "open_graph", "action": ("open_page", {"page": "graph"}), "rx": [r"\b(open|show|go to|take me to|bring up|view)\b.*\b(graph|projects map)\b", r"^(the )?graph$"]},
@@ -106,6 +106,19 @@ COMMANDS = [
     {"id": "status", "action": ("status", {}), "rx": [r"\b(status|what(?:'s| is| are)? (?:waiting|running|happening|going on)|anything (?:waiting|needs me)|any updates?|inbox)\b"]},
     {"id": "pause_all", "action": ("pause", {}), "rx": [r"\b(stop|pause|halt)\b.*\b(everything|all|running|agents?|asks?|missions?)\b"]},
 ]
+def _load_commands() -> list:
+    """The command phrases live in hub/commands.json (and your own commands_user.json) as templates."""
+    try:
+        from .. import templates as _T
+        got = _T.load_commands()
+        if {c["id"] for c in got} >= {c["id"] for c in _REGEX_COMMANDS}:
+            return got
+    except Exception as exc:
+        logger.info("voice: command templates unavailable, using built-in rules: %s", exc)
+    return _REGEX_COMMANDS
+
+
+COMMANDS = _load_commands()
 _BY_ID = {c["id"]: c for c in COMMANDS}
 INTRO = "Good evening. I can open pages, report on your asks, or start an ingest. State your objective."
 _GREET = re.compile(r"^(hello|hi|hey|good (morning|afternoon|evening))\b")
@@ -665,6 +678,29 @@ def _facts_reply(text: str) -> "dict | None":
     return None
 
 
+async def _settle_with_decision_model(text: str, heard: str) -> "dict | None":
+    from . import binning as BIN
+    from . import converse as CONV
+    try:
+        first = BIN.decide(text)
+        got = await BIN.refine(first, text)
+    except Exception:
+        return None
+    if got.get("by") in (None, "rules") or got["bin"] == first["bin"]:
+        return None
+    b = got["bin"]
+    if b == "mission_ask":
+        return _reply("That sounds like work on a project. Opening a new ask with it.",
+                      ("new_ask", {"text": text}), got["by"], heard)
+    if b == "automation_ask":
+        out = _reply("That sounds like something for an automation. Opening the automations page.", None, got["by"], heard)
+        out["url"] = "/automations"
+        return out
+    if b == "lookup_agent":
+        return _routed(await CONV._answer_with_agent(text), heard)
+    return None
+
+
 async def chat(text: str, history: "list | None" = None, mission_id: "str | None" = None, use_model: bool = True) -> dict:
     """One request in, one reply out - and a record of which bin it was put in and what ran."""
     from . import binning as BIN
@@ -756,6 +792,12 @@ async def _chat(text: str, history: "list | None" = None, mission_id: "str | Non
     routed = await CONV.handle(text, allow_agent=use_model)
     if routed:
         return _routed(routed, heard)
+    # The rules had nothing. Before an open model call, a decision model may say what kind of
+    # request this is - only if it is switched on for that kind (see /decisions).
+    if use_model:
+        settled = await _settle_with_decision_model(text, heard)
+        if settled:
+            return settled
     if use_model:
         try:
             got = await asyncio.wait_for(_llm(text, history or [], mission_id), timeout=35)
@@ -891,6 +933,36 @@ def _transcribe_file(path: str, name: str, lang: "str | None", hint: str = "") -
 @routes.get("/api/voice/status")
 async def api_status(request: web.Request) -> web.Response:
     return web.json_response(await asyncio.get_running_loop().run_in_executor(None, whisper_status))
+
+
+@routes.get("/api/voice/turn/status")
+async def api_turn_status(request: web.Request) -> web.Response:
+    from .. import turn_model as TM
+    return web.json_response(TM.status())
+
+
+@routes.post("/api/voice/turn/install")
+async def api_turn_install(request: web.Request) -> web.Response:
+    """The one place the turn-detection models are downloaded: on request, never at start-up."""
+    from .. import turn_model as TM
+    try:
+        got = await asyncio.get_running_loop().run_in_executor(None, TM.install)
+    except Exception as exc:
+        raise web.HTTPBadGateway(text=f"download failed: {str(exc)[:140]}")
+    return web.json_response(got)
+
+
+@routes.post("/api/voice/turn")
+async def api_turn(request: web.Request) -> web.Response:
+    """Is the person's turn finished? Body is one audio segment; X-Turn groups segments of one turn."""
+    from .. import turn_model as TM
+    data = await request.read()
+    if not data or len(data) > 8 * 1024 * 1024:
+        raise web.HTTPBadRequest(text="send 1 byte to 8 MB of audio")
+    tid = (request.headers.get("X-Turn") or "default")[:40]
+    got = await asyncio.get_running_loop().run_in_executor(
+        None, TM.judge, tid, data, request.headers.get("X-Reset") == "1")
+    return web.json_response(got)
 
 
 @routes.post("/api/voice/transcribe")

@@ -29,8 +29,12 @@ def q_yes_no(qid: str, text: str) -> dict:
     return {"id": qid, "text": text, "options": ["yes", "no"]}
 
 
-def q_choice(qid: str, text: str, options: list[str]) -> dict:
-    return {"id": qid, "text": text, "options": list(options)}
+def q_choice(qid: str, text: str, options: list[str], descriptions: "dict[str, str] | None" = None) -> dict:
+    """`descriptions` explain each option to a model; a decision model answers far better with them."""
+    q = {"id": qid, "text": text, "options": list(options)}
+    if descriptions:
+        q["descriptions"] = dict(descriptions)
+    return q
 
 
 def q_score(qid: str, text: str, scale: int = 5) -> dict:
@@ -161,10 +165,78 @@ async def _decide_local(state: dict, questions: list[dict], model: str, chat: Ch
     return list(await asyncio.gather(*(metered(q) for q in questions)))
 
 
-# ── backend 3: Jev (adapter slot) ────────────────────────────────────────────────────────────────────────────────────
-def _decide_jev(state: dict, questions: list[dict]) -> list[dict]:
-    return [{"id": q["id"], "answer": None, "p": 0.0, "dist": None, "backend": "jev",
-             "note": "not configured: needs TypeSafe API access (adapter slot only)"} for q in questions]
+# ── backend 3: Jev, through OpenRouter ───────────────────────────────────────────────────────────────────────────────
+# TypeSafe's Jev is a hosted decision model: typed questions in, probabilities out, no prose. Reached through
+# OpenRouter because that needs only a key the hub already knows how to store. The sentence text leaves this machine,
+# which is why use is switched on per request type (hub/features/binning.py) and is off by default.
+JEV_URL = "https://openrouter.ai/api/alpha/decisions"
+JEV_MODEL = "typesafe/jev-1.13"
+JEV_TIMEOUT = 8.0
+
+
+def _openrouter_key() -> str:
+    try:
+        from .features import llm_keys
+        return str((llm_keys.merged().get("openrouter") or {}).get("key") or "")
+    except Exception:
+        return ""
+
+
+def _jev_questions(questions: list[dict]) -> dict:
+    out = {}
+    for q in questions:
+        opts = q["options"]
+        if opts == ["yes", "no"]:
+            out[q["id"]] = {"type": "noul", "instructions": q["text"]}
+        else:
+            desc = q.get("descriptions") or {}
+            out[q["id"]] = {"type": "choice", "instructions": q["text"],
+                            "criteria": {o: (desc.get(o) or o) for o in opts}}
+    return out
+
+
+def _jev_read(q: dict, ans: Any) -> dict:
+    """One answer back into the shape every backend uses. Anything unexpected abstains rather than guesses."""
+    base = {"id": q["id"], "answer": None, "p": 0.0, "dist": None, "backend": "jev", "note": ""}
+    if not isinstance(ans, dict):
+        return {**base, "note": "no answer for this question"}
+    try:
+        if "noul" in ans:
+            yes = float(ans["noul"])
+            dist = {"yes": yes, "no": 1.0 - yes}
+            pick = "yes" if yes >= 0.5 else "no"
+            return {**base, "answer": pick, "p": dist[pick], "dist": dist}
+        probs = {str(k): float(v) for k, v in (ans.get("probabilities") or {}).items()}
+        pick = str(ans.get("choice") or "")
+        if pick in q["options"] and probs:
+            return {**base, "answer": pick, "p": probs.get(pick, 0.0), "dist": probs}
+    except (TypeError, ValueError):
+        pass
+    return {**base, "note": "answer was not in the expected shape"}
+
+
+async def _jev_post(body: dict, key: str) -> dict:
+    import aiohttp
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=JEV_TIMEOUT)) as sess:
+        async with sess.post(JEV_URL, json=body, headers={"Authorization": f"Bearer {key}"}) as r:
+            if r.status != 200:
+                raise RuntimeError(f"openrouter {r.status}: {(await r.text())[:120]}")
+            return await r.json()
+
+
+async def _decide_jev(state: dict, questions: list[dict], post: "Callable[[dict, str], Awaitable[dict]] | None" = None) -> list[dict]:
+    def none(note: str) -> list[dict]:
+        return [{"id": q["id"], "answer": None, "p": 0.0, "dist": None, "backend": "jev", "note": note} for q in questions]
+    key = _openrouter_key()
+    if not key:
+        return none("not configured: add an OpenRouter key under LLM keys")
+    body = {"model": JEV_MODEL, "state": state, "questions": _jev_questions(questions)}
+    try:
+        got = await (post or _jev_post)(body, key)
+    except Exception as exc:
+        return none(f"unavailable: {str(exc)[:100]}")
+    answers = (got or {}).get("answers") or {}
+    return [_jev_read(q, answers.get(q["id"])) for q in questions]
 
 
 # ── the one entry point ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -175,7 +247,7 @@ async def decide(state: dict, questions: list[dict], *, backend: str = "rules", 
     if backend == "local":
         return await _decide_local(state, questions, model, chat or _ollama_raw)
     if backend == "jev":
-        return _decide_jev(state, questions)
+        return await _decide_jev(state, questions)
     raise ValueError(f"unknown backend {backend!r}")
 
 
