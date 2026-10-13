@@ -432,8 +432,8 @@
       doc.removeEventListener('visibilitychange', visibility); root.removeEventListener('resize', resize);
       root.removeEventListener('pointermove', move); root.removeEventListener('pointerup', finish);
       root.removeEventListener('pointercancel', finish);
-      canvas.removeEventListener('pointerdown', down); canvas.removeEventListener('pointerenter', enter);
-      canvas.removeEventListener('pointermove', hoverMove); canvas.removeEventListener('pointerleave', leave);
+      canvas.removeEventListener('pointerdown', down); element.removeEventListener('pointerenter', enter, true);
+      element.removeEventListener('pointermove', hoverMove, true); element.removeEventListener('pointerleave', leave, true);
       canvas.removeEventListener('click', click, true); canvas.removeEventListener('keydown', key);
       if (query && options.reducedMotion === undefined) {
         if (query.removeEventListener) query.removeEventListener('change', motion); else if (query.removeListener) query.removeListener(motion);
@@ -448,7 +448,7 @@
     // t is the scheduler's last frame timestamp (milliseconds).
     var g = { t: 0, running: running, frame: frame, stats: stats,
       setState: function (value) { state = value === 'dormant' ? 'dormant' : 'live'; pulseStart = -10; lastPulse = clock; draw(); wake(); },
-      pulse: pulse, setQuality:function(value){quality=Number(value)||1;resize();},
+      getQuaternion:function(){return Array.from(q);},pulse: pulse, setQuality:function(value){quality=Number(value)||1;resize();},
       setResistance: function(seconds){coast=math.max(.6,math.min(10,Number(seconds)||2));},
       setAxis: function (value) {
         if (!alive || !value || value.length !== 3) return;
@@ -466,8 +466,8 @@
     if (!alive) return null;
     // Do not hide the raster until a complete frame has succeeded.
     for (i = 0; i < fallbacks.length; i++) { fallbacks[i].hidden = true; fallbacks[i].style.visibility = 'hidden'; }
-    canvas.addEventListener('pointerdown', down); canvas.addEventListener('pointerenter', enter);
-    canvas.addEventListener('pointermove', hoverMove); canvas.addEventListener('pointerleave', leave);
+    canvas.addEventListener('pointerdown', down); element.addEventListener('pointerenter', enter, true);
+    element.addEventListener('pointermove', hoverMove, true); element.addEventListener('pointerleave', leave, true);
     canvas.addEventListener('click', click, true); canvas.addEventListener('keydown', key);
     root.addEventListener('pointermove', move, { passive: false }); root.addEventListener('pointerup', finish);
     root.addEventListener('pointercancel', finish); doc.addEventListener('visibilitychange', visibility);
