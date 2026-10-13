@@ -109,3 +109,28 @@ hub/local_settings.py
 hub/user_facts.json
 # The router's routine log: a record of what was asked and when.
 hub/info_routines.json
+
+# ── Internal working files: kept on the developer's machine, not published ─────
+# Tests, the generated status report, plans, handoff notes, launch drafts and
+# verification output. History was rewritten on 2026-10-13 to remove them.
+/tools/
+/PLAN.md
+/STATE.md
+/GLOBE-IDEAS.md
+/INTEGRATION.md
+/packaging/LAUNCH-POSTS.md
+/packaging/LAUNCH-VIDEO-BRIEF.md
+/docs/globe-verification/
+# Per-machine state the hub writes beside itself when run from source
+/hub/utterance_decisions.jsonl
+/hub/recording_draft.json
+# Pages experiments not meant to go live
+/docs/core-crystalline.html
+/docs/core-rotation-lab.html
+/docs/core-star-cloud.html
+/docs/globe-core-drag.html
+/docs/globe-tetrahedron.html
+/docs/assets/agent-hub-core-*.js
+/docs/assets/agent-hub-globe-star-cloud*.js
+/docs/assets/agent-hub-star-cloud-concept.png
+/.internal/
