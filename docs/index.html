@@ -242,12 +242,21 @@
 .hub-panel .node{padding-top:19px}
 .hub-panel .node:before{top:8px;left:50%;margin-left:-3.5px}
 /* off screen: stop the loop's CSS animations too */
-#how .machine.hw-paused *,#how .machine.hw-paused *::after{animation-play-state:paused!important}</style><!--how-css:end--></head>
+#how .machine.hw-paused *,#how .machine.hw-paused *::after{animation-play-state:paused!important}
+/* the hub panel is the main attraction: centred on the screen, with the title, byline and download beneath it */
+.hero{grid-template-columns:1fr;justify-items:center;align-content:center;text-align:center;
+  min-height:calc(100vh - 64px);padding-top:clamp(18px,3.5vh,44px);padding-bottom:clamp(26px,5vh,60px);gap:clamp(16px,3vh,30px)}
+.hero .hub-panel{order:-1;width:min(100%,660px);min-height:clamp(380px,55vh,560px)}
+.hero h1{font-size:clamp(2.3rem,6.4vw,4.4rem);line-height:1;margin:0 0 .5rem}
+.hero .lead{margin-left:auto;margin-right:auto}
+.hero .actions{justify-content:center}
+.hub-core{width:176px;height:176px}
+.hub-panel .node{width:min(150px,38%)}</style><!--how-css:end--></head>
 <body>
   <nav class="nav"><a class="brand" href="/">Infernal Zeus</a><a class="back" href="/#projects"><span class="back-arrow">←</span>Projects</a></nav>
   <main>
     <header class="hero">
-      <div><h1>Agent<br>Hub</h1><p class="lead">Your most powerful PC tools.<br>At your fingertips, any device.</p><div class="actions"><a class="button primary" href="#download">Download</a><a class="button" href="https://github.com/infernalzeus/Agent-Hub" target="_blank" rel="noopener">Source ↗</a></div></div>
+      <div><h1>Agent Hub</h1><p class="lead">Your most powerful PC tools.<br>At your fingertips, any device.</p><div class="actions"><a class="button primary" href="#download">Download</a><a class="button" href="https://github.com/infernalzeus/Agent-Hub" target="_blank" rel="noopener">Source ↗</a></div></div>
       <div class="hub-panel" aria-label="Interactive Agent Hub system preview"><canvas id="hub-grid" aria-hidden="true"></canvas><!--HERO-NODES--><a class="node missions" href="#machine" data-scene="1"><b>AUTONOMOUS LLM</b><span class="nd"><span><em>Dispatch · Worktrees · Review · Apply</em><i>OpenCode · Claude</i></span></span></a><a class="node pc" href="#machine" data-scene="2"><b>MCP CONTROL</b><span class="nd"><span><em>Speak · Learned routines · Approve</em><i>Windows MCP</i></span></span></a><a class="node media" href="#machine" data-scene="3"><b>MEDIA VAULT</b><span class="nd"><span><em>Download · Convert · Browse · Receive</em><i>yt-dlp · ffmpeg</i></span></span></a><a class="node graph" href="#machine" data-scene="4"><b>GIT GRAPH</b><span class="nd"><span><em>Repo status · Worktree diff</em><i>git</i></span></span></a><!--/HERO-NODES--><button class="hub-core" type="button" aria-label="Pulse the Agent Hub grid"><img class="hub-icon" src="assets/agent-hub-mark.png" width="70" height="70" alt="Agent Hub icon"><span>AGENT HUB</span></button></div>
     </header>
     <!--HOW:START-->
@@ -387,7 +396,7 @@
   }));
   // the mark: a globe whose cloud turns on any axis, the A fixed. The PNG stays as the fallback.
   if(window.AgentHubGlobe&&b){
-    window.agentHubHeroGlobe=AgentHubGlobe.mount(b,{size:138,state:"live"});
+    window.agentHubHeroGlobe=AgentHubGlobe.mount(b,{size:Math.round(b.getBoundingClientRect().width)||176,state:"live"});
     b.addEventListener("click",e=>{if(window.agentHubHeroGlobe&&e.target.tagName!=="CANVAS")window.agentHubHeroGlobe.pulse()});
   }
 })();</script><!--hero-js:end--><script>
