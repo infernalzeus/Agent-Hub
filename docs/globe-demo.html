@@ -17,33 +17,29 @@
 </head>
 <body><main>
   <h1>AGENT HUB</h1>
-  <p>A galaxy mesh inside the globe. Coast defaults to 2 seconds; dormant keeps the full colour.</p>
+  <p>Cyan / green with 420 A stars and softer cyan glow. The A has no illuminated border.</p>
   <div class="toolbar">
     <button id="state" aria-pressed="true">Live</button>
     <button id="pulse">Pulse</button>
-    <label>Galaxy light <select id="galaxy"><option value="0">Original</option><option value="1">Cobalt / azure</option><option value="2">Cyan / green</option></select></label>
+    <label>Galaxy light <select id="galaxy"><option value="0">Original</option><option value="1">Cobalt / azure</option><option value="2" selected>Cyan / green</option></select></label>
+    <label>Size <select id="size"><option value="138">138 px</option><option value="220" selected>220 px</option><option value="320">320 px</option></select></label>
     <label>Coast <input type="range" id="coast" min="0.8" max="8" step="0.2" value="2"><output id="coast-value">2 s</output></label>
     <button id="still" aria-pressed="false">Still mode</button>
     <span id="status" role="status">Hover to turn. Drag to explore. Click the globe to pulse.</span>
   </div>
-  <div class="grid">
-    <section class="card"><div class="globe" id="demo-72" style="width:72px;height:72px"><img src="assets/agent-hub-mark.png" alt="Agent Hub"></div><div class="caption">72 PX</div><small>Small mark · automatic only</small><div class="timing" data-size="72"></div></section>
-    <section class="card"><div class="globe" id="demo-138" style="width:138px;height:138px"><img src="assets/agent-hub-mark.png" alt="Agent Hub"></div><div class="caption">138 PX</div><small>Hero · hover, drag, or arrow keys</small><div class="timing" data-size="138"></div></section>
-    <section class="card"><div class="globe" id="demo-220" style="width:220px;height:220px"><img src="assets/agent-hub-mark.png" alt="Agent Hub"></div><div class="caption">220 PX</div><small>Dormant page · same design</small><div class="timing" data-size="220"></div></section>
-    <section class="card"><div class="globe" id="demo-320" style="width:320px;height:320px"><img src="assets/agent-hub-mark.png" alt="Agent Hub"></div><div class="caption">320 PX</div><small>Full constellation</small><div class="timing" data-size="320"></div></section>
-  </div>
+  <div class="grid" style="display:flex;justify-content:center"><section class="card" style="width:min(100%,540px)"><div class="globe" id="demo-1" style="width:220px;height:220px"><img src="assets/agent-hub-mark.png" alt="Agent Hub"></div><div class="caption">CYAN / GREEN</div><small>420 A stars · 20% less cyan halo</small><small>No A border</small><div class="timing"></div></section></div>
   <footer>Higher coast time gives less resistance and longer spinning. Touch: begin horizontally to turn; vertical swipes scroll the page. All instances pause off screen. Multiple globes share a 30 fps cap.<br>Frame time measures Canvas rendering, not the time between animation frames. Everything on this page works from a local file.</footer>
 </main>
-<script src="assets/agent-hub-globe-studies.js"></script>
+<script src="assets/agent-hub-globe-selected.js"></script>
 <script>
 (function(){
   'use strict';
-  var sizes=[72,138,220,320], globes=[], live=true;
+  var sizes=[1], globes=[], live=true;
   var media=window.matchMedia('(prefers-reduced-motion: reduce)'), still=media.matches;
   var stateButton=document.getElementById('state'), stillButton=document.getElementById('still');
   function mount(){
     globes.forEach(function(g){if(g)g.destroy();});
-    globes=sizes.map(function(size){return window.AgentHubGlobeStudies && AgentHubGlobeStudies.mount(document.getElementById('demo-'+size),{size:size,state:live?'live':'dormant',reducedMotion:still,design:Number(document.getElementById('galaxy').value),resistance:Number(document.getElementById('coast').value)});});
+    globes=sizes.map(function(size){var el=document.getElementById('demo-'+size),width=Number(document.getElementById('size').value);el.style.width=el.style.height=width+'px';return window.AgentHubGlobeSelected && AgentHubGlobeSelected.mount(document.getElementById('demo-'+size),{size:width,aVariant:size,state:live?'live':'dormant',reducedMotion:still,design:Number(document.getElementById('galaxy').value),resistance:Number(document.getElementById('coast').value)});});
     window.demoGlobes=globes;
     stillButton.setAttribute('aria-pressed',String(still));
   }
@@ -53,9 +49,11 @@
   var timings=document.querySelectorAll('.timing');
   function readout(){globes.forEach(function(g,i){timings[i].textContent=g?g.stats.frameMs.toFixed(2)+' ms render · '+g.stats.frames+' frames':'Canvas unavailable · raster fallback';});}
   document.getElementById('galaxy').onchange=mount;
+  document.getElementById('size').onchange=mount;
   document.getElementById('coast').oninput=function(){document.getElementById('coast-value').textContent=this.value+' s';globes.forEach(function(g){if(g)g.setResistance(this.value);},this);};
   mount(); readout(); setInterval(readout,500);
 })();
 </script></body></html>
+
 
 

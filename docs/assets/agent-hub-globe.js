@@ -7,10 +7,20 @@
   var instances = [], raf = 0, atlas = null;
   var math = Math, PI = math.PI, TAU = PI * 2;
   var colors = [], i;
-  for (i = 0; i < 16; i++) {
-    var t = i / 15;
-    colors[i] = 'rgb(' + math.round(59 * (1 - t)) + ',' +
-      math.round(167 + 63 * t) + ',' + math.round(255 - 137 * t) + ')';
+  // Three lighting palettes. All use exactly the same node positions and A.
+  var stops = [[33,62,192],[46,110,243],[59,167,255],[25,230,166],[0,230,118]];
+  for(var profile=2;profile<3;profile++)for(i=0;i<16;i++){
+    var t=i/15,r,g,b;
+    if(profile===0){r=59*(1-t);g=167+63*t;b=255-137*t;}
+    else {
+      var ramp=t<.5?t*6:3+(t-.5)*2,at=math.min(3,math.floor(ramp)),mix=ramp-at;
+      r=stops[at][0]*(1-mix)+stops[at+1][0]*mix;
+      g=stops[at][1]*(1-mix)+stops[at+1][1]*mix;
+      b=stops[at][2]*(1-mix)+stops[at+1][2]*mix;
+      if(profile===2){r*=.75;g=math.min(255,g*1.10);b=math.min(255,b*1.08);}
+    }
+    colors[i]='rgb('+math.round(r)+','+math.round(g)+','+math.round(b)+')';
+    colors[i+16]='rgb('+math.round(78+20*(1-t))+','+math.round(128+35*t)+','+math.round(168-40*t)+')';
   }
 
   // Pre-multiply by a world-space rotation, then normalise. No gimbal lock.
@@ -42,12 +52,12 @@
   }
   function glowAtlas(doc) {
     if (atlas) return atlas;
-    atlas = doc.createElement('canvas'); atlas.width = 16 * 32; atlas.height = 32;
+    atlas = doc.createElement('canvas'); atlas.width = 32 * 32; atlas.height = 32;
     var ctx = atlas.getContext('2d');
-    if (!ctx) throw new Error();
-    for (var k = 0; k < 16; k++) {
+    if (!ctx) throw new Error('Canvas');
+    for (var k = 0; k < 32; k++) {
       var cx = k * 32 + 16, g = ctx.createRadialGradient(cx, 16, 0, cx, 16, 16);
-      g.addColorStop(0, '#d2ffe5'); g.addColorStop(.12, colors[k]);
+      g.addColorStop(0, k % 32 < 16 ? '#d2ffe5' : '#a4bbb0'); g.addColorStop(.12, colors[k]);
       g.addColorStop(.28, colors[k]); g.addColorStop(1, 'transparent');
       ctx.fillStyle = g; ctx.fillRect(k * 32, 0, 32, 32);
     }
@@ -55,20 +65,24 @@
   }
   function tick(now) {
     raf = 0;
-    var active = false, interval = instances.length > 1 ? 1000 / 30 : 0;
+    var active = false, interval;
     for (var k = 0; k < instances.length; k++) {
       var g = instances[k];
-      if (!g.r()) continue;
+      if (!g.running()) continue;
       active = true;
-      if (now - g.t + .2 >= interval) g.f(now);
+      // 30 fps while it idles (plenty for a slow turn, and half the work); 60 only while someone is holding it.
+      interval = instances.length > 1 || !g.fast() ? 1000 / 30 : 1000 / 60;
+      if (now - g.t + .2 >= interval) g.frame(now);
     }
-    if (active) raf = root.requestAnimationFrame(tick);
+    // A frame can call wake() itself (the automatic pulse does), which has already queued the next tick:
+    // queue another only if none is pending, or every pulse would start one more permanent loop.
+    if (active && !raf) raf = root.requestAnimationFrame(tick);
   }
   function wake() { if (!raf && instances.length) raf = root.requestAnimationFrame(tick); }
 
   function mount(element, options) {
     options = options || {};
-    if (!element || !element.ownerDocument) throw new TypeError();
+    if (!element || !element.ownerDocument) throw new TypeError('element required');
     var doc = element.ownerDocument, canvas = doc.createElement('canvas'), ctx;
     var prior = { position: element.style.position, width: element.style.width, height: element.style.height };
     var fallbacks = element.querySelectorAll('img'), hidden = [], imageVisibility = [];
@@ -89,14 +103,17 @@
     var prev = new Float64Array(3), next = new Float64Array(3);
     var axis = new Float64Array([math.sin(23 * PI / 180), math.cos(23 * PI / 180), 0]);
     var velocity = new Float64Array(3), phase = 0, clock = 0, pulseStart = -10, lastPulse = 0;
-    var coast=2;
+    var coast = 2;
+    var design = 0;   // the one chosen palette (cyan / green) is the only palette built
+    var aVariant = 1, aCount = 420;   // the chosen A: 420 stars, no border
+    var cyanGain = .8;   // 20% less cyan halo
     var count = 576, xyz = new Float64Array(count * 3);
     var px = new Float32Array(count), py = new Float32Array(count), pz = new Float32Array(count);
     var fade = new Float32Array(count), brightness = new Float32Array(count);
     var variation = new Float32Array(count);
     var depth = new Uint8Array(count), rng = random(0x41a6e17);
     var edgeA = [], edgeB = [], used = Object.create(null);
-    var aNodes = new Float64Array(300*2), aStrength=new Float32Array(300), aLinks;
+    var aNodes = new Float64Array(aCount*2), aStrength=new Float32Array(aCount), aLinks;
     var strokes = [-.43, .48, 0, -.54, 0, -.54, .43, .48, -.245, .045, .245, .045];
     var edgeNext, edgePhase, edgeTravel, sparkNext;
     var heads = new Int32Array(32), sparkHeads = new Int32Array(32);
@@ -184,7 +201,18 @@
         aStrength[nodeAt]=.15+.85*math.pow(letterRng(),2);nodeAt++;
       }
     }
-    for(i=0;i<300;i++)for(j=i+1;j<300;j++){
+    // Keep the original 300 stars exactly; only add coverage within the
+    // same three bands. Globe geometry, palette and motion are untouched.
+    var extraRng=random(0xa71e92);
+    for(i=0;i<3;i++)for(j=0;j<aVariant*40;j++){
+      var extraT=(j+.5)/(aVariant*40),vx=strokes[i*4+2]-strokes[i*4],vy=strokes[i*4+3]-strokes[i*4+1];
+      var length=math.sqrt(vx*vx+vy*vy),band=i<2?.18*(.72+.28*math.sin(extraT*PI)):.14;
+      var offset=(extraRng()-.5)*band;
+      aNodes[nodeAt*2]=strokes[i*4]+vx*extraT-vy/length*offset;
+      aNodes[nodeAt*2+1]=strokes[i*4+1]+vy*extraT+vx/length*offset;
+      aStrength[nodeAt]=.2+.65*extraRng();nodeAt++;
+    }
+    for(i=0;i<aCount;i++)for(j=i+1;j<aCount;j++){
       var dx=aNodes[i*2]-aNodes[j*2],dy=aNodes[i*2+1]-aNodes[j*2+1];
       if(dx*dx+dy*dy<.0019&&letterRng()<.72)pairs.push(i,j);
     }
@@ -205,7 +233,7 @@
       background = doc.createElement('canvas'); letter = doc.createElement('canvas');
       background.width = letter.width = canvas.width; background.height = letter.height = canvas.height;
       var c = background.getContext('2d'), a = letter.getContext('2d');
-      if (!c || !a) throw new Error();
+      if (!c || !a) throw new Error('Canvas');
       c.scale(dpr, dpr); a.scale(dpr, dpr);
       var g = c.createRadialGradient(centre - radius * .28, centre - radius * .28, 0, centre, centre, radius);
       g.addColorStop(0, 'rgba(13,16,80,.45)'); g.addColorStop(.7, 'rgba(7,10,37,.78)');
@@ -222,7 +250,7 @@
         a.lineTo(centre + aNodes[v] * radius, centre + aNodes[v + 1] * radius);
       }
       a.stroke();
-      for (k = 0; k < 300; k++) {
+      for (k = 0; k < aCount; k++) {
         var x = centre + aNodes[k * 2] * radius, y = centre + aNodes[k * 2 + 1] * radius;
         var weight=aStrength[k],dot=math.max(.18,width/400)*(.4+weight),glow=dot*(3+weight*3);
         a.globalAlpha=.2+weight*.35; a.drawImage(atlas, 15 * 32, 0, 32, 32, x - glow, y - glow, glow * 2, glow * 2);
@@ -278,7 +306,7 @@
         ctx.globalCompositeOperation = 'lighter'; ctx.lineWidth = math.max(.45, width / 330);
         for (k = 0; k < 32; k++) {
           var color = k % 16;
-          ctx.strokeStyle = colors[color];
+          ctx.strokeStyle = colors[design*32+color];
           ctx.globalAlpha = gain * (.045 + color / 15 * .29) * (k < 16 ? 1 : .35);
           ctx.beginPath();
           for (var e = heads[k]; e !== -1; e = edgeNext[e]) {
@@ -289,7 +317,7 @@
         if (!asleep && !reduced) {
           ctx.lineWidth = math.max(.65, width / 235);
           for (k = 0; k < 32; k++) {
-            color = k % 16; ctx.strokeStyle = colors[color];
+            color = k % 16; ctx.strokeStyle = colors[design*32+color];
             ctx.globalAlpha = (.09 + color / 15 * .48) * (k < 16 ? 1 : .35);
             ctx.beginPath();
             for (e = sparkHeads[k]; e !== -1; e = sparkNext[e]) {
@@ -308,8 +336,11 @@
           var glowSize = r * (3.3 + brightness[k] * 2);
           ctx.globalAlpha = math.min(1, gain * (.16 + .68 * front + brightness[k]) * (.35 + star * star * 1.2) * fade[k]);
           var tint = star > .86 ? math.min(3, color) : color;
-          ctx.drawImage(atlas, tint * 32, 0, 32, 32,
+          var alpha=ctx.globalAlpha,cyan=tint>3&&tint<12;
+          if(cyan&&aVariant)ctx.globalAlpha*=cyanGain;
+          ctx.drawImage(atlas, (design*32+tint)*32, 0, 32, 32,
             px[k] - glowSize, py[k] - glowSize, glowSize * 2, glowSize * 2);
+          if(cyan&&aVariant){ctx.globalAlpha=alpha*(1-cyanGain);ctx.drawImage(atlas,(design*32+tint)*32+14,14,4,4,px[k]-glowSize/8,py[k]-glowSize/8,glowSize/4,glowSize/4);}
         }
         if (!asleep && !reduced && pulseTime > 0 && pulseTime < 1) {
           ctx.globalAlpha = math.sin(PI * pulseTime) * .28;
@@ -318,6 +349,7 @@
         }
         ctx.globalAlpha = 1;
         ctx.drawImage(letter, 0, 0, width, width);
+
         ctx.restore();
         stats.frameMs = root.performance.now() - begun; stats.frames++;
       } catch (error) { destroy(); }
@@ -470,10 +502,10 @@
     }
     var observer = null, resizer = null;
     // t is the scheduler's last frame timestamp (milliseconds).
-    var g = { t: 0, r: running, f: frame, stats: stats,
+    var g = { t: 0, running: running, frame: frame, stats: stats,
+      fast: function () { return dragging || hovering || root.performance.now() - interaction < 2500; },
       setState: function (value) { state = value === 'dormant' ? 'dormant' : 'live'; pulseStart = -10; lastPulse = clock; draw(); wake(); },
       pulse: pulse,
-
       setAxis: function (value) {
         if (!alive || !value || value.length !== 3) return;
         var length = math.sqrt(value[0] * value[0] + value[1] * value[1] + value[2] * value[2]);
@@ -510,7 +542,5 @@
   // Node-only exports use the very same rotation implementation as the globe.
   if (typeof module !== 'undefined' && module.exports) module.exports = { rotate: rotate, matrix: matrix };
 })(typeof window !== 'undefined' ? window : globalThis);
-
-
 
 

@@ -197,7 +197,7 @@ if (isWindows()) {
 """
 
 _SW_JS = """\
-const CACHE_NAME = 'agent-hub-offline-v9';
+const CACHE_NAME = 'agent-hub-offline-v10';
 const OFFLINE_URL = '/offline.html';
 const PRECACHE = [OFFLINE_URL, '/favicon-256.png', '/favicon.svg', '/theme.css', '/static/agent-hub-globe.js'];
 
