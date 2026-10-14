@@ -113,7 +113,9 @@ hub/info_routines.json
 # ── Internal working files: kept on the developer's machine, not published ─────
 # Tests, the generated status report, plans, handoff notes, launch drafts and
 # verification output. History was rewritten on 2026-10-13 to remove them.
-/tools/
+/tools/*
+# ...except the builder of the shipped mark bundle (docs/assets/agent-hub-mark*.js, hub/static/agent-hub-mark.min.js)
+!/tools/build_mark.py
 /PLAN.md
 /STATE.md
 /GLOBE-IDEAS.md
@@ -132,6 +134,10 @@ hub/info_routines.json
 /docs/globe-core-drag.html
 /docs/globe-tetrahedron.html
 /docs/assets/agent-hub-core-*.js
+# ...except the three cores tools/build_mark.py builds the shipped bundle from
+!/docs/assets/agent-hub-core-star-optimized.js
+!/docs/assets/agent-hub-core-crystal-optimized.js
+!/docs/assets/agent-hub-core-flip-crystal.js
 /docs/assets/agent-hub-globe-star-cloud*.js
 /docs/assets/agent-hub-star-cloud-concept.png
 /.internal/
