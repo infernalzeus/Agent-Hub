@@ -268,11 +268,16 @@ glue = r"""
     var reduced = options.reducedMotion === undefined
       ? !!(root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches) : !!options.reducedMotion;
     var shell = options.shell !== false, axis = options.axis || 'vertical', face = options.face || .25, coast = options.coast || 2;
-    var globe = null, core = null, flip = null, alive = true,phoneCores={},warmTimer=0;
+    var globe = null, core = null, flip = null, alive = true,phoneCores={},warmTimer=0,sizeObserver=null;
     var control = {
       get: function () { return { core: core, globe: globe, mode: mode }; },
       'switch': function (next) { mode = next; build(true); return core; }
     };
+    function syncCoreSizes(){
+      if(!alive)return;
+      var cores=lite?Object.values(phoneCores):[core];
+      cores.forEach(function(item){if(item){item.resize();item.renderNow();}});
+    }
     function build(keepGlobe) {
       if (flip) flip.stop();
       if(core){if(lite&&core.setActive){core.setActive(false);core.getCanvas().style.visibility="hidden";}else core.destroy();core=null;}
@@ -326,6 +331,7 @@ glue = r"""
     function stopPhoneFlip(){if(phoneFlip)phoneFlip.stop();phoneFlip=null;}
     function liteClick(event){
       if(phoneFlip||!core)return;
+      syncCoreSizes();
       var pose=core.getQuaternion(),motion=core.getMotion(),points=core.getGeometry().points,mesh=core.getRenderMesh(),old=core.getCanvas(),copy=doc.createElement('canvas');
       copy.width=old.width;copy.height=old.height;copy.getContext('2d').drawImage(old,0,0);
       mode=mode==='star'?'crystal':'star';build(true);if(!core)return;
@@ -342,6 +348,8 @@ glue = r"""
     if (noGL && mode === 'star') mode = 'crystal';
     build(false);
     if(lite&&mode==='crystal')warmTimer=setTimeout(function(){warmTimer=0;if(!alive||phoneCores.star||mode!=='crystal')return;try{var warm=root.StarCloudCore.mount(host,{contained:!!globe,reducedMotion:reduced,coastOnRelease:true,brightness:.78});if(warm){warm.setParallax(face);warm.renderNow();warm.setActive(false);warm.getCanvas().style.visibility='hidden';phoneCores.star=warm;}}catch(error){/* First-use fallback remains available. */}},100);
+    root.addEventListener('resize',syncCoreSizes);
+    if(root.ResizeObserver){sizeObserver=new root.ResizeObserver(syncCoreSizes);sizeObserver.observe(host);}
     if (!globe && !core) { flip.off(); return null; }
     return {
       get core() { return core; }, get globe() { return globe; }, get stats() { return globe ? globe.stats : { frameMs: 0, frames: 0 }; },
@@ -355,10 +363,10 @@ glue = r"""
       setState: function (next) { state = next === 'dormant' ? 'dormant' : 'live'; if (globe) globe.setState(state); },
       pulse: function () { if (globe) globe.pulse(); },
       reset: function () { if (core) core.reset(); },
-      resize: function () { if (core) core.resize(); },
+      resize: syncCoreSizes,
       destroy: function () {
         if (!alive) return; alive = false;
-        if(warmTimer)clearTimeout(warmTimer);flip.off();if(lite){Object.keys(phoneCores).forEach(function(key){phoneCores[key].destroy();});if(core&&!Object.values(phoneCores).includes(core))core.destroy();}else if(core)core.destroy();if(globe)globe.destroy();core=globe=null;
+        if(warmTimer)clearTimeout(warmTimer);if(sizeObserver)sizeObserver.disconnect();root.removeEventListener("resize",syncCoreSizes);flip.off();if(lite){Object.keys(phoneCores).forEach(function(key){phoneCores[key].destroy();});if(core&&!Object.values(phoneCores).includes(core))core.destroy();}else if(core)core.destroy();if(globe)globe.destroy();core=globe=null;
         host.removeEventListener('pointermove', touchMove, true);
         host.removeEventListener('pointerup', touchEnd, true); host.removeEventListener('pointercancel', touchEnd, true);
       }
