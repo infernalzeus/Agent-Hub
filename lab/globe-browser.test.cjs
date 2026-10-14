@@ -1,4 +1,5 @@
 'use strict';
+process.chdir(__dirname);
 // Usage: PLAYWRIGHT_MODULE=<installed package path> node globe-browser.test.cjs
 const {chromium} = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const assert = require('node:assert/strict');
@@ -54,13 +55,13 @@ const {pathToFileURL} = require('node:url');
     report.checks.push('vertical touch gesture left to scrolling');
     // Failure and lifecycle boundaries: initial missing context; late drawing failure.
     assert(await page.evaluate(()=>{
-      const host=document.createElement('div');host.style.cssText='width:138px;height:138px';host.innerHTML='<img style="display:block" src="assets/agent-hub-mark.png">';document.body.appendChild(host);
+      const host=document.createElement('div');host.style.cssText='width:138px;height:138px';host.innerHTML='<img style="display:block" src="../docs/assets/agent-hub-mark.png">';document.body.appendChild(host);
       const original=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(){return null;};
       let g;try{g=AgentHubGlobe.mount(host);}finally{HTMLCanvasElement.prototype.getContext=original;}
       const ok=g===null&&!host.querySelector('canvas')&&!host.querySelector('img').hidden;host.remove();return ok;
     }));
     assert(await page.evaluate(()=>{
-      const host=document.createElement('div');host.style.cssText='width:138px;height:138px';host.innerHTML='<img style="display:block" src="assets/agent-hub-mark.png">';document.body.appendChild(host);
+      const host=document.createElement('div');host.style.cssText='width:138px;height:138px';host.innerHTML='<img style="display:block" src="../docs/assets/agent-hub-mark.png">';document.body.appendChild(host);
       const g=AgentHubGlobe.mount(host,{reducedMotion:true}), c=host.querySelector('canvas'),ctx=c.getContext('2d');
       ctx.drawImage=function(){throw new Error('simulated drawing failure');};g.setState('dormant');
       const ok=!host.querySelector('canvas')&&!host.querySelector('img').hidden&&host.querySelector('img').style.visibility==='';host.remove();return ok;

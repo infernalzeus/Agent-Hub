@@ -144,3 +144,40 @@ hub/info_routines.json
 /hub/models/
 /hub/commands_user.json
 /hub/rea.json
+
+# Mark production allowlist: labs belong in the unpublished root lab/ folder.
+/docs/*.html
+!/docs/index.html
+/docs/assets/*
+!/docs/assets/agent-hub-core-crystal-optimized.js
+!/docs/assets/agent-hub-core-flip-crystal.js
+!/docs/assets/agent-hub-core-star-optimized.js
+!/docs/assets/agent-hub-crystal-gpu.js
+!/docs/assets/agent-hub-depth-flip.js
+!/docs/assets/agent-hub-facet-flip.js
+!/docs/assets/agent-hub-facet-gpu.js
+!/docs/assets/agent-hub-globe-contained.js
+!/docs/assets/agent-hub-mark.js
+!/docs/assets/agent-hub-mark.min.js
+!/docs/assets/agent-hub-mark.png
+!/docs/assets/favicon-180.png
+!/docs/assets/favicon-32.png
+!/docs/assets/favicon.ico
+!/docs/assets/favicon.png
+!/docs/assets/smith-icon.png
+
+# Keep the mark builder versioned while other local tools remain ignored.
+!/tools/
+/tools/*
+!/tools/build_mark.py
+
+# Previously untracked experiments remain local after relocation.
+/lab/core-crystalline.html
+/lab/core-rotation-lab.html
+/lab/core-star-cloud.html
+/lab/globe-core-drag.html
+/lab/globe-tetrahedron.html
+/lab/assets/agent-hub-core-*.js
+/lab/assets/agent-hub-globe-star-cloud*.js
+/lab/assets/agent-hub-star-cloud-concept.png
+/lab/globe-verification/

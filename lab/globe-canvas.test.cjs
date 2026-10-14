@@ -1,4 +1,5 @@
 'use strict';
+process.chdir(__dirname);
 // Browser-free refinement checks and screenshots with the native Canvas API.
 const fs=require('node:fs'), vm=require('node:vm'), assert=require('node:assert/strict');
 const {performance}=require('node:perf_hooks');

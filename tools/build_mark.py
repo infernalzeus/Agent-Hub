@@ -9,7 +9,7 @@ Inputs (kept exactly as Codex wrote them, in docs/assets):
 
 Output:
     docs/assets/agent-hub-mark.js        readable
-    docs/assets/agent-hub-mark.min.js    minified (needs `npx --no-install terser`)
+    docs/assets/agent-hub-mark.min.js    minified (needs terser 5.51.2 via `npx --no-install terser`)
     hub/static/agent-hub-mark.min.js     copy served by the hub's dormant page
 
 Every change to those inputs is a text substitution below that asserts it matched exactly once, so a
@@ -449,6 +449,12 @@ bundle = (
 npx = shutil.which("npx.cmd") or shutil.which("npx")
 if not npx:
     sys.exit("npx not found; readable bundle written only")
+# Pinned: another Terser version minifies differently, so a rebuild would no longer match the committed bundle.
+TERSER_VERSION = "5.51.2"
+found = subprocess.run([npx, "--no-install", "terser", "--version"], capture_output=True, text=True, cwd=str(ASSETS))
+if found.returncode != 0 or found.stdout.split()[-1:] != [TERSER_VERSION]:
+    sys.exit(f"terser {TERSER_VERSION} is required (found: {found.stdout.strip() or 'none'}). "
+             f"Install it with: npm install -g terser@{TERSER_VERSION}. The readable bundle was written; nothing else changed.")
 cmd = [npx, "--no-install", "terser", str(ASSETS / "agent-hub-mark.js"), "-c", "passes=2,drop_console=true", "-m",
        "--define", "module=false", "-o", str(ASSETS / "agent-hub-mark.min.js")]
 subprocess.run(cmd, check=True, cwd=str(ASSETS))

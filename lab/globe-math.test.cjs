@@ -1,4 +1,5 @@
 'use strict';
+process.chdir(__dirname);
 const assert = require('node:assert/strict');
 const { rotate, matrix } = require('./assets/agent-hub-globe.js');
 const q = new Float64Array([0, 0, 0, 1]), m = new Float64Array(9);

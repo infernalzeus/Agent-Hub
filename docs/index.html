@@ -351,10 +351,13 @@
     for(let i=0;i<w;i+=30)for(let j=0;j<h;j+=30){
       const dist=Math.hypot(i-w/2,j-h/2),dA=Math.abs(dist-ring);
       let a=.05+Math.max(0,1-dA/80)*.42*fade+Math.sin(n/1400-dist/190)*.02;
-      if(click){const t=(n-click)/520,r2=t*Math.hypot(w,h)*.9;
-        a+=Math.max(0,1-Math.abs(dist-r2)/38)*.95*Math.max(0,1-t);if(t>1)click=0}
+      // the second wave: a soft turquoise swell (was a near-white flash across the card in half a second)
+      let tq=0;
+      if(click){const t=(n-click)/1500,r2=t*Math.hypot(w,h)*.55;
+        tq=Math.max(0,1-Math.abs(dist-r2)/90)*.45*(1-t)*(1-t);if(t>1)click=0}
       a=Math.max(.03,a);
       x.strokeStyle="rgba(0,230,118,"+a+")";x.lineWidth=a>.3?1.4:1;x.strokeRect(i+.5,j+.5,30,30);
+      if(tq>.01){x.strokeStyle="rgba(64,224,208,"+tq.toFixed(3)+")";x.lineWidth=1;x.strokeRect(i+.5,j+.5,30,30);x.fillStyle="rgba(64,224,208,"+(tq*.15).toFixed(3)+")";x.fillRect(i+1,j+1,29,29)}
     }
     // the ring itself, so the wave reads as one object travelling out from the hub
     x.save();x.shadowColor="rgba(0,230,118,.9)";x.shadowBlur=16;

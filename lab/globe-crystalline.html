@@ -35,9 +35,9 @@
   <div class="grid" style="display:flex;justify-content:center"><section class="card" style="width:100%"><div class="preview-viewport"><div class="preview-stage" id="preview-stage"><div class="globe" id="demo-1" style="width:220px;height:220px"><div class="centre-guide" id="centre-guide" hidden></div></div></div></div><div class="caption">STAR CLOUD</div><small>Glistening crystal facets · no PNG texture</small><small>Centre of mass aligned with the sphere centre</small><div class="timing"></div></section></div>
   <footer>Higher coast time gives less resistance and longer spinning. Touch: begin horizontally to turn; vertical swipes scroll the page. All instances pause off screen. Multiple globes share a 30 fps cap.<br>Frame time measures Canvas rendering, not the time between animation frames. Everything on this page works from a local file.</footer>
 </main>
-<script src="assets/agent-hub-globe-contained.js?v=2"></script>
-<script src="assets/agent-hub-depth-flip.js"></script><script src="assets/agent-hub-core-flip-star.js?v=2"></script><script>window.StarCloudCore=window.AgentHubCoreLab;</script>
-<script src="assets/agent-hub-core-flip-crystal.js?v=6"></script><script>window.CrystallineCore=window.AgentHubCoreLab;</script>
+<script src="../docs/assets/agent-hub-globe-contained.js?v=2"></script>
+<script src="../docs/assets/agent-hub-depth-flip.js"></script><script src="assets/agent-hub-core-flip-star.js?v=2"></script><script>window.StarCloudCore=window.AgentHubCoreLab;</script>
+<script src="../docs/assets/agent-hub-core-flip-crystal.js?v=6"></script><script>window.CrystallineCore=window.AgentHubCoreLab;</script>
 <script>
 (function(){'use strict';
 var core=null,globe=null,mode=location.pathname.indexOf('crystalline')>=0?'crystal':'star',showGlobe=true,live=true,still=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -56,7 +56,7 @@ el('state').onclick=function(){live=!live;this.textContent=live?'Live':'Dormant'
 el('still').onclick=function(){still=!still;mount();};el('galaxy').onchange=mount;el('size').onchange=mount;el('zoom').onchange=zoom;el('core-axis').onchange=function(){if(core)core.setMode(this.value);};el('core-reset').onclick=function(){if(core)core.reset();};el('face-depth').onchange=function(){if(core&&core.setParallax)core.setParallax(this.value);};el('coast').oninput=function(){el('coast-value').textContent=this.value+' s';if(core)core.setResistance(this.value);if(globe)globe.setResistance(this.value);};el('guide').onclick=function(){var guide=el('centre-guide');guide.hidden=!guide.hidden;this.setAttribute('aria-pressed',String(!guide.hidden));};mount();
 window.CoreFlipControls={get:function(){return {core:core,globe:globe,mode:mode};},switch:function(next){mode=next;mount(true);return core;}};
 })();
-</script><script src="assets/agent-hub-facet-flip.js?v=2"></script></body></html>
+</script><script src="../docs/assets/agent-hub-facet-flip.js?v=2"></script></body></html>
 
 
 
