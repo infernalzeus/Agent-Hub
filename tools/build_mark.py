@@ -166,7 +166,7 @@ globe = sub(globe, "      getQuaternion:function(){return Array.from(q);},pulse:
             "      steer: function (dx, dy) {\n"
             "        var distance = math.sqrt(dx * dx + dy * dy);\n"
             "        if (!alive || distance < .05 || options.interactive === false) return;\n"
-            "        var now = root.performance.now(), angle = math.min(.22, distance / width * 1.3);\n"
+            "        var now = root.performance.now(), angle = math.min(.22, distance / math.min(width,340) * 1.3);\n"
             "        rotate(q, -dy / distance, dx / distance, 0, angle);\n"
             "        var speed = math.min(2.8, angle / math.max(.016, (now - lastMove) / 1000));\n"
             "        velocity[0] = velocity[0] * .35 - dy / distance * speed * .65;\n"
@@ -312,7 +312,7 @@ glue = r"""
     // A finger on the page: lock scrolling here and let the same drag also steer the globe.
     var touch = null;
     function touchMove(event) {
-      if (event.pointerType !== 'touch' || !globe || lite) return;
+      if (event.pointerType !== 'touch' || !globe || lite) return;   // a touch drag controls the core, not both layers
       if (touch && touch.id === event.pointerId) globe.steer(event.clientX - touch.x, event.clientY - touch.y);
       touch = { id: event.pointerId, x: event.clientX, y: event.clientY };
     }

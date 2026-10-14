@@ -395,7 +395,7 @@
         var dx = event.clientX - hoverX, dy = event.clientY - hoverY;
         var distance = math.sqrt(dx * dx + dy * dy);
         if (distance > .05) {
-          var now=root.performance.now(), angle=math.min(.22,distance/width*1.3);
+          var now=root.performance.now(), angle=math.min(.22,distance/math.min(width,340)*1.3);
           rotate(q,-dy/distance,dx/distance,0,angle);
           var speed=math.min(2.8,angle/math.max(.016,(now-lastMove)/1000));
           velocity[0]=velocity[0]*.35-dy/distance*speed*.65;

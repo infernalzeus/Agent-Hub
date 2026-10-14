@@ -472,7 +472,7 @@ return {stop:stopFacetFlip,off:function(){stopFacetFlip();host.removeEventListen
         var dx = event.clientX - hoverX, dy = event.clientY - hoverY;
         var distance = math.sqrt(dx * dx + dy * dy);
         if (distance > .05) {
-          var now=root.performance.now(), angle=math.min(.22,distance/width*1.3);
+          var now=root.performance.now(), angle=math.min(.22,distance/math.min(width,340)*1.3);
           rotate(q,-dy/distance,dx/distance,0,angle);
           var speed=math.min(2.8,angle/math.max(.016,(now-lastMove)/1000));
           velocity[0]=velocity[0]*.35-dy/distance*speed*.65;
@@ -540,7 +540,7 @@ return {stop:stopFacetFlip,off:function(){stopFacetFlip();host.removeEventListen
       steer: function (dx, dy) {
         var distance = math.sqrt(dx * dx + dy * dy);
         if (!alive || distance < .05 || options.interactive === false) return;
-        var now = root.performance.now(), angle = math.min(.22, distance / width * 1.3);
+        var now = root.performance.now(), angle = math.min(.22, distance / math.min(width,340) * 1.3);
         rotate(q, -dy / distance, dx / distance, 0, angle);
         var speed = math.min(2.8, angle / math.max(.016, (now - lastMove) / 1000));
         velocity[0] = velocity[0] * .35 - dy / distance * speed * .65;
@@ -1211,7 +1211,7 @@ frame=requestAnimationFrame(tick);return {stop:stop};
     // A finger on the page: lock scrolling here and let the same drag also steer the globe.
     var touch = null;
     function touchMove(event) {
-      if (event.pointerType !== 'touch' || !globe || lite) return;
+      if (event.pointerType !== 'touch' || !globe || lite) return;   // a touch drag controls the core, not both layers
       if (touch && touch.id === event.pointerId) globe.steer(event.clientX - touch.x, event.clientY - touch.y);
       touch = { id: event.pointerId, x: event.clientX, y: event.clientY };
     }

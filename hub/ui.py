@@ -66,7 +66,7 @@ html{height:100%;min-height:100dvh;background:linear-gradient(150deg,#080c28 0%,
 html,body{min-height:100%;min-height:100dvh;font-family:'Outfit',system-ui,sans-serif;color:var(--text);
   display:flex;align-items:center;justify-content:center;
   padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
-.wrap{text-align:center;padding:20px}
+.wrap{text-align:center;padding:12px 8px}
 /* clip-path forces a true circle (radius < half-width) so NO square edge — top,
    bottom, or corners — can ever show. The soft mask feathers the rim within it. */
 .hero-icon{width:220px;height:220px;object-fit:cover;mix-blend-mode:screen;opacity:.97;margin:0 auto 26px;display:block;
@@ -77,7 +77,10 @@ html,body{min-height:100%;min-height:100dvh;font-family:'Outfit',system-ui,sans-
 html{overscroll-behavior:none}
 body{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;overflow:hidden;overscroll-behavior:none;touch-action:none;
   -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
-.globe-wrap{--g:min(84vw,340px,38vh);position:relative;width:var(--g);height:var(--g);margin:0 auto 26px}
+/* the mark takes nearly all the room: the screen width less a small margin, or the height left after the
+   name, the START button and the message below it; capped so a tablet does not get a giant canvas */
+.globe-wrap{--g:min(calc(100vw - 28px),720px,calc(100vh - 270px));position:relative;width:var(--g);height:var(--g);margin:0 auto 22px}
+@supports (height:100svh){.globe-wrap{--g:min(calc(100vw - 28px),720px,calc(100svh - 270px))}}
 .hero-globe{position:relative;width:100%;height:100%;margin:0}
 .hero-globe .hero-icon{width:100%;height:100%;margin:0}
 .hero-globe canvas:focus-visible{outline:2px solid #3ba7ff;outline-offset:4px}
@@ -129,9 +132,9 @@ __SETUP_LINK__
   <div class="status">DORMANT</div>
   <button type="button" id="wake-btn" class="wake-btn">▶ START</button>
   <button type="button" id="shell-key" class="shell-key" aria-pressed="true">Globe on. Press to switch it off.</button>
-  <div class="wake-sub" id="wake-sub">Agent Hub is dormant. Initiate from PC.</div>
+  <div class="wake-sub" id="wake-sub">Agent Hub is dormant.<br>Initiate from PC.</div>
 </div>
-<script src="/static/agent-hub-mark.js"></script>
+<script src="/static/agent-hub-mark.js?v=__MARK_VERSION__"></script>
 <script>
 (function () {
   // Touch anywhere that is not a control or the globe itself and the shell links up or lets go, with a
@@ -262,17 +265,21 @@ if (isWindows()) {
 """
 
 import hashlib as _hashlib
+_MARK_VERSION = _hashlib.sha256(_MARK_JS.encode("utf-8")).hexdigest()[:12]
+_MARK_URL = "/static/agent-hub-mark.js?v=" + _MARK_VERSION
+_OFFLINE_HTML = _OFFLINE_HTML.replace("__MARK_VERSION__", _MARK_VERSION)
 _OFFLINE_CACHE = "agent-hub-offline-" + _hashlib.sha1((_OFFLINE_HTML + _MARK_JS).encode("utf-8")).hexdigest()[:10]
 
 _SW_JS = """\
 const CACHE_NAME = '__CACHE__';
 const OFFLINE_URL = '/offline.html';
+const MARK_URL = '__MARK_URL__';
 const ESSENTIAL = [OFFLINE_URL];
-const OPTIONAL = ['/favicon-256.png', '/favicon.svg', '/theme.css', '/static/agent-hub-mark.js'];
+const OPTIONAL = ['/favicon-256.png', '/favicon.svg', '/theme.css', MARK_URL];
 // Last resort: if the phone has evicted its cache, a navigation still gets a page, never a browser error.
-const MINIMAL = `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>AGENT HUB - Dormant</title><body style="margin:0;min-height:100vh;display:grid;place-items:center;text-align:center;background:linear-gradient(150deg,#080c28,#0d1050 45%,#18095c);color:#00e676;font:700 14px/1.8 system-ui"><div><div style="font-size:22px;letter-spacing:6px">AGENT HUB</div><div style="opacity:.5;letter-spacing:3px">DORMANT</div></div><script>setInterval(function(){fetch('/api/status',{cache:'no-store'}).then(function(r){if(r.ok)location.reload()}).catch(function(){})},5000)<\\/script>`;
+const MINIMAL = `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>AGENT HUB - Dormant</title><body style="margin:0;min-height:100vh;display:grid;place-items:center;text-align:center;background:linear-gradient(150deg,#080c28,#0d1050 45%,#18095c);color:#00e676;font:700 14px/1.8 system-ui"><div><div style="font-size:22px;letter-spacing:6px">AGENT HUB</div><div style="opacity:.5;letter-spacing:3px">DORMANT</div><div style="opacity:.6;font-size:11px;letter-spacing:1.5px;margin-top:14px">Agent Hub is dormant.<br>Initiate from PC.</div></div><script>setInterval(function(){fetch('/api/status',{cache:'no-store'}).then(function(r){if(r.ok)location.reload()}).catch(function(){})},5000)<\\/script>`;
 function dormantPage() {
-  return caches.match(OFFLINE_URL).then((r) => r || new Response(MINIMAL, {status: 200, headers: {'Content-Type': 'text/html; charset=utf-8'}}));
+  return caches.open(CACHE_NAME).then((c) => c.match(OFFLINE_URL)).then((r) => r || new Response(MINIMAL, {status: 200, headers: {'Content-Type': 'text/html; charset=utf-8'}}));
 }
 
 self.addEventListener('install', (event) => {
@@ -291,37 +298,66 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// When the PC is off or asleep nothing answers at all - not even tailscale serve's 502 - and iOS
+// can wait a minute or more on an unreachable address. A page waiting on that is a black screen.
+const NAV_WAIT_MS = 3000;
+function within(promise, ms) {
+  return Promise.race([promise, new Promise((resolve, reject) => setTimeout(() => reject(new Error('timeout')), ms))]);
+}
+function remember(request, response) {
+  if (response.ok) { const copy = response.clone(); caches.open(CACHE_NAME).then((c) => c.put(request, copy)).catch(() => {}); }
+  return response;
+}
+
 self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    fetch(event.request).then((response) => {
-      // tailscale serve stays up even when Agent Hub itself is down, so a dead
-      // backend shows up as a real HTTP response (502/503/504), not a network
-      // error - .catch() alone never sees it. Applies to every request, not
-      // just the page navigation.
-      if (response.ok) {
-        // keep the dormant page's own files current, and restore them if the phone evicted them
-        const path = new URL(event.request.url).pathname;
-        if (path === OFFLINE_URL || OPTIONAL.indexOf(path) !== -1) {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((c) => c.put(event.request, copy)).catch(() => {});
-        }
-        return response;
-      }
-      return caches.match(event.request).then((cached) => {
-        if (cached) return cached;
-        if (event.request.mode === 'navigate') return dormantPage();
-        return response;
-      });
-    }).catch(() =>
-      caches.match(event.request).then((cached) => {
-        if (cached) return cached;
-        if (event.request.mode === 'navigate') return dormantPage();
-        return new Response('', {status: 504, statusText: 'Agent Hub unreachable'});
+  const request = event.request, path = new URL(request.url).pathname;
+  const dormantFile = path === OFFLINE_URL || OPTIONAL.some((u) => new URL(u, self.location.origin).pathname === path);
+
+  // Never serve an older script key to a legacy cached page.
+  if (path === '/static/agent-hub-mark.js' && new URL(request.url).search !== new URL(MARK_URL, self.location.origin).search) {
+    event.respondWith(within(fetch(MARK_URL, {cache: 'no-store'}), NAV_WAIT_MS)
+      .then((r) => r.ok ? remember(MARK_URL, r) : Promise.reject(new Error('unreachable')))
+      .catch(() => caches.open(CACHE_NAME).then((c) => c.match(MARK_URL)).then((r) => r || new Response('', {status: 504}))));
+    return;
+  }
+
+  // Opening the app: give the PC NAV_WAIT_MS to answer, then show the dormant page. It keeps
+  // checking and switches to the live hub by itself as soon as the PC is back.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      within(fetch(request), NAV_WAIT_MS).then((response) => {
+        // tailscale serve stays up while Agent Hub itself is down: a dead backend is a 502/503/504
+        if (response.ok) return dormantFile ? remember(request, response) : response;
+        return caches.open(CACHE_NAME).then((c) => c.match(request)).then((cached) => cached || dormantPage());
+      }).catch(() => caches.open(CACHE_NAME).then((c) => c.match(request)).then((cached) => cached || dormantPage()))
+    );
+    return;
+  }
+
+  // The dormant page's own files (its script, stylesheet, icons): from this device's cache at once,
+  // refreshed in the background, so they can never hang either. A request that asks for a fresh copy
+  // (the live page preparing the dormant page) still goes to the network first.
+  if (dormantFile && request.method === 'GET' && request.cache !== 'no-store') {
+    event.respondWith(
+      caches.open(CACHE_NAME).then((c) => c.match(request)).then((cached) => {
+        const fresh = fetch(request).then((response) => remember(request, response));
+        if (cached) { fresh.catch(() => {}); return cached; }
+        return within(fresh, NAV_WAIT_MS).catch(() => new Response('', {status: 504, statusText: 'Agent Hub unreachable'}));
       })
+    );
+    return;
+  }
+
+  event.respondWith(
+    fetch(request).then((response) => {
+      if (response.ok) return dormantFile ? remember(request, response) : response;
+      return caches.open(CACHE_NAME).then((c) => c.match(request)).then((cached) => cached || response);
+    }).catch(() =>
+      caches.open(CACHE_NAME).then((c) => c.match(request)).then((cached) => cached || new Response('', {status: 504, statusText: 'Agent Hub unreachable'}))
     )
   );
 });
-""".replace("__CACHE__", _OFFLINE_CACHE)
+""".replace("__CACHE__", _OFFLINE_CACHE).replace("__MARK_URL__", _MARK_URL)
 
 _HTML = """\
 <!DOCTYPE html>
@@ -1481,17 +1517,18 @@ async function refresh() {
 }
 
 // ── Dormant screen that does not depend on the service worker ─────────────────
+const MARK_URL = '__MARK_URL__';
 const OFFLINE_CACHE = '__OFFLINE_CACHE__';
 let dormantHtml = null, dormantMark = null;
 async function prepareDormant() {
   try {
-    const [h, m] = await Promise.all([fetch('/offline.html', {cache: 'no-store'}), fetch('/static/agent-hub-mark.js', {cache: 'no-store'})]);
+    const [h, m] = await Promise.all([fetch('/offline.html', {cache: 'no-store'}), fetch(MARK_URL, {cache: 'no-store'})]);
     if (h.ok) dormantHtml = await h.text();
     if (m.ok) dormantMark = await m.text();
     // keep this device's cache stocked too, so a relaunch with the hub down still finds the page
     if ('caches' in window) {
       const c = await caches.open(OFFLINE_CACHE);
-      await Promise.all(['/offline.html', '/static/agent-hub-mark.js', '/theme.css', '/favicon-256.png', '/favicon.svg'].map(async (u) => {
+      await Promise.all(['/offline.html', MARK_URL, '/theme.css', '/favicon-256.png', '/favicon.svg'].map(async (u) => {
         try { if (!(await c.match(u))) { const r = await fetch(u); if (r.ok) await c.put(u, r); } } catch (e) {}
       }));
     }
@@ -1515,7 +1552,7 @@ async function enterDormant() {
   }
   if (!html) { location.reload(); return; }
   if (dormantMark) {      // inline the script too: nothing else is needed from the network
-    html = html.replace('<script src="/static/agent-hub-mark.js"><\\/script>',
+    html = html.replace('<script src="' + MARK_URL + '"><\\/script>',
                         () => '<script>' + dormantMark.replace(/<\\/script/gi, '<\\\\/script') + '<\\/script>');
   }
   quiesceLivePage();
@@ -2172,6 +2209,7 @@ def _render_menu() -> str:
     return (_HTML
             .replace("__PICKER_JS__", _PICKER)
             .replace("__OFFLINE_CACHE__", _OFFLINE_CACHE)
+            .replace("__MARK_URL__", _MARK_URL)
             .replace("__VOICE_WIDGET__", _WIDGET)
             .replace("__TALK_BUTTON__", TALK_BUTTON)
             .replace("__APPS_JSON__", apps_json)
