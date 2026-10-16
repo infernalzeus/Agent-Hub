@@ -252,13 +252,31 @@
 .hero .actions{justify-content:center}
 .hub-core{width:clamp(200px,min(32vh,64vw),310px);height:clamp(200px,min(32vh,64vw),310px)}
 .hub-core span{bottom:-30px!important;z-index:4}
-.hub-panel .node{width:min(150px,38%)}</style><!--how-css:end--></head>
+.hub-panel .node{width:min(150px,38%)}
+/* Full landscape hero: the interactive mark is the focal point. */
+.hero{max-width:none;width:100%;padding:16px;min-height:calc(100svh - 64px);display:block}
+.hero .hub-panel{width:100%;min-height:max(720px,calc(100svh - 96px));margin:0;border-radius:22px}
+.hero .hero-title{position:absolute;left:0;right:0;top:28px;margin:0;text-align:center;z-index:4;font-size:clamp(1.8rem,3.8vw,3.4rem);pointer-events:none}
+.hero .hub-core{width:clamp(290px,min(51vh,46vw),620px);height:clamp(290px,min(51vh,46vw),620px);top:46%}
+.hero-caption{position:absolute;left:20px;right:20px;bottom:30px;z-index:4;text-align:center;pointer-events:none}
+.hero-caption .lead{font:500 clamp(.8rem,1.2vw,1.12rem)/1.65 Orbitron,sans-serif;max-width:none;letter-spacing:.025em}
+.hero-caption .actions{margin-top:20px;pointer-events:auto}
+.hero .node.missions,.hero .node.pc{top:24%}
+.hero .node.media,.hero .node.graph{bottom:25%}
+@media(max-width:760px){
+ .hero{padding:8px}.hero .hub-panel{min-height:820px;border-radius:16px}
+ .hero .hero-title{top:26px}.hero .hub-core{width:min(78vw,420px);height:min(78vw,420px);top:43%}
+ .hero .node{width:42%;max-width:180px;font-size:.56rem;min-height:52px}
+ .hero .node.missions,.hero .node.pc{top:13%}.hero .node.media,.hero .node.graph{bottom:27%}
+ .hero .node.missions,.hero .node.media{left:5%}.hero .node.pc,.hero .node.graph{right:5%}
+ .hero-caption{bottom:34px;left:12px;right:12px}.hero-caption .lead{font-size:clamp(.65rem,2.8vw,.9rem)}
+}
+</style><!--how-css:end--></head>
 <body>
   <nav class="nav"><a class="brand" href="/">Infernal Zeus</a><a class="back" href="/#projects"><span class="back-arrow">←</span>Projects</a></nav>
   <main>
     <header class="hero">
-      <div><h1>Agent Hub</h1><p class="lead">Your most powerful PC tools.<br>At your fingertips, any device.</p><div class="actions"><a class="button primary" href="#download">Download</a><a class="button" href="https://github.com/infernalzeus/Agent-Hub" target="_blank" rel="noopener">Source ↗</a></div></div>
-      <div class="hub-panel" aria-label="Interactive Agent Hub system preview"><canvas id="hub-grid" aria-hidden="true"></canvas><!--HERO-NODES--><a class="node missions" href="#machine" data-scene="1"><b>AUTONOMOUS LLM</b><span class="nd"><span><em>Dispatch · Worktrees · Review · Apply</em><i>OpenCode · Claude</i></span></span></a><a class="node pc" href="#machine" data-scene="2"><b>MCP CONTROL</b><span class="nd"><span><em>Speak · Learned routines · Approve</em><i>Windows MCP</i></span></span></a><a class="node media" href="#machine" data-scene="3"><b>MEDIA VAULT</b><span class="nd"><span><em>Download · Convert · Browse · Receive</em><i>yt-dlp · ffmpeg</i></span></span></a><a class="node graph" href="#machine" data-scene="4"><b>GIT GRAPH</b><span class="nd"><span><em>Repo status · Worktree diff</em><i>git</i></span></span></a><!--/HERO-NODES--><button class="hub-core" type="button" aria-label="Pulse the Agent Hub grid"><img class="hub-icon" src="assets/agent-hub-mark.png" width="70" height="70" alt="Agent Hub icon"><span>AGENT HUB</span></button></div>
+      <div class="hub-panel" aria-label="Interactive Agent Hub system preview"><canvas id="hub-grid" aria-hidden="true"></canvas><h1 class="hero-title">Agent Hub</h1><div class="hero-caption"><p class="lead">Your most powerful PC tools<br>at your fingertips, any device.</p><div class="actions"><a class="button primary" href="#download">Download</a><a class="button" href="https://github.com/infernalzeus/Agent-Hub" target="_blank" rel="noopener">Source ↗</a></div></div><!--HERO-NODES--><a class="node missions" href="#machine" data-scene="1"><b>AUTONOMOUS LLM</b><span class="nd"><span><em>Dispatch · Worktrees · Review · Apply</em><i>OpenCode · Claude</i></span></span></a><a class="node pc" href="#machine" data-scene="2"><b>MCP CONTROL</b><span class="nd"><span><em>Speak · Learned routines · Approve</em><i>Windows MCP</i></span></span></a><a class="node media" href="#machine" data-scene="3"><b>MEDIA VAULT</b><span class="nd"><span><em>Download · Convert · Browse · Receive</em><i>yt-dlp · ffmpeg</i></span></span></a><a class="node graph" href="#machine" data-scene="4"><b>GIT GRAPH</b><span class="nd"><span><em>Repo status · Worktree diff</em><i>git</i></span></span></a><!--/HERO-NODES--><button class="hub-core" type="button" aria-label="Pulse the Agent Hub grid"><img class="hub-icon" src="assets/agent-hub-mark.png" width="70" height="70" alt="Agent Hub icon"></button></div>
     </header>
     <!--HOW:START-->
 <section id="how">
