@@ -70,6 +70,29 @@ KNOWN = {
 }
 
 
+_PLACE_LEAD = __import__("re").compile(
+    r"^(?:(?:i|we)\s+(?:currently\s+|now\s+|still\s+)?(?:live|am|'?m|stay|reside)\s+(?:in|at|near|around)\s+"
+    r"|(?:i'?m|i am)\s+(?:from|in|at|near|based in)\s+"
+    r"|(?:it'?s|it is|that'?s|that is|the one in|somewhere in|near|around|in|at|to|as)\s+"
+    r"|my\s+(?:location|town|city|place)\s+(?:is|=|:)\s+)", __import__("re").I)
+
+
+def clean_place(text: str) -> str:
+    """A place name out of a sentence: "I currently live in Maidstone" -> "Maidstone".
+
+    Spoken answers arrive as sentences, and a whole sentence stored as a place is
+    how the weather lookup came to be searching for "I currently live in Meadstone".
+    """
+    t = str(text or "").strip().strip(" .!?,")
+    for _ in range(4):
+        n = _PLACE_LEAD.sub("", t).strip()
+        if n == t:
+            break
+        t = n
+    t = __import__("re").sub(r"\s+(?:please|thanks|thank you|now)$", "", t, flags=__import__("re").I)
+    return t.strip(" .!?,")
+
+
 def load() -> dict:
     try:
         data = json.loads(FILE.read_text(encoding="utf-8"))

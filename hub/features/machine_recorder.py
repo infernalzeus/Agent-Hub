@@ -134,6 +134,9 @@ class Session:
         self.last_event = time.time()
         self.window = ""
         self.stopped_by = ""
+        self.title = ""          # a name given by voice while it ran or after
+        self.app = ""            # what the person asked for, when TALK started this recording
+        self.then = ""
         self._lock = threading.Lock()
         self._run = True
         self._thread: threading.Thread | None = None
@@ -153,6 +156,13 @@ class Session:
 
     def _on_click(self, x: int, y: int, button: str) -> None:
         png, frac, title = _anchor_and_frac(x, y)
+        if png is None:                                   # a failed grab is retried once, not silently kept
+            time.sleep(0.05)
+            png, frac, title = _anchor_and_frac(x, y)
+        # The click that presses STOP is a click in the hub's own page. It is not part of what
+        # was being demonstrated, and a recording that ends by clicking the hub cannot replay.
+        if "agent hub" in (title or "").casefold():
+            return
         self.window = self.window or title
         self._add({
             "tool": "Click",
@@ -296,6 +306,15 @@ class Session:
         s._run = False
         return s
 
+    def label(self) -> str:
+        """A name worth keeping, from what was asked: "Apple Music: open the ADHD playlist"."""
+        if self.title:
+            return self.title
+        if not self.then:
+            return ""
+        from .pc_control import display_app_name
+        return (f"{display_app_name(self.app)}: " if self.app else "") + self.then.strip()
+
     @property
     def running(self) -> bool:
         """Answered by the thread, not by the flag: while it is alive the hooks
@@ -310,7 +329,8 @@ class Session:
                 "delay_ms": s["delay_ms"], "frac": s["frac"],
                 "has_anchor": bool(s.get("anchor_png")),
             } for s in self.steps]
-        return {"running": self.running, "window": self.window,
+        return {"running": self.running, "window": self.window, "label": self.label(), "named": bool(self.then),
+                
                 "seconds": int(time.time() - self.started),
                 "stopped_by": self.stopped_by, "steps": steps,
                 "max_seconds": MAX_SESSION_S}
@@ -354,7 +374,10 @@ async def api_state(request: web.Request) -> web.Response:
                               {"running": False, "steps": [], "seconds": 0})})
 
 
-def begin() -> dict:
+LAST_SAVED: dict = {}          # the routine saved most recently, so "call it ..." has something to rename
+
+
+def begin(app: str = "", then: str = "") -> dict:
     """Start a recording, and say what is now being recorded.
 
     Shared by the page and by TALK: being asked to learn something in the middle
@@ -369,6 +392,7 @@ def begin() -> dict:
             raise RuntimeError("a recording is already running")
         _forget_draft()
         _session = Session()
+        _session.app, _session.then = str(app or ""), str(then or "")
         _session.start()
     logger.info("recorder: started")
     return _session.view()
@@ -404,8 +428,10 @@ async def api_save(request: web.Request) -> web.Response:
     if s.running:
         raise web.HTTPConflict(text="stop the recording first")
     body = await request.json()
-    intent = str(body.get("intent") or "").strip()
-    title = str(body.get("title") or intent).strip()
+    from .pc_control import do_intent
+    keyed = do_intent(s.app, s.then) if (s.app and s.then) else ""
+    intent = str(body.get("intent") or "").strip() or keyed
+    title = str(body.get("title") or "").strip() or s.label() or intent
     profile = str(body.get("profile") or "balanced")
     drop = {int(i) for i in (body.get("drop") or [])}
     if not intent:
@@ -413,9 +439,18 @@ async def api_save(request: web.Request) -> web.Response:
     steps = [st for st in s.steps if st["ordinal"] not in drop]
     if not steps:
         raise web.HTTPBadRequest(text="every step was dropped — nothing to save")
+    # A recording asked for in words is keyed the way the words are looked up later, so
+    # "open the ADHD playlist" finds it. A name typed in the box keeps the typed name.
+    if keyed and (not body.get("intent") or str(body.get("intent")).strip() == title):
+        intent = keyed
     routine = MR.save_machine_routine(intent, title, s.window, profile, steps)
+    LAST_SAVED.clear()
+    LAST_SAVED.update(id=routine["id"], title=title, at=time.time())
     logger.info("recorder: saved %s (%d step(s))", intent, len(steps))
     _forget_draft()
+    global _session
+    with _guard:                       # saved: nothing is left waiting to be saved
+        _session = None
     # Recording teaches the hub something; it does not put a square on your home
     # screen. So the whole wiring for a tile that presses this routine is worked
     # out now and left in the proposals list, ready to install on one click.
@@ -435,7 +470,7 @@ async def api_save(request: web.Request) -> web.Response:
         })
     except Exception as exc:
         logger.info("recorder: could not offer %s as a tile: %s", intent, exc)
-    return web.json_response({"ok": True, "routine": routine, "proposal": proposal})
+    return web.json_response({"ok": True, "routine": routine, "proposal": proposal, "title": title})
 
 
 @routes.post("/api/pc/record/discard")

@@ -50,6 +50,7 @@ PROMOTE_AFTER = 2          # verified results before a candidate is trusted
 DISABLE_AFTER = 2          # failures in a row before it is set aside
 LOG_KEEP = 20
 PENDING_TTL = 300.0        # how long a question stays open
+INGEST_WAIT = 10.0         # reading a large app takes minutes; answer inside the turn, finish in the background
 AGENT_WAIT = 35.0          # voice.js gives one request 45 s; stay inside it
 AGENT_TIMEOUT = 240.0
 
@@ -266,6 +267,25 @@ def _place_offset(r: dict) -> "float | None":
         return None
 
 
+_SWAPS = (("ea", "ai"), ("ai", "ea"), ("ee", "ea"), ("ea", "ee"), ("ie", "ei"), ("ei", "ie"), ("oo", "ou"), ("ou", "oo"),
+          ("ay", "ai"), ("ai", "ay"), ("ade", "aid"), ("a", "e"), ("e", "a"), ("e", "i"), ("i", "e"), ("i", "y"), ("y", "i"), ("o", "ou"), ("c", "k"), ("k", "c"), ("ph", "f"))
+
+
+def _vowel_variants(name: str, limit: int = 8) -> "list[str]":
+    """Spellings a speech recogniser may have confused with this one, most likely first."""
+    n, out = name.strip(), []
+    low = n.lower()
+    for a, b in _SWAPS:
+        i = low.find(a)
+        while i != -1 and len(out) < limit * 3:
+            cand = n[:i] + b + n[i + len(a):]
+            cand = cand[:1].upper() + cand[1:]
+            if cand.lower() != low and cand not in out:
+                out.append(cand)
+            i = low.find(a, i + 1)
+    return out[:limit]
+
+
 def rank_places(found: "list[dict]", here: "float | None" = None) -> "list[dict]":
     """Order candidate places so the one most likely meant comes first.
 
@@ -315,6 +335,19 @@ async def _weather(inputs: dict, fetch, skip: int = 0) -> "tuple[str, dict]":
     found = list(geo.get("results") or [])
     if quals:
         found = [r for r in found if _qualifies(r, quals)]
+    guessed = ""
+    if not found:
+        # A speech recogniser swaps vowels ("Meadstone" for Maidstone). Try the usual swaps and say which one was taken.
+        for alt in _vowel_variants(name):
+            geo2 = await fetch("https://geocoding-api.open-meteo.com/v1/search?name="
+                               f"{quote(alt)}&count=10&language=en&format=json")
+            found = list(geo2.get("results") or [])
+            if quals:
+                found = [r for r in found if _qualifies(r, quals)]
+            if found and str(found[0].get("name", "")).lower() == alt.lower():
+                guessed = name
+                break
+            found = []
     if not found:
         raise ProcedureError(f"I could not find a place called {where!r}")
     ranked = rank_places(found)
@@ -323,6 +356,8 @@ async def _weather(inputs: dict, fetch, skip: int = 0) -> "tuple[str, dict]":
     options = [r for r in ranked if str(r.get("name", "")).lower() == first_name]
     pick = options[min(skip, len(options) - 1)]
     say = await _forecast(pick, inputs, fetch)
+    if guessed:
+        say = f"I couldn't find \"{guessed}\", so I took it as {pick.get('name')}. " + say
     others = [o for o in options if o is not pick]
     if others and not quals:
         say += f" That's the one in {pick.get('admin1') or pick.get('country')}; say \"not that one\" for another."
@@ -461,8 +496,14 @@ async def _run(routine: dict, text: str, fetch=None, override: "dict | None" = N
                quiet: bool = False) -> dict:
     from . import user_facts as F
     inputs: dict = {}
+    polluted = False
     for key in routine.get("needs") or []:
         v = (override or {}).get(key) or slot(routine, key, text) or F.get(key)
+        if v and key == "location":
+            cleaned = F.clean_place(v) or v
+            if cleaned != v and not (override or {}).get("location") and not slot(routine, key, text):
+                polluted = True                            # the stored value was a sentence, not a place
+            v = cleaned
         if not v:
             _open(kind="need", key=key, routine=routine["id"], text=text)
             return {"say": f"I need to know {F.KNOWN.get(key, {}).get('label', key)} for that. "
@@ -478,9 +519,14 @@ async def _run(routine: dict, text: str, fetch=None, override: "dict | None" = N
         else:
             say, resolved = await execute(routine, inputs, fetch)
     except ProcedureError as exc:
-        if not quiet:
+        if not quiet and "could not find a place" not in str(exc) and "no place was given" not in str(exc):
             record_failure(routine["id"], str(exc))
         return {"say": "", "failed": str(exc), "route": _route(2, routine["title"], routine["id"], text)}
+    if polluted and resolved and resolved.get("label"):
+        try:                                           # a remembered sentence that only worked after clean-up is stored clean
+            F.remember("location", resolved["label"], how="asked")
+        except Exception:
+            pass
     shown = {k: v for k, v in inputs.items() if k != "units"}
     record_success(routine["id"], {**shown, **({"resolved": resolved["label"]} if resolved else {})}, say)
     if resolved and resolved.get("options"):
@@ -563,6 +609,79 @@ def _pick(p: dict, text: str) -> "dict | None":
     return hits[0] if len(hits) == 1 else None
 
 
+async def find_place_in(text: str, fetch=None) -> "str | None":
+    """The town a sentence names: "I'm basically in Kent these days" -> "Kent".
+
+    Candidates are the phrases in the sentence, longest first; the first one a
+    geocoder knows is the place. A mis-heard vowel gets the usual swaps once.
+    """
+    from . import user_facts as F
+    fetch = fetch or fetch_json
+    cleaned = F.clean_place(text)
+    words = re.findall(r"[A-Za-z][A-Za-z'-]+", cleaned)
+    skip = {"i", "im", "i'm", "am", "in", "at", "the", "a", "an", "these", "days", "now", "basically", "currently",
+            "live", "living", "near", "around", "from", "my", "is", "location", "it", "its", "it's", "town", "city", "please",
+            "over", "there", "here", "somewhere", "about", "just", "still", "based", "up", "down", "out", "back"}
+    single = len(words) == 1
+    cands, seen = [], set()
+    for n in (3, 2, 1):
+        for i in range(0, len(words) - n + 1):
+            chunk = words[i:i + n]
+            if all(w.lower() in skip for w in chunk) or chunk[0].lower() in skip or chunk[-1].lower() in skip:
+                continue
+            c = " ".join(chunk)
+            # A place is written with a capital. Without that, "over" in "over in Maidstone" is a town (Over).
+            if not single and not chunk[0][:1].isupper():
+                continue
+            if c.lower() not in seen:
+                seen.add(c.lower())
+                cands.append(c)
+    for c in cands[:8]:
+        try:
+            geo = await fetch("https://geocoding-api.open-meteo.com/v1/search?name="
+                              f"{quote(c)}&count=3&language=en&format=json")
+        except Exception:
+            continue
+        for r in (geo.get("results") or []):
+            if str(r.get("name", "")).lower() == c.lower():
+                return str(r["name"])
+    if len(cands) == 1 or (cands and len(cands[-1].split()) == 1):
+        for alt in _vowel_variants(cands[-1] if cands else cleaned)[:6]:
+            try:
+                geo = await fetch("https://geocoding-api.open-meteo.com/v1/search?name="
+                                  f"{quote(alt)}&count=3&language=en&format=json")
+            except Exception:
+                continue
+            for r in (geo.get("results") or []):
+                if str(r.get("name", "")).lower() == alt.lower():
+                    return str(r["name"])
+    return None
+
+
+async def ingest_by_name(name: str) -> dict:
+    """Read an installed app's own files. A short answer: what it exposes, or why it cannot be read."""
+    from . import rea_inspect as REA
+    name = re.sub(r"^(?:the|an?)\s+|\s+(?:app|application)$", "", (name or "").strip(), flags=re.I).strip()
+    if not name:
+        return {"say": "Which app?", "route": _route(0, "know it")}
+    async def work():
+        return (await REA.ingest_installed(name))["summary"]
+    jid = uuid.uuid4().hex[:6]
+    task = asyncio.ensure_future(work())
+    _JOBS[jid] = {"question": f"reading {name}", "task": task, "started": time.time()}
+    _LAST_JOB[:] = [jid]
+    try:
+        said = await asyncio.wait_for(asyncio.shield(task), INGEST_WAIT)
+    except asyncio.TimeoutError:
+        return {"say": f"Still reading {name}. Ask me \"what did you find\" in a minute.",
+                "route": _route(1, "ingest", None, name)}
+    except ValueError as exc:
+        return {"say": str(exc) + ".", "route": _route(0, "know it")}
+    except RuntimeError as exc:
+        return {"say": f"I could not read it: {str(exc)[:120]}", "route": _route(0, "know it")}
+    return {"say": said, "route": _route(1, "ingest", None, name)}
+
+
 async def answer_pending(text: str, fetch=None) -> "dict | None":
     """The reply to a question the hub left open, if that is what this is."""
     live = _pending()
@@ -589,7 +708,24 @@ async def answer_pending(text: str, fetch=None) -> "dict | None":
         clear_pending()
         return None
     from . import user_facts as F
-    routine = get(p["routine"])
+    if p.get("kind") == "app":                       # an app was asked for and not named: the next words are the app
+        clear_pending()
+        then = p.get("then") or "ingest"
+        name = re.sub(r"^(?:the|an?)\s+|\s+(?:app|application)$", "", (text or "").strip(" .!?,"), flags=re.I).strip()
+        if then == "ingest":
+            return await ingest_by_name(name)
+        if then == "address":
+            return {"say": f"Opening {name}.", "action": ("open_address", {"name": name}), "route": _route(1, "open", None, name)}
+        return {"say": f"Opening {name}.", "action": ("pc_app", {"app": name, "request": text, "then": ""}),
+                "route": _route(1, "open", None, name)}
+    if p.get("kind") == "fact":                      # "which town?" was asked: the answer is the place
+        clear_pending()
+        place = await find_place_in(text) or F.clean_place(text)
+        if not place:
+            return {"say": "I didn't catch the town.", "route": _route(0, "know it")}
+        return {"say": f"Save {place} as your location?", "action": ("remember_fact", {"key": "location", "value": place}),
+                "route": _route(0, "know it")}
+    routine = get(p.get("routine"))
     if not routine:
         clear_pending()
         return None
@@ -601,6 +737,8 @@ async def answer_pending(text: str, fetch=None) -> "dict | None":
                 break
             value = trimmed
         value = value.strip(" .!?,")
+        if p["key"] == "location":
+            value = F.clean_place(value)
         if not value:
             return None
         clear_pending()
@@ -632,6 +770,13 @@ async def answer_pending(text: str, fetch=None) -> "dict | None":
 
 async def _after_failure(routine: dict, text: str, got: dict, allow_agent: bool = True) -> dict:
     """The procedure failed. Say so, and let an agent try - never a silent gap."""
+    failed = str(got.get("failed", ""))
+    if "could not find a place" in failed or "no place was given" in failed:
+        import re as _re
+        said = _re.search(r"called '(.+?)'", failed)
+        _open(kind="need", key="location", routine=routine["id"], text=text)
+        return {"say": (f"I couldn't find \"{said.group(1)}\". Which town?" if said else "Which town?"),
+                "route": got.get("route"), "asked": "location"}
     if allow_agent and (looks_like_lookup(text) or routine.get("intent")):
         out = await _answer_with_agent(text)
         out["say"] = f"My {routine['title'].lower()} routine failed ({got.get('failed', '')[:80]}). " + out["say"]

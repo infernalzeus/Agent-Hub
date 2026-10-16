@@ -20,7 +20,7 @@ PRIVATE = {'local_settings.py', 'locations.json', 'apps.json', 'onboarding.json'
            # not something to ship to everyone who installs a build.
            'theme.json', 'automations.json', 'automation_runs.json',
            'integration_tokens.json', 'skill_topics_user.json', 'pending_move.json',
-           'action_apps.json', 'proposals.json', 'user_facts.json', 'info_routines.json', 'decision_settings.json', 'commands_user.json', 'rea.json', 'models', 'utterance_decisions.jsonl', 'recording_draft.json'}
+           'action_apps.json', 'proposals.json', 'user_facts.json', 'info_routines.json', 'decision_settings.json', 'commands_user.json', 'rea.json', 'app_evidence', 'models', 'utterance_decisions.jsonl', 'recording_draft.json'}
 ROOT_FILES = ('app.py', 'favicon.png', 'favicon-64.png', 'favicon-256.png', 'favicon.ico', 'requirements-youtube.txt')
 
 

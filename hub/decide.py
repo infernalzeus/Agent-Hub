@@ -215,13 +215,18 @@ def _jev_read(q: dict, ans: Any) -> dict:
     return {**base, "note": "answer was not in the expected shape"}
 
 
-async def _jev_post(body: dict, key: str) -> dict:
+async def _post_systemone(url: str, body: dict, key: str = "", timeout: float = JEV_TIMEOUT) -> dict:
     import aiohttp
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=JEV_TIMEOUT)) as sess:
-        async with sess.post(JEV_URL, json=body, headers={"Authorization": f"Bearer {key}"}) as r:
+    headers = {"Authorization": f"Bearer {key}"} if key else {}
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as sess:
+        async with sess.post(url, json=body, headers=headers) as r:
             if r.status != 200:
-                raise RuntimeError(f"openrouter {r.status}: {(await r.text())[:120]}")
+                raise RuntimeError(f"{url.split('/')[2]} {r.status}: {(await r.text())[:120]}")
             return await r.json()
+
+
+async def _jev_post(body: dict, key: str) -> dict:
+    return await _post_systemone(JEV_URL, body, key)
 
 
 async def _decide_jev(state: dict, questions: list[dict], post: "Callable[[dict, str], Awaitable[dict]] | None" = None) -> list[dict]:
@@ -239,6 +244,62 @@ async def _decide_jev(state: dict, questions: list[dict], post: "Callable[[dict,
     return [_jev_read(q, answers.get(q["id"])) for q in questions]
 
 
+# ── backend 4: the same decision interface, answered by a model on this PC ──────────────────────────────────────────
+# Ollama 0.35+ serves POST /v1/systemone with open decision models (`nimble`, 9B; `tev`, 4B and 0.8B). The request
+# and answer shapes are the ones above, so it is the same code with a different address, no key, and nothing leaves
+# the machine. The model has to be pulled first (404 otherwise).
+LOCAL_SYSTEMONE_URL = "http://127.0.0.1:11434/v1/systemone"
+LOCAL_SYSTEMONE_MODEL = "tev1:4b"
+LOCAL_TIMEOUT = 40.0                     # a cold 9B model loading is most of this
+
+
+async def _decide_systemone(state: dict, questions: list[dict], model: str = LOCAL_SYSTEMONE_MODEL,
+                            post: "Callable[[dict, str], Awaitable[dict]] | None" = None,
+                            url: str = LOCAL_SYSTEMONE_URL) -> list[dict]:
+    def none(note: str) -> list[dict]:
+        return [{"id": q["id"], "answer": None, "p": 0.0, "dist": None, "backend": "systemone", "note": note}
+                for q in questions]
+    body = {"model": model, "state": json.dumps(state, ensure_ascii=False, default=str)[:60000],
+            "questions": _jev_questions(questions)}
+    try:
+        if post is not None:
+            got = await post(body, "")
+        else:
+            got = await _post_systemone(url, body, "", LOCAL_TIMEOUT)
+    except Exception as exc:
+        return none(f"unavailable: {str(exc)[:100]}")
+    answers = (got or {}).get("answers") or {}
+    out = []
+    for q in questions:
+        r = _jev_read(q, answers.get(q["id"]))
+        r["backend"] = "systemone"
+        out.append(r)
+    return out
+
+
+async def systemone_status(url: str = LOCAL_SYSTEMONE_URL, model: str = LOCAL_SYSTEMONE_MODEL) -> dict:
+    """Is a local decision model usable right now? Never starts Ollama; only looks."""
+    import aiohttp
+    base = url.split("/v1/")[0]
+    out = {"ollama": False, "version": None, "supported": False, "model": model, "model_present": False}
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=2)) as sess:
+            async with sess.get(base + "/api/version") as r:
+                out["version"] = (await r.json()).get("version")
+                out["ollama"] = True
+            try:
+                parts = [int(x) for x in str(out["version"]).split(".")[:2]]
+                out["supported"] = parts >= [0, 35]
+            except ValueError:
+                pass
+            async with sess.get(base + "/api/tags") as r:
+                names = [m.get("name", "") for m in (await r.json()).get("models", [])]
+                out["model_present"] = any(n == model or n.startswith(model + ":") for n in names)
+    except Exception:
+        pass
+    return out
+
+
 # ── the one entry point ──────────────────────────────────────────────────────────────────────────────────────────────
 async def decide(state: dict, questions: list[dict], *, backend: str = "rules", model: str = "ollama/nemotron-3-super:cloud",
                  chat: "ChatFn | None" = None) -> list[dict]:
@@ -248,6 +309,8 @@ async def decide(state: dict, questions: list[dict], *, backend: str = "rules", 
         return await _decide_local(state, questions, model, chat or _ollama_raw)
     if backend == "jev":
         return await _decide_jev(state, questions)
+    if backend == "systemone":
+        return await _decide_systemone(state, questions, model if not model.startswith("ollama/") else LOCAL_SYSTEMONE_MODEL)
     raise ValueError(f"unknown backend {backend!r}")
 
 

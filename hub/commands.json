@@ -40,6 +40,33 @@
       "[please] [start|make|create] [a] [new] (ask|mission) [to|for|about|that] {arg}"
     ]
   },
+  "rename_routine": {
+    "action": ["rename_routine", null],
+    "templates": [
+      "(call|name|rename) (it|that|the recording|the routine) [to|as] {arg}",
+      "(this|that|it) (is|was) called {arg}",
+      "(it's|its|it is) called {arg}"
+    ]
+  },
+  "open_address": {
+    "action": ["open_address", null],
+    "templates": [
+      "(open|launch|start) [the] {arg} (through|via|using|with) [its|it's|the|this|that] (address|link|url|uri|protocol)"
+    ]
+  },
+  "ingest_installed": {
+    "action": ["ingest_installed", null],
+    "templates": [
+      "(ingest|inspect|analyse|analyze|learn) [about] [the] {arg} [app|application]",
+      "(ingest|inspect|analyse|analyze) [the] installed app {arg}"
+    ]
+  },
+  "ingest_which": {
+    "action": ["ingest_installed", {"name": ""}],
+    "templates": [
+      "(ingest|inspect|analyse|analyze) [an|the|a] [app|application]"
+    ]
+  },
   "status": {
     "action": ["status", {}],
     "templates": [

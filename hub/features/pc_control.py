@@ -434,6 +434,120 @@ async def launch_app(app: str, request: str, then: str = "") -> dict:
     return {"ok": True, "say": said, "routine": tag}
 
 
+# ── routines learned from an app's own evidence ───────────────────────────────────────────────────────────────────
+# Ingesting an installed app (rea_inspect) finds the URL schemes Windows has registered to it. Each becomes a
+# routine here, so what was learned about the app is kept with the other routines and shows in the routines
+# list: it can be disabled or forgotten like any other. Running one first checks the address is still
+# registered to that app, so an app that has been removed is reported as removed, not "opened".
+
+def _open_uri(uri: str) -> None:
+    """Hand an address to the operating system, on whichever one this is."""
+    if hasattr(os, "startfile"):
+        os.startfile(uri)                                    # noqa: S606  - Windows
+        return
+    import subprocess
+    import sys
+    subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", uri],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def learn_address_routines(app: str, protocols: "list[dict]", sha: str = "") -> "list[dict]":
+    made = []
+    now = time.time()
+    with _db() as db:
+        for pr in protocols or []:
+            scheme = str(pr.get("scheme") or "").strip()
+            if not scheme:
+                continue
+            intent = f"open-address:{canonical_app_name(app)}:{scheme.casefold()}"
+            rid = hashlib.sha256(intent.encode()).hexdigest()[:16]
+            args = json.dumps({"mode": "address", "uri": f"{scheme}://"})
+            sig = json.dumps({"kind": "address", "app": canonical_app_name(app), "scheme": scheme, "sha256": sha})
+            row = db.execute("SELECT id FROM pc_routines WHERE intent=?", (intent,)).fetchone()
+            if row:
+                db.execute("UPDATE pc_routines SET args_json=?, signature_json=?, updated=? WHERE id=?",
+                           (args, sig, now, row["id"]))
+            else:
+                db.execute("INSERT INTO pc_routines(id,intent,title,tool,args_json,signature_json,status,successes,failures,created,updated,kind) "
+                           "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                           (rid, intent, f"Open {display_app_name(app)} by its address ({scheme}://)", "Uri", args, sig,
+                            "candidate", 0, 0, now, now, "mcp"))
+            made.append({"id": rid, "intent": intent, "uri": f"{scheme}://"})
+    return made
+
+
+def _address_routine(app: str) -> "dict | None":
+    want = canonical_app_name(app)
+    with _db() as db:
+        for r in db.execute("SELECT * FROM pc_routines WHERE tool='Uri' AND status!='disabled' ORDER BY successes DESC"):
+            try:
+                if json.loads(r["signature_json"]).get("app") == want:
+                    return dict(r)
+            except ValueError:
+                continue
+    return None
+
+
+async def open_address(app: str, request: str = "", tail: str = "") -> dict:
+    """Open an app through the address Windows has registered for it, and check a window came up.
+
+    A bare scheme ("antigravity://") is not an instruction: an app may treat it as "open
+    nothing" and quit, which is what Antigravity did. Without a path to go to, this opens
+    the app the ordinary way and says so.
+    """
+    routine = _address_routine(app)
+    name = display_app_name(app)
+    if not routine:
+        # Not read before. Windows already knows the app's address, so there is nothing to wait for:
+        # look it up, keep it as a routine, and carry on.
+        try:
+            from . import rea_inspect as REA
+            found = REA.discover_address(app)
+            if found:
+                routine = _address_routine(app)
+        except Exception as exc:
+            logger.info("pc_control: address discovery for %s failed: %s", app, exc)
+    if routine and not str(tail or "").strip():
+        got = await launch_app(app, request or f"open {name}")
+        if got.get("ok"):
+            got["say"] = f"Opened {name}. Its address needs a path to do more than that."
+        return got
+    if not routine:
+        return {"ok": False, "say": f"I haven't learned an address for {name}. Say \"ingest the {name} app\" first."}
+    sig = json.loads(routine["signature_json"])
+    uri = json.loads(routine["args_json"]).get("uri", "")
+    from . import rea_inspect as REA
+    ev = REA.saved_evidence(app) or {}
+    still = [p for p in REA.protocols_for(ev.get("path", "")) if p["scheme"].casefold() == str(sig.get("scheme", "")).casefold()] \
+        if ev.get("path") else []
+    if not still:
+        hint = ev.get("reinstall") or {}
+        how = f" I kept what I learned about it. To get it back: winget install {hint['winget']}." if hint.get("winget") else \
+              " I kept what I learned about it."
+        _record_run(request or f"open {name} by address", "routine", "failed", f"{sig.get('scheme')}:// is not registered", level="api")
+        _remember_outcome(routine["id"], False)
+        return {"ok": False, "say": f"{name} doesn't seem to be installed: Windows no longer routes {uri} to it.{how}"}
+    try:
+        _open_uri(uri + str(tail).lstrip("/"))               # the address, exactly as the OS registered it
+    except Exception as exc:
+        _record_run(request or f"open {name} by address", "routine", "failed", str(exc)[:200], level="api")
+        _remember_outcome(routine["id"], False)
+        return {"ok": False, "say": f"I tried {uri} but Windows refused: {str(exc)[:120]}"}
+    seen = False
+    for _ in range(12):                                      # up to about 6 s for a window to appear
+        await asyncio.sleep(0.5)
+        if await _window_for(name):
+            seen = True
+            break
+    if not seen:
+        _record_run(request or f"open {name} by address", "routine", "unverified", f"{uri} sent, no window seen", level="api")
+        return {"ok": False, "say": f"I sent {uri}, but I can't see {name}'s window, so I haven't counted that as done."}
+    updated = _remember_outcome(routine["id"], True)
+    _record_run(request or f"open {name} by address", "routine", "done", f"{uri} opened {name}", level="api")
+    return {"ok": True, "say": f"Opened {name} through {uri}.",
+            "routine": {"id": routine["id"], "status": updated["status"], "successes": updated["successes"], "tag": "ROUTINE"}}
+
+
 # ── reading the screen ───────────────────────────────────────────────────────────────────────────────────────────────
 # Windows MCP returns its accessibility tree as an indented tree, and every
 # assumption the first version of this parser made about that was wrong. The
@@ -855,6 +969,16 @@ async def api_run_routine(request: web.Request) -> web.Response:
         raise web.HTTPBadRequest(text=str(exc))
 
 
+def rename_routine(rid: str, title: str) -> bool:
+    """Change what a routine is called. The intent it is looked up by is unchanged, so it still runs."""
+    title = " ".join(str(title or "").split())[:80]
+    if not title:
+        return False
+    with _db() as db:
+        n = db.execute("UPDATE pc_routines SET title=?, updated=? WHERE id=?", (title, time.time(), rid)).rowcount
+    return bool(n)
+
+
 def forget_routine(rid: str) -> bool:
     """Remove a learned routine for good: its row, its steps, and its anchors.
 
@@ -1106,10 +1230,16 @@ def do_intent(app: str, then: str) -> str:
     return "do:" + canonical_app_name(app) + ":" + " ".join(sorted(content_words(then)))
 
 
-def _ask(say: str, action: str, args: dict, label: str) -> dict:
-    """An answer that ends in a question the caller can say yes to."""
-    return {"ok": True, "say": say, "confirm": True,
-            "action": {"id": action, "args": args, "label": label}}
+def _ask(say: str, action: str, args: dict, label: str, detail: str = "") -> dict:
+    """An answer that ends in a question the caller can say yes to.
+
+    `say` is what is spoken, and is short. `detail` is for reading in the log.
+    """
+    out = {"ok": True, "say": say, "confirm": True,
+           "action": {"id": action, "args": args, "label": label}}
+    if detail:
+        out["detail"] = detail
+    return out
 
 
 # ── did it actually do anything ───────────────────────────────────────────────────────────────────────────────────────
@@ -1174,6 +1304,12 @@ async def after(app: str, then: str, request: str, tree=None) -> dict:
     """
     name = display_app_name(app)
     taught = _routine(do_intent(app, then))
+    if taught and taught["tool"] == "surface" and taught["status"] != "disabled":
+        from . import machine_routines as MR
+        got = await MR.replay_machine_routine(taught, request=request)
+        if got.get("ok"):
+            return {"ok": True, "say": f"Done: {then}.", "routine": got.get("routine")}
+        return {"ok": False, "say": f"Opened {name}. {got.get('say') or 'The recording did not run.'}"}
     if taught and taught["tool"] == "ui" and _steps(taught["id"]):
         got = await replay_ui_routine(taught, request)
         if got.get("ok"):
@@ -1192,30 +1328,29 @@ async def after(app: str, then: str, request: str, tree=None) -> dict:
         t = got["target"]
         where = (f" inside “{got['container']['name']}”"
                  if got.get("container") else "")
-        return _ask(f"Opened {name}. I can see {t['control']} “{t['name']}”{where}. "
-                    f"Shall I press it? I will remember it, so next time this is one step.",
+        inside = f" in “{got['container']['name']}”" if got.get("container") else ""
+        return _ask(f"Press “{t['name']}”{inside}?",
                     "pc_do", {"app": app, "then": then, "request": request,
                               "name": t["name"], "control": t.get("control", ""),
                               "window": t.get("window", "")},
-                    f"Press “{t['name']}” in {name}")
+                    f"Press “{t['name']}” in {name}",
+                    detail=f"Opened {name}. I can see {t['control']} “{t['name']}”{where}.")
 
     if got.get("choices"):
         choices = ", ".join(f"“{c['name']}”" for c in got["choices"])
-        return _ask(f"Opened {name}. More than one thing matches that: {choices}. Which one?",
-                    "pc_pick", {"app": app, "then": then, "request": request},
-                    f"Choose what to press in {name}")
+        return _ask("Which one?", "pc_pick", {"app": app, "then": then, "request": request},
+                    f"Choose what to press in {name}", detail=f"More than one thing matches: {choices}.")
 
     if got.get("found"):
-        return _ask(f"Opened {name}. I can see “{got['found']['name']}” but nothing inside "
-                    f"it that I can press. Shall I record it while you do it once?",
-                    "pc_record", {"app": app, "then": then}, f"Record how to {then}")
+        return _ask(f"I can't {then} yet. Record it?", "pc_record", {"app": app, "then": then}, f"Record how to {then}",
+                    detail=f"I can see “{got['found']['name']}” but nothing inside it that I can press.")
 
     why = "nothing in its window is named that" if nodes else "I cannot read its window"
     seen = _visible_names(nodes)
     sees = f" I can see: {', '.join(seen)}." if seen else ""
-    return _ask(f"Opened {name}. I cannot {then} myself: {why}.{sees} Shall I record it while you do it "
-                f"once? After that I can do it on my own.",
-                "pc_record", {"app": app, "then": then}, f"Record how to {then}")
+    short = "I cannot read its window" if not nodes else f"I can't {then} yet"
+    return _ask(f"Opened {name}. {short}. Record it?", "pc_record", {"app": app, "then": then}, f"Record how to {then}",
+                detail=f"I cannot {then} myself: {why}.{sees}")
 
 
 def _visible_names(nodes: "list[dict]", limit: int = 6) -> "list[str]":

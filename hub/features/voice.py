@@ -59,6 +59,11 @@ ACTIONS = {
     "discard": {"desc": "DISCARD an ask and delete its working copy.", "args": "mission", "confirm": True},
     "pause": {"desc": "Pause one running ask, or every running ask when no mission is given.", "args": "mission (optional)", "confirm": True},
     "resume": {"desc": "Resume a paused or stopped ask.", "args": "mission", "confirm": True},
+    "remember_fact": {"desc": "The user states or corrects a fact about themselves: their location (a town), timezone, name or units. key is one of location, timezone, name, units; value is just the town / zone / name, not the sentence.", "args": "key, value", "confirm": True},
+    "start_mission": {"desc": "Start an autonomous mission: agents work on the user's request inside a copy of the named project and stop at a review. Only for real project work.", "args": "project, text", "confirm": True},
+    "rename_routine": {"desc": "Rename the routine that was just recorded and saved.", "args": "name", "confirm": False},
+    "open_address": {"desc": "Open an app the hub has ingested through the address Windows registered for it (for example obsidian://), checking a window appears.", "args": "name", "confirm": False},
+    "ingest_installed": {"desc": "Read an installed Electron app's own files (with REA) to see what it exposes; changes nothing and offers the result for review.", "args": "name", "confirm": False},
     "ingest_app": {"desc": "Ingest a web app from a git URL so the hub can run it (starts an ingest ask that waits for review).", "args": "url", "confirm": True},
     "pc_control": {"desc": "Switch PC control (Windows MCP: click, type, screenshots, apps, clipboard for OpenCode agents) on or off.", "args": "state: on|off", "confirm": False},
     "pc_direct": {"desc": "Carry out a bounded PC command directly: open Edge, YouTube, Google, or a web search. PC control must be on.", "args": "kind, value (optional)", "confirm": False},
@@ -151,8 +156,32 @@ def _clean(text: str) -> str:
     return re.sub(r"\s+", " ", t.replace("’", "'")).strip()
 
 
+_COMMAND_WORDS = ("ingest", "inspect", "analyse", "analyze", "record", "rename", "launch", "pause", "resume", "discard", "apply")
+_FILLER = re.compile(r"^(?:(?:hey|ok|okay|agent|hub|um|uh|so|please|can you|could you)\s+)+")
+
+
+def _forgive(t: str) -> str:
+    """Put a command word back when the recogniser got a letter or two wrong ("injust" -> "ingest").
+
+    Only the first two words, and only against the words commands actually start with: a
+    sentence is never rewritten, a mistyped verb is.
+    """
+    import difflib
+    t = _FILLER.sub("", t)
+    words = t.split()
+    for i in range(min(2, len(words))):
+        w = words[i]
+        if len(w) < 5 or w in _COMMAND_WORDS:
+            continue
+        best = [c for c in difflib.get_close_matches(w, _COMMAND_WORDS, n=1, cutoff=0.65) if c[0] == w[0] and abs(len(c) - len(w)) <= 2]
+        if best:
+            words[i] = best[0]
+            break
+    return " ".join(words)
+
+
 def match_rules(text: str) -> "tuple[dict, str, float] | None":
-    t = _clean(text)
+    t = _forgive(_clean(text))
     if not t:
         return None
     for c in [_BY_ID["new_ask"], _BY_ID["pause_all"]] + [x for x in COMMANDS if x["id"] not in ("new_ask", "pause_all")]:
@@ -291,7 +320,9 @@ def _label(aid: str, args: dict) -> str:
     on = f" for {m.project_name}" if m else ""
     return {"answer_defaults": "Answer with the defaults" + on, "run_plan": "Run the plan" + on, "apply": "Apply the work" + on, "discard": "Discard the ask" + on,
             "pause": "Pause " + (m.project_name if m else "every running ask"), "resume": "Resume" + on, "ingest_app": "Ingest " + str(args.get("url", ""))[:60],
-            "pc_control": "Switch PC control " + str(args.get("state", ""))}.get(aid, aid)
+            "pc_control": "Switch PC control " + str(args.get("state", "")),
+            "start_mission": "Start a mission on " + str(args.get("project", "")),
+            "remember_fact": "Save " + str(args.get("value", "")) + " as your " + str(args.get("key", "location"))}.get(aid, aid)
 
 
 async def run_action(aid: str, args: dict) -> dict:
@@ -406,16 +437,14 @@ async def run_action(aid: str, args: dict) -> dict:
                 return {"say": "A recording is already running — stop or discard it just below, "
                                "then ask me again."}
             try:
-                REC.begin()
+                REC.begin(str(args.get("app") or ""), str(args.get("then") or ""))
             except Exception as exc:
                 return {"say": f"I could not start recording: {str(exc)[:140]}."}
             then = str(args.get("then") or "it")
             # No url: sending someone to another page to find STOP and SAVE is
             # how this failed in practice. The recording strip appears in the
             # panel they are already in.
-            return {"say": f"Recording. Do it once — {then} — then press STOP, give it a "
-                           f"name and press SAVE, just below. I will keep it as a routine you can "
-                           f"wire in as a button."}
+            return {"say": "Recording. Press STOP when you're done."}
         if aid == "pc_direct":
             from . import mcp as MCP
             if str(args.get("state") or "").lower() == "on":
@@ -483,6 +512,59 @@ async def run_action(aid: str, args: dict) -> dict:
             if not m0:
                 return {"say": "I can't find that ask."}
             return {"say": "Opening it.", "url": "/missions?open=" + m0.id}
+        if aid == "remember_fact":
+            from . import user_facts as F
+            key = str(args.get("key") or "location").lower().replace(" ", "")
+            value = str(args.get("value") or "").strip()
+            if key == "location":
+                value = F.clean_place(value)
+            if key not in F.KNOWN or not value:
+                return {"say": "I didn't catch what to remember."}
+            try:
+                F.remember(key, value, how="told")
+            except ValueError as exc:
+                return {"say": str(exc)}
+            return {"say": f"Noted: your {key} is {value}."}
+        if aid == "start_mission":
+            project = await M._resolve_ref(str(args.get("project") or ""))
+            brief = str(args.get("text") or "").strip()
+            if not project or not brief:
+                return {"say": "I need a project and what to do in it."}
+            m = await M.dispatch(project, brief, "orchestrator", "orchestrator", autonomy="auto")
+            return {"say": f"Started. It will wait for your review.", "url": "/missions?open=" + m.id}
+        if aid == "rename_routine":
+            from . import machine_recorder as REC
+            from . import pc_control as PC
+            new = " ".join(str(args.get("name") or "").split())
+            last = REC.LAST_SAVED
+            if not new:
+                return {"say": "Call it what?"}
+            cur = REC.current()
+            if cur and (cur.running or not last.get("id")):         # still recording, or stopped and not yet saved
+                cur.title = new
+                return {"say": f"Calling it {new}."}
+            if not last.get("id") or not PC.rename_routine(last["id"], new):
+                return {"say": "There's no recording to rename."}
+            last["title"] = new
+            return {"say": f"Renamed to {new}."}
+        if aid == "open_address":
+            from . import pc_control as PC
+            name = str(args.get("name") or "").strip()
+            if not name:
+                return {"say": "Which app?"}
+            got = await PC.open_address(name, f"open {name} by its address")
+            return {"say": got["say"], **({"routine": got["routine"]} if got.get("routine") else {})}
+        if aid == "ingest_installed":
+            from . import converse as _C
+            name = str(args.get("name") or "").strip()
+            if name.casefold() in ("app", "apps", "application", "an app", "the app", "something", "it", "one", "an application"):
+                name = ""
+            if re.match(r"^(?:https?://|git@)|^[\w.-]+/[\w.-]+$", name):          # a git address: the other kind of ingest
+                return await run_action("ingest_app", {"url": name})
+            if not name:
+                _C._open(kind="app")
+                return {"say": "Which app?"}
+            return {"say": (await _C.ingest_by_name(name))["say"]}
         if aid == "ingest_app":
             url = str(args.get("url", "")).strip()
             if re.match(r"^[\w.-]+/[\w.-]+$", url):
@@ -562,7 +644,7 @@ def _schema() -> dict:
     return {"type": "object", "properties": {
         "say": {"type": "string"},
         "action": {"type": "string", "enum": ["none"] + list(ACTIONS)},
-        "page": {"type": "string"}, "mission": {"type": "string"}, "text": {"type": "string"}, "project": {"type": "string"}, "url": {"type": "string"}, "state": {"type": "string", "enum": ["on", "off"]}},
+        "page": {"type": "string"}, "mission": {"type": "string"}, "text": {"type": "string"}, "project": {"type": "string"}, "url": {"type": "string"}, "state": {"type": "string", "enum": ["on", "off"]}, "key": {"type": "string"}, "value": {"type": "string"}, "name": {"type": "string"}},
         "required": ["say", "action"]}
 
 
@@ -581,7 +663,7 @@ _LLM_WHY = ""           # "", "unavailable" (could not be reached or started), o
 
 def _routed(res: dict, heard: str) -> dict:
     """Wrap a router answer in the same shape every other reply has."""
-    out = _reply(str(res.get("say") or ""), None, "router", heard)
+    out = _reply(str(res.get("say") or ""), res.get("action"), "router", heard)
     out["route"] = res.get("route")
     return out
 
@@ -591,6 +673,9 @@ async def _llm(text: str, history: list, mission_id: "str | None") -> "dict | No
     _LLM_WHY = "empty"
     from . import missions as _M
     chain = [x for x in agent_knowledge.model_chain(None, None) if x.startswith("ollama/")]
+    # Conversation wants an answer in seconds. A model on this PC that is small enough to load quickly goes
+    # first; a cloud model (which waits on the network, and was the cause of "took too long") goes last.
+    chain.sort(key=lambda m: (":cloud" in m, "32k" not in m and "e4b" not in m and "e2b" not in m))
     if not chain:
         _LLM_WHY = "unavailable"
         return None
@@ -604,7 +689,7 @@ async def _llm(text: str, history: list, mission_id: "str | None") -> "dict | No
         body["model"] = mdl.split("/", 1)[1]
         try:
             try:
-                d = await DEC._ollama_raw(body)
+                d = await asyncio.wait_for(DEC._ollama_raw(body), 22)
             except Exception:
                 from . import missions as M
                 if not await M._ensure_ollama():
@@ -639,6 +724,10 @@ _NEEDS_FACT = (
 )
 _TELLING = re.compile(
     r"^(?:my |the )?(?P<key>location|timezone|time zone|name|units)\s*(?:is|=|:)\s*(?P<value>.+)$", re.I)
+_CORRECT = re.compile(
+    r"^(?:please\s+)?(?:(?:change|correct|update|set|fix|make|reset)\s+(?:my\s+|the\s+)?(?P<key>location|timezone|time zone|name|units)"
+    r"[,;:\s]*(?:(?:to|as|is|should be)\s+)?(?P<value>.+)"
+    r"|(?:i(?:'m| am)|we(?:'re| are)|i\s+(?:currently\s+|now\s+)?live)\s+(?:in|at|near|around|based in)\s+(?P<place>.+))$", re.I)
 _FORGET = re.compile(r"^forget (?:my |the )?(?P<key>[a-z ]{2,30})$", re.I)
 _WHAT_KNOWN = re.compile(r"^what do you know about me\b|^what have you remembered\b", re.I)
 
@@ -663,11 +752,25 @@ def _facts_reply(text: str) -> "dict | None":
                       f"I don't know your {m.group('key').strip()}, so there is nothing to forget.",
                       None, "rules", text)
 
+    mc = _CORRECT.match(t)
+    if mc:
+        key = (mc.group("key") or "location").lower().replace(" ", "")
+        value = (mc.group("value") or mc.group("place") or "").strip(" .")
+        if key == "location":
+            value = F.clean_place(value)
+        try:
+            F.remember(key, value, how="told")
+        except ValueError as exc:
+            return _reply(str(exc), None, "rules", text)
+        return _reply(f"Noted: your {key} is {value}.", None, "rules", text)
+
     m = _TELLING.match(t)
     if m:
         key = m.group("key").lower().replace(" ", "")
         key = {"timezone": "timezone"}.get(key, key)
         value = m.group("value").strip(" .")
+        if key == "location":
+            value = F.clean_place(value)
         try:
             F.remember(key, value, how="told")
         except ValueError as exc:
@@ -701,24 +804,134 @@ async def _settle_with_decision_model(text: str, heard: str) -> "dict | None":
     return None
 
 
+TURN_DEADLINE_S = 40          # one request, start to finish; the page's own ceiling is a little longer
+
+
+@routes.post("/api/voice/cancel")
+async def api_cancel(request: web.Request) -> web.Response:
+    """STOP: end any research the hub started for a question that has not been answered."""
+    from . import converse as CONV
+    n = 0
+    for j in list(CONV._JOBS.values()):
+        t = j.get("task")
+        if t is not None and not t.done():
+            t.cancel()
+            n += 1
+    return web.json_response({"stopped": n})
+
+
+_LAST_U: dict = {}          # what the decision model understood this turn, for the log
+
+
+async def _by_understanding(text: str, heard: str) -> "dict | None":
+    """Ask the local decision model what was meant, and act on it if it is sure. None = carry on with the rules."""
+    from . import converse as CONV
+    from . import pc_control as PC
+    from . import understand as UND
+    _LAST_U.clear()
+    u = await UND.understand(text, want_project=True)
+    if not u:
+        return None
+    _LAST_U.update(u)
+    it, app = u["intent"], u["app"]
+    if u["p_intent"] < UND.MIN_INTENT:
+        return None
+    if it in ("open_app", "open_by_address", "ingest_app"):
+        if not app:
+            CONV._open(kind="app", then={"open_app": "open", "open_by_address": "address", "ingest_app": "ingest"}[it])
+            return _reply("Which app?", None, "model", heard)
+        if it == "ingest_app":
+            return _reply(f"Reading {app}.", ("ingest_installed", {"name": app}), "model", heard)
+        if it == "open_by_address":
+            return _reply(f"Opening {app}.", ("open_address", {"name": app}), "model", heard)
+        task = PC.classify_request(text) or {}
+        return _reply(f"Opening {PC.display_app_name(app)}.",
+                      ("pc_app", {"app": app, "request": text, "then": (task.get("then") or "").strip()}), "model", heard)
+    if it == "ask_result":
+        got = CONV._follow_up()
+        return _routed(got, heard) if got else _reply("Nothing is running.", None, "model", heard)
+    if it == "tell_location":
+        place = await CONV.find_place_in(text)
+        if place:
+            return _reply(f"Save {place} as your location?", ("remember_fact", {"key": "location", "value": place}), "model", heard)
+        CONV._open(kind="fact")
+        return _reply("Which town?", None, "model", heard)
+    if it in ("weather", "time"):
+        got = await CONV.handle(text, allow_agent=False)
+        return _routed(got, heard) if got else None
+    if it == "start_project_work" and u.get("project"):
+        return _reply(f"Start a mission on {u['project']}?", ("start_mission", {"project": u["project"], "text": text}), "model", heard)
+    if it == "schedule_work":
+        out = _reply("I can't create automations by voice yet. I've opened the Automations page.", None, "model", heard)
+        out["url"] = "/automations"
+        return out
+    if it == "research":
+        return _routed(await CONV._answer_with_agent(text), heard)
+    if it == "name_recording":
+        m = re.search(r"(?:called|call it|name it)\s+(.+)$", text, re.I)
+        if m:
+            return _reply(f"Renaming it to {m.group(1).strip(' .!?')}.", ("rename_routine", {"name": m.group(1).strip(" .!?")}), "model", heard)
+    return None
+
+
 async def chat(text: str, history: "list | None" = None, mission_id: "str | None" = None, use_model: bool = True) -> dict:
     """One request in, one reply out - and a record of which bin it was put in and what ran."""
     from . import binning as BIN
+    _LAST_U.clear()
     try:
         decision = BIN.decide(text)
     except Exception:
         decision = {"bin": "conversation", "confidence": 0.0, "by": "rules", "why": "could not decide"}
-    out = await _chat(text, history, mission_id, use_model)
     try:
-        BIN.record(text, decision, {"action": (out.get("action") or {}).get("id"),
-                                    "backend": out.get("backend"), "said": str(out.get("say") or "")[:120]})
+        out = await asyncio.wait_for(_chat(text, history, mission_id, use_model), timeout=TURN_DEADLINE_S)
+    except asyncio.TimeoutError:
+        out = _reply("That's taking too long, so I stopped. Try again, or say it another way.", None, "rules", text)
+    try:
+        asked = ([{"backend": "tev", "answer": _LAST_U.get("intent"), "p": round(_LAST_U.get("p_intent", 0), 2),
+                   "ms": _LAST_U.get("ms", 0), "note": f"app={_LAST_U.get('app')}"}] if _LAST_U else [])
+        BIN.record(text, {**decision, "asked": asked}, {"action": (out.get("action") or {}).get("id"),
+                                                         "backend": out.get("backend"), "said": str(out.get("say") or "")[:120]})
     except Exception:
         pass
     return out
 
 
+async def _location_statement(text: str, heard: str) -> "dict | None":
+    """"I live in X" is a statement: confirm it. "Change my location to X" is an instruction: do it.
+
+    Either way the town is checked against a geocoder first, so a mis-heard "MadeStone" is kept
+    as Maidstone, and the person is told what was kept.
+    """
+    from . import converse as CONV
+    from . import user_facts as F
+    t = (text or "").strip()
+    mc = _CORRECT.match(t)
+    mt = _TELLING.match(t)
+    if mt and mt.group("key").lower().replace(" ", "") == "location":
+        raw, explicit = mt.group("value"), True
+    elif mc and ((mc.group("key") or "location").lower().replace(" ", "") == "location"):
+        raw, explicit = (mc.group("value") or mc.group("place") or ""), bool(mc.group("key"))
+    else:
+        return None
+    raw = F.clean_place(raw)
+    if not raw:
+        return None
+    place = await CONV.find_place_in(raw) or raw
+    heard_as = f" (you said {raw})" if place.lower() != raw.lower() else ""
+    if explicit:
+        try:
+            F.remember("location", place, how="told")
+        except ValueError as exc:
+            return _reply(str(exc), None, "rules", heard)
+        return _reply(f"Noted: your location is {place}{heard_as}.", None, "rules", heard)
+    return _reply(f"Save {place} as your location?{heard_as}", ("remember_fact", {"key": "location", "value": place}), "rules", heard)
+
+
 async def _chat(text: str, history: "list | None" = None, mission_id: "str | None" = None, use_model: bool = True) -> dict:
     heard = text
+    located = await _location_statement(text, heard)
+    if located:
+        return located
     known = _facts_reply(text)
     if known:
         return known
@@ -726,8 +939,14 @@ async def _chat(text: str, history: "list | None" = None, mission_id: "str | Non
     if hit:
         c, arg, _p = hit
         aid, args = c["action"]
-        args = {"text": arg} if aid == "new_ask" else dict(args or {})
-        say = {"status": status_line(), "pause": "Pause every running ask? Say yes to confirm."}.get(aid) or (f"Opening {args.get('page')}." if aid == "open_page" else f"Starting a new ask: {args.get('text')}.")
+        args = {"text": arg} if aid == "new_ask" else ({"name": (re.search(r"https?://\S+|git@\S+|\b[\w.-]+/[\w.-]+\b", text) or [arg])[0] if aid == "ingest_installed" and arg else arg}
+                if aid in ("ingest_installed", "open_address", "rename_routine") else dict(args or {}))
+        say = {"status": status_line(), "pause": "Pause every running ask? Say yes to confirm.",
+               "ingest_installed": f"Reading {args.get('name') or 'it'}.",
+               "open_address": f"Opening {args.get('name')} through its address.",
+               "rename_routine": f"Renaming it to {args.get('name')}.",
+               "start_mission": f"Start a mission on {args.get('project')}?",
+               "remember_fact": f"Save {args.get('value')} as your {args.get('key') or 'location'}?"}.get(aid) or (f"Opening {args.get('page')}." if aid == "open_page" else f"Starting a new ask: {args.get('text')}.")
         return _reply(say, (aid, args), "rules", heard)
     # The hub asked a question last turn ("where are you?"); a short reply is its
     # answer, not a new request. Rules above still win, so "cancel" and "open X"
@@ -756,6 +975,18 @@ async def _chat(text: str, history: "list | None" = None, mission_id: "str | Non
         return _reply("PC control is off. Switch on the wireframe PC button beside TALK, then I can directly open Edge, YouTube, Google, or a web search.", None, "rules", heard)
     from . import pc_control as PC
     task = PC.classify_request(text)
+    # The launcher is sure of an app it can place. When it is not - a name it cannot find, or no command
+    # at all - the decision model is asked what was meant, before anything is guessed at.
+    sure = False
+    if task and task["kind"] == "launch_app":
+        try:
+            sure = PC.resolve_app(task["app"], await PC.start_app_names())["status"] in ("exact", "likely")
+        except Exception:
+            sure = True
+    if use_model and not sure and not CONV.match(text) and not smalltalk(text, history or []):
+        understood = await _by_understanding(text, heard)
+        if understood:
+            return understood
     if task and task["kind"] == "launch_app":
         from . import mcp as MCP
         win = next((x for x in MCP.servers() if x["name"] == "windows"), None)
@@ -792,6 +1023,15 @@ async def _chat(text: str, history: "list | None" = None, mission_id: "str | Non
     routed = await CONV.handle(text, allow_agent=use_model)
     if routed:
         return _routed(routed, heard)
+    # Work on a named project is a mission. The decision is made from the words, not by a model.
+    try:
+        from . import binning as _B
+        first = _B.decide(text)
+        if first["bin"] == "mission_ask" and first.get("project") and not first.get("scheduled"):
+            return _reply(f"Start a mission on {first['project']}?",
+                          ("start_mission", {"project": first["project"], "text": text}), "rules", heard)
+    except Exception:
+        pass
     # The rules had nothing. Before an open model call, a decision model may say what kind of
     # request this is - only if it is switched on for that kind (see /decisions).
     if use_model:
@@ -805,7 +1045,7 @@ async def _chat(text: str, history: "list | None" = None, mission_id: "str | Non
             return _reply("That response took too long. Please try again, or use a simple command such as open missions.", None, "rules", heard)
         if got:
             j, aid = got, str(got.get("action") or "none")
-            args = {k: j[k] for k in ("page", "mission", "text", "project", "url", "state") if j.get(k)}
+            args = {k: j[k] for k in ("page", "mission", "text", "project", "url", "state", "key", "value", "name") if j.get(k)}
             if aid == "pc_control" and args.get("state") not in ("on", "off"):
                 return _reply("Would you like PC control switched on or off?", None, "model", heard)
             if aid in ("open_mission", "mission_info") and not args.get("mission") and mission_id:
@@ -910,7 +1150,17 @@ def _speech_hint() -> str:
         return ""
     head = " ".join(f"Open {n}." for n in ranked[:8])
     rest = ", ".join(ranked[8:])
-    return (head + (" " + rest + "." if rest else "") + " Agent Hub, missions, automations, the weather.")[:700]
+    extra = ["ingest", "record", "rename", "Agent Hub", "missions", "automations", "the weather"]
+    try:
+        from . import rea_inspect as REA
+        extra += [p.stem for p in sorted(REA.EVIDENCE.glob("*.json"))][:8]
+        from . import user_facts as F
+        loc = str(F.get("location") or "").split(",")[0].strip()
+        if loc:
+            extra.append(loc)
+    except Exception:
+        pass
+    return (head + (" " + rest + "." if rest else "") + " " + ", ".join(extra) + ".")[:700]
 
 
 def _transcribe_file(path: str, name: str, lang: "str | None", hint: str = "") -> str:

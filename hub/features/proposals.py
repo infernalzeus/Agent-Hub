@@ -37,6 +37,7 @@ KINDS = {
     "action_app": "a tile with actions on it",
     "automation": "an automation you can run or schedule",
     "routine": "a recorded routine, kept for reuse",
+    "app_evidence": "what an installed app exposes, read from its own files",
 }
 
 
@@ -119,6 +120,10 @@ async def accept(pid: str) -> dict:
         # A routine is already on disk once recorded; accepting it is agreeing it
         # may be used, which is what leaving the proposal list means.
         made = dict(wiring)
+    elif kind == "app_evidence":
+        # Nothing is installed: accepting says the evidence may be used when routines for
+        # this app are built, which is what leaving the list means.
+        made = {"app": wiring.get("app"), "accepted": True}
     elif kind == "app_ingest":
         # The work of bringing the app in is done and reviewed on the board;
         # accepting here is the same APPLY, from where you were already looking.

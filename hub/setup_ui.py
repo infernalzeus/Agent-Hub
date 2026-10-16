@@ -155,9 +155,9 @@ if(!SECTIONS.some(x => x.id === SEC)) SEC = '';
 let MCPS = [], HTTPS = null, ADDR = null, UPD = null, ROUTINES = null, RTAB = 'mcp';
 let KEYS = null, KEYMSG = {}, KEYOPEN = '', FOLD = {};
 let YTA = null, YTMSG = '', YTOPEN = false;
-let THEME = null, KNOWN = [], MOVE = null;
+let THEME = null, KNOWN = [], MOVE = null, ROUTE = null;
 let REC = null, RECDROP = {}, RECMSG = '', RECTIMER = null;
-async function load(){ try{ REC = await jget('/api/pc/record'); }catch(e){ REC = null; } try{ KEYS = await jget('/api/llm/keys'); }catch(e){ KEYS = null; } try{ ROUTINES = (await jget('/api/pc/routines')).routines || []; }catch(e){ ROUTINES = null; } try{ UPD = await jget('/api/update'); }catch(e){ UPD = null; } try{ ADDR = await jget('/api/hub-address'); }catch(e){ ADDR = null; } try{ MCPS = (await jget('/api/mcp')).servers; }catch(e){ MCPS = []; } try{ HTTPS = await jget('/api/phone-https'); }catch(e){ HTTPS = null; } try{ YTA = await jget('/api/youtube/accounts'); }catch(e){ YTA = null; } try{ THEME = await jget('/api/theme'); }catch(e){ THEME = null; } try{ KNOWN = await jget('/api/locations/known'); }catch(e){ KNOWN = []; } try{ MOVE = await jget('/api/install-move'); }catch(e){ MOVE = null; } DATA = await jget('/api/locations'); CUR = {}; ERR = {}; DATA.items.forEach(i => CUR[i.key] = JSON.parse(JSON.stringify(i.value))); render(); }
+async function load(){ try{ REC = await jget('/api/pc/record'); }catch(e){ REC = null; } try{ KEYS = await jget('/api/llm/keys'); }catch(e){ KEYS = null; } try{ ROUTINES = (await jget('/api/pc/routines')).routines || []; }catch(e){ ROUTINES = null; } try{ UPD = await jget('/api/update'); }catch(e){ UPD = null; } try{ ADDR = await jget('/api/hub-address'); }catch(e){ ADDR = null; } try{ MCPS = (await jget('/api/mcp')).servers; }catch(e){ MCPS = []; } try{ HTTPS = await jget('/api/phone-https'); }catch(e){ HTTPS = null; } try{ YTA = await jget('/api/youtube/accounts'); }catch(e){ YTA = null; } try{ THEME = await jget('/api/theme'); }catch(e){ THEME = null; } try{ KNOWN = await jget('/api/locations/known'); }catch(e){ KNOWN = []; } try{ MOVE = await jget('/api/install-move'); }catch(e){ MOVE = null; } try{ ROUTE = await jget('/api/decisions/settings'); }catch(e){ ROUTE = null; } DATA = await jget('/api/locations'); CUR = {}; ERR = {}; DATA.items.forEach(i => CUR[i.key] = JSON.parse(JSON.stringify(i.value))); render(); }
 const chip = (s) => s ? `<span class="chip ${esc(s.level)}">${esc(s.msg)}</span>` : '';
 
 function updateCard(){
@@ -222,7 +222,7 @@ function render(){
     body += `<h2>${cur.group}</h2>` + (cur.group === 'PROJECTS'
       ? projectBoxes(items) : items.map(itemHtml).join(''));
   }
-  if(cur.id === 'missions') body += providersCard();
+  if(cur.id === 'missions') body += providersCard() + routingCard();
   if(cur.id === 'tools') body += ytCard() + extraTools();
   if(cur.id === 'appearance') body += themeCard();
 
@@ -278,6 +278,15 @@ function render(){
     const f = $('key-'+KEYOPEN); if(f) f.focus();
   });
   document.querySelectorAll('[data-rtab]').forEach(b => b.onclick = () => { RTAB = b.dataset.rtab; render(); });
+  const saveRouting = async () => {
+    const types = {}; document.querySelectorAll('[data-rtype]').forEach(x => types[x.dataset.rtype] = x.checked);
+    const lo = $('rt-local'), je = $('rt-jev');
+    try{ ROUTE = await jsend('POST', '/api/decisions/settings', {local: {enabled: !!(lo && lo.checked)}, jev: {enabled: !!(je && je.checked), types}});
+         ROUTE = await jget('/api/decisions/settings'); render(); }
+    catch(e){ toast(String(e.message||e), 'err'); }
+  };
+  ['rt-local', 'rt-jev'].forEach(id => { const x = $(id); if(x) x.onchange = saveRouting; });
+  document.querySelectorAll('[data-rtype]').forEach(x => x.onchange = saveRouting);
   document.querySelectorAll('[data-keysave]').forEach(b => b.onclick = async () => {
     const id = b.dataset.keysave, box = $('key-'+id), key = (box.value||'').trim();
     if(!key){ KEYMSG[id] = 'Paste a key first.'; render(); return; }
@@ -685,6 +694,28 @@ function themeCard(){
          <div class="sws">${swatches}</div>
          <div class="row"><button class="btn" id="th-reset">RESET</button></div></div>`;
   return fold('appearance', 'Theme', `<span class="chip ok">${esc((THEME.themes.find(t=>t.name===cur)||{}).label||cur)}</span>`, body, true);
+}
+
+function routingCard(){
+  if(!ROUTE) return '';
+  const L = ROUTE.local || {}, J = ROUTE.jev || {}, ls = ROUTE.local_status || {}, T = ROUTE.types || {};
+  let note;
+  if(!ls.ollama) note = 'Ollama is not running right now; it is started when a request needs it.';
+  else if(!ls.supported) note = 'Ollama ' + esc(ls.version) + ' is too old for this. Version 0.35 or later is needed.';
+  else if(!ls.model_present) note = 'Pull the model once: <code>ollama pull ' + esc(L.model) + '</code>';
+  else note = 'Ready: ' + esc(L.model) + ' on Ollama ' + esc(ls.version) + '.';
+  const types = Object.keys(T).map(k =>
+    `<label class="trow"><input type="checkbox" data-rtype="${esc(k)}" ${J.types && J.types[k] ? 'checked' : ''}>`
+    + `<b>${esc(T[k].label)}</b><span class="lp">otherwise: ${esc(T[k].goes_to)}</span></label>`).join('');
+  const body = `<div class="lp">When the rules cannot tell what a request is, a small decision model can choose. `
+    + `It only picks where the request goes; it never answers it.</div>`
+    + `<label class="trow"><input type="checkbox" id="rt-local" ${L.enabled ? 'checked' : ''}><b>Use a model on this PC</b>`
+    + `<span class="lp">${note}</span></label>`
+    + `<label class="trow"><input type="checkbox" id="rt-jev" ${J.enabled ? 'checked' : ''} ${ROUTE.key_present ? '' : 'disabled'}>`
+    + `<b>Use Jev (hosted)</b><span class="lp">${ROUTE.key_present ? 'The sentence is sent to OpenRouter.' : 'Needs an OpenRouter key under LLM keys.'}</span></label>`
+    + `<div class="lp" style="margin-top:8px">For these kinds of request:</div>${types}`;
+  const on = (L.enabled || J.enabled);
+  return fold('routing', 'Request routing', `<span class="chip ${on ? 'ok' : ''}">${on ? 'ON' : 'OFF'}</span>`, body, false);
 }
 
 function ytCard(){

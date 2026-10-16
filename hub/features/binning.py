@@ -79,10 +79,14 @@ TYPES = {
 
 def settings() -> dict:
     """{"jev": {"enabled": bool, "types": {type: bool}}}. Everything off until you turn it on."""
-    base = {"jev": {"enabled": False, "types": {k: False for k in TYPES}}}
+    base = {"jev": {"enabled": False, "types": {k: False for k in TYPES}},
+            "local": {"enabled": False, "model": "tev1:4b"}}
     try:
         got = json.loads(SETTINGS.read_text(encoding="utf-8"))
         j = got.get("jev") or {}
+        loc = got.get("local") or {}
+        base["local"]["enabled"] = bool(loc.get("enabled"))
+        base["local"]["model"] = str(loc.get("model") or "tev1:4b")[:60]
         base["jev"]["enabled"] = bool(j.get("enabled"))
         for k in TYPES:
             base["jev"]["types"][k] = bool((j.get("types") or {}).get(k))
@@ -94,6 +98,11 @@ def settings() -> dict:
 def save_settings(new: dict) -> dict:
     cur = settings()
     j = (new or {}).get("jev") or {}
+    loc = (new or {}).get("local") or {}
+    if "enabled" in loc:
+        cur["local"]["enabled"] = bool(loc["enabled"])
+    if loc.get("model"):
+        cur["local"]["model"] = str(loc["model"])[:60]
     if "enabled" in j:
         cur["jev"]["enabled"] = bool(j["enabled"])
     for k, v in (j.get("types") or {}).items():
@@ -111,9 +120,17 @@ def type_of(bin_: str) -> str:
     return ""
 
 
+def _type_on(decision: dict) -> bool:
+    return bool(settings()["jev"]["types"].get(type_of(decision.get("bin", "")), False))
+
+
 def jev_allowed(decision: dict) -> bool:
-    s = settings()["jev"]
-    return bool(s["enabled"] and s["types"].get(type_of(decision.get("bin", "")), False))
+    return bool(settings()["jev"]["enabled"] and _type_on(decision))
+
+
+def local_allowed(decision: dict) -> bool:
+    """The same decision, answered by a model on this PC. Shares the per-type switches with Jev."""
+    return bool(settings()["local"]["enabled"])
 
 
 _BIN_DESC = {
@@ -237,6 +254,16 @@ def decide(text: str, *, have_question_open: bool = False) -> dict:
     return _d("conversation", 0.5 if len(t.split()) > 2 else 0.4, "nothing more specific fits")
 
 
+async def _ensure_local_model() -> None:
+    """Start Ollama if it is not up (it is stopped again when idle), as the chat model path does."""
+    try:
+        from . import missions as M
+        await M._ensure_ollama()
+        M.touch_ollama()
+    except Exception as exc:
+        logger.info("binning: could not start Ollama: %s", exc)
+
+
 async def refine(decision: dict, text: str, post=None) -> dict:
     """Ask a decision model about a case the rules were unsure of.
 
@@ -248,26 +275,36 @@ async def refine(decision: dict, text: str, post=None) -> dict:
     if decision["confidence"] >= SURE:
         return decision
     backends = []
+    if local_allowed(decision):
+        backends.append("systemone")                # on this PC first: nothing leaves the machine
     if jev_allowed(decision):
         backends.append("jev")
     if os.environ.get("HUB_BIN_BACKEND", "rules").lower() == "local":
         backends.append("local")
+    asked = []
     for backend in backends:
+        t0 = time.time()
         try:
             from .. import decide as DEC
             q = DEC.q_choice("bin", "Which kind of request is this?", list(BINS), _BIN_DESC)
             if backend == "jev":
                 got = await DEC._decide_jev({"utterance": text}, [q], post)
+            elif backend == "systemone":
+                if post is None:
+                    await _ensure_local_model()
+                got = await DEC._decide_systemone({"utterance": text}, [q], settings()["local"]["model"], post)
             else:
                 got = await DEC.decide({"utterance": text}, [q], backend=backend)
         except Exception as exc:
             logger.info("binning: %s backend unavailable: %s", backend, exc)
             continue
         r = (got or [{}])[0]
+        asked.append({"backend": backend, "answer": r.get("answer"), "p": round(float(r.get("p") or 0), 2),
+                      "ms": int((time.time() - t0) * 1000), "note": str(r.get("note") or "")[:80]})
         if r.get("answer") in BINS and float(r.get("p") or 0) >= 0.8:
-            return {**decision, "bin": r["answer"], "confidence": round(float(r["p"]), 2), "by": backend,
+            return {**decision, "bin": r["answer"], "confidence": round(float(r["p"]), 2), "by": backend, "asked": asked,
                     "why": f"{backend} chose it from a case the rules were unsure of (was {decision['bin']})"}
-    return decision
+    return {**decision, "asked": asked} if asked else decision
 
 
 def record(text: str, decision: dict, outcome: dict) -> None:
@@ -275,7 +312,7 @@ def record(text: str, decision: dict, outcome: dict) -> None:
     try:
         LOG.parent.mkdir(parents=True, exist_ok=True)
         row = {"at": round(time.time(), 1), "text": (text or "")[:300], **{k: decision.get(k) for k in
-               ("bin", "confidence", "by", "why")}, **outcome}
+               ("bin", "confidence", "by", "why", "asked")}, **outcome}
         with LOG.open("a", encoding="utf-8") as f:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
     except Exception as exc:
@@ -328,6 +365,7 @@ async def api_settings(request: web.Request) -> web.Response:
     from .. import decide as DEC
     return web.json_response({**settings(), "types": {k: {"label": v[0], "goes_to": v[2]} for k, v in TYPES.items()},
                               "key_present": bool(DEC._openrouter_key()),
+                              "local_status": await DEC.systemone_status(model=settings()["local"]["model"]),
                               "note": "Jev is reached through OpenRouter. The sentence is sent to it only for the request "
                                       "types switched on here."})
 
@@ -339,11 +377,6 @@ async def api_save_settings(request: web.Request) -> web.Response:
     except Exception:
         b = {}
     return web.json_response(save_settings(b if isinstance(b, dict) else {}))
-
-
-@routes.get("/decisions")
-async def page(request: web.Request) -> web.Response:
-    return web.Response(text=PAGE, content_type="text/html")
 
 
 @routes.post("/api/decisions/classify")
@@ -358,53 +391,3 @@ async def api_classify(request: web.Request) -> web.Response:
         raise web.HTTPBadRequest(text="no text")
     return web.json_response(await refine(decide(text), text, None))
 
-
-PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>AGENT HUB - Decisions</title>
-<link rel="icon" href="/favicon.png">
-<style>
-:root{--bg:#070a25;--panel:#0d1247;--ink:#e8fff1;--muted:#a8cbb9;--accent:#00e676;--amber:#e0a53c;--dim:rgba(0,230,118,.18)}
-*{box-sizing:border-box}body{margin:0;background:linear-gradient(145deg,#070a25,#10124e);color:var(--ink);font:14px/1.5 system-ui,sans-serif}
-main{max-width:960px;margin:auto;padding:18px 16px 80px}h1{font:700 14px monospace;letter-spacing:2px;color:var(--accent)}
-h2{font:700 11px monospace;letter-spacing:2px;color:var(--muted);margin:24px 0 8px}
-.card{background:var(--panel);border:1px solid var(--dim);border-radius:10px;padding:12px;margin-bottom:10px}
-label{display:flex;gap:10px;align-items:flex-start;padding:6px 0;cursor:pointer}small{color:var(--muted)}
-table{width:100%;border-collapse:collapse}td,th{padding:6px 8px;border-bottom:1px solid var(--dim);text-align:left;vertical-align:top}
-th{font:600 11px monospace;color:var(--muted)}.scroll{overflow-x:auto}.warn{color:var(--amber)}
-</style></head><body><main>
-<a href="/" style="color:var(--muted)">&larr; hub</a>
-<h1>DECISIONS</h1>
-<p><small>Every request is put in a bin by rules first. Where the rules are unsure, a decision model may settle it. Nothing
-is sent anywhere unless a switch below is on.</small></p>
-<h2>JEV (VIA OPENROUTER)</h2>
-<div class="card" id="jev"><small>loading...</small></div>
-<h2>TURN DETECTION (LOCAL)</h2>
-<div class="card" id="turn"><small>loading...</small></div>
-<h2>RECENT REQUESTS</h2>
-<div class="card scroll"><table><thead><tr><th>Said</th><th>Bin</th><th>By</th><th>Why</th><th>Ran</th></tr></thead><tbody id="rows"></tbody></table></div>
-<p id="agree"><small></small></p>
-</main><script>
-const $=(i)=>document.getElementById(i);
-const esc=(s)=>String(s==null?'':s).replace(/[&<>"]/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-async function load(){
-  const s=await (await fetch('/api/decisions/settings')).json();
-  const t=s.types, j=s.jev;
-  $('jev').innerHTML=(s.key_present?'':'<p class="warn">No OpenRouter key is stored, so Jev cannot answer yet. Add one under LLM keys.</p>')
-   +'<label><input type="checkbox" id="jen" '+(j.enabled?'checked':'')+'><span><b>Use Jev</b><br><small>'+esc(s.note)+'</small></span></label>'
-   +Object.keys(t).map((k)=>'<label style="margin-left:26px"><input type="checkbox" data-t="'+k+'" '+(j.types[k]?'checked':'')+'><span>'+esc(t[k].label)+'<br><small>otherwise: '+esc(t[k].goes_to)+'</small></span></label>').join('');
-  document.querySelectorAll('#jev input').forEach((el)=>el.onchange=save);
-  const tn=await (await fetch('/api/voice/turn/status')).json();
-  $('turn').innerHTML=tn.ready?'<b>Installed.</b> <small>Silero VAD and Smart Turn run on this PC. They only make the hub wait for the rest of a sentence, or ignore noise.</small>'
-    :'<p>'+(tn.runtime?'':'onnxruntime is not installed on this hub. ')+'Downloads '+tn.download_mb+' MB once: Silero VAD (about 2 MB, MIT) and Smart Turn v3.2 (about 8 MB, BSD-2).</p><button id="tinst" style="padding:7px 12px">DOWNLOAD</button> <small id="tmsg"></small>';
-  if($('tinst'))$('tinst').onclick=async()=>{$('tmsg').textContent='downloading...';try{const r=await fetch('/api/voice/turn/install',{method:'POST'});$('tmsg').textContent=r.ok?'done':'failed: '+(await r.text());}catch(e){$('tmsg').textContent='failed';}load();};
-  const r=await (await fetch('/api/decisions/utterances?limit=40')).json();
-  $('rows').innerHTML=r.decisions.map((d)=>'<tr><td>'+esc(d.text)+'</td><td>'+esc(d.bin)+'</td><td>'+esc(d.by)+'</td><td>'+esc(d.why)+'</td><td>'+esc(d.action||d.backend)+'</td></tr>').join('')||'<tr><td colspan="5"><small>Nothing yet.</small></td></tr>';
-  $('agree').firstChild.textContent='Bin matched what ran: '+(r.agreement.rate==null?'no data yet':Math.round(r.agreement.rate*100)+'% of '+r.agreement.decisions);
-}
-async function save(){
-  const types={};document.querySelectorAll('#jev input[data-t]').forEach((el)=>types[el.dataset.t]=el.checked);
-  await fetch('/api/decisions/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jev:{enabled:$('jen').checked,types}})});
-  load();
-}
-load();
-</script></body></html>"""

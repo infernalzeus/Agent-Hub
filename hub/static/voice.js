@@ -47,7 +47,10 @@
     showBtns(false); hint(''); saveSession(); layout(); ready();
   }
   function orb(state) { const c = document.querySelector('#voice canvas'); if (c && c._orb) c._orb.set(state); }
-  function setState(orbState, text) { orb(orbState); $('v-state').textContent = text; }
+  function setState(orbState, text) {
+    orb(orbState); $('v-state').textContent = text;
+    const st = $('v-stop'); if (st) st.hidden = !(S.busy || S.speaking || /Thinking|Recognising|Doing|Speaking|Working/.test(text));
+  }
   const talkBtns = () => document.querySelectorAll('[data-talk]');
   function paintOn() { talkBtns().forEach((b) => b.classList.toggle('on', S.on)); $('v-mic').textContent = S.on ? 'STOP LISTENING' : 'START LISTENING'; $('v-mic').classList.toggle('stop', S.on); $('v-mic').classList.toggle('go', !S.on); }
   function showBtns(confirm) { $('v-yes').hidden = !confirm; $('v-no').hidden = !confirm; }
@@ -99,10 +102,26 @@
           if (!S.actx) throw e1;                                                     // the element was refused: decode and play through the unlocked AudioContext
           await S.actx.resume(); const buf = await S.actx.decodeAudioData(ab.slice(0)); if (done) return; node = S.actx.createBufferSource(); node.buffer = buf; node.connect(S.actx.destination); node.onended = fin; node.start();
         }
-      } catch (e) { if (!done) { await speakBrowser(text); fin(); hint('If you hear nothing on a phone: check it is not on silent, and tap SOUND ON once.'); } }
+      } catch (e) { if (!done) { hint('The hub voice service did not answer, so this is the browser voice. Updating edge-tts on the hub PC usually fixes it.'); await speakBrowser(text); fin(); } }
       finally { if (done) clearTimeout(deadline); }
     });
   }
+
+  // Words the hub itself just said, heard back through the speakers. Drops any sentence of the transcript
+  // that is mostly the hub's last reply, so only what the person said is left.
+  function dropEcho(text, said) {
+    if (!said) return text;
+    const stem = (w) => w.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 4);
+    const sw = new Set(said.split(/\s+/).map(stem).filter(Boolean));
+    const keep = String(text).split(/(?<=[.!?])\s+/).filter((sent) => {
+      const ws = sent.split(/\s+/).map(stem).filter(Boolean);
+      if (!ws.length) return false;
+      const inside = ws.filter((w) => sw.has(w)).length;
+      return !(ws.length >= 2 && inside / ws.length >= 0.7);
+    });
+    return keep.join(' ').trim();
+  }
+  window.HubVoiceEcho = { drop: dropEcho };
 
   // ---- microphone
   async function ensureStream() {
@@ -182,13 +201,16 @@
     const turn = S.turn, spokeAt = performance.now();
     S.speaking = true; setState('composing', 'Speaking…');
     let rec = null, barged = false;
-    if (S.on && S.stream) { try { rec = makeRec(); } catch (e) { rec = null; } }       // talk-over is always on
+    // No listening while speaking: through speakers the microphone only hears the hub's own voice, which
+    // came back as the person's next request. STOP, typing and YES / NO interrupt instead.
+    S.lastSaid = text;
     if (rec) {
       let hi = 0, last = performance.now();
-      const watch = () => { if (turn !== S.turn || !S.on || !S.speaking || barged) return; const now = performance.now(); hi = rms() > 0.07 ? hi + (now - last) : 0; last = now; if (hi > 350) { barged = true; if (S.stop) S.stop(); return; } requestAnimationFrame(watch); };
+      const watch = () => { if (turn !== S.turn || !S.on || !S.speaking || barged) return; const now = performance.now(); const q = !!S.pending; hi = rms() > (q ? 0.04 : 0.07) ? hi + (now - last) : 0; last = now; if (hi > (q ? 160 : 350)) { barged = true; if (S.stop) S.stop(); return; } requestAnimationFrame(watch); };
       watch();
     }
     await play(text);
+    S.lastSpokenEnd = Date.now();
     if (barged && performance.now() - spokeAt < 1500) hint('That reply was cut off almost at once: the mic heard noise and took it for you talking. If it keeps happening, use headphones or lower the volume.');
     if (turn !== S.turn) { if (rec) await rec.stop(); return; }
     S.speaking = false;
@@ -226,6 +248,7 @@
       setState('working', 'Recognising…');
       let text = ''; try { text = await transcribeWhole(blob, capture, listen); } catch (e) { if (capture === S.capture && S.on) { setState('breathing', 'Recognition failed'); hint('Please try again, or type your request.'); await new Promise((r) => setTimeout(r, 1500)); } continue; }
       if (!S.on || listen !== S.listen || capture !== S.capture) continue;
+      if (Date.now() - (S.lastSpokenEnd || 0) < 4000) text = dropEcho(text, S.lastSaid);
       if (text.replace(/[^\w]/g, '').length < 2) continue;
       hint(''); await handle(text);
     }
@@ -270,7 +293,7 @@
     setState('working', 'Doing it…');
     const j = await request('/api/voice/act', { id: r.action.id, args: r.action.args });
     if (turn !== S.turn) return;
-    log('hub', j.say, j.routine && j.routine.tag); recPaint();
+    log('hub', j.say, j.routine && j.routine.tag); if (j.detail) log('hub', j.detail); recPaint();
     // The question's YES / NO appear before the sentence is spoken, not after: a long
     // spoken answer used to leave the person with a question and nothing to press.
     if (j.action && j.confirm) { S.pending = j; showBtns(true); setState('breathing', 'Waiting for your yes'); }
@@ -345,10 +368,18 @@
     $('v-size').onclick = () => { S.compact = !S.compact; layout(); };
     $('v-history').onclick = () => { S.expanded = !S.expanded; layout(); };
     $('v-new').onclick = fresh;
+    $('v-stop').onclick = () => { cancelTurn(); S.pending = null; showBtns(false); fetch('/api/voice/cancel', { method: 'POST' }).catch(() => {}); log('hub', 'Stopped.'); ready(); };
     $('v-cancel').onclick = () => { cancelTurn(); S.pending = null; showBtns(false); hint('Reply stopped. An action already sent may still finish; check its status before retrying.'); ready(); };
     $('v-mute').onclick = () => { unlockAudio(); S.mute = !S.mute; if (S.mute && S.stop) S.stop(); try { localStorage.setItem('hubVoiceMute', S.mute ? '1' : '0'); } catch (e) {} paintToggles(); };
     paintToggles();
-    $('v-rec-stop').onclick = async () => { await recSend('/api/pc/record/stop'); recPaint(); };
+    $('v-rec-stop').onclick = async () => {
+      const st = await recSend('/api/pc/record/stop');
+      if (st && st.named && (st.steps || []).length) {
+        const got = await recSend('/api/pc/record/save', {});
+        if (got) log('hub', `Saved "${got.title}". Say "call it ..." to rename.`);
+      }
+      recPaint();
+    };
     $('v-rec-drop').onclick = async () => {
       if (S.recSteps > 0 && !confirm('Throw away this recording and its ' + S.recSteps + ' steps?')) return;
       await recSend('/api/pc/record/discard'); recPaint();

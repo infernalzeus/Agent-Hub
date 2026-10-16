@@ -56,6 +56,12 @@ _OFFLINE_HTML = """\
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>AGENT HUB — Dormant</title>
+<script>
+// Choose the device layout before first paint, not after the mark has loaded.
+(function(){var p=navigator.userAgentData&&navigator.userAgentData.platform;
+if(p?p!=='Windows':!/Windows/i.test(navigator.userAgent))document.documentElement.classList.add('external-device');
+if(/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1))document.documentElement.classList.add('safari-starting');})();
+</script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -66,7 +72,12 @@ html{height:100%;min-height:100dvh;background:linear-gradient(150deg,#080c28 0%,
 html,body{min-height:100%;min-height:100dvh;font-family:'Outfit',system-ui,sans-serif;color:var(--text);
   display:flex;align-items:center;justify-content:center;
   padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
-.wrap{text-align:center;padding:12px 8px}
+/* One viewport frame: html must not flex-center a fixed body or add safe-area padding twice. */
+html{display:block;padding:0;min-height:0;overflow:hidden}
+body{min-height:0;height:100%;}
+@supports(height:100svh){body{height:100svh}}
+.wrap{text-align:center;padding:12px 8px;flex:none}
+.safari-starting .wrap{visibility:hidden}
 /* clip-path forces a true circle (radius < half-width) so NO square edge — top,
    bottom, or corners — can ever show. The soft mask feathers the rim within it. */
 .hero-icon{width:220px;height:220px;object-fit:cover;mix-blend-mode:screen;opacity:.97;margin:0 auto 26px;display:block;
@@ -82,7 +93,8 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;overflow:hidden;ove
 .globe-wrap{--g:min(calc(100vw - 28px),720px,calc(100vh - 270px));position:relative;width:var(--g);height:var(--g);margin:0 auto 22px}
 @supports (height:100svh){.globe-wrap{--g:min(calc(100vw - 28px),720px,calc(100svh - 270px))}}
 .hero-globe{position:relative;width:100%;height:100%;margin:0}
-.hero-globe .hero-icon{width:100%;height:100%;margin:0}
+.hero-globe .hero-icon{width:100%;height:100%;margin:0;visibility:hidden}
+.hero-globe.mark-fallback .hero-icon{visibility:visible}
 .hero-globe canvas:focus-visible{outline:2px solid #3ba7ff;outline-offset:4px}
 .hero-globe{border-radius:50%}
 /* Keyboard and screen-reader route to the same switch the background tap uses. */
@@ -110,6 +122,7 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;overflow:hidden;ove
 .wake-btn.external:hover{transform:none;box-shadow:none}
 .wake-sub{display:none;margin-top:14px;font-family:'Orbitron',monospace;font-size:11px;letter-spacing:1.5px;
   color:var(--text-muted);line-height:1.6;max-width:280px;margin-left:auto;margin-right:auto}
+.external-device .wake-sub{display:block}
 .proposal-card{display:flex;align-items:center;gap:9px;border-style:dashed}
 .proposal-card .btn{flex:0 0 auto;padding:6px 11px;font-size:10.5px}
 .ing-row{display:flex;align-items:center;gap:8px;padding:8px 0;flex-wrap:wrap}
@@ -143,7 +156,39 @@ __SETUP_LINK__
   try { if (localStorage.getItem('agenthub:shell') === 'off') on = false; } catch (e) {}
   try { if (window.AgentHubMark) mark = AgentHubMark.mount(host, {state: 'dormant', touchLock: true, shell: on}); }
   catch (e) { mark = null; }
+  if (!mark) host.classList.add('mark-fallback');
   window.dormantGlobe = mark;
+  // Safari bookmark launch can change its visual viewport after DOM layout.
+  // Keep the startup geometry out of view; reveal only after a quiet sizing window.
+  if(/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)) {
+    var started=performance.now(), changed=started, previous='', frame=0;
+    function settle(now) {
+      var r=host.getBoundingClientRect(),v=window.visualViewport;
+      var geometry=[r.x,r.y,r.width,r.height,innerWidth,innerHeight,v&&v.width,v&&v.height,v&&v.offsetLeft,v&&v.offsetTop].join(',');
+      if(geometry!==previous){previous=geometry;changed=now;}
+      if((now-started>=200&&now-changed>=120)||now-started>=1200){
+        if(mark&&mark.resize)mark.resize();
+        document.documentElement.classList.remove('safari-starting');frame=0;
+      }else frame=requestAnimationFrame(settle);
+    }
+    function resumeMark(){
+      if(frame)cancelAnimationFrame(frame);
+      document.documentElement.classList.add('safari-starting');
+      started=changed=performance.now();previous='';frame=requestAnimationFrame(settle);
+    }
+    function suspendMark(){
+      if(frame)cancelAnimationFrame(frame);frame=0;
+      // A suspended Home Screen app must not retain a wrongly sized visible canvas snapshot.
+      document.documentElement.classList.add('safari-starting');
+    }
+    resumeMark();
+    window.addEventListener('pagehide',suspendMark);
+    window.addEventListener('pageshow',resumeMark);
+    document.addEventListener('visibilitychange',function(){
+      if(document.hidden)suspendMark();else resumeMark();
+    });
+  }
+
   // #debug on the address shows what this phone is actually doing
   // A page that is killed cannot say why. Leave a note before each touch and clear it on a clean exit; the next
   // load can then tell whether the last one ended badly, and on what.
@@ -882,7 +927,7 @@ __SETUP_LINK__
     __TALK_BUTTON__
     <button type="button" class="mcp-wire off" id="mcp-wire" title="PC control: checking" aria-label="PC control: checking"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="1.8"/><path d="M8.5 20h7M12 16v4M6.5 10h.01M9.5 10h.01M12.5 10h.01M15.5 10h.01M18 7.5v5"/></svg></button>
     <div class="card-actions">
-      <a class="btn" href="/missions">MISSIONS</a>
+      <a class="btn" href="/missions" id="oc-missions-btn" style="position:relative">MISSIONS<span id="oc-missions-blip" hidden style="position:absolute;top:-7px;right:-7px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:#e0a53c;color:#070a25;font:700 10px/17px sans-serif;text-align:center"></span></a>
       <a class="btn" href="/agents">AGENTS</a>
       <a class="btn" href="/graph">GRAPH</a>
       <button type="button" class="btn" id="oc-scratch-btn" title="A project-less OpenCode chat (raw UI, new tab)">QUICK CHAT</button>
@@ -1246,29 +1291,8 @@ function render() {
     card.onclick = () => openActions(t);
     appsBefore.appendChild(card);
   }
-  // Worked out by something, installed by nobody until you press it. Sits with
-  // INGEST APP because that is where you come to add a thing to the hub.
-  for (const pr of PROPOSALS) {
-    const card = document.createElement('div');
-    card.className = 'card proposal-card';
-    const pct = pr.confidence == null ? '' : ' · ' + Math.round(pr.confidence * 100) + '% sure';
-    card.innerHTML = '<div style="flex:1;min-width:0">'
-      + '<div style="font-weight:600">' + esc0(pr.name) + '</div>'
-      + '<div style="font-size:11.5px;opacity:.72">' + esc0(pr.why || '') + pct + '</div></div>';
-    const yes = document.createElement('button');
-    yes.className = 'btn go'; yes.textContent = 'ADD';
-    yes.onclick = async (e) => { e.stopPropagation();
-      yes.disabled = true;
-      await fetch('/api/proposals/' + pr.id + '/accept', {method:'POST'});
-      refresh(); };
-    const no = document.createElement('button');
-    no.className = 'btn'; no.textContent = 'DISMISS';
-    no.onclick = async (e) => { e.stopPropagation();
-      await fetch('/api/proposals/' + pr.id, {method:'DELETE'});
-      refresh(); };
-    card.appendChild(yes); card.appendChild(no);
-    appsBefore.appendChild(card);
-  }
+  // Proposals are not shown here. They belong to the Missions panel, and to the INGEST APP panel
+  // when you open it: this grid is for things you have already added.
   const add = document.createElement('div');
   add.className = 'card ingest-card';
   add.innerHTML = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>INGEST APP';
@@ -2071,6 +2095,9 @@ function ytdlDisconnectWs() {
       const rev = m.filter(x => x.status === 'awaiting_review').length;
       statusEl.innerHTML = `<span class="status-dot ${run?'running':''}"></span>` +
         (m.length ? `${run} running · ${rev} to review` : 'agents & missions');
+      const need = m.filter(x => ['awaiting_review', 'needs_input', 'plan_ready'].includes(x.status)).length;
+      const blip = document.getElementById('oc-missions-blip');
+      if (blip) { blip.textContent = need; blip.hidden = !need; }
     } catch (e) {}
   }
   tick(); syncMcp(); setInterval(() => { tick(); syncMcp(); }, 5000);

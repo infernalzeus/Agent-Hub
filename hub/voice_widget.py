@@ -16,7 +16,7 @@ _HTML = """<div id="voice" hidden>
   </div>
   <div class="v-log" id="v-log"></div>
   <div class="v-history"><button type="button" class="vbtn" id="v-history" hidden>HISTORY</button><button type="button" class="vbtn" id="v-new">NEW CHAT</button><button type="button" class="vbtn" id="v-cancel">STOP REPLY</button></div>
-  <div class="v-status"><canvas data-orb="breathing" data-size="20"></canvas><span id="v-state">Ready</span></div>
+  <div class="v-status"><canvas data-orb="breathing" data-size="20"></canvas><span id="v-state">Ready</span><button type="button" class="vbtn stop" id="v-stop" hidden>STOP</button></div>
   <div class="v-row"><button type="button" class="vbtn go" id="v-mic">START LISTENING</button><button type="button" class="vbtn" id="v-yes" hidden>YES</button><button type="button" class="vbtn stop" id="v-no" hidden>NO</button></div>
   <div class="v-type"><input type="text" id="v-in" placeholder="Type, or dictate with your keyboard" autocomplete="off"><button type="button" class="vbtn" id="v-go">SEND</button></div>
   <div class="v-hint" id="v-hint" hidden></div>
