@@ -232,7 +232,7 @@
 .hub-panel .node .nd em{display:block;margin-top:9px;font:400 .76rem/1.4 Outfit,sans-serif;font-style:normal;letter-spacing:0;color:var(--muted)}
 .hub-panel .node .nd i{display:block;margin-top:6px;font:500 .64rem Outfit,sans-serif;font-style:normal;letter-spacing:.02em;color:var(--green);opacity:.75}
 /* static: animating this shadow repainted the element that holds the globe and core 30 times a second */
-.hub-core{box-shadow:0 0 0 14px rgba(0,230,118,.06),0 0 34px rgba(0,230,118,.3)}
+.hub-core,.hub-core:hover{border:0;background:transparent;box-shadow:none}
 @media(max-width:760px){.hub-panel{min-height:520px}.hero .hub-panel{min-height:520px}}
 .hub-core .hub-icon[hidden]{display:none}
 .hub-core canvas{z-index:0}
@@ -359,10 +359,7 @@
       x.strokeStyle="rgba(0,230,118,"+a+")";x.lineWidth=a>.3?1.4:1;x.strokeRect(i+.5,j+.5,30,30);
       if(tq>.01){x.strokeStyle="rgba(64,224,208,"+tq.toFixed(3)+")";x.lineWidth=1;x.strokeRect(i+.5,j+.5,30,30);x.fillStyle="rgba(64,224,208,"+(tq*.15).toFixed(3)+")";x.fillRect(i+1,j+1,29,29)}
     }
-    // the ring itself, so the wave reads as one object travelling out from the hub
-    x.save();x.shadowColor="rgba(0,230,118,.9)";x.shadowBlur=16;
-    x.strokeStyle="rgba(0,230,118,"+(.7*fade).toFixed(3)+")";x.lineWidth=2.2;
-    x.beginPath();x.arc(w/2,h/2,ring,0,6.2832);x.stroke();x.restore();
+    // The travelling wave lights the grid; no separate circular outline.
     // each card lights as the ring reaches it
     // only the card borders follow the ring (cheap); written only when the value really changes
     for(const o of pos){const v=(Math.max(0,1-Math.abs(o.d-ring)/48)*(1-amb*.5));if(Math.abs(v-(o.v||0))>.04){o.v=v;o.el.style.setProperty("--g",v.toFixed(2))}}
