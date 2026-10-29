@@ -119,6 +119,12 @@ globe = sub(globe,
             "            ctx.moveTo(px[eu], py[eu]);\n"
             "            ctx.lineTo(px[eu] + (px[ev] - px[eu]) * el, py[eu] + (py[ev] - py[eu]) * el);",
             "partial edges")
+# glow strength as two options (1 = as designed): halo size and halo opacity; the small header icon turns both down
+globe = sub(globe, "    var design = math.max(0, math.min(2, Number(options.design) || 0));",
+            "    var design = math.max(0, math.min(2, Number(options.design) || 0));\n"
+            "    var glowScale = options.glowSize === undefined ? 1 : Number(options.glowSize);\n"
+            "    var glowFade = options.glowAlpha === undefined ? 1 : Number(options.glowAlpha);",
+            "glow options")
 # nodes: pop in with a small overshoot instead of fading; calmer glow so the core reads through
 globe = sub(globe, "          var star = variation[k];\n          var r = math.max(.48, width / 160) * (.55 + front * .9) * (.65 + star * .9);\n"
                    "          var glowSize = r * (3.3 + brightness[k] * 2);\n"
@@ -126,8 +132,8 @@ globe = sub(globe, "          var star = variation[k];\n          var r = math.m
             "          var star = variation[k];\n          if (fade[k] <= 0) continue;\n"
             "          var pop = fade[k] < 1 ? 1 + 2.70158 * math.pow(fade[k] - 1, 3) + 1.70158 * math.pow(fade[k] - 1, 2) : 1;\n"
             "          var r = math.max(.48, width / 160) * (.55 + front * .9) * (.65 + star * .9) * pop;\n"
-            "          var glowSize = r * (2.45 + brightness[k] * 1.5);\n"
-            "          ctx.globalAlpha = math.min(1, gain * .7 * (.16 + .68 * front + brightness[k]) * (.35 + star * star * 1.2));",
+            "          var glowSize = r * (2.45 + brightness[k] * 1.5) * glowScale;\n"
+            "          ctx.globalAlpha = math.min(1, gain * .7 * glowFade * (.16 + .68 * front + brightness[k]) * (.35 + star * star * 1.2));",
             "node pop and glow")
 globe = sub(globe, "ctx.globalAlpha = math.sin(PI * pulseTime) * .28;",
             "ctx.globalAlpha = math.sin(PI * pulseTime) * .28 * shellEase;", "pulse ring")
@@ -231,6 +237,12 @@ globe = globe.replace("if (!alive || reduced || state === 'dormant' || shellP ==
 globe = globe.replace("state === 'live' && clock - lastPulse >= 6", "clock - lastPulse >= 6")
 globe = globe.replace("!asleep && !reduced", "!reduced")
 
+# Physical iPad Safari rounds 30Hz RAF timestamps to 33/34ms. The old
+# 0.2ms tolerance rejected usable 33ms frames, producing ~20fps. Keep
+# desktop timing unchanged and allow a 1ms scheduling tolerance on touch.
+globe = sub(globe, 'if (now - g.t + .2 >= interval) g.frame(now);',
+            'if (now - g.t + (atlasStep===64?1:.2) >= interval) g.frame(now);', 'Safari rounded RAF cadence')
+
 # ── 2. the flip transition: bound to one host instead of a page element ──────────────────────────────
 flip = read("agent-hub-facet-flip.js")
 start = flip.index("var host=document.getElementById('demo-1')")
@@ -286,7 +298,8 @@ glue = r"""
       if (!globe && root.AgentHubGlobeStarCloud) {
         try {
           globe = root.AgentHubGlobeStarCloud.mount(host, { size: size, design: 2, state: state, reducedMotion: reduced,
-            resistance: coast, containCore: true, hoverOnly: true, shell: shell, touchLock: !!options.touchLock });
+            resistance: coast, containCore: true, hoverOnly: true, shell: shell, touchLock: !!options.touchLock,
+            glowSize: options.glowSize, glowAlpha: options.glowAlpha });
         } catch (error) { root.__markError = 'globe mount: ' + (error && error.message || error); globe = null; }
       }
       var factory = mode === 'star' ? root.StarCloudCore : root.AgentHubCrystalOptimized;
@@ -347,7 +360,7 @@ glue = r"""
     var noGL = options.webgl === false;
     if (noGL && mode === 'star') mode = 'crystal';
     build(false);
-    if(lite&&mode==='crystal')warmTimer=setTimeout(function(){warmTimer=0;if(!alive||phoneCores.star||mode!=='crystal')return;try{var warm=root.StarCloudCore.mount(host,{contained:!!globe,reducedMotion:reduced,coastOnRelease:true,brightness:.78});if(warm){warm.setParallax(face);warm.renderNow();warm.setActive(false);warm.getCanvas().style.visibility='hidden';phoneCores.star=warm;}}catch(error){/* First-use fallback remains available. */}},100);
+    if(lite&&mode==='crystal'&&options.prewarm!==false)warmTimer=setTimeout(function warmStar(){warmTimer=0;if(!alive||phoneCores.star||mode!=='crystal')return;if(root.DepthLift&&root.DepthLift.isTransitioning&&root.DepthLift.isTransitioning()){warmTimer=setTimeout(warmStar,100);return;}try{var warm=root.StarCloudCore.mount(host,{contained:!!globe,reducedMotion:reduced,coastOnRelease:true,brightness:.78});if(warm){warm.setParallax(face);warm.renderNow();warm.setActive(false);warm.getCanvas().style.visibility='hidden';phoneCores.star=warm;}}catch(error){/* First-use fallback remains available. */}},100);
     root.addEventListener('resize',syncCoreSizes);
     if(root.ResizeObserver){sizeObserver=new root.ResizeObserver(syncCoreSizes);sizeObserver.observe(host);}
     if (!globe && !core) { flip.off(); return null; }
@@ -438,6 +451,27 @@ glue = r"""
 })(typeof window !== 'undefined' ? window : globalThis);
 """
 
+# Keep phone mark updates on a 30fps cadence; avoid rebuilding same-size
+# canvases on every toolbar resize/material tap, and cache GL driver queries.
+glue = sub(glue, 'var globe = null, core = null, flip = null, alive = true,phoneCores={},warmTimer=0,sizeObserver=null;',
+           'var globe = null, core = null, flip = null, alive = true,phoneCores={},warmTimer=0,sizeObserver=null,lastCoreWidth=0,lastCoreDpr=0;', 'phone resize state')
+glue = sub(glue, 'if(!alive)return;\n      var cores=lite?',
+           'if(!alive)return;var width=host.clientWidth,dpr=root.devicePixelRatio||1;if(width===lastCoreWidth&&dpr===lastCoreDpr)return;lastCoreWidth=width;lastCoreDpr=dpr;\n      var cores=lite?', 'unchanged host resize')
+glue = sub(glue, 'coastOnRelease: true,brightness:.78', 'coastOnRelease: true,brightness:.78,frameMs:33', 'phone crystal cadence')
+crystal_optimized = cap_dpr(read('agent-hub-core-crystal-optimized.js'))
+crystal_optimized = sub(crystal_optimized, 'returning||drag!==-1?16:66', 'returning||drag!==-1?16:(options.frameMs||66)', 'phone idle cap')
+crystal_gpu = read('agent-hub-crystal-gpu.js')
+crystal_gpu = sub(crystal_gpu, 'function prepare(coords,faces,counts){',
+    "var uniform={},rotationData=new Float32Array(9),pLocation=gl.getAttribLocation(program,'p'),gradLocation=gl.getAttribLocation(program,'grad');['rotation','clock','pulseAge','viewport','ratio'].forEach(function(n){uniform[n]=gl.getUniformLocation(program,n);});\n function prepare(coords,faces,counts){", 'cached GPU bindings')
+crystal_gpu = sub(crystal_gpu, "var p=gl.getAttribLocation(program,'p'),grad=gl.getAttribLocation(program,'grad');", 'var p=pLocation,grad=gradLocation;', 'cached attributes')
+for _name in ['rotation','clock','pulseAge','viewport','ratio']:
+    crystal_gpu = sub(crystal_gpu, "gl.getUniformLocation(program,'"+_name+"')", 'uniform.'+_name, 'cached '+_name)
+crystal_gpu = sub(crystal_gpu, 'var grad=[0,((screen[ib]-screen[ia])*dx+(screen[ib+1]-screen[ia+1])*dy)/den,1];',
+    'var gradient=((screen[ib]-screen[ia])*dx+(screen[ib+1]-screen[ia+1])*dy)/den;', 'no per-facet gradient allocation')
+crystal_gpu = sub(crystal_gpu, 'positions[j+3]=grad[k];', 'positions[j+3]=k===0?0:k===1?gradient:1;', 'same facet gradient')
+crystal_gpu = sub(crystal_gpu, "gl.uniformMatrix3fv(uniform.rotation,false,new Float32Array([matrix[0],matrix[3],matrix[6],matrix[1],matrix[4],matrix[7],matrix[2],matrix[5],matrix[8]]));",
+    "rotationData.set([matrix[0],matrix[3],matrix[6],matrix[1],matrix[4],matrix[7],matrix[2],matrix[5],matrix[8]]);gl.uniformMatrix3fv(uniform.rotation,false,rotationData);", 'reused rotation buffer')
+
 # installFlip must be visible to the glue; define it as a plain function in the shared scope.
 bundle = (
     "/* Agent Hub mark. Generated by tools/build_mark.py from the files in docs/assets; do not edit by hand. */\n"
@@ -446,12 +480,18 @@ bundle = (
     + ";" + read("agent-hub-depth-flip.js") + "\n"
     + ";" + cap_dpr(read("agent-hub-core-star-optimized.js")) + "\n;window.StarCloudCore = window.AgentHubStarOptimized;\n"
     + ";" + crystal_core() + "\n;window.CrystallineCore = window.AgentHubCoreLab;\n"
-    + ";" + read("agent-hub-crystal-gpu.js") + "\n"
-    + ";" + cap_dpr(read("agent-hub-core-crystal-optimized.js")) + "\n"
+    + ";" + crystal_gpu + "\n"
+    + ";" + crystal_optimized + "\n"
     + ";" + read("agent-hub-facet-gpu.js") + "\n"
     + glue
 )
-(ASSETS / "agent-hub-mark.js").write_text(bundle, encoding="utf-8", newline="\n")
+# --hub-only never writes an intermediate file under the published docs tree.
+import tempfile
+_build_tmp = tempfile.TemporaryDirectory(prefix="agent-hub-mark-") if "--hub-only" in sys.argv else None
+_build_dir = Path(_build_tmp.name) if _build_tmp else ASSETS
+_readable = _build_dir / "agent-hub-mark.js"
+_minified = _build_dir / "agent-hub-mark.min.js"
+_readable.write_text(bundle, encoding="utf-8", newline="\n")
 
 # ── 4. minify and place ──────────────────────────────────────────────────────────────────────────────
 npx = shutil.which("npx.cmd") or shutil.which("npx")
@@ -463,9 +503,12 @@ found = subprocess.run([npx, "--no-install", "terser", "--version"], capture_out
 if found.returncode != 0 or found.stdout.split()[-1:] != [TERSER_VERSION]:
     sys.exit(f"terser {TERSER_VERSION} is required (found: {found.stdout.strip() or 'none'}). "
              f"Install it with: npm install -g terser@{TERSER_VERSION}. The readable bundle was written; nothing else changed.")
-cmd = [npx, "--no-install", "terser", str(ASSETS / "agent-hub-mark.js"), "-c", "passes=2,drop_console=true", "-m",
-       "--define", "module=false", "-o", str(ASSETS / "agent-hub-mark.min.js")]
+cmd = [npx, "--no-install", "terser", str(_readable), "-c", "passes=2,drop_console=true", "-m",
+       "--define", "module=false", "-o", str(_minified)]
 subprocess.run(cmd, check=True, cwd=str(ASSETS))
-shutil.copy(ASSETS / "agent-hub-mark.min.js", ROOT / "hub" / "static" / "agent-hub-mark.min.js")
-print("readable", (ASSETS / "agent-hub-mark.js").stat().st_size, "bytes; minified",
-      (ASSETS / "agent-hub-mark.min.js").stat().st_size, "bytes")
+shutil.copy(_minified, ROOT / "hub" / "static" / "agent-hub-mark.min.js")
+print("readable", _readable.stat().st_size, "bytes; minified",
+      _minified.stat().st_size, "bytes")
+
+if _build_tmp:
+    _build_tmp.cleanup()

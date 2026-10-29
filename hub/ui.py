@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 from pathlib import Path
 
@@ -14,6 +15,53 @@ from .voice_widget import TALK_BUTTON, widget as _widget
 _WIDGET = _widget(True)      # conversation popover + orbs, built once
 _PICKER = (Path(__file__).parent / "static" / "picker.js").read_text(encoding="utf-8")
 _MARK_JS = (Path(__file__).parent / "static" / "agent-hub-mark.min.js").read_text(encoding="utf-8")
+_DEPTH_LIFT_SOURCE = (Path(__file__).parent / "static" / "depth-lift.js").read_text(encoding="utf-8")
+# The build id decides when a long-lived host page must be replaced. It covers everything a retained view can have
+# cached - this file (both pages), the mark and the controller - not just the controller, so a mark- or page-only
+# update can no longer leave an old landing/Home alive inside a host that still thinks it is current.
+_DEPTH_LIFT_BUILD = hashlib.sha256(
+    (_DEPTH_LIFT_SOURCE + "\0" + _MARK_JS + "\0" + Path(__file__).read_text(encoding="utf-8")).encode()).hexdigest()[:16]
+_DEPTH_LIFT_JS = _DEPTH_LIFT_SOURCE.replace("__DL_BUILD__", _DEPTH_LIFT_BUILD)
+# Retire old midpoint-resume tickets. The whole turn now finishes before navigation.
+_DL_ARRIVE = """<script>
+window.__hubViewStatus=null;window.__hubViewSuspended=false;window.__hubSawUp=false;
+window.__hubTiming=[];
+window.__hubTrace=function(name,data){try{if(window.frameElement&&parent.__hubTrace){parent.__hubTrace(name,data);return;}}catch(e){}var copy=data?JSON.parse(JSON.stringify(data)):{};window.__hubTiming.push({at:performance.timeOrigin+performance.now(),name:name,data:copy});if(window.__hubTiming.length>128)window.__hubTiming.shift();};
+try{if(!window.frameElement){var upgrade=JSON.parse(sessionStorage.getItem('agenthub:dl-upgrade')||'null');sessionStorage.removeItem('agenthub:dl-upgrade');if(upgrade&&Date.now()-upgrade.at<30000){window.__hubLastBuildFallback=true;window.__hubTrace('build-mismatch-fallback',upgrade);}}}catch(e){}
+try{if(!window.frameElement){var previousExit=JSON.parse(sessionStorage.getItem('agenthub:transition-exit')||'null');sessionStorage.removeItem('agenthub:transition-exit');if(previousExit&&Date.now()-previousExit.at<60000){window.__hubPreviousTransitionExit=previousExit;window.__hubTrace('previous-transition-exit',previousExit);}}}catch(e){}
+window.__hubDebugLine=function(){try{var d=window.frameElement&&parent.DepthLift?parent.DepthLift:window.DepthLift;return d&&d.debugLine?d.debugLine():'transition controller loading';}catch(e){return 'transition controller unavailable';}};
+document.addEventListener('DOMContentLoaded',function(){if(!/debug/.test(location.hash)||document.getElementById('wake-btn'))return;var p=document.createElement('pre');p.id='hub-transition-debug';p.style.cssText='position:fixed;left:6px;right:6px;bottom:6px;z-index:9999;padding:6px;background:rgba(0,0,0,.85);color:#9fffd0;font:10px monospace;white-space:pre-wrap;pointer-events:none';document.body.appendChild(p);setInterval(function(){p.textContent=window.__hubDebugLine()},1000);});
+// Page-owned tasks have stable handles and can suspend without destroying a view.
+(function(){
+ var raw={timeout:window.setTimeout,interval:window.setInterval,clearT:window.clearTimeout,clearI:window.clearInterval,raf:window.requestAnimationFrame,cancel:window.cancelAnimationFrame};window.__hubNativeTasks=raw;
+ var jobs=new Map(),next=1,paused=false,stopped=false,animations=[];
+ function disarm(j){if(j.native==null)return;(j.kind==='raf'?raw.cancel:j.kind==='interval'?raw.clearI:raw.clearT).call(window,j.native);j.native=null;}
+ function arm(j){if(paused||stopped)return;var run=function(t){j.native=null;if(j.kind!=='interval')jobs.delete(j.id);else j.due=Date.now()+j.delay;if(typeof j.fn==='function')j.fn.apply(window,j.kind==='raf'?[t]:j.args);else window.eval(j.fn);};j.due=Date.now()+j.remaining;
+  if(j.kind==='raf')j.native=raw.raf.call(window,run);
+  else if(j.kind==='interval')j.native=raw.interval.call(window,function(){j.due=Date.now()+j.delay;if(typeof j.fn==='function')j.fn.apply(window,j.args);else window.eval(j.fn);},j.delay);
+  else j.native=raw.timeout.call(window,run,j.remaining);
+ }
+ function add(kind,fn,ms,args){var j={id:next++,kind:kind,fn:fn,args:args||[],delay:Math.max(0,Number(ms)||0),remaining:Math.max(0,Number(ms)||0),native:null};jobs.set(j.id,j);arm(j);return j.id;}
+ function clear(id){var j=jobs.get(id);if(j){disarm(j);jobs.delete(id);}}
+ window.setTimeout=function(fn,ms){return add('timeout',fn,ms,Array.prototype.slice.call(arguments,2));};
+ window.setInterval=function(fn,ms){return add('interval',fn,ms,Array.prototype.slice.call(arguments,2));};
+ window.requestAnimationFrame=function(fn){return add('raf',fn,0);};window.clearTimeout=window.clearInterval=window.cancelAnimationFrame=clear;
+ window.__hubPageTasks={pause:function(){if(paused||stopped)return;paused=true;window.__hubViewGeneration=(window.__hubViewGeneration||0)+1;window.__hubViewSuspended=true;jobs.forEach(function(j){j.remaining=Math.max(0,j.due-Date.now());disarm(j);});animations=document.getAnimations().filter(function(a){return a.playState==='running'});animations.forEach(function(a){a.pause();});},
+ resume:function(){if(stopped)return;paused=false;window.__hubViewSuspended=false;jobs.forEach(arm);animations.forEach(function(a){try{a.play()}catch(e){}});animations=[];},
+ stop:function(){if(stopped)return;stopped=true;window.__hubViewGeneration=(window.__hubViewGeneration||0)+1;jobs.forEach(disarm);jobs.clear();animations=[];window.setTimeout=raw.timeout;window.setInterval=raw.interval;window.clearTimeout=raw.clearT;window.clearInterval=raw.clearI;window.requestAnimationFrame=raw.raf;window.cancelAnimationFrame=raw.cancel;},
+ stats:function(){var kinds={timeout:0,interval:0,raf:0};jobs.forEach(function(j){kinds[j.kind]++});return {paused:paused,stopped:stopped,jobs:kinds};}};
+ window.__hubSuspendView=function(permanent){if(permanent)window.__hubPageTasks.stop();else window.__hubPageTasks.pause();};
+ window.__hubResumeView=function(){window.__hubPageTasks.resume();if(window.__hubRefreshView)window.__hubRefreshView();};
+})();
+// Mobile polish must not compete with the two live pages and cube turn.
+window.__hubWaitForTransition=async function(){
+ if(!matchMedia('(pointer: coarse)').matches)return;
+ var until=performance.now()+3500;
+ while(window.DepthLift&&DepthLift.isBusy&&DepthLift.isBusy()&&performance.now()<until){await new Promise(function(resolve){setTimeout(resolve,60);});}
+};
+window.__hubSetViewStatus=function(value){if(window.__hubViewSuspended)return;window.__hubViewStatus=value;try{if(window.frameElement&&parent.DepthLift&&parent.DepthLift.viewStatus)parent.DepthLift.viewStatus(window,value);}catch(e){}};
+try{sessionStorage.removeItem('agenthub:depth-lift:v2');}catch(e){}
+</script>"""
 
 routes = web.RouteTableDef()
 
@@ -52,6 +100,7 @@ _OFFLINE_HTML = """\
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
+__DL_ARRIVE__
 <meta name="theme-color" content="#080c28">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -77,7 +126,8 @@ html{display:block;padding:0;min-height:0;overflow:hidden}
 body{min-height:0;height:100%;}
 @supports(height:100svh){body{height:100svh}}
 .wrap{text-align:center;padding:12px 8px;flex:none}
-.safari-starting .wrap{visibility:hidden}
+.safari-starting .wrap{visibility:hidden;animation:safari-failsafe 0s 2.5s forwards}
+@keyframes safari-failsafe{to{visibility:visible}}
 /* clip-path forces a true circle (radius < half-width) so NO square edge — top,
    bottom, or corners — can ever show. The soft mask feathers the rim within it. */
 .hero-icon{width:220px;height:220px;object-fit:cover;mix-blend-mode:screen;opacity:.97;margin:0 auto 26px;display:block;
@@ -106,13 +156,16 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;overflow:hidden;ove
 .status{font-family:'Orbitron',monospace;font-size:12px;letter-spacing:3px;color:var(--text-faint);margin-top:12px}
 .hint{font-size:12.5px;color:var(--text-muted);margin-top:22px;max-width:280px;margin-left:auto;margin-right:auto;line-height:1.55}
 .wake-btn{margin-top:26px;font-family:'Orbitron',monospace;font-size:14px;font-weight:700;letter-spacing:2px;
-  padding:15px 40px;border-radius:12px;cursor:pointer;color:#04140b;
+  position:relative;width:210px;height:52px;padding:0;overflow:hidden;border-radius:12px;cursor:pointer;color:#04140b;
   background:linear-gradient(180deg,#00ff8f 0%,#00c766 100%);
   border:1px solid rgba(255,255,255,.35);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 4px 18px rgba(0,230,118,.45);
-  transition:transform .15s,box-shadow .2s,opacity .2s}
-.wake-btn:hover{transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.65),0 6px 24px rgba(0,230,118,.6)}
+  transition:transform .15s,box-shadow .35s,opacity .2s,background .35s,color .35s,border-color .35s}
+.wake-btn:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,.65),0 6px 24px rgba(0,230,118,.6)}
 .wake-btn:active{transform:scale(.97)}
+/* START / STARTING / ENTER are three stacked labels in a fixed-size button that only cross-fade: nothing moves. */
+.wake-btn .lab{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .4s ease}
+.wake-btn[data-s="start"] .s-start,.wake-btn[data-s="starting"] .s-starting,.wake-btn[data-s="enter"] .s-enter{opacity:1}
 .wake-btn:disabled{opacity:.6;cursor:default}
 /* External (non-PC) devices can't start a stopped hub — greyed button, green
    text, no glow, not actionable. Placed after :disabled so it wins on opacity. */
@@ -120,9 +173,11 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;overflow:hidden;ove
   background:linear-gradient(180deg,#3a3f4b 0%,#2a2e39 100%);
   border:1px solid rgba(0,230,118,.28);box-shadow:none}
 .wake-btn.external:hover{transform:none;box-shadow:none}
-.wake-sub{display:none;margin-top:14px;font-family:'Orbitron',monospace;font-size:11px;letter-spacing:1.5px;
+.wake-sub{display:block;min-height:36px;opacity:0;transition:opacity .3s;margin-top:14px;font-family:'Orbitron',monospace;font-size:11px;letter-spacing:1.5px;
   color:var(--text-muted);line-height:1.6;max-width:280px;margin-left:auto;margin-right:auto}
-.external-device .wake-sub{display:block}
+.wake-sub.on{opacity:1}
+.status{min-height:16px;transition:opacity .15s}
+.status.swap{opacity:0}
 .proposal-card{display:flex;align-items:center;gap:9px;border-style:dashed}
 .proposal-card .btn{flex:0 0 auto;padding:6px 11px;font-size:10.5px}
 .ing-row{display:flex;align-items:center;gap:8px;padding:8px 0;flex-wrap:wrap}
@@ -134,6 +189,8 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;overflow:hidden;ove
 .ing-row input:focus{outline:none;border-color:var(--border-bright,rgba(0,230,118,.6))}
 </style>
 <link rel="stylesheet" href="/theme.css" media="print" onload="this.media='all'">
+<!-- Orbitron like every other page, but non-blocking: a render-blocking font link once left a phone on a blank page. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" media="print" onload="this.media='all'">
 </head>
 <body>
 __SETUP_LINK__
@@ -143,9 +200,9 @@ __SETUP_LINK__
   </div>
   <div class="brand">AGENT HUB</div>
   <div class="status">DORMANT</div>
-  <button type="button" id="wake-btn" class="wake-btn">▶ START</button>
+  <button type="button" id="wake-btn" class="wake-btn" data-s="start"><span class="lab s-start">▶ START</span><span class="lab s-starting">STARTING…</span><span class="lab s-enter">▶ ENTER</span></button>
   <button type="button" id="shell-key" class="shell-key" aria-pressed="true">Globe on. Press to switch it off.</button>
-  <div class="wake-sub" id="wake-sub">Agent Hub is dormant.<br>Initiate from PC.</div>
+  <div class="wake-sub" id="wake-sub"></div>
 </div>
 <script src="/static/agent-hub-mark.js?v=__MARK_VERSION__"></script>
 <script>
@@ -166,18 +223,30 @@ __SETUP_LINK__
       var r=host.getBoundingClientRect(),v=window.visualViewport;
       var geometry=[r.x,r.y,r.width,r.height,innerWidth,innerHeight,v&&v.width,v&&v.height,v&&v.offsetLeft,v&&v.offsetTop].join(',');
       if(geometry!==previous){previous=geometry;changed=now;}
-      if((now-started>=200&&now-changed>=120)||now-started>=1200){
-        if(mark&&mark.resize)mark.resize();
-        document.documentElement.classList.remove('safari-starting');frame=0;
-      }else frame=requestAnimationFrame(settle);
+      if((now-started>=200&&now-changed>=120)||now-started>=1200)reveal();
+      else frame=requestAnimationFrame(settle);
+    }
+    // The controls are hidden while the viewport settles. Whatever goes wrong while settling (a mark that throws in
+    // resize(), a frame callback that never arrives) must never leave START/ENTER hidden: reveal() runs in finally,
+    // and a timer that does not depend on animation frames calls it as well.
+    var revealTimer=0;
+    function reveal() {
+      if(revealTimer){clearTimeout(revealTimer);revealTimer=0;}
+      frame=0;
+      try{if(mark&&mark.resize)mark.resize();}catch(e){window.__markError=window.__markError||('resize: '+(e&&e.message||e));}
+      finally{document.documentElement.classList.remove('safari-starting');}
     }
     function resumeMark(){
+      if(window.__hubViewSuspended)return;
       if(frame)cancelAnimationFrame(frame);
       document.documentElement.classList.add('safari-starting');
       started=changed=performance.now();previous='';frame=requestAnimationFrame(settle);
+      if(revealTimer)clearTimeout(revealTimer);
+      revealTimer=setTimeout(reveal,1600);
     }
     function suspendMark(){
       if(frame)cancelAnimationFrame(frame);frame=0;
+      if(revealTimer){clearTimeout(revealTimer);revealTimer=0;}
       // A suspended Home Screen app must not retain a wrongly sized visible canvas snapshot.
       document.documentElement.classList.add('safari-starting');
     }
@@ -220,7 +289,9 @@ __SETUP_LINK__
         'mark: ' + (mark ? mark.getMode() + (mark.isShell() ? ' shell on' : ' shell off') : 'NOT MOUNTED'),
         'draws/s ' + fps + '  ms/frame ' + st.frameMs.toFixed(1) + '  dpr ' + devicePixelRatio + '  ' + innerWidth + 'x' + innerHeight,
         'reduced-motion ' + matchMedia('(prefers-reduced-motion: reduce)').matches + '  webgl ' + !!gl + '  hidden ' + document.hidden,
-        'sw ' + !!(navigator.serviceWorker && navigator.serviceWorker.controller) + '  last error: ' + (window.__markError || 'none'),
+        'sw ' + !!(navigator.serviceWorker && navigator.serviceWorker.controller) + '  last error: ' + (window.__markError || 'none') + '  poll: ' + (window.__poll || 'none'),
+        window.__hubDebugLine(),
+        'transition: ' + (window.DepthLift ? 'snapshot-free webgl2=' + !!window.WebGL2RenderingContext + ' last=' + JSON.stringify(DepthLift.last) : 'script missing'),
         'lite (no flip): ' + matchMedia('(pointer: coarse)').matches + '  last touch: ' + (lastNote || 'none'),
         crashed ? 'WARNING ' + crashed : 'previous page closed cleanly',
       ].join('\\n');
@@ -241,19 +312,31 @@ __SETUP_LINK__
 })();
 </script>
 <script>
-async function isUp() {
+// Wrapped in a function: the live page writes this page over itself when the hub drops, and its own
+// top-level names (statusEl, ...) must not collide with these.
+(function () {
+// 'up' = the hub answered. 'down' = something answered but not the hub (Tailscale Serve gives 502/503/504 while
+// the hub is stopped), so the PC is reachable and the hub is asleep. 'unreachable' = nothing answered at all:
+// the phone is off the tailnet, or the PC is off or asleep.
+async function probe() {
   try {
-    const res = await fetch('/api/status', {cache: 'no-store', signal: AbortSignal.timeout(3000)});
-    return res.ok;
-  } catch (err) { return false; }
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 3000);
+    const res = await fetch('/api/status', {cache: 'no-store', signal: ctl.signal});
+    clearTimeout(t);
+    window.__poll = res.ok ? 'up' : 'http ' + res.status;
+    if(!res.ok)window.__hubSawUp=false;
+    if(res.ok&&!window.__hubSawUp){window.__hubSawUp=true;window.__hubTrace('first-up-probe');}
+    // the service worker answers a dead connection with its own 504 so a page never hangs: that is 'unreachable'
+    if (res.status === 504 && res.statusText === 'Agent Hub unreachable') return 'unreachable';
+    return res.ok ? 'up' : 'down';
+  } catch (err) { window.__hubSawUp=false;window.__poll = 'error: ' + (err && err.message || err); return 'unreachable'; }
 }
-async function checkOnline() { if (await isUp()) window.location.reload(); }
-setInterval(checkOnline, 5000);
+async function isUp() { return (await probe()) === 'up'; }
 
-// Trigger a custom URL protocol via a hidden iframe — if a handler is registered
-// (on the PC) Windows runs it; if not (e.g. on the phone) it fails SILENTLY with
-// no "cannot open page" error.
+// Trigger a custom URL protocol via a hidden iframe: if a handler is registered (on the PC) Windows runs it;
+// if not (e.g. on the phone) it fails SILENTLY with no "cannot open page" error.
 function triggerProtocol(url) {
+  window.__hubTrace('protocol-dispatch',{url:url});
   try {
     const f = document.createElement('iframe');
     f.style.display = 'none';
@@ -265,46 +348,108 @@ function triggerProtocol(url) {
 
 const wakeBtn = document.getElementById('wake-btn');
 const wakeSub = document.getElementById('wake-sub');
+const statusLine = document.querySelector('.status');
+const setLabel = (state) => wakeBtn.setAttribute('data-s', state);   // start | starting | enter, cross-faded by CSS
 
-// Only the PC can start a stopped hub (the agenthub:// protocol is registered
-// there). The address can't tell us the device — PC and phone both load the same
-// tailnet URL — so detect the platform.
+// Only the PC can start a stopped hub (the agenthub:// protocol is registered there). The address can't tell us
+// the device: PC and phone both load the same tailnet URL, so detect the platform.
 function isWindows() {
   const uad = navigator.userAgentData;
   if (uad && uad.platform) return uad.platform === 'Windows';
   return /Windows/i.test(navigator.userAgent);
 }
+const onPc = isWindows();
+let shown = null, starting = false, misses = 0, startTimer = null;
 
-if (isWindows()) {
-  // PC: green, functional START.
-  wakeBtn.onclick = async () => {
-    wakeBtn.textContent = 'STARTING…';
-    wakeBtn.disabled = true;
-    // Hand Windows the agenthub:// link → it runs the launcher (.vbs), which
-    // starts ONE server (it self-guards via the heartbeat lock). Debounce here
-    // too: never fire it more than once per 20s, no matter how many times this
-    // page reloads or the button is mashed.
-    let last = 0;
-    try { last = +(localStorage.getItem('agenthub:lastStart') || 0); } catch (e) {}
-    if (Date.now() - last > 20000) {
-      try { localStorage.setItem('agenthub:lastStart', Date.now()); } catch (e) {}
-      triggerProtocol('agenthub://start');
-    }
-    let n = 0;
-    const t = setInterval(async () => {
-      n += 1;
-      if (await isUp()) { clearInterval(t); window.location.reload(); return; }
-      if (n > 30) { clearInterval(t); wakeBtn.textContent = '▶ START'; wakeBtn.disabled = false; }
-    }, 2000);
-  };
-} else {
-  // External device: START can't wake the PC from here. Grey it out (green text),
-  // no action, and explain. The page still auto-reconnects once the hub is up.
-  wakeBtn.classList.add('external');
+// The landing page is the same on every device: START while the hub is asleep (the PC can start it, a phone
+// only sees it greyed), ENTER once it is live. Starting and entering are separate actions.
+function enterHub() {
+  try { sessionStorage.setItem('agenthub:entered', '1'); } catch (e) {}
+  location.replace('/?enter=1');
+}
+
+function startHub() {
+  window.__hubTrace('start-tap',{ignored:starting});window.__hubTrace(starting?'ignored':'accepted',{action:'start'});
+  if (starting) return;
+  starting = true;
+  setLabel('starting');
   wakeBtn.disabled = true;
-  wakeSub.style.display = 'block';
+  // Hand Windows the agenthub:// link: it runs the launcher (.vbs), which starts ONE server (it self-guards
+  // via the heartbeat lock, so asking twice is harmless). There is no time-based debounce: the button is
+  // disabled while starting, and an earlier 20 s debounce silently swallowed a START pressed soon after a
+  // shutdown - it said STARTING and did nothing. A hub that was still stopping can make the first request
+  // a no-op, so it is asked again at about 12 s and 32 s.
+  triggerProtocol('agenthub://start');
+  let n = 0;
+  const t = startTimer = setInterval(async () => {
+    n += 1;
+    if (await isUp()) { clearInterval(t); starting = false; showState('up'); return; }
+    if (n === 6 || n === 16) triggerProtocol('agenthub://start');
+    if (n > 30) { clearInterval(t); starting = false; setLabel('start'); wakeBtn.disabled = false; }
+  }, 2000);
+}
+
+const WORDS = {up: 'ONLINE', down: 'DORMANT', unreachable: 'NO SIGNAL'};
+function showState(st) {
+  if (st === 'unreachable' && onPc) st = 'down';     // the PC itself: nothing to explain, START is the action
+  const up = st === 'up';
+  if (st === shown && wakeBtn.getAttribute('data-s') === (up ? 'enter' : 'start') && wakeBtn.disabled === (!up && !onPc)) return;
+  shown = st;
+  document.documentElement.classList.toggle('hub-up', up);
+  if (window.dormantGlobe && window.dormantGlobe.setState) {
+    try { window.dormantGlobe.setState(up ? 'live' : 'dormant'); } catch (e) {}
+  }
+  statusLine.classList.add('swap');
+  setTimeout(() => { statusLine.textContent = WORDS[st]; statusLine.classList.remove('swap'); }, 150);
+  setLabel(up ? 'enter' : 'start');
+  wakeBtn.classList.toggle('external', !up && !onPc);
+  wakeBtn.disabled = !up && !onPc;
+  if (up) {
+    // ENTER turns the screen over with the Depth Lift, then makes the same change as before; without it, just the change
+    wakeBtn.onclick = () => (window.DepthLift ? DepthLift.go('home', enterHub, wakeBtn) : enterHub());
+    wakeSub.innerHTML = 'Agent Hub is live.<br>Tap ENTER to open your apps.';
+  } else {
+    wakeBtn.onclick = onPc ? startHub : null;
+    wakeSub.innerHTML = onPc ? '' : (st === 'unreachable'
+      ? "Can't reach your PC.<br>Check Tailscale is on and the PC is awake."
+      : 'Agent Hub is dormant.<br>Initiate from PC.');
+  }
+  wakeSub.classList.toggle('on', up || !onPc);
+}
+
+// A tiny request every 3 s, and only while the page is on screen: nothing to poll for a hidden page. A phone
+// that was asleep asks again the moment the page comes back. "Unreachable" needs two misses in a row, so one
+// slow reply never flashes the warning.
+async function pollHub() {
+  if (document.hidden || window.__hubViewSuspended) return;
+  const generation=window.__hubViewGeneration||0;
+  const st = await probe();
+  if(window.__hubViewSuspended||generation!==(window.__hubViewGeneration||0))return;
+  if (starting) {
+    if (st !== 'up') return;
+    starting = false;
+    if (startTimer) clearInterval(startTimer);
+    startTimer = null;
+  }
+  if (st === 'unreachable') { if (++misses < 2) return; } else misses = 0;
+  showState(st);
+  window.__hubSetViewStatus({page:'landing',state:shown,at:Date.now()});
+}
+window.__hubRefreshView=pollHub;
+// Wire the visible button immediately; unreachable-probe debounce must not leave START inert.
+showState('down');
+pollHub();
+setInterval(pollHub, 3000);
+document.addEventListener('visibilitychange', pollHub);
+window.addEventListener('pageshow', pollHub);
+})();
+</script>
+<script>
+if(window.__hubDropFade&&!document.hidden&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
+ try{document.body.animate([{opacity:0},{opacity:1}],{duration:400});}catch(e){}
 }
 </script>
+<script>__DEPTH_LIFT__</script>
 </body>
 </html>
 """
@@ -312,7 +457,8 @@ if (isWindows()) {
 import hashlib as _hashlib
 _MARK_VERSION = _hashlib.sha256(_MARK_JS.encode("utf-8")).hexdigest()[:12]
 _MARK_URL = "/static/agent-hub-mark.js?v=" + _MARK_VERSION
-_OFFLINE_HTML = _OFFLINE_HTML.replace("__MARK_VERSION__", _MARK_VERSION)
+_OFFLINE_HTML = (_OFFLINE_HTML.replace("__MARK_VERSION__", _MARK_VERSION).replace("__DL_ARRIVE__", _DL_ARRIVE)
+                 .replace("__DEPTH_LIFT__", _DEPTH_LIFT_JS))
 _OFFLINE_CACHE = "agent-hub-offline-" + _hashlib.sha1((_OFFLINE_HTML + _MARK_JS).encode("utf-8")).hexdigest()[:10]
 
 _SW_JS = """\
@@ -370,7 +516,7 @@ self.addEventListener('fetch', (event) => {
   // checking and switches to the live hub by itself as soon as the PC is back.
   if (request.mode === 'navigate') {
     event.respondWith(
-      within(fetch(request), NAV_WAIT_MS).then((response) => {
+      within(fetch(request), new URL(request.url).searchParams.has('enter') ? 20000 : NAV_WAIT_MS).then((response) => {
         // tailscale serve stays up while Agent Hub itself is down: a dead backend is a 502/503/504
         if (response.ok) return dormantFile ? remember(request, response) : response;
         return caches.open(CACHE_NAME).then((c) => c.match(request)).then((cached) => cached || dormantPage());
@@ -411,6 +557,15 @@ _HTML = """\
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
+__DL_ARRIVE__
+<script>
+// A phone opening the live hub lands on the landing page first (ENTER), once per app launch.
+(function(){var p=navigator.userAgentData&&navigator.userAgentData.platform;
+var pc=p?p==='Windows':/Windows/i.test(navigator.userAgent),done=false;
+try{done=sessionStorage.getItem('agenthub:entered')==='1';}catch(e){}
+if(!pc&&!done&&!/[?&]enter=1/.test(location.search)&&!/nogate/.test(location.hash))location.replace('/offline.html');})();
+</script>
+<script src="__MARK_URL__" defer></script>
 <meta name="theme-color" content="#080c28">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -539,10 +694,14 @@ header{display:flex;align-items:center;flex-wrap:nowrap;gap:7px;width:100%;paddi
   border-radius:10px;border:1px solid var(--accent);background:rgba(0,230,118,.12);color:var(--accent);
   cursor:pointer;transition:all .15s}
 .power-abort:hover{background:rgba(0,230,118,.2);box-shadow:0 0 16px rgba(0,230,118,.3)}
-.brand-icon{width:40px;height:40px;flex-shrink:0;object-fit:cover;mix-blend-mode:screen;opacity:.97;
-  clip-path:circle(47% at 50% 50%);
-  -webkit-mask-image:radial-gradient(circle at 50% 50%,#000 15px,transparent 18px);
-  mask-image:radial-gradient(circle at 50% 50%,#000 15px,transparent 18px)}
+.orb-home{position:relative;width:40px;height:40px;flex-shrink:0;padding:0;border:0;border-radius:50%;background:none;
+  cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s,filter .4s}
+.orb-home:active{transform:scale(.9)}
+.orb-home:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* The real Agent Hub mark, mounted small. pointer-events:none so a touch or hover reaches the button, not the mark. */
+.orb-home .orb-host{position:absolute;inset:0;display:block;border-radius:50%;pointer-events:none}
+.orb-home .orb-host img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.orb-home.down{filter:grayscale(1) brightness(.62)}
 .brand{font-family:'Orbitron',monospace;font-size:15px;font-weight:900;color:var(--accent);
   letter-spacing:4px;text-shadow:0 0 20px rgba(0,230,118,.4)}
 .sub{font-size:11px;color:var(--text-faint);letter-spacing:.5px;margin-top:2px}
@@ -580,7 +739,7 @@ body.edit-mode .drag-handle{display:block}
 #loc-btn{--g:rgba(56,182,255,.85)}#loc-btn svg{width:20px;height:20px;stroke:#38b6ff;filter:drop-shadow(0 0 3px rgba(56,182,255,.85))}
 #loc-btn svg .loc-marker{fill:#070b25;stroke:#304a9d;stroke-width:2;filter:drop-shadow(0 0 2px rgba(48,74,157,.72))}
 @media (max-width:720px){#loc-btn svg{width:18px;height:18px}}
-@media (max-width:720px){header{gap:5px;padding:calc(10px + env(safe-area-inset-top)) 10px 10px}.brand{font-size:13px;letter-spacing:2px}.brand-icon{width:30px;height:30px}
+@media (max-width:720px){header{gap:5px;padding:calc(10px + env(safe-area-inset-top)) 10px 10px}.brand{font-size:13px;letter-spacing:2px}.orb-home{width:30px;height:30px}
   .conn-label{display:none}.restart-btn,.shutdown-btn{width:36px;height:36px;border-radius:11px}.restart-btn svg,.shutdown-btn svg{width:18px;height:18px}}
 .ico{width:14px;height:14px;vertical-align:-2px;margin-right:6px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .wire-out .ico,.yt-queue-del .ico{margin:0;width:13px;height:13px}
@@ -726,7 +885,7 @@ __SETUP_LINK__
 <div id="trash-zone">🗑 DRAG HERE TO WIRE OUT</div>
 
 <header>
-  <img class="brand-icon" src="/favicon.png" alt="Agent Hub">
+  <button type="button" class="orb-home" id="orb-home" title="Landing page" aria-label="Back to the Agent Hub landing page"><span class="orb-host" id="orb-host"><img src="/favicon-64.png" alt=""></span></button>
   <div>
     <div class="brand">AGENT HUB</div>
   </div>
@@ -1018,10 +1177,10 @@ shutdownBtn.onclick = async () => {
   if (!confirm('Turn off Agent Hub?\\n\\nRunning apps will be stopped and this page goes dormant until you start it again on the PC.')) return;
   shutdownBtn.disabled = true;
   shutdownBtn.classList.add('working');
-  try { await fetch('/api/shutdown', {method: 'POST'}); } catch (e) {}
+  fetch('/api/shutdown', {method: 'POST'}).catch(() => {});
   setConn(false);
   document.title = 'AGENT HUB — Dormant';
-  setTimeout(enterDormant, 1500);
+  enterDormant();
 };
 
 // Restart from the header ⟳. The launcher's supervisor loop relaunches the
@@ -1029,6 +1188,7 @@ shutdownBtn.onclick = async () => {
 const restartBtn = document.getElementById('restart-btn');
 restartBtn.onclick = async () => {
   if (!confirm('Restart Agent Hub?')) return;
+  window.__hubRestarting = true;
   restartBtn.disabled = true;
   shutdownBtn.disabled = true;
   restartBtn.classList.add('working');
@@ -1043,7 +1203,7 @@ restartBtn.onclick = async () => {
       const r = await fetch('/api/status', {cache: 'no-store', signal: AbortSignal.timeout(2000)});
       if (r.ok) { clearInterval(poll); window.location.reload(); return; }
     } catch (e) {}
-    if (tries > 40) { clearInterval(poll); connLabel.textContent = 'DISCONNECTED'; }  // ~60s give-up
+    if (tries > 40) { window.__hubRestarting=false; clearInterval(poll); connLabel.textContent = 'DISCONNECTED'; }  // ~60s give-up
   }, 1500);
 };
 
@@ -1460,8 +1620,32 @@ editToggle.onclick = () => {
 
 const connLabel = document.getElementById('conn-label');
 const connDot   = document.getElementById('conn-dot');
+const orbHome   = document.getElementById('orb-home');
+
+let orbMark = null;
+window.__hubSuspendView = (permanent) => { if(permanent){if(orbMark){orbMark.destroy();orbMark=null;}quiesceLivePage();}else window.__hubPageTasks.pause(); };
+window.__hubRefreshView=refresh;
+// The orb takes you back to the landing page (the screen with START / ENTER).
+orbHome.onclick = () => {
+  const back = () => { location.href = '/offline.html'; };
+  if (window.DepthLift) DepthLift.go('landing', back, orbHome); else back();
+};
+function mountOrb() {
+  if (orbMark) return;
+  try {
+    if (window.AgentHubMark && !/nomark/.test(location.hash))
+      orbMark = AgentHubMark.mount(document.getElementById('orb-host'), {state: 'live', size: 40, shell: true, glowSize: 0.6, glowAlpha: 0.7, prewarm: false});
+    // At this size the tetrahedral core is what should read: brighten it, and let the globe sit behind it, faint.
+    const host = document.getElementById('orb-host'), core = orbMark && orbMark.core && orbMark.core.getCanvas && orbMark.core.getCanvas();
+    if (core) core.style.filter = 'brightness(2.4) saturate(1.15)';
+    host.querySelectorAll('canvas').forEach((c) => { if (c !== core) c.style.opacity = '0.55'; });
+  } catch (e) { orbMark = null; }
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mountOrb,{once:true});else mountOrb();
 
 function setConn(live) {
+  orbHome.classList.toggle('down', !live);
+  if (orbMark) { try { orbMark.setState(live ? 'live' : 'dormant'); } catch (e) {} }
   connLabel.textContent = live ? 'LIVE' : 'DISCONNECTED';
   connLabel.classList.toggle('live', live);
   connLabel.classList.toggle('down', !live);
@@ -1469,7 +1653,9 @@ function setConn(live) {
 }
 
 async function refresh() {
-  if (window.__hubDormant) return;     // the dormant screen has taken over this window
+  if (window.__hubDormant || window.__hubViewSuspended) return;
+  const generation=window.__hubViewGeneration||0;
+  let statusConfirmed = false;     // the dormant screen has taken over this window
   try {
     // fire all three at once — they used to run one after another, so the menu waited for the sum
     const _o = (ms) => ({cache: 'no-store', signal: AbortSignal.timeout(ms)});
@@ -1485,15 +1671,22 @@ async function refresh() {
     const res = await fetch('/api/status', {signal: AbortSignal.timeout(4000)});
     if (!res.ok) throw new Error('bad status');
     await res.json();
+    statusConfirmed = true;
+    if(window.__hubViewSuspended||generation!==(window.__hubViewGeneration||0))return;
     setConn(true);
     downCount = 0;
     showAutoLlm(true);        // back online: the card's buttons mean something again
     ytAppArea.style.display = '';
     ytdlAppArea.style.display = '';
     powerWrap.style.display = '';
+    // The page is already drawn (embedded first render) and the hub answered: that is readiness. Nothing below may
+    // hold it back - the app lists and proposals are refinements, and a slow one used to stall the Depth Lift.
+    window.__hubSetViewStatus({page:'home',state:'up',at:Date.now()});
+    await window.__hubWaitForTransition();
+    if(window.__hubViewSuspended||generation!==(window.__hubViewGeneration||0))return;
     { const a = await pApps; if (a) { APP_LIST = a.apps || APP_LIST; } }
-    try { ACTION_APPS = (await (await fetch('/api/action-apps',{cache:'no-store'})).json()).apps || []; } catch(e) {}
-    try { PROPOSALS = (await (await fetch('/api/proposals',{cache:'no-store'})).json()).proposals || []; } catch(e) {}
+    try { ACTION_APPS = (await (await fetch('/api/action-apps',{cache:'no-store',signal:AbortSignal.timeout(4000)})).json()).apps || []; } catch(e) {}
+    try { PROPOSALS = (await (await fetch('/api/proposals',{cache:'no-store',signal:AbortSignal.timeout(4000)})).json()).proposals || []; } catch(e) {}
     // Lightweight YT-DL status, no websocket — so a device whose card is
     // COLLAPSED (or another device entirely, e.g. phone while PC downloads)
     // still shows "downloading"/"queued" instead of a stale "IDLE" until
@@ -1513,30 +1706,28 @@ async function refresh() {
         }
       }
     } catch (e) { /* non-critical — leave whatever the status line last showed */ }
+    if(window.__hubViewSuspended||generation!==(window.__hubViewGeneration||0))return;
+    await window.__hubWaitForTransition();
+    if(window.__hubViewSuspended||generation!==(window.__hubViewGeneration||0))return;
     if (!_dragCard) { render(); renderFileBrowser(); }   // don't yank the DOM mid-gesture
+    window.__hubSetViewStatus({page:'home',state:'up',at:Date.now()});
   } catch (err) {
-    setConn(false);
+    if (statusConfirmed) {
+      // A UI render error is not evidence of a lost network connection.
+      console.warn('Agent Hub UI refresh failed after a successful status response:', err);
+      window.__hubUiError = String(err && (err.stack || err.message) || err);
+      return;
+    }
     // One slow /api/status poll (>4s) must NOT yank the cards out of the layout —
     // that's what made MISSIONS / GRAPH look "unclickable" for a beat. Only react
     // once we've missed two polls in a row.
     downCount += 1;
-    if (downCount >= 2) {
-      ytAppArea.style.display = 'none';
-      ytdlAppArea.style.display = 'none';
-      powerWrap.style.display = 'none';   // the power button can't work with the hub down
-      appsBefore.innerHTML = '<div id="empty">Could not reach Agent Hub API.</div>';
-      appsAfter.innerHTML = '';
-      const fbHost = document.getElementById('filebrowser-area');
-      if (fbHost) fbHost.innerHTML = '';
-      // Auto-LLM is static markup rather than a rendered card, so clearing the
-      // two app containers left it on screen - on a dormant phone you saw a
-      // working-looking widget whose every button needs the API that is down.
-      showAutoLlm(false);
-    }
+    if (downCount >= 2) setConn(false);
+    // Keep the actual Home layout intact while fading it out.
     // Hub is down → show the DORMANT screen right here. A reload depended on the service
     // worker still holding the page, which a phone can evict; this uses a copy fetched
     // while the hub was up, so it works with the worker absent or empty.
-    if (downCount >= 2) enterDormant();
+    if (downCount >= 2 && !window.__hubRestarting) enterDormant();
   }
 }
 
@@ -1546,7 +1737,11 @@ const OFFLINE_CACHE = '__OFFLINE_CACHE__';
 let dormantHtml = null, dormantMark = null;
 async function prepareDormant() {
   try {
+    await window.__hubWaitForTransition();
+    if(window.__hubViewSuspended)return;
     const [h, m] = await Promise.all([fetch('/offline.html', {cache: 'no-store'}), fetch(MARK_URL, {cache: 'no-store'})]);
+    await window.__hubWaitForTransition();
+    if(window.__hubViewSuspended)return;
     if (h.ok) dormantHtml = await h.text();
     if (m.ok) dormantMark = await m.text();
     // keep this device's cache stocked too, so a relaunch with the hub down still finds the page
@@ -1562,8 +1757,7 @@ async function prepareDormant() {
 // takes the window over, or it keeps running behind it (it did, and a phone does not have the headroom).
 function quiesceLivePage() {
   try {
-    const t = setTimeout(() => {}, 0); for (let i = t; i > 0; i--) { clearTimeout(i); clearInterval(i); }
-    const r = requestAnimationFrame(() => {}); for (let i = r; i > 0; i--) cancelAnimationFrame(i);
+    if(window.__hubPageTasks)window.__hubPageTasks.stop();
     (window.__socks || []).forEach((s) => { try { s.onclose = s.onerror = s.onmessage = null; s.close(); } catch (e) {} });
   } catch (e) {}
 }
@@ -1579,6 +1773,12 @@ async function enterDormant() {
     html = html.replace('<script src="' + MARK_URL + '"><\\/script>',
                         () => '<script>' + dormantMark.replace(/<\\/script/gi, '<\\\\/script') + '<\\/script>');
   }
+  if (window.DepthLift) DepthLift.dispose();
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches || document.hidden;
+  if (!reduce) {
+    try { await document.body.animate([{opacity:1},{opacity:0}], {duration:400,fill:'forwards'}).finished; } catch(e) {}
+  }
+  html = html.replace('<head>', '<head><script>window.__hubDropFade=true;<\\/script>');
   quiesceLivePage();
   document.open(); document.write(html); document.close();
 }
@@ -2214,6 +2414,7 @@ fetch('/api/update', {cache:'no-store'}).then(r => r.ok ? r.json() : null).then(
 }).catch(() => {});
 </script>
 __VOICE_WIDGET__
+<script>__DEPTH_LIFT__</script>
 </body>
 </html>
 """
@@ -2237,6 +2438,8 @@ def _render_menu() -> str:
             .replace("__PICKER_JS__", _PICKER)
             .replace("__OFFLINE_CACHE__", _OFFLINE_CACHE)
             .replace("__MARK_URL__", _MARK_URL)
+            .replace("__DL_ARRIVE__", _DL_ARRIVE)
+            .replace("__DEPTH_LIFT__", _DEPTH_LIFT_JS)
             .replace("__VOICE_WIDGET__", _WIDGET)
             .replace("__TALK_BUTTON__", TALK_BUTTON)
             .replace("__APPS_JSON__", apps_json)

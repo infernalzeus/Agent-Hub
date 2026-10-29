@@ -167,6 +167,33 @@ async def tools_of(name: str) -> list:
     return got
 
 
+_REFRESHING: "set[str]" = set()
+
+
+def tools_cached(name: str) -> list:
+    """Answer at once from the cache; if it is missing or stale, refresh it in the background.
+
+    The listing used to await the probe, so the first request after a start (and after every
+    TTL expiry) held the whole menu - and anything waiting on it - for several seconds.
+    """
+    import asyncio
+    import time as _t
+    hit = _TOOLS.get(name)
+    fresh = bool(hit) and (_t.monotonic() - hit[0]) < _TOOLS_TTL
+    if not fresh and name not in _REFRESHING:
+        _REFRESHING.add(name)
+
+        async def _bg() -> None:
+            try:
+                await tools_of(name)
+            except Exception as exc:  # tools_of already degrades; never let a background task raise
+                logger.info("action_apps: background probe of %s failed: %s", name, exc)
+            finally:
+                _REFRESHING.discard(name)
+        asyncio.get_running_loop().create_task(_bg())
+    return hit[1] if hit else []
+
+
 @routes.get("/api/action-apps")
 async def api_list(request: web.Request) -> web.Response:
     """The tiles, and the servers and verbs one could be built from."""
@@ -177,7 +204,7 @@ async def api_list(request: web.Request) -> web.Response:
             continue
         tools = s.get("tools") or []
         if not tools:
-            tools = await tools_of(s["name"])
+            tools = tools_cached(s["name"])
         servers.append({
             "name": s["name"],
             "excluded": s.get("excluded_tools") or [],
