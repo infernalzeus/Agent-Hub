@@ -1213,8 +1213,10 @@ async def _stream_one(m: Mission, wt: Path, data_dir: Path, agent: str, brief: s
         errf = open(errlog, "a", encoding="utf-8")
     except Exception:
         errf = asyncio.subprocess.DEVNULL
+    # stdin is closed on purpose: `opencode run` waits on an inherited stdin that never ends, and sits silent right
+    # after "init" (30 Oct: hung with an inherited pipe, finished 3 of 3 with stdin closed).
     proc = await asyncio.create_subprocess_exec(
-        *cmd, cwd=str(wt), env=env, stdout=asyncio.subprocess.PIPE, stderr=errf)
+        *cmd, cwd=str(wt), env=env, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE, stderr=errf)
     _assign_to_job(proc.pid)
     m.pid = proc.pid
     S.procs[m.id] = proc
@@ -1330,7 +1332,7 @@ async def _stream_one_claude(m: Mission, wt: Path, data_dir: Path, agent: str, b
     except Exception:
         errf = asyncio.subprocess.DEVNULL
     proc = await asyncio.create_subprocess_exec(
-        *cmd, cwd=str(wt), env=env, stdout=asyncio.subprocess.PIPE, stderr=errf)
+        *cmd, cwd=str(wt), env=env, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE, stderr=errf)
     _assign_to_job(proc.pid)
     m.pid = proc.pid
     S.procs[m.id] = proc
@@ -2907,7 +2909,7 @@ async def continue_(mid: str, msg: str) -> None:
     m.ended = None
     S.save(m)
     proc = await asyncio.create_subprocess_exec(
-        *cmd, cwd=str(wt), env=env, stdout=asyncio.subprocess.PIPE,
+        *cmd, cwd=str(wt), env=env, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL)
     _assign_to_job(proc.pid)
     S.procs[m.id] = proc
@@ -3182,7 +3184,7 @@ async def api_agent_draft(request: web.Request) -> web.Response:
     proc = await asyncio.create_subprocess_exec(
         OCM.OPENCODE_EXE, "run", "--dir", str(wt), "--agent", "agent-smith",
         "--format", "json", ask,
-        cwd=str(wt), env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        cwd=str(wt), env=env, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
     _assign_to_job(proc.pid)
     try:
         out, _ = await asyncio.wait_for(proc.communicate(), timeout=180)
@@ -3226,7 +3228,7 @@ async def ask_scratch(agent: str, brief: str, timeout: float = 120.0) -> str:
     started = time.time()
     proc = await asyncio.create_subprocess_exec(
         OCM.OPENCODE_EXE, "run", "--dir", str(wt), "--agent", agent, "--format", "json", brief,
-        cwd=str(wt), env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        cwd=str(wt), env=env, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
     _assign_to_job(proc.pid)
     try:
         out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
