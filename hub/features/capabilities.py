@@ -46,6 +46,7 @@ ALLOWED: "dict[str, str]" = {
     "/api/graph":        "the project graph and repository status",
     "/api/locations":    "where the Hub reads and writes",
     "/api/pc/machine/":  "replay something you recorded",
+    "/api/pc/steps":     "do a web or app task from steps on screen (show the path first; running needs the user's yes)",
     "/api/automations":  "the automations themselves",
 }
 
@@ -54,6 +55,7 @@ ALLOWED: "dict[str, str]" = {
 DENIED = (
     "/api/shutdown", "/api/restart", "/api/power",
     "/api/llm/keys", "/api/integrations",
+    "/api/missions/policy",      # stay-local is the person's switch, not an agent's
 )
 
 # Endpoints whose effects are hard to take back - they leave this machine, write

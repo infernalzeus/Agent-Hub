@@ -111,7 +111,7 @@ _REGEX_COMMANDS = [          # kept only as a fallback if hub/commands.json is m
     {"id": "open_locations", "action": ("open_page", {"page": "locations"}), "rx": [r"\b(open|show|go to|take me to|bring up|change|edit)\b.*\b(locations?|settings|setup|folders?|paths?)\b"]},
     {"id": "open_hub", "action": ("open_page", {"page": "hub"}), "rx": [r"\b(go|take me|back)\b.*\b(home|hub|main menu|dashboard)\b", r"^(home|main menu|dashboard)$"]},
     {"id": "new_ask", "action": ("new_ask", None), "rx": [r"^ask (?:the )?hub (?:to |for )?(?P<arg>.+)$", r"^(?:please )?(?:start |make |create )?(?:a )?(?:new )?(?:ask|mission)(?: to| for| about| that)? (?P<arg>.+)$"]},
-    {"id": "status", "action": ("status", {}), "rx": [r"\b(status|what(?:'s| is| are)? (?:waiting|running|happening|going on)|anything (?:waiting|needs me)|any updates?|inbox)\b"]},
+    {"id": "status", "action": ("status", {}), "rx": [r"\b(status|what(?:'s| is| are)? (?:waiting|running|happening|going on)|anything (?:waiting|needs me|running|in progress|active|going on)|any updates?|inbox|what(?:'s| is) in progress)\b"]},
     {"id": "pause_all", "action": ("pause", {}), "rx": [r"\b(stop|pause|halt)\b.*\b(everything|all|running|agents?|asks?|missions?)\b"]},
 ]
 def _load_commands() -> list:

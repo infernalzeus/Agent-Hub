@@ -25,6 +25,8 @@ from aiohttp import web
 from .runtime import STATE, write_json
 
 FILE = STATE / "integration_tokens.json"
+# Switches that belong to the person, not to any script or agent holding a token whose scope happens to cover them.
+PERSONAL_ONLY = ("/api/missions/policy",)
 PREFIX = "ahi_"          # so a leaked secret is recognisable in logs and history
 
 
@@ -89,6 +91,8 @@ def identify(request: web.Request) -> dict | None:
         # compare_digest so a wrong token cannot be narrowed down by timing.
         if not hmac.compare_digest(token.get("hash", ""), digest):
             continue
+        if request.path.startswith(PERSONAL_ONLY):
+            return None
         if not any(request.path.startswith(scope) for scope in token.get("scopes", [])):
             return None                          # real token, wrong scope
         token["last_used"] = time.time()

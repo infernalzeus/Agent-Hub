@@ -688,15 +688,27 @@ def parse_snapshot(text: str) -> "list[dict]":
             for n in parse_tree(text) if "x" in n]
 
 
+_STABLE_CONTROLS = {"button", "tab item", "menu item", "toggle button"}
+
+
 def ui_signature(elements: "list[dict]", window: str) -> dict:
     """What this screen looked like, in a form that survives it being moved or resized.
 
     Names and control types only - never coordinates, so dragging the window does
     not invalidate the routine, while the dialog changing underneath it does.
+
+    `fingerprint` covers every control and is kept for routines saved before `stable` existed. `stable` covers
+    only the short-named buttons and tabs without digits (the app's own chrome), because the content of a home
+    page changes between visits: on 30 Oct the same Apple Music start screen differed by what had just been
+    played, the full fingerprint no longer matched, and a good routine was refused and disabled.
     """
     same = sorted(f"{e['control']}|{e['name']}" for e in elements if e["window"] == window)
     digest = hashlib.sha256(chr(10).join(same).encode("utf-8")).hexdigest()[:16]
-    return {"kind": "ui", "window": window, "controls": len(same), "fingerprint": digest}
+    chrome = sorted({f"{e['control']}|{e['name']}" for e in elements if e["window"] == window
+                     and e["control"] in _STABLE_CONTROLS and e["name"] and len(e["name"]) <= 24
+                     and not any(ch.isdigit() for ch in e["name"])})
+    stable = hashlib.sha256(chr(10).join(chrome).encode("utf-8")).hexdigest()[:16]
+    return {"kind": "ui", "window": window, "controls": len(same), "fingerprint": digest, "stable": stable}
 
 
 async def _raw_tree(app: str = "") -> "list[dict]":
@@ -828,10 +840,11 @@ async def replay_ui_routine(routine: dict, request: str = "") -> dict:
     # screen and conclude its target had vanished.
     elements = await _snapshot(stored.get("window", ""))
     live = ui_signature(elements, stored.get("window", ""))
-    if live["fingerprint"] != stored.get("fingerprint"):
+    key = "stable" if stored.get("stable") else "fingerprint"
+    if live[key] != stored.get(key):
+        # Not a failure of the routine: the screen is not the one it knows. It earns no credit and loses none.
         _record_run(request, "fall-through", "skipped",
-                    f"signature mismatch: expected {stored.get('fingerprint')}, saw {live['fingerprint']}")
-        _remember_outcome(routine["id"], False)
+                    f"signature mismatch ({key}): expected {stored.get(key)}, saw {live[key]}")
         return {"ok": False, "route": "fall-through",
                 "say": f"{routine['title']} was recorded on a different screen, so I did not touch it."}
 
@@ -1321,20 +1334,26 @@ def window_state(nodes: "list[dict]", window: str) -> dict:
     return ui_signature(flatten(nodes), window)
 
 
-async def effect_of(window: str, before: dict, settle: float = 1.2) -> dict:
+async def effect_of(window: str, before: dict, settle: float = 1.2, retries: int = 3) -> dict:
     """Whether the window visibly changed, after giving it a moment to react.
 
     `settle` exists because a press is not instantaneous: a view redraws, a track
     starts, a dialog opens. Reading too early reports no effect for an action
-    that was about to have one. Reading cannot be retried forever either, so this
-    is one short wait and one look.
+    that was about to have one - and it got worse when a read dropped from 5 s to 1 s (the kept-open control
+    session, 30 Oct): the navigation panel was still sliding open at the first look, so a press that worked was
+    reported as doing nothing. So it looks again, a few times, until something changed; "nothing changed" is
+    only said after the last look.
     """
-    try:
-        await asyncio.sleep(settle)
-        after = window_state(await _raw_tree(), window)
-    except Exception as exc:
-        logger.info("pc_control: could not check what changed in %r: %s", window, exc)
-        return {"known": False, "changed": False, "why": "I could not read the window afterwards"}
+    after = None
+    for attempt in range(retries + 1):
+        try:
+            await asyncio.sleep(settle if attempt == 0 else 1.0)
+            after = window_state(await _raw_tree(), window)
+        except Exception as exc:
+            logger.info("pc_control: could not check what changed in %r: %s", window, exc)
+            return {"known": False, "changed": False, "why": "I could not read the window afterwards"}
+        if after["fingerprint"] != before.get("fingerprint"):
+            break
     changed = after["fingerprint"] != before.get("fingerprint")
     return {"known": True, "changed": changed, "before": before, "after": after,
             "why": "" if changed else "nothing in the window changed"}

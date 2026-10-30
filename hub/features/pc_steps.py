@@ -150,6 +150,13 @@ def _flags(node: dict) -> str:
 
 
 async def _find(name: str, nodes: "list[dict]") -> dict:
+    # A control whose whole name is what was asked for beats any word-by-word match ("Search" the link over
+    # "Search" the word inside a heading); only when there is no such control does the looser lookup run.
+    want = " ".join(name.casefold().split())
+    exact = [n for n in nodes if BROWSER in (n.get("window") or "").casefold() and n.get("x") is not None
+             and n.get("clickable") and " ".join((n.get("name") or "").casefold().split()) == want]
+    if len(exact) == 1:
+        return {"target": exact[0]}
     got = PC.locate(nodes, name, app=BROWSER)
     if got.get("target"):
         return got
@@ -213,6 +220,21 @@ async def run(steps: "list[dict]", request: str = "steps") -> dict:
             elif d in ("click", "type"):
                 field = st.get("name") if d == "click" else st.get("field")
                 loc = None
+                if d == "type" and not field:
+                    # No field named: type only into a text field the page itself has focused. Typing at "wherever
+                    # the cursor is" is how text lands in the wrong place without anyone knowing.
+                    nodes = await _tree()
+                    blocked = _browser_unreadable(nodes)
+                    if blocked:
+                        return fail(i, blocked)
+                    focused = [n for n in nodes if BROWSER in (n.get("window") or "").casefold() and n.get("x") is not None
+                               and n.get("control") in ("edit", "combo box", "text box", "document")
+                               and "focused" in str(n.get("flags") or "").lower() and n.get("control") != "document"]
+                    if len(focused) != 1:
+                        return fail(i, "no single text field is focused on the page; name the field, as in type “…” in <field>")
+                    if _NEVER_TYPE.search(str(focused[0].get("name") or "")):
+                        return fail(i, f"“{focused[0].get('name')}” looks like a password or card field, so I won't type into it; do that one yourself")
+                    loc = [focused[0]["x"], focused[0]["y"]]
                 if field:
                     nodes = await _tree()
                     blocked = _browser_unreadable(nodes)

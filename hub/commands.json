@@ -70,7 +70,7 @@
   "status": {
     "action": ["status", {}],
     "templates": [
-      "... (status|what's waiting|what is waiting|what are waiting|what's running|what is running|what's happening|what is happening|what's going on|anything waiting|anything needs me|any update|any updates|inbox) ..."
+      "... (status|what's waiting|what is waiting|what are waiting|what's running|what is running|what's happening|what is happening|what's going on|anything waiting|anything needs me|anything running|anything in progress|anything active|anything going on|what's in progress|what is in progress|any update|any updates|inbox) ..."
     ]
   },
   "pause_all": {

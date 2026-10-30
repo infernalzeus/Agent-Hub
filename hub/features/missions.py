@@ -35,7 +35,7 @@ from .. import agent_knowledge, app_registry, config
 from .. import decide as DEC
 from ..config import logger
 from ..platform_win import _assign_to_job
-from ..runtime import python_for
+from ..runtime import STATE, python_for
 from . import llm_keys as LLMK
 from .. import runtime as RT
 from . import opencode as OCM   # reuse worktree / model / merge / materialize helpers
@@ -52,6 +52,7 @@ STALL_SECS = 150               # one model call with no event for this long = st
 # mission budget. This clock only moves when the agent DOES something.
 NO_PROGRESS_SECS = 300         # no tool call / step finished for this long = failing over
 LOCAL_NO_PROGRESS_SECS = 600   # a local model thinks between moves; give it longer
+FIRST_EVENT_SECS = 120         # a local model with no event at all this long after start is not working
 LOCAL_STALL_SECS = 420         # a big local model re-reading the prompt is slow, not stuck
 QUIET_DONE_SECS = 20           # idle this long after the agent's final "stop" → done
 EVENT_KEEP = 300               # events held in memory per mission for the SSE tail
@@ -1219,7 +1220,7 @@ async def _stream_one(m: Mission, wt: Path, data_dir: Path, agent: str, brief: s
     S.procs[m.id] = proc
 
     # "last" = any output at all. "moved" = the agent actually did something.
-    st = {"last": time.monotonic(), "moved": time.monotonic(), "stop": False}
+    st = {"last": time.monotonic(), "moved": time.monotonic(), "stop": False, "got": False}
 
     mdl = m.model or ""
     local = mdl.startswith("ollama/") and not mdl.endswith(":cloud")
@@ -1229,8 +1230,11 @@ async def _stream_one(m: Mission, wt: Path, data_dir: Path, agent: str, brief: s
     async def _quiet_killer() -> None:
         while proc.returncode is None:
             await asyncio.sleep(8)
-            if not st["stop"] and time.monotonic() - st["last"] > stall:
-                m.error = f"stalled: no response for {stall}s from {mdl} — failing over to the next model"
+            # A local model that has not produced a single event in FIRST_EVENT_SECS is not "re-reading a big prompt":
+            # a working one answered its first step in seconds (30 Oct), and the one that never did cost 420 s.
+            limit = FIRST_EVENT_SECS if (local and not st["got"]) else stall
+            if not st["stop"] and time.monotonic() - st["last"] > limit:
+                m.error = f"stalled: no response for {limit}s from {mdl} — failing over to the next model"
                 S.events[m.id].append({"type": "error", "error": m.error})
                 logger.warning("missions %s: %s", m.id, m.error)
                 try:
@@ -1267,6 +1271,7 @@ async def _stream_one(m: Mission, wt: Path, data_dir: Path, agent: str, brief: s
                 jf.write(line)
                 jf.flush()
                 st["last"] = time.monotonic()
+                st["got"] = True
                 s = line.strip()
                 if not s:
                     continue
@@ -1387,6 +1392,116 @@ async def _stream_resilient_claude(m: Mission, wt: Path, data_dir: Path, agent: 
     return rc, stop
 
 
+# -- local model health ---------------------------------------------------------------------------------------------
+# Measured 30 Oct on the RX 7700 XT: qwen3.6 crashes the model server on load, and gemma4:e4b-32k answers a request
+# that carries tool definitions with nothing. A mission found that out by waiting 420 s per model, then walked on to
+# a hosted one. So a local model is tried with one tiny tool-carrying request first (seconds), and a model that
+# failed is remembered for a while and skipped. "Stay local" stops the chain from ever leaving the machine.
+HEALTH_FILE = STATE / "model_health.json"
+HEALTH_TTL = 6 * 3600
+PREFLIGHT_SECS = 45
+_PROBE_TOOL = [{"type": "function", "function": {"name": "write", "description": "Write a file",
+                "parameters": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}},
+                               "required": ["path", "content"]}}}]
+
+
+def _is_local(model: str) -> bool:
+    return (model or "").startswith("ollama/") and not (model or "").endswith(":cloud")
+
+
+def _health() -> dict:
+    try:
+        return json.loads(HEALTH_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def model_bad(model: str) -> str:
+    """Why this local model is being skipped, or "" if it is not."""
+    row = _health().get(model)
+    if row and time.time() - row.get("at", 0) < HEALTH_TTL:
+        return str(row.get("why") or "failed a recent check")
+    return ""
+
+
+def mark_model(model: str, why: str = "") -> None:
+    rows = _health()
+    if why:
+        rows[model] = {"why": why[:200], "at": time.time()}
+    else:
+        rows.pop(model, None)
+    try:
+        HEALTH_FILE.write_text(json.dumps(rows, indent=1), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def stay_local() -> bool:
+    """The policy: missions never leave this machine's own models. Off unless the person switches it on."""
+    try:
+        return bool(json.loads((STATE / "mission_policy.json").read_text(encoding="utf-8")).get("stay_local"))
+    except (OSError, ValueError):
+        return False
+
+
+@routes.get("/api/missions/policy")
+async def api_policy(request: web.Request) -> web.Response:
+    """Mission policy: stay_local (never leave this machine's own models) and the local models currently being skipped."""
+    bad = {m: r for m, r in _health().items() if time.time() - r.get("at", 0) < HEALTH_TTL}
+    return web.json_response({"stay_local": stay_local(), "skipped_models": bad})
+
+
+@routes.post("/api/missions/policy")
+async def api_policy_set(request: web.Request) -> web.Response:
+    """{stay_local: bool, retry_model?: "ollama/..."} - retry_model clears that model's skip mark."""
+    try:
+        b = await request.json()
+    except Exception:  # noqa: BLE001
+        b = {}
+    if "stay_local" in b:
+        (STATE / "mission_policy.json").write_text(json.dumps({"stay_local": bool(b["stay_local"])}), encoding="utf-8")
+    if b.get("retry_model"):
+        mark_model(str(b["retry_model"]), "")
+    return await api_policy(request)
+
+
+async def preflight_local(model: str) -> str:
+    """"" when the local model answers a tiny tool-carrying request within seconds, else what went wrong.
+
+    A "soft:" answer means it ran but said nothing this time. gemma4:e4b-32k did that in one probe and then did
+    real agent work by hand a minute later (30 Oct), so an empty answer is a warning, never a reason to skip.
+    Crashes, refusals and silence are skipped.
+    """
+    name = model.split("/", 1)[1]
+    body = {"model": name, "stream": False, "max_tokens": 120,
+            "messages": [{"role": "user", "content": "Create hello.txt containing the word hi. Use the write tool."}],
+            "tools": _PROBE_TOOL}
+    body["max_tokens"] = 400
+
+    async def go():
+        import aiohttp
+        async with aiohttp.ClientSession() as s:
+            async with s.post("http://127.0.0.1:11434/v1/chat/completions", json=body) as r:
+                text = await r.text()
+                if r.status >= 400:
+                    return f"the model server refused or crashed (HTTP {r.status}): {text[:120]}"
+                try:
+                    msg = json.loads(text)["choices"][0]["message"]
+                except (ValueError, KeyError, IndexError):
+                    return "the model gave an unreadable answer"
+                if not msg.get("tool_calls") and not (msg.get("content") or "").strip():
+                    return "soft: the model answered a tool request with nothing"
+                return ""
+    try:
+        if not await _ensure_ollama():
+            return "Ollama is not running and could not be started"
+        return await asyncio.wait_for(go(), PREFLIGHT_SECS)
+    except asyncio.TimeoutError:
+        return f"the model did not answer a tiny request within {PREFLIGHT_SECS} s"
+    except Exception as exc:  # noqa: BLE001
+        return f"could not check the model: {str(exc)[:100]}"
+
+
 async def _stream_resilient(m: Mission, wt: Path, data_dir: Path, agent: str, brief: str,
                             *, phase: str = "") -> tuple[int, bool]:
     """`_stream_one` wrapped in retry + model fallback. On a transient provider
@@ -1401,8 +1516,30 @@ async def _stream_resilient(m: Mission, wt: Path, data_dir: Path, agent: str, br
     except Exception:
         ws_model = None
     chain = agent_knowledge.model_chain(m.model or None, ws_model)
+    if stay_local():
+        chain = [x for x in chain if _is_local(x)]
+        if not chain:
+            m.error = "stay-local is on and no local model is in this mission's list"
+            S.events[m.id].append({"type": "error", "error": m.error})
+            return 1, False
     rc, stop = 1, False
+    tried = 0
     for ci, model in enumerate(chain):
+        if _is_local(model):
+            why = model_bad(model)
+            if not why:
+                why = await preflight_local(model)
+                if why.startswith("soft:"):
+                    S.events[m.id].append({"type": "error", "error": f"warning, {model}: {why[5:].strip()}; trying it anyway"})
+                    why = ""
+                elif why:
+                    mark_model(model, why)
+            if why:
+                S.events[m.id].append({"type": "error", "error": f"skipping {model}: {why}"})
+                logger.warning("missions %s: skipping %s: %s", m.id, model, why)
+                m.error = f"skipped {model}: {why}"
+                continue
+        tried += 1
         m.model = model
         if ci > 0:
             S.events[m.id].append({"type": "error",
@@ -1416,6 +1553,13 @@ async def _stream_resilient(m: Mission, wt: Path, data_dir: Path, agent: str, br
             if m.id in S.timeouts:
                 return rc, stop                       # the watchdog killed this step — don't retry another 30 min
             if (m.error or "").startswith("stalled"):
+                if _is_local(model) and f"no response for {FIRST_EVENT_SECS}s" in m.error and attempt < 1:
+                    # Silent from the very first step - seen in 2 of 5 runs of the same model that otherwise worked
+                    # (30 Oct), cause not found. One more go costs two minutes; moving on loses a working model.
+                    S.events[m.id].append({"type": "error", "error": f"{model}: no first answer, trying it once more"})
+                    continue
+                if _is_local(model) and f"no response for {FIRST_EVENT_SECS}s" not in m.error:
+                    mark_model(model, m.error)
                 break                                 # this model stopped answering — next model, don't re-wait on it
             tail = ""
             try:
