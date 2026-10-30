@@ -67,6 +67,7 @@ CONSEQUENTIAL = (
     "/apply",                    # merges a mission's work into the project
     "/discard", "/forget",       # throws work away
     "/api/pc/machine/run",       # drives the real desktop
+    "/api/pc/steps",             # drives the real desktop from steps
     "/api/apps/ingest",          # adds a new app and dispatches a mission for it
 )
 

@@ -67,6 +67,7 @@ ACTIONS = {
     "ingest_app": {"desc": "Ingest a web app from a git URL so the hub can run it (starts an ingest ask that waits for review).", "args": "url", "confirm": True},
     "pc_control": {"desc": "Switch PC control (Windows MCP: click, type, screenshots, apps, clipboard for OpenCode agents) on or off.", "args": "state: on|off", "confirm": False},
     "ytdl_download": {"desc": "Download a video or audio with the Hub's own downloader (Media Vault, yt-dlp) after the user says yes. Use for download requests; never click through a web page for this.", "args": "url, format (video|audio), title", "confirm": True},
+    "pc_steps": {"desc": "Do a task on a web page or in an app from discrete steps the user gave (go to, click, type, press, expect), checking each step on screen. Offered after the user writes 'steps: ...', never chosen by a model.", "args": "steps, request", "confirm": True},
     "pc_path": {"desc": "Press a short, shown path of controls in a Windows app (for example open its navigation, then the item asked for), checking each step. Offered by the PC pipeline, never chosen by a model.", "args": "app, then, request, steps", "confirm": True},
     "pc_direct": {"desc": "Carry out a bounded PC command directly: open Edge, YouTube, Google, or a web search. PC control must be on.", "args": "kind, value (optional)", "confirm": False},
     "pc_app": {"desc": "Open a named Windows application through the Windows MCP App tool and learn its launch routine. 'then' is the rest of the request, if the sentence asked for something inside the app as well.", "args": "app, request, then", "confirm": False},
@@ -333,6 +334,7 @@ def _label(aid: str, args: dict) -> str:
             "pc_control": "Switch PC control " + str(args.get("state", "")),
             "start_mission": "Start a mission on " + str(args.get("project", "")),
             "ytdl_download": "Download " + str(args.get("title", "") or args.get("url", ""))[:60],
+            "pc_steps": "Do the " + str(len(args.get("steps") or [])) + " steps",
             "pc_path": "Open the navigation and press the item for " + str(args.get("then", ""))[:50],
             "remember_fact": "Save " + str(args.get("value", "")) + " as your " + str(args.get("key", "location"))}.get(aid, aid)
 
@@ -431,6 +433,12 @@ async def run_action(aid: str, args: dict) -> dict:
             title = str(args.get("title") or "it")[:60]
             return {"ok": True, "say": (f"Queued {title}; {got['position']} ahead of it." if got.get("queued")
                                         else f"Downloading {title}. It is in the video downloads folder when it finishes.")}
+        if aid == "pc_steps":
+            from . import pc_steps as PS
+            why = PS.pc_ready()
+            if why:
+                return {"ok": False, "say": why}
+            return await PS.run(args.get("steps") or [], str(args.get("request") or "steps"))
         if aid == "pc_path":
             from . import pc_control as PC
             return await PC.do_path(str(args.get("app") or ""), str(args.get("then") or ""),
@@ -992,6 +1000,11 @@ async def _chat(text: str, history: "list | None" = None, mission_id: "str | Non
         return _reply(f"Turning PC control {state}.", ("pc_control", {"state": state}), "rules", heard)
     if re.fullmatch(r"(?:what (?:mcp tools|pc control tools)(?: are available)?|mcp status|pc control status)", t):
         return _reply("", ("mcp_status", {}), "rules", heard)
+    # "steps: go to ...; click ...; type ..." - discrete instructions: show the whole path, ask once.
+    from . import pc_steps as PS
+    planned = PS.plan_reply(text)
+    if planned:
+        return _reply(planned["say"], planned["action"], "rules", heard)
     # A video ask ("open their latest video", "download it") is answered with the Hub's own tools, not clicks.
     try:
         from . import media_asks as MA
