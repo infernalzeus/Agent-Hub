@@ -307,24 +307,70 @@ async def refine(decision: dict, text: str, post=None) -> dict:
     return {**decision, "asked": asked} if asked else decision
 
 
-def record(text: str, decision: dict, outcome: dict) -> None:
-    """One line per request: what was decided, and what actually happened."""
+def _append(row: dict) -> None:
     try:
         LOG.parent.mkdir(parents=True, exist_ok=True)
-        row = {"at": round(time.time(), 1), "text": (text or "")[:300], **{k: decision.get(k) for k in
-               ("bin", "confidence", "by", "why", "asked")}, **outcome}
         with LOG.open("a", encoding="utf-8") as f:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
     except Exception as exc:
         logger.info("binning: could not log: %s", exc)
 
 
-def recent(limit: int = 30) -> "list[dict]":
+def record(text: str, decision: dict, outcome: dict) -> None:
+    """One line per request: what was decided, and what actually happened.
+
+    `escalated` is whether a model was asked at all, so how often the rules were not
+    enough is a count. `ms` and `timed_out` come from the caller when it knows them.
+    """
+    asked = decision.get("asked")
+    _append({"at": round(time.time(), 1), "text": (text or "")[:300], **{k: decision.get(k) for k in
+             ("bin", "confidence", "by", "why", "asked")}, "escalated": bool(asked), **outcome})
+
+
+def record_outcome(action_id: str, ok: "bool | None", said: str = "") -> None:
+    """What happened when an action the router chose was actually run (after any yes).
+
+    A separate line of kind "outcome", never counted as a decision. `ok` is None when the
+    action does not report success, so a missing answer is not read as a good one.
+    """
+    if not action_id:
+        return
+    _append({"kind": "outcome", "at": round(time.time(), 1), "action": action_id,
+             "ok": ok if isinstance(ok, bool) else None, "said": (said or "")[:120]})
+
+
+def _rows() -> "list[dict]":
     try:
-        rows = [json.loads(l) for l in LOG.read_text(encoding="utf-8").splitlines() if l.strip()]
+        return [json.loads(l) for l in LOG.read_text(encoding="utf-8").splitlines() if l.strip()]
     except (OSError, ValueError):
         return []
+
+
+def recent(limit: int = 30) -> "list[dict]":
+    """Decisions only, newest first. Outcome lines are read by `summary`."""
+    rows = [r for r in _rows() if r.get("kind") != "outcome"]
     return list(reversed(rows[-limit:]))
+
+
+def summary() -> dict:
+    """The evidence base for the router: how many decisions, who made them, how many needed a
+    model, how many ran, and how often a run that was confirmed actually worked."""
+    rows = _rows()
+    decisions = [r for r in rows if r.get("kind") != "outcome"]
+    outcomes = [r for r in rows if r.get("kind") == "outcome"]
+    by: "dict[str, int]" = {}
+    per_bin: "dict[str, int]" = {}
+    for r in decisions:
+        by[str(r.get("by") or "rules")] = by.get(str(r.get("by") or "rules"), 0) + 1
+        per_bin[str(r.get("bin"))] = per_bin.get(str(r.get("bin")), 0) + 1
+    return {"decisions": len(decisions), "by": by, "per_bin": per_bin,
+            "escalated": sum(1 for r in decisions if r.get("asked")),
+            "timed_out": sum(1 for r in decisions if r.get("timed_out")),
+            "outcomes": len(outcomes),
+            "outcomes_ok": sum(1 for r in outcomes if r.get("ok") is True),
+            "outcomes_failed": sum(1 for r in outcomes if r.get("ok") is False),
+            "outcomes_unknown": sum(1 for r in outcomes if r.get("ok") is None),
+            "enough_to_calibrate": len(decisions) >= 100}
 
 
 def agreement() -> dict:
@@ -356,7 +402,7 @@ async def api_recent(request: web.Request) -> web.Response:
         limit = max(1, min(200, int(request.query.get("limit", "30"))))
     except ValueError:
         limit = 30
-    return web.json_response({"decisions": recent(limit), "agreement": agreement(), "bins": list(BINS),
+    return web.json_response({"decisions": recent(limit), "agreement": agreement(), "summary": summary(), "bins": list(BINS),
                               "backend": os.environ.get("HUB_BIN_BACKEND", "rules")})
 
 

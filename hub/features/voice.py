@@ -66,6 +66,8 @@ ACTIONS = {
     "ingest_installed": {"desc": "Read an installed Electron app's own files (with REA) to see what it exposes; changes nothing and offers the result for review.", "args": "name", "confirm": False},
     "ingest_app": {"desc": "Ingest a web app from a git URL so the hub can run it (starts an ingest ask that waits for review).", "args": "url", "confirm": True},
     "pc_control": {"desc": "Switch PC control (Windows MCP: click, type, screenshots, apps, clipboard for OpenCode agents) on or off.", "args": "state: on|off", "confirm": False},
+    "ytdl_download": {"desc": "Download a video or audio with the Hub's own downloader (Media Vault, yt-dlp) after the user says yes. Use for download requests; never click through a web page for this.", "args": "url, format (video|audio), title", "confirm": True},
+    "pc_path": {"desc": "Press a short, shown path of controls in a Windows app (for example open its navigation, then the item asked for), checking each step. Offered by the PC pipeline, never chosen by a model.", "args": "app, then, request, steps", "confirm": True},
     "pc_direct": {"desc": "Carry out a bounded PC command directly: open Edge, YouTube, Google, or a web search. PC control must be on.", "args": "kind, value (optional)", "confirm": False},
     "pc_app": {"desc": "Open a named Windows application through the Windows MCP App tool and learn its launch routine. 'then' is the rest of the request, if the sentence asked for something inside the app as well.", "args": "app, request, then", "confirm": False},
     # The three ways the half of a request that lives inside another app's window
@@ -276,7 +278,15 @@ def _direct_pc_request(text: str) -> dict | None:
         m = re.search(pattern, t)
         if m and len(m.group(1).strip()) >= 2:
             query = m.group(1).strip()
-            return {"kind": "url", "value": "https://www.youtube.com/results?search_query=" + quote_plus(query), "label": "that YouTube search"}
+            # "search X and open the latest video": the second half is a separate request, not part of the query.
+            tail = re.match(r"^(.+?)\s+(?:and then|then|and)\s+((?:open|play|click|watch|download|go to|show|select|pick|press)\b.*)$", query)
+            then = ""
+            if tail:
+                query, then = tail.group(1).strip(), tail.group(2).strip()
+            out = {"kind": "url", "value": "https://www.youtube.com/results?search_query=" + quote_plus(query), "label": "that YouTube search"}
+            if then:
+                out["then"] = then
+            return out
     if re.search(r"\b(open|launch|start)\b.*\b(edge|browser)\b", t):
         return {"kind": "edge"}
     if re.search(r"\b(open|launch|start|go to|take me to)\b.*\byoutube\b", t):
@@ -322,6 +332,8 @@ def _label(aid: str, args: dict) -> str:
             "pause": "Pause " + (m.project_name if m else "every running ask"), "resume": "Resume" + on, "ingest_app": "Ingest " + str(args.get("url", ""))[:60],
             "pc_control": "Switch PC control " + str(args.get("state", "")),
             "start_mission": "Start a mission on " + str(args.get("project", "")),
+            "ytdl_download": "Download " + str(args.get("title", "") or args.get("url", ""))[:60],
+            "pc_path": "Open the navigation and press the item for " + str(args.get("then", ""))[:50],
             "remember_fact": "Save " + str(args.get("value", "")) + " as your " + str(args.get("key", "location"))}.get(aid, aid)
 
 
@@ -410,6 +422,19 @@ async def run_action(aid: str, args: dict) -> dict:
             from . import pc_control as PC
             return await PC.launch_app(str(args.get("app") or ""), str(args.get("request") or args.get("app") or ""),
                                        str(args.get("then") or ""))
+        if aid == "ytdl_download":
+            from . import youtube as YT
+            try:
+                got = await YT.start_download(str(args.get("url") or ""), str(args.get("format") or "video"))
+            except ValueError as exc:
+                return {"ok": False, "say": f"I can't download that: {exc}."}
+            title = str(args.get("title") or "it")[:60]
+            return {"ok": True, "say": (f"Queued {title}; {got['position']} ahead of it." if got.get("queued")
+                                        else f"Downloading {title}. It is in the video downloads folder when it finishes.")}
+        if aid == "pc_path":
+            from . import pc_control as PC
+            return await PC.do_path(str(args.get("app") or ""), str(args.get("then") or ""),
+                                    str(args.get("request") or ""), args.get("steps") or [])
         if aid == "pc_do":
             from . import pc_control as PC
             return await PC.do_on_screen(
@@ -882,15 +907,20 @@ async def chat(text: str, history: "list | None" = None, mission_id: "str | None
         decision = BIN.decide(text)
     except Exception:
         decision = {"bin": "conversation", "confidence": 0.0, "by": "rules", "why": "could not decide"}
+    t0 = time.time()
+    timed_out = False
     try:
         out = await asyncio.wait_for(_chat(text, history, mission_id, use_model), timeout=TURN_DEADLINE_S)
     except asyncio.TimeoutError:
+        timed_out = True
         out = _reply("That's taking too long, so I stopped. Try again, or say it another way.", None, "rules", text)
     try:
         asked = ([{"backend": "tev", "answer": _LAST_U.get("intent"), "p": round(_LAST_U.get("p_intent", 0), 2),
                    "ms": _LAST_U.get("ms", 0), "note": f"app={_LAST_U.get('app')}"}] if _LAST_U else [])
         BIN.record(text, {**decision, "asked": asked}, {"action": (out.get("action") or {}).get("id"),
-                                                         "backend": out.get("backend"), "said": str(out.get("say") or "")[:120]})
+                                                         "backend": out.get("backend"), "said": str(out.get("say") or "")[:120],
+                                                         "ms": int((time.time() - t0) * 1000),
+                                                         "timed_out": timed_out or "took too long" in str(out.get("say") or "")})
     except Exception:
         pass
     return out
@@ -962,6 +992,22 @@ async def _chat(text: str, history: "list | None" = None, mission_id: "str | Non
         return _reply(f"Turning PC control {state}.", ("pc_control", {"state": state}), "rules", heard)
     if re.fullmatch(r"(?:what (?:mcp tools|pc control tools)(?: are available)?|mcp status|pc control status)", t):
         return _reply("", ("mcp_status", {}), "rules", heard)
+    # A video ask ("open their latest video", "download it") is answered with the Hub's own tools, not clicks.
+    try:
+        from . import media_asks as MA
+        asked = await MA.handle(text)
+    except Exception as exc:
+        logger.info("voice: media ask failed: %s", exc)
+        asked = None
+    if asked:
+        act = asked.get("action")
+        if act and act[0] == "pc_direct":
+            from . import mcp as MCP
+            win = next((x for x in MCP.servers() if x["name"] == "windows"), None)
+            if not (win and win["enabled"]):
+                return _reply(asked["say"].split(":")[0] + ". PC control is off, so I did not open it. "
+                              "Switch on the wireframe PC button beside TALK and ask again.", None, "rules", heard)
+        return _reply(asked["say"], act, "rules", heard)
     direct = _direct_pc_request(text)
     if direct:
         from . import mcp as MCP
@@ -971,6 +1017,9 @@ async def _chat(text: str, history: "list | None" = None, mission_id: "str | Non
             if wants_on:
                 direct["state"] = "on"
                 return _reply("Turning PC control on and carrying that out directly.", ("pc_direct", direct), "rules", heard)
+            rest = direct.get("then") or ""
+            if rest:                            # never drop the second half silently
+                return _reply(f"Carrying out the first part. I can't do the rest yet: {rest}.", ("pc_direct", direct), "rules", heard)
             return _reply("Carrying that out directly.", ("pc_direct", direct), "rules", heard)
         return _reply("PC control is off. Switch on the wireframe PC button beside TALK, then I can directly open Edge, YouTube, Google, or a web search.", None, "rules", heard)
     from . import pc_control as PC
@@ -1089,7 +1138,14 @@ async def api_chat(request: web.Request) -> web.Response:
 @routes.post("/api/voice/act")
 async def api_act(request: web.Request) -> web.Response:
     b = await _body(request)
-    return web.json_response(await run_action(str(b.get("id", "")), b.get("args") or {}))
+    aid = str(b.get("id", ""))
+    got = await run_action(aid, b.get("args") or {})
+    try:                                     # what the router's choice actually led to, after any yes
+        from . import binning as BIN
+        BIN.record_outcome(aid, got.get("ok") if isinstance(got, dict) else None, str((got or {}).get("say") or ""))
+    except Exception:
+        pass
+    return web.json_response(got)
 
 
 # ── local speech-to-text ─────────────────────────────────────────────────────────────────────────────────────────────

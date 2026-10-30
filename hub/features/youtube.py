@@ -470,15 +470,17 @@ async def ytdl_status(request: web.Request) -> web.Response:
         "queue_length": len(ytdl_state.queue),
     })
 
-@routes.post("/api/youtube-dl/download")
-async def ytdl_download(request: web.Request) -> web.Response:
-    data = await request.json()
-    url = (data.get("url") or "").strip()
-    fmt = data.get("format") or "video"
+async def start_download(url: str, fmt: str = "video") -> dict:
+    """Start (or queue) one download. The one place both the endpoint and TALK go through.
+
+    Raises ValueError for a bad address or format; returns {ok, queued?, position?, id?}.
+    """
+    url = (url or "").strip()
+    fmt = fmt or "video"
     if not url.startswith(("http://", "https://")):
-        raise web.HTTPBadRequest(text="That doesn't look like a URL")
+        raise ValueError("That doesn't look like a URL")
     if fmt not in ("audio", "video"):
-        raise web.HTTPBadRequest(text="format must be 'audio' or 'video'")
+        raise ValueError("format must be 'audio' or 'video'")
 
     if ytdl_state.busy:
         # Queue it rather than reject — _ytdl_stream_download drains this
@@ -489,12 +491,21 @@ async def ytdl_download(request: web.Request) -> web.Response:
         _save_ytdl_queue()
         position = len(ytdl_state.queue)
         await _ytdl_broadcast({"type": "queue_update", "queue": ytdl_state.queue})
-        return web.json_response({"ok": True, "queued": True, "position": position, "id": item["id"]})
+        return {"ok": True, "queued": True, "position": position, "id": item["id"]}
 
     args = _build_ytdl_args(url, fmt)
     ytdl_state.reset()
     ytdl_state.task = asyncio.create_task(_ytdl_stream_download(args))
-    return web.json_response({"ok": True})
+    return {"ok": True}
+
+
+@routes.post("/api/youtube-dl/download")
+async def ytdl_download(request: web.Request) -> web.Response:
+    data = await request.json()
+    try:
+        return web.json_response(await start_download(data.get("url") or "", data.get("format") or "video"))
+    except ValueError as exc:
+        raise web.HTTPBadRequest(text=str(exc))
 
 
 @routes.get("/api/youtube-dl/queue")

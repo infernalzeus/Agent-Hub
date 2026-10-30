@@ -54,6 +54,15 @@ _LEADING = __import__("re").compile(
 # Left over when somebody trails off: not applications.
 _NOT_A_NAME = {"the", "a", "an", "it", "that", "this", "one", "up", "something", "anything"}
 
+# "Open their latest video" is not an application. Sending it to the launcher costs a read of the whole Start
+# menu to find that out, and ends in "I can't find an app called 'their latest video'". Not "our" or "my": "open
+# our music" is the recogniser's way of writing "Apple Music".
+_NOT_AN_APP = __import__("re").compile(
+    r"^(?:(?:their|his|her|its|that|this|those|these|the same)\b|"
+    r"(?:the\s+)?(?:latest|newest|first|second|third|next|previous|last|top)\b.*\b"
+    r"(?:video|song|track|playlist|album|episode|file|tab|link|page|message|email|result)s?\b)",
+    __import__("re").I)
+
 # Words that end up glued to an app name when somebody is being polite.
 _TRAILING = __import__("re").compile(
     r"\s*\b(?:for me|please|now|again|up|app|application|program)\b\s*$", __import__("re").I)
@@ -78,7 +87,7 @@ def classify_request(text: str) -> dict | None:
         name = trimmed
     app = canonical_app_name(name)
     # "open the" must not resolve to an application called "the".
-    if len(app) < 2 or app in _NOT_A_NAME:
+    if len(app) < 2 or app in _NOT_A_NAME or _NOT_AN_APP.search(name):
         return None
     rest = t[m.end():].strip(" ,.;!?")
     for _ in range(3):                   # "for me and play X" -> "play X"
@@ -430,8 +439,28 @@ async def launch_app(app: str, request: str, then: str = "") -> dict:
     said = f"Opened {target}." if not corrected else f"Opened {target} — I heard “{heard}”."
     if then:
         got = await after(key, then, request)
+        _record_second_half(request, then, got)
         return {**got, "routine": got.get("routine") or tag}
     return {"ok": True, "say": said, "routine": tag}
+
+
+def _record_second_half(request: str, then: str, got: dict) -> None:
+    """The run row above is the launch. The rest of the sentence gets its own row, so a
+    request that opened the app but never did the rest does not look finished.
+
+    The detail never ends in " launched.", which `_launch_history` counts as a launch.
+    """
+    if got.get("confirm"):
+        status = "asked"                       # waiting on a yes: nothing has been done yet
+    elif got.get("ok"):
+        status = "done"
+    else:
+        status = "failed"
+    detail = f"rest of request: {then} - {str(got.get('say') or '')[:160]} [second half]"
+    try:
+        _record_run(request, "second-half", status, detail, level="ui-tree" if status == "done" else "")
+    except Exception as exc:
+        logger.info("pc_control: could not log the second half: %s", exc)
 
 
 # ── routines learned from an app's own evidence ───────────────────────────────────────────────────────────────────
@@ -745,6 +774,19 @@ def save_ui_routine(intent: str, title: str, window: str, steps: list[dict],
         return dict(db.execute("SELECT * FROM pc_routines WHERE id=?", (rid,)).fetchone())
 
 
+# Controls the Hub never presses on its own, whatever a routine or a request says: they spend money, destroy
+# something, or send something out. The Hub stops and tells the person instead of pressing.
+_NEVER_PRESS = re.compile(
+    r"\b(?:buy|purchase|subscribe|pay|checkout|check out|delete|remove|erase|uninstall|format|sign out|log out|logout|send)\b",
+    re.I)
+
+
+def never_press(name: str) -> str:
+    """The word that puts a control on the never-press list, or "" if it is not on it."""
+    m = _NEVER_PRESS.search(name or "")
+    return m.group(0).lower() if m else ""
+
+
 _BLOCKING_FLAGS = ("disabled", "unavailable", "offscreen", "off-screen", "hidden", "collapsed", "read-only")
 
 
@@ -764,6 +806,9 @@ def step_blocker(node: "dict | None", tool: str = "Click") -> str:
             return f"it is {f}"
     if tool == "Click" and node.get("x") is None:
         return "it has no position on screen"
+    word = never_press(str(node.get("name") or "")) if tool == "Click" else ""
+    if word:
+        return f"its name is on the never-press list ({word})"
     return ""
 
 
@@ -1314,7 +1359,9 @@ async def after(app: str, then: str, request: str, tree=None) -> dict:
         got = await replay_ui_routine(taught, request)
         if got.get("ok"):
             return {"ok": True, "say": f"Opened {name} and {then}.", "routine": got.get("routine")}
-        return {"ok": False, "say": f"Opened {name}. {got.get('say') or 'The rest did not run.'}"}
+        if got.get("route") != "fall-through":
+            return {"ok": False, "say": f"Opened {name}. {got.get('say') or 'The rest did not run.'}"}
+        # "Recorded on a different screen": nothing was pressed, so look at this screen afresh below.
 
     try:
         nodes = await (tree(app) if tree else _raw_tree(app))
@@ -1323,6 +1370,13 @@ async def after(app: str, then: str, request: str, tree=None) -> dict:
         nodes = []
 
     got = locate(nodes, then, app) if nodes else {}
+
+    # "Open the ADHD playlist" while the ADHD playlist's own page is showing: the thing named is the page
+    # itself (a heading with controls inside it), and "open" matches none of those controls. It is already
+    # done; offering "which one: Shuffle, Play, Downloaded?" would be nonsense.
+    box = got.get("container")
+    if box and not got.get("target") and _OPEN_ONLY.match(then or "") and "x" not in box:
+        return {"ok": True, "say": f"“{box['name']}” is already showing in {name}."}
 
     if got.get("target"):
         t = got["target"]
@@ -1345,12 +1399,147 @@ async def after(app: str, then: str, request: str, tree=None) -> dict:
         return _ask(f"I can't {then} yet. Record it?", "pc_record", {"app": app, "then": then}, f"Record how to {then}",
                     detail=f"I can see “{got['found']['name']}” but nothing inside it that I can press.")
 
+    opener = nav_opener(nodes, app) if nodes else None
+    if opener:
+        want = " ".join(target_words(then)) or then
+        ident = {"name": opener["name"], "control": opener["control"], "window": opener.get("window", "")}
+        return _ask(f"I can't see “{want}” yet. Path: press “{opener['name']}”, then press the item named like “{want}”. Go?",
+                    "pc_path", {"app": app, "then": then, "request": request, "steps": [ident]},
+                    f"Open the navigation, then press “{want}” in {name}",
+                    detail=f"“{want}” is not in the window, but “{opener['name']}” is, and the item may appear once it is open.")
+
     why = "nothing in its window is named that" if nodes else "I cannot read its window"
     seen = _visible_names(nodes)
     sees = f" I can see: {', '.join(seen)}." if seen else ""
     short = "I cannot read its window" if not nodes else f"I can't {then} yet"
     return _ask(f"Opened {name}. {short}. Record it?", "pc_record", {"app": app, "then": then}, f"Record how to {then}",
                 detail=f"I cannot {then} myself: {why}.{sees}")
+
+
+_OPEN_ONLY = re.compile(r"^\s*(?:open|show|go to|view|see|display|bring up)\b", re.I)
+_NAV_OPENER = re.compile(r"^open\s+(?:the\s+)?(?:navigation(?: pane| menu)?|sidebar|side bar|side menu|main menu|menu)$", re.I)
+
+
+def nav_opener(nodes: "list[dict]", app: str = "") -> "dict | None":
+    """The control that opens an app's navigation, when it is closed ("Open Navigation").
+
+    Only an *open* control counts: once the navigation is showing, the same button reads "Close Navigation"
+    and this returns nothing, so the Hub cannot toggle it shut again.
+    """
+    appl = canonical_app_name(app)
+    for n in nodes or []:
+        if appl and appl not in (n.get("window") or "").casefold():
+            continue
+        if "x" in n and _NAV_OPENER.match((n.get("name") or "").strip()):
+            return n
+    return None
+
+
+def _find_by_identity(nodes: "list[dict]", ident: dict, app: str = "") -> "dict | None":
+    """The node a step names, by name and control, inside the app's window."""
+    appl = canonical_app_name(app)
+    name, control = str(ident.get("name") or ""), str(ident.get("control") or "").lower()
+    for n in nodes or []:
+        if appl and appl not in (n.get("window") or "").casefold():
+            continue
+        if (n.get("name") or "") == name and (n.get("control") or "").lower() == control and "x" in n:
+            return n
+    return None
+
+
+def goal_met(then: str, nodes: "list[dict]") -> "bool | None":
+    """Whether what was asked now shows on screen; None when this kind of ask cannot be checked from the tree.
+
+    "play ..." is met when a Pause or Stop control appears. "open ..." has no reliable marker, so it is left
+    unverified rather than guessed.
+    """
+    if re.match(r"^\s*(?:play|resume)\b", then or "", re.I):
+        return any((n.get("control") == "button" and re.fullmatch(r"(?:pause|stop)", (n.get("name") or "").strip(), re.I))
+                   for n in nodes or [])
+    return None
+
+
+async def do_path(app: str, then: str, request: str, steps: "list[dict]", tree=None) -> dict:
+    """Press the path that was shown, then the thing that was asked for. One YES covers the shown steps.
+
+    Each step is found again by name and control (never by where it used to be), checked (present, enabled,
+    not on the never-press list), pressed, and checked for effect. After the shown steps the screen is read
+    again and the request is located afresh: that last press is only made when there is exactly one answer.
+    Anything unclear stops with what the screen offers, never a guess.
+    """
+    name = display_app_name(app)
+    read = (lambda: tree(app)) if tree else (lambda: _raw_tree(app))
+    saved: "list[dict]" = []
+    first_nodes = None
+    window = ""
+    plan = list(steps or [])
+
+    async def press(node: dict) -> "dict | None":
+        """Press one node. Returns a failure reply, or None when it worked."""
+        why = step_blocker(node)
+        if why:
+            _record_run(request, "path", "skipped", f"“{node['name']}” {why}")
+            return {"ok": False, "say": f"I stopped: “{node['name']}” {why}."}
+        before = window_state(nodes_now, node["window"])
+        try:
+            await MCP.call_tool("windows", "Click", {"loc": [node["x"], node["y"]], "button": "left", "clicks": 1})
+        except Exception as exc:
+            _record_run(request, "path", "failed", f"“{node['name']}”: {exc}")
+            return {"ok": False, "say": f"I could not press “{node['name']}”: {str(exc)[:150]}."}
+        did = await effect_of(node["window"], before)
+        if did["known"] and not did["changed"]:
+            _record_run(request, "path", "no-effect", f"pressed {node['control']} {node['name']}")
+            return {"ok": False, "say": f"I pressed “{node['name']}” in {name}, but {did['why']}, so I stopped "
+                                        f"and saved nothing."}
+        saved.append({"tool": "Click", "args": {"button": "left", "clicks": 1},
+                      "target": {"name": node["name"], "control": node["control"], "window": node["window"]}})
+        return None
+
+    for st in plan:
+        nodes_now = await read()
+        if first_nodes is None:
+            first_nodes = nodes_now
+        node = _find_by_identity(nodes_now, st, app)
+        if not node:
+            _record_run(request, "path", "skipped", f"gone: {st.get('name')}")
+            return {"ok": False, "say": f"“{st.get('name')}” is not on screen any more, so I pressed nothing."}
+        window = node["window"]
+        bad = await press(node)
+        if bad:
+            return bad
+
+    nodes_now = await read()
+    if first_nodes is None:
+        first_nodes = nodes_now
+    got = locate(nodes_now, then, app)
+    t = got.get("target")
+    want = " ".join(target_words(then)) or then
+    if not t:
+        seen = _visible_names(nodes_now)
+        sees = f" I can see: {', '.join(seen)}." if seen else ""
+        _record_run(request, "path", "failed", f"after the shown steps, no single match for {want!r}")
+        if got.get("choices"):
+            opts = ", ".join(f"“{c['name']}”" for c in got["choices"])
+            return {"ok": False, "say": f"Opened it, but more than one thing matches “{want}”: {opts}. Say which one."}
+        return {"ok": False, "say": f"Pressed the shown steps, but I still can't find “{want}”.{sees}"}
+    window = t["window"] or window
+    bad = await press(t)
+    if bad:
+        return bad
+    after_nodes = await read()
+    goal = goal_met(then, after_nodes)
+    if goal is False:
+        _record_run(request, "path", "unverified", f"pressed {t['name']}; the result of {then!r} is not showing")
+        return {"ok": False, "say": f"I pressed “{t['name']}”, but I can't see that it worked, so I have not saved it."}
+    saved_routine = save_ui_routine(do_intent(app, then), f"{name}: {then}".strip(), window, saved,
+                                    ui_signature(flatten(first_nodes), window))
+    _record_run(request, "path", "done", f"{len(saved)} step(s) ending at {t['control']} {t['name']}", level="ui-tree")
+    verified = " I could see it working." if goal else ""
+    return {"ok": True,
+            "say": f"Pressed {' then '.join('“' + s_['target']['name'] + '”' for s_ in saved)} in {name}.{verified} "
+                   f"Saved as a routine to check, so next time “{then}” is one request.",
+            "routine": {"id": saved_routine["id"], "status": saved_routine["status"],
+                        "successes": saved_routine["successes"], "tag": "ROUTINE"}}
 
 
 def _visible_names(nodes: "list[dict]", limit: int = 6) -> "list[str]":
@@ -1396,6 +1585,11 @@ async def do_on_screen(app: str, then: str, request: str, target: dict, tree=Non
         return {"ok": False, "say": f"The window changed: I offered “{offered}” but now "
                                     f"find “{t['name']}”. Ask again so you can agree to "
                                     f"the right one."}
+    word = never_press(t["name"])
+    if word:
+        _record_run(request, "discovery", "skipped", f"never-press: {t['name']} ({word})")
+        return {"ok": False, "say": f"I will not press “{t['name']}” on my own: it is on the never-press list ({word}). "
+                                    f"Do that one yourself."}
     before = window_state(nodes, t["window"])
     try:
         await MCP.call_tool("windows", "Click",

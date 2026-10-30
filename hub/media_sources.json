@@ -1,0 +1,32 @@
+{
+  "_about": "Where 'open/download someone's Nth latest <thing>' asks look. Add a site by adding a row; no code change. yt-dlp must support the site. 'channel_urls' try {handle} (the name with only letters, digits . _ -); 'search' is yt-dlp's search prefix used when no handle matches. 'format' is what a download saves: video or audio. Put an edited copy in the hub state folder to override this file.",
+  "sources": [
+    {
+      "id": "youtube",
+      "label": "YouTube",
+      "nouns": ["video", "upload", "clip", "stream", "short"],
+      "sites": ["youtube"],
+      "channel_urls": ["https://www.youtube.com/@{handle}/videos"],
+      "search": "ytsearch1:{name}",
+      "format": "video"
+    },
+    {
+      "id": "soundcloud",
+      "label": "SoundCloud",
+      "nouns": ["track", "song", "mix", "set"],
+      "sites": ["soundcloud"],
+      "channel_urls": ["https://soundcloud.com/{handle}/tracks"],
+      "search": "scsearch1:{name}",
+      "format": "audio"
+    },
+    {
+      "id": "twitch",
+      "label": "Twitch",
+      "nouns": ["vod", "broadcast"],
+      "sites": ["twitch"],
+      "channel_urls": ["https://www.twitch.tv/{handle}/videos?filter=archives"],
+      "search": "",
+      "format": "video"
+    }
+  ]
+}
