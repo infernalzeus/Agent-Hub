@@ -224,13 +224,14 @@
       }
       function mv(ev) { follow(ev); over(ev); }
       function up() {
-        handle.removeEventListener('pointermove', mv); handle.removeEventListener('pointerup', up); handle.removeEventListener('pointercancel', up);
+        removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
         var from = tx, fromY = ty;
         card.style.translate = ''; card.classList.remove('lift'); card.style.willChange = '';
         card.getAnimations().forEach(function (a) { a.cancel(); });
         if (!reduce.matches) card.animate([{ translate: from + 'px ' + fromY + 'px', transform: 'scale(1.015)' }, { translate: '0 0', transform: 'scale(1)' }], { duration: 300, easing: EASE });
       }
-      handle.addEventListener('pointermove', mv); handle.addEventListener('pointerup', up); handle.addEventListener('pointercancel', up);
+      // window, not the handle: moving the panel in the DOM drops the handle's pointer capture
+      addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);
     });
   }
 
