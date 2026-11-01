@@ -14,6 +14,7 @@ Env:  HUB_HOST (default 0.0.0.0), HUB_PORT (default 8081)
 """
 from __future__ import annotations
 
+import os
 import sys
 
 from aiohttp import web
@@ -79,9 +80,15 @@ def main() -> None:
     # run_app returns after graceful shutdown. Exit 42 = "relaunch me" (the ⟳
     # restart button); the launcher's supervisor loop (Agent Hub.vbs) restarts
     # the hub only on 42. Normal ✕ shutdown returns 0 → stays down.
-    if apps._restart_requested:
+    code = 42 if apps._restart_requested else 0
+    if code:
         print("Restart requested — exiting 42 for the supervisor to relaunch.")
-        sys.exit(42)
+    # Everything is cleaned up by now. Waiting for the interpreter to wind down let a leftover worker thread hold a restart
+    # for about 15 s on the real Hub (2.2 s on a clean one); the job object ends the children either way.
+    import logging
+    logging.shutdown()
+    sys.stdout.flush(); sys.stderr.flush()
+    os._exit(code)
 
 
 if __name__ == "__main__":

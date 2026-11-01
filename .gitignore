@@ -183,3 +183,8 @@ hub/info_routines.json
 /lab/globe-verification/
 /PLAN_AND_STATE.md
 /hub/app_evidence/
+
+# this PC only: app output, self-test results and arm file
+hub/app_logs/
+hub/transition_selftest_result.json
+hub/transition_selftest.arm

@@ -19,7 +19,7 @@
     sessions: { title: 'SESSIONS', icon: 'M4 5h16v10H4zM8 19h8M12 15v4' },
     health: { title: 'HEALTH', icon: 'M3 12h4l2-6 4 12 2-6h6' }
   };
-  var data = null, layout = load(), editing = false, els = {};
+  var data = null, layout = load(), editing = false, els = {}, board = null;
 
   function load() {
     var cls = phone.matches ? 'phone' : 'desktop', d = JSON.parse(JSON.stringify(DEFAULTS[cls]));
@@ -239,11 +239,18 @@
   function poll() {
     if (document.hidden || window.__hubViewSuspended) return;
     fetch('/api/home/state', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
-      if (!j) return; data = j; paint();
+      if (!j) return; data = j; if (board) board.update(j); else paint();
     }).catch(function () {});
   }
-  function start() { build(); paint(); poll(); timer = setInterval(poll, 10000); document.addEventListener('visibilitychange', poll); }
-  phone.addEventListener('change', function () { layout = load(); build(); paint(); });
+  function useBoard() { return !phone.matches && window.__hubBoard; }
+  function start() {
+    if (useBoard()) { board = window.__hubBoard.mount(root); } else { build(); paint(); }
+    poll(); timer = setInterval(poll, 10000); document.addEventListener('visibilitychange', poll);
+  }
+  phone.addEventListener('change', function () {
+    if (board) { board.destroy(); board = null; }
+    if (useBoard()) { board = window.__hubBoard.mount(root); if (data) board.update(data); } else { layout = load(); build(); paint(); }
+  });
   window.__hubHomePanels = { refresh: poll, layout: function () { return JSON.parse(JSON.stringify(layout)); } };
   // First paint of Home is not made to wait for the panels: they start once the cube turn is over.
   (window.__hubWaitForTransition ? window.__hubWaitForTransition() : Promise.resolve()).then(function () { setTimeout(start, 250); });

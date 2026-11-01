@@ -16,13 +16,14 @@ _WIDGET = _widget(True)      # conversation popover + orbs, built once
 _PICKER = (Path(__file__).parent / "static" / "picker.js").read_text(encoding="utf-8")
 _MARK_JS = (Path(__file__).parent / "static" / "agent-hub-mark.min.js").read_text(encoding="utf-8")
 _HOME_PANELS_JS = (Path(__file__).parent / "static" / "home-panels.js").read_text(encoding="utf-8")
+_HOME_BOARD_JS = (Path(__file__).parent / "static" / "home-board.js").read_text(encoding="utf-8")
 _WAKE_JS = (Path(__file__).parent / "static" / "wake.js").read_text(encoding="utf-8")
 _DEPTH_LIFT_SOURCE = (Path(__file__).parent / "static" / "depth-lift.js").read_text(encoding="utf-8")
 # The build id decides when a long-lived host page must be replaced. It covers everything a retained view can have
 # cached - this file (both pages), the mark and the controller - not just the controller, so a mark- or page-only
 # update can no longer leave an old landing/Home alive inside a host that still thinks it is current.
 _DEPTH_LIFT_BUILD = hashlib.sha256(
-    (_DEPTH_LIFT_SOURCE + "\0" + _MARK_JS + "\0" + _WAKE_JS + "\0" + _HOME_PANELS_JS + "\0" + Path(__file__).read_text(encoding="utf-8")).encode()).hexdigest()[:16]
+    (_DEPTH_LIFT_SOURCE + "\0" + _MARK_JS + "\0" + _WAKE_JS + "\0" + _HOME_PANELS_JS + "\0" + _HOME_BOARD_JS + "\0" + Path(__file__).read_text(encoding="utf-8")).encode()).hexdigest()[:16]
 _DEPTH_LIFT_JS = _DEPTH_LIFT_SOURCE.replace("__DL_BUILD__", _DEPTH_LIFT_BUILD)
 # Retire old midpoint-resume tickets. The whole turn now finishes before navigation.
 _DL_ARRIVE = """<script>
@@ -177,6 +178,16 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;overflow:hidden;ove
 .wake-sub{display:block;min-height:36px;opacity:0;transition:opacity .3s;margin-top:14px;font-family:'Orbitron',monospace;font-size:11px;letter-spacing:1.5px;
   color:var(--text-muted);line-height:1.6;max-width:280px;margin-left:auto;margin-right:auto}
 .wake-sub.on{opacity:1}
+/* 0-100 meter while the Hub starts: it fills, completes, then ENTER fades in in the same place. */
+.boot{width:210px;margin:12px auto 0;height:22px;opacity:0;transition:opacity .35s;pointer-events:none}
+.boot.on{opacity:1}
+.boot .trk{height:4px;border-radius:4px;background:rgba(255,255,255,.1);overflow:hidden}
+.boot .trk i{display:block;height:100%;width:0;background:linear-gradient(90deg,#00e676,#3ba7ff);border-radius:4px;transition:width .25s linear;box-shadow:0 0 10px rgba(0,230,118,.6)}
+.boot .pc{font:700 10px 'Orbitron',monospace;letter-spacing:2px;color:var(--text-muted);text-align:center;margin-top:5px}
+@keyframes lpIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.wrap>.brand,.wrap>.status,.wrap>.wake-btn,.wrap>.wake-toggle,.wrap>.wake-sub{animation:lpIn .6s ease both}
+.wrap>.status{animation-delay:.08s}.wrap>.wake-btn{animation-delay:.16s}.wrap>.wake-toggle{animation-delay:.24s}.wrap>.wake-sub{animation-delay:.3s}
+@media (prefers-reduced-motion:reduce){.wrap>*{animation:none!important}.boot,.boot .trk i{transition:none}}
 /* Wake word: off until switched on, shown only while the Hub is live. The panels it raises sit over the page. */
 .wake-toggle{display:none;margin:10px auto 0;align-items:center;gap:8px;font-family:'Orbitron',monospace;font-size:9.5px;letter-spacing:1.4px;color:var(--text-muted);
   background:none;border:1px solid rgba(0,230,118,.22);border-radius:99px;padding:8px 14px;min-height:36px;cursor:pointer;transition:border-color .3s,color .3s,background .3s}
@@ -185,15 +196,6 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;overflow:hidden;ove
 .wake-toggle.on{color:var(--accent);border-color:var(--accent);background:rgba(0,230,118,.08)}
 .wake-toggle.on .dot{background:var(--accent);box-shadow:0 0 10px var(--accent);animation:wk-dot 2.4s ease-in-out infinite}
 @keyframes wk-dot{50%{opacity:.45}}
-#wake-stage{position:fixed;left:0;right:0;bottom:max(14px,env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 14px;pointer-events:none;z-index:6}
-.wk-card{pointer-events:auto;width:min(440px,100%);box-sizing:border-box;background:rgba(8,12,40,.9);border:1px solid rgba(0,230,118,.3);border-radius:14px;padding:11px 14px;text-align:left;-webkit-user-select:text;user-select:text}
-.wk-card.you{align-self:flex-end;border-color:rgba(59,167,255,.4);color:#cfe6ff;width:auto;max-width:min(440px,100%)}
-.wk-card .wk-t{font:400 14px/1.45 Outfit,system-ui,sans-serif;color:#d9ffe9}
-.wk-card.you .wk-t{color:#cfe6ff}
-.wk-row{display:flex;gap:8px;margin-top:10px}
-.wk-b{display:inline-block;font:700 10px Orbitron,monospace;letter-spacing:1.2px;color:var(--accent);background:none;border:1px solid var(--accent);border-radius:8px;padding:9px 16px;min-height:38px;cursor:pointer;text-decoration:none;margin-top:8px}
-.wk-row .wk-b{margin-top:0}
-@media (min-width:900px){#wake-stage{left:auto;right:28px;bottom:28px;align-items:flex-end}}
 @media (prefers-reduced-motion:reduce){.wake-toggle.on .dot{animation:none}}
 .status{min-height:16px;transition:opacity .15s}
 .status.swap{opacity:0}
@@ -221,6 +223,7 @@ __SETUP_LINK__
   <div class="status">DORMANT</div>
   <button type="button" id="wake-btn" class="wake-btn" data-s="start"><span class="lab s-start">▶ START</span><span class="lab s-starting">STARTING…</span><span class="lab s-enter">▶ ENTER</span></button>
   <button type="button" id="shell-key" class="shell-key" aria-pressed="true">Globe on. Press to switch it off.</button>
+  <div class="boot" id="boot" aria-hidden="true"><div class="trk"><i></i></div><div class="pc">0%</div></div>
   <div class="wake-sub" id="wake-sub"></div>
   <button type="button" id="wake-toggle" class="wake-toggle" aria-pressed="false"><span class="dot"></span><span class="t">WAKE WORD · OFF</span></button>
 </div>
@@ -389,11 +392,28 @@ function enterHub() {
   location.replace('/?enter=1');
 }
 
+// The meter is an estimate, not a measurement: it climbs toward 92 while the Hub starts, jumps to 100 the moment the Hub
+// answers, holds there for a beat, and fades out as ENTER fades in. If the Hub never answers it is withdrawn.
+const bootEl = document.getElementById('boot'), bootFill = bootEl.querySelector('i'), bootPc = bootEl.querySelector('.pc');
+let bootP = 0, bootT = null;
+function bootSet(p) { bootP = p; bootFill.style.width = p + '%'; bootPc.textContent = Math.round(p) + '%'; }
+function bootStart() {
+  clearInterval(bootT); bootSet(0); bootEl.classList.add('on'); const t0 = Date.now();
+  bootT = setInterval(() => { const t = (Date.now() - t0) / 1000; bootSet(Math.max(bootP, 92 * (1 - Math.exp(-t / 9)))); }, 120);
+}
+function bootDone() {
+  if (!bootEl.classList.contains('on')) return;
+  clearInterval(bootT); bootSet(100);
+  setTimeout(() => bootEl.classList.remove('on'), 700);
+}
+function bootStop() { clearInterval(bootT); bootEl.classList.remove('on'); }
+
 function startHub() {
   window.__hubTrace('start-tap',{ignored:starting});window.__hubTrace(starting?'ignored':'accepted',{action:'start'});
   if (starting) return;
   starting = true;
   setLabel('starting');
+  bootStart();
   wakeBtn.disabled = true;
   // Hand Windows the agenthub:// link: it runs the launcher (.vbs), which starts ONE server (it self-guards
   // via the heartbeat lock, so asking twice is harmless). There is no time-based debounce: the button is
@@ -406,7 +426,7 @@ function startHub() {
     n += 1;
     if (await isUp()) { clearInterval(t); starting = false; showState('up'); return; }
     if (n === 6 || n === 16) triggerProtocol('agenthub://start');
-    if (n > 30) { clearInterval(t); starting = false; setLabel('start'); wakeBtn.disabled = false; }
+    if (n > 30) { clearInterval(t); starting = false; setLabel('start'); wakeBtn.disabled = false; bootStop(); }
   }, 2000);
 }
 
@@ -414,6 +434,7 @@ const WORDS = {up: 'ONLINE', down: 'DORMANT', unreachable: 'NO SIGNAL'};
 function showState(st) {
   if (st === 'unreachable' && onPc) st = 'down';     // the PC itself: nothing to explain, START is the action
   const up = st === 'up';
+  if (up) bootDone();
   if (st === shown && wakeBtn.getAttribute('data-s') === (up ? 'enter' : 'start') && wakeBtn.disabled === (!up && !onPc)) return;
   shown = st;
   document.documentElement.classList.toggle('hub-up', up);
@@ -897,6 +918,17 @@ body.edit-mode #trash-zone{opacity:1;transform:translateX(-50%) translateY(0)}
   background:var(--panel);border:1px solid var(--border-bright);color:var(--text);box-shadow:0 8px 30px rgba(0,0,0,.5);
   opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
 #hub-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#hub-boot{position:fixed;inset:0;z-index:2000;display:grid;place-items:center;background:rgba(4,6,26,.94);opacity:0;transition:opacity .35s}
+#hub-boot[hidden]{display:none}
+#hub-boot.on{opacity:1}
+#hub-boot .hbt{width:min(320px,80vw);text-align:center}
+#hub-boot .hbl{font:700 11px 'Orbitron',monospace;letter-spacing:4px;color:var(--text-muted)}
+#hub-boot .hbp{font:900 54px 'Orbitron',monospace;color:var(--accent);margin:8px 0 12px;text-shadow:0 0 24px rgba(0,230,118,.45)}
+#hub-boot .hbk{height:4px;border-radius:4px;background:rgba(255,255,255,.1);overflow:hidden}
+#hub-boot .hbk i{display:block;height:100%;width:0;background:linear-gradient(90deg,#00e676,#3ba7ff);transition:width .25s linear;box-shadow:0 0 10px rgba(0,230,118,.6)}
+@keyframes hdIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+header>*{animation:hdIn .5s ease both}header>*:nth-child(2){animation-delay:.05s}header>*:nth-child(3){animation-delay:.1s}header>*:nth-child(4){animation-delay:.15s}header>*:nth-child(5){animation-delay:.2s}
+@media (prefers-reduced-motion:reduce){header>*{animation:none}#hub-boot,#hub-boot .hbk i{transition:none}}
 #hub-toast.err{border-color:rgba(255,92,92,.6);color:#ffb3b3}
 </style>
 </head>
@@ -904,6 +936,7 @@ body.edit-mode #trash-zone{opacity:1;transform:translateX(-50%) translateY(0)}
 __SETUP_LINK__
 
 <div id="hub-toast"></div>
+<div id="hub-boot" hidden><div class="hbt"><div class="hbl" id="hbl">RESTARTING</div><div class="hbp" id="hbp">0%</div><div class="hbk"><i id="hbf"></i></div></div></div>
 <div id="trash-zone">🗑 DRAG HERE TO WIRE OUT</div>
 
 <header>
@@ -1209,25 +1242,50 @@ shutdownBtn.onclick = async () => {
 // Restart from the header ⟳. The launcher's supervisor loop relaunches the
 // server; we poll /api/status and reload this window as soon as it's back.
 const restartBtn = document.getElementById('restart-btn');
+// A 0-100 overlay for restarts. The number is an estimate: it follows what the page can see (the Hub answering, then not
+// answering, then answering again) and finishes when Home has painted again.
+const HubBoot = (() => {
+  const box = document.getElementById('hub-boot'), lab = document.getElementById('hbl'), pc = document.getElementById('hbp'), fill = document.getElementById('hbf');
+  let p = 0, timer = null, target = 0;
+  const set = (v) => { p = Math.max(p, Math.min(100, v)); pc.textContent = Math.round(p) + '%'; fill.style.width = p + '%'; };
+  return {
+    show(text, startAt) { box.hidden = false; requestAnimationFrame(() => box.classList.add('on')); lab.textContent = text; p = 0; set(startAt || 0); },
+    label(text) { lab.textContent = text; },
+    ease(max, tau) { clearInterval(timer); const t0 = Date.now(), from = p; timer = setInterval(() => set(from + (max - from) * (1 - Math.exp(-(Date.now() - t0) / 1000 / tau))), 120); },
+    set,
+    finish() { clearInterval(timer); set(100); setTimeout(() => { box.classList.remove('on'); setTimeout(() => { box.hidden = true; }, 400); }, 450); },
+    stop() { clearInterval(timer); box.classList.remove('on'); setTimeout(() => { box.hidden = true; }, 400); }
+  };
+})();
+try {   // arriving after a restart: the page is new, so pick the meter up where the old page left it
+  const b = Number(sessionStorage.getItem('agenthub:booting') || 0); sessionStorage.removeItem('agenthub:booting');
+  if (b && Date.now() - b < 60000) { HubBoot.show('LOADING', 92); addEventListener('load', () => setTimeout(() => HubBoot.finish(), 500), {once: true}); }
+} catch (e) {}
 restartBtn.onclick = async () => {
   if (!confirm('Restart Agent Hub?')) return;
   window.__hubRestarting = true;
   restartBtn.disabled = true;
   shutdownBtn.disabled = true;
   restartBtn.classList.add('working');
+  HubBoot.show('STOPPING'); HubBoot.ease(30, 2);
   try { await fetch('/api/restart', {method: 'POST'}); } catch (e) {}
   setConn(false);
   connLabel.textContent = 'RESTARTING';
   document.title = 'AGENT HUB — Restarting…';
-  let tries = 0;
+  let tries = 0, wentDown = false;
   const poll = setInterval(async () => {
     tries += 1;
-    try {
-      const r = await fetch('/api/status', {cache: 'no-store', signal: AbortSignal.timeout(2000)});
-      if (r.ok) { clearInterval(poll); window.location.reload(); return; }
-    } catch (e) {}
-    if (tries > 40) { window.__hubRestarting=false; clearInterval(poll); connLabel.textContent = 'DISCONNECTED'; }  // ~60s give-up
-  }, 1500);
+    let ok = false;
+    try { const r = await fetch('/api/status', {cache: 'no-store', signal: AbortSignal.timeout(2000)}); ok = r.ok; } catch (e) {}
+    if (!ok && !wentDown) { wentDown = true; HubBoot.label('STARTING'); HubBoot.ease(88, 7); }
+    // ok before it ever went down is only the old Hub still answering for a moment: keep waiting
+    if (ok && (wentDown || tries > 6)) {
+      clearInterval(poll); HubBoot.label('LOADING'); HubBoot.set(92);
+      try { sessionStorage.setItem('agenthub:booting', String(Date.now())); } catch (e) {}
+      window.location.reload(); return;
+    }
+    if (tries > 60) { window.__hubRestarting = false; clearInterval(poll); HubBoot.stop(); connLabel.textContent = 'DISCONNECTED'; restartBtn.disabled = false; shutdownBtn.disabled = false; restartBtn.classList.remove('working'); }
+  }, 1000);
 };
 
 async function openApp(id, name) {
@@ -2437,6 +2495,7 @@ fetch('/api/update', {cache:'no-store'}).then(r => r.ok ? r.json() : null).then(
 }).catch(() => {});
 </script>
 __VOICE_WIDGET__
+<script>__HOME_BOARD_JS__</script>
 <script>__HOME_PANELS_JS__</script>
 <script>__DEPTH_LIFT__</script>
 </body>
@@ -2460,7 +2519,7 @@ def _render_menu() -> str:
     shortcuts_json = json.dumps(SHORTCUTS)
     return (_HTML
             .replace("__PICKER_JS__", _PICKER)
-            .replace("__HOME_PANELS_JS__", _HOME_PANELS_JS)
+            .replace("__HOME_BOARD_JS__", _HOME_BOARD_JS).replace("__HOME_PANELS_JS__", _HOME_PANELS_JS)
             .replace("__OFFLINE_CACHE__", _OFFLINE_CACHE)
             .replace("__MARK_URL__", _MARK_URL)
             .replace("__DL_ARRIVE__", _DL_ARRIVE)
