@@ -93,12 +93,20 @@ ChatFn = Callable[[dict], Awaitable[dict]]
 
 
 async def _ollama_raw(body: dict) -> dict:
+    """One chat call to Ollama. Hidden "thinking" is switched off: measured on this PC (1 Nov), gemma4 models spent a small token
+    budget on thinking and returned an empty or cut-off answer (JSON parsed 2 times in 5); with it off they parse 5 in 5 at the same
+    speed. A model that does not know the option is asked again without it."""
     import aiohttp
+    body = {**body, "think": body.get("think", False)}
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as sess:
-        async with sess.post("http://127.0.0.1:11434/api/chat", json=body) as r:
-            if r.status != 200:
-                raise RuntimeError(f"ollama {r.status}: {(await r.text())[:160]}")
-            return await r.json()
+        for attempt in (0, 1):
+            async with sess.post("http://127.0.0.1:11434/api/chat", json=body) as r:
+                if r.status == 400 and attempt == 0 and "think" in (await r.text()).lower():
+                    body.pop("think", None)
+                    continue
+                if r.status != 200:
+                    raise RuntimeError(f"ollama {r.status}: {(await r.text())[:160]}")
+                return await r.json()
 
 
 _SYSTEM = ("You judge ONE closed question about the STATE below. Answer only from the STATE; if it does not contain enough to "

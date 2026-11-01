@@ -549,13 +549,21 @@ def resolved_default_model(workspace_model: str | None = None) -> str:
     return _paid_provider_model() or workspace_model or FAST_CLOUD_MODEL
 
 
-def model_chain(primary: str | None, workspace_model: str | None = None) -> list[str]:
+def model_chain(primary: str | None, workspace_model: str | None = None, brief: str | None = None) -> list[str]:
     """Ordered models to try for a mission: the pinned/policy model first, then
-    the free-cloud + local fallbacks, deduped."""
+    the free-cloud + local fallbacks, deduped.
+
+    With nothing pinned and the policy on 'auto', measurements decide the first choice (see model_stats): a small brief goes to
+    the local model when it has been measured usable and its record on the project's own tests is good, otherwise cloud first.
+    A model measured not to load at all is left out unless it was pinned."""
+    from . import model_stats as MS
     first = primary or resolved_default_model(workspace_model)
+    if not primary and model_policy() in ("auto", "") and first != LOCAL_MODEL and MS.prefer_local(LOCAL_MODEL, brief):
+        first = LOCAL_MODEL
     chain = [first, FAST_CLOUD_MODEL, *MODEL_FALLBACKS]
     seen: set[str] = set()
-    return [m for m in chain if m and not (m in seen or seen.add(m))]
+    out = [m for m in chain if m and not (m in seen or seen.add(m))]
+    return [m for m in out if m == primary or not MS.broken(m)]
 
 
 def effective_settings(name: str) -> dict:

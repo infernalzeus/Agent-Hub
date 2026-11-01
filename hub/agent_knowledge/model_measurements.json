@@ -1,0 +1,41 @@
+{
+ "gemma4:e2b": {
+  "model": "gemma4:e2b",
+  "at": "2026-11-01T23:15:39",
+  "load_s": 3.6,
+  "tok_s": 179.3,
+  "answers": true,
+  "gpu_share": 1.0,
+  "loaded_gb": 1.8,
+  "loads": true,
+  "json_ok_of_5": 5,
+  "tool_call": true,
+  "writes_working_code": true
+ },
+ "gemma4:e4b-32k": {
+  "model": "gemma4:e4b-32k",
+  "at": "2026-11-01T23:15:46",
+  "load_s": 4.6,
+  "tok_s": 136.5,
+  "answers": true,
+  "gpu_share": 1.0,
+  "loaded_gb": 3.2,
+  "loads": true,
+  "json_ok_of_5": 5,
+  "tool_call": true,
+  "writes_working_code": true
+ },
+ "gemma4:e4b": {
+  "model": "gemma4:e4b",
+  "at": "2026-11-01T23:15:54",
+  "load_s": 4.7,
+  "tok_s": 132.7,
+  "answers": true,
+  "gpu_share": 1.0,
+  "loaded_gb": 3.2,
+  "loads": true,
+  "json_ok_of_5": 5,
+  "tool_call": true,
+  "writes_working_code": true
+ }
+}

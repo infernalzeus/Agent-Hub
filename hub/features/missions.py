@@ -1529,7 +1529,7 @@ async def _stream_resilient(m: Mission, wt: Path, data_dir: Path, agent: str, br
         ws_model = json.loads(Path(OCM.OPENCODE_CONFIG).read_text(encoding="utf-8")).get("model")
     except Exception:
         ws_model = None
-    chain = agent_knowledge.model_chain(m.model or None, ws_model)
+    chain = agent_knowledge.model_chain(m.model or None, ws_model, brief=m.brief)
     if stay_local():
         chain = [x for x in chain if _is_local(x)]
         if not chain:
@@ -1754,6 +1754,12 @@ async def _check_and_fix(m: Mission, wt: Path, data_dir: Path, *, tries: int = 2
         await _call_step(m, {"id": "fix", "agent": fixer}, wt, data_dir, data_dir / "mission.jsonl", fix_brief,
                          f"fix {attempts}/{tries} · {fixer}")
     m.verify = {**(res or {}), "attempts": attempts + int((m.verify or {}).get("attempts") or 0)}   # cumulative across gate runs
+    try:                                    # the project's own tests are the judge: this is what lets a poor local record change the next choice
+        from ..agent_knowledge import model_stats as _MS
+        secs, used = _tm(m)
+        _MS.record(used, bool((res or {}).get("ok")), secs, len(m.brief))
+    except Exception:
+        pass
     S.save(m)
 
 
@@ -2120,12 +2126,15 @@ async def _direct_chat(model: str, system: str, user: str, *, temperature: float
     an agent tool-loop. Raises on any failure so the caller can fail over."""
     import aiohttp
     name = model.split("/", 1)[1]
-    body = {"model": name, "stream": False, "options": {"temperature": temperature, "num_ctx": num_ctx},
+    body = {"model": name, "stream": False, "think": False, "options": {"temperature": temperature, "num_ctx": num_ctx},
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
     for attempt in (0, 1):
         try:
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as sess:
                 async with sess.post("http://127.0.0.1:11434/api/chat", json=body) as r:
+                    if r.status == 400 and "think" in body and "think" in (await r.text()).lower():
+                        body.pop("think", None)           # a model that does not know the option
+                        continue
                     if r.status != 200:
                         raise RuntimeError(f"ollama {r.status}: {(await r.text())[:160]}")
                     d = await r.json()
