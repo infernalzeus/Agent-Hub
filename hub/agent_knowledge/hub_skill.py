@@ -81,6 +81,24 @@ control, which they then replay as an automation step. If a task needs one and i
 does not exist, stop and say which window needs recording. Do not try to drive
 the desktop yourself.
 
+## When the Hub itself misbehaves (remote diagnosis)
+
+Start from facts, not guesses. `GET {base}/api/diagnose` (no token needed for a read) returns the
+build, which apps are up, mission and local-model state, free disk, recent problems and the last
+log lines with credentials removed. Then, in this order:
+
+1. **Logs on disk.** `logs/hub_*.log` is the supervisor (starts, exits, `code=42` means a requested
+   restart); `logs/hub_*.server.txt` is the server's own output. A fronted app that failed to start
+   leaves its output in `hub/app_logs/<app>.log` and `last_error` in the bundle.
+2. **State.** JSON state is in `hub/` (apps, routines, decisions, tokens, model health). Read it; do not
+   rewrite it while the Hub is running.
+3. **Transitions and graphics.** The page can measure its own browser window: write a turn count into
+   `hub/transition_selftest.arm`, open the taskbar app, read `hub/transition_selftest_result.json`. If it
+   says the renderer is "Microsoft Basic Render Driver", the browser is drawing in software and the
+   Hub is not at fault.
+4. **Fixing.** Work in a copy of the repository, never in the live tree. A fix arrives as a diff for a
+   person to apply. You may not restart, stop or update the Hub; ask the person to press the button.
+
 *Generated from the Hub's own routes - if an endpoint is not listed here, it does
 not exist on this build.*
 """
