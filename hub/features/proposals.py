@@ -38,6 +38,7 @@ KINDS = {
     "automation": "an automation you can run or schedule",
     "routine": "a recorded routine, kept for reuse",
     "app_evidence": "what an installed app exposes, read from its own files",
+    "harness_edit": "a rule for how the Hub should behave, learned from its own logs",
 }
 
 
@@ -124,6 +125,10 @@ async def accept(pid: str) -> dict:
         # Nothing is installed: accepting says the evidence may be used when routines for
         # this app are built, which is what leaving the list means.
         made = {"app": wiring.get("app"), "accepted": True}
+    elif kind == "harness_edit":
+        # A rule goes in on probation: kept after two wins, rolled back after two losses.
+        from . import memory_tiers as MT
+        made = MT.set_rule(wiring["rule_id"], wiring["text"], source="harness tuner", probation=True)
     elif kind == "app_ingest":
         # The work of bringing the app in is done and reviewed on the board;
         # accepting here is the same APPLY, from where you were already looking.

@@ -15,12 +15,14 @@ from .voice_widget import TALK_BUTTON, widget as _widget
 _WIDGET = _widget(True)      # conversation popover + orbs, built once
 _PICKER = (Path(__file__).parent / "static" / "picker.js").read_text(encoding="utf-8")
 _MARK_JS = (Path(__file__).parent / "static" / "agent-hub-mark.min.js").read_text(encoding="utf-8")
+_HOME_PANELS_JS = (Path(__file__).parent / "static" / "home-panels.js").read_text(encoding="utf-8")
+_WAKE_JS = (Path(__file__).parent / "static" / "wake.js").read_text(encoding="utf-8")
 _DEPTH_LIFT_SOURCE = (Path(__file__).parent / "static" / "depth-lift.js").read_text(encoding="utf-8")
 # The build id decides when a long-lived host page must be replaced. It covers everything a retained view can have
 # cached - this file (both pages), the mark and the controller - not just the controller, so a mark- or page-only
 # update can no longer leave an old landing/Home alive inside a host that still thinks it is current.
 _DEPTH_LIFT_BUILD = hashlib.sha256(
-    (_DEPTH_LIFT_SOURCE + "\0" + _MARK_JS + "\0" + Path(__file__).read_text(encoding="utf-8")).encode()).hexdigest()[:16]
+    (_DEPTH_LIFT_SOURCE + "\0" + _MARK_JS + "\0" + _WAKE_JS + "\0" + _HOME_PANELS_JS + "\0" + Path(__file__).read_text(encoding="utf-8")).encode()).hexdigest()[:16]
 _DEPTH_LIFT_JS = _DEPTH_LIFT_SOURCE.replace("__DL_BUILD__", _DEPTH_LIFT_BUILD)
 # Retire old midpoint-resume tickets. The whole turn now finishes before navigation.
 _DL_ARRIVE = """<script>
@@ -175,6 +177,24 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;overflow:hidden;ove
 .wake-sub{display:block;min-height:36px;opacity:0;transition:opacity .3s;margin-top:14px;font-family:'Orbitron',monospace;font-size:11px;letter-spacing:1.5px;
   color:var(--text-muted);line-height:1.6;max-width:280px;margin-left:auto;margin-right:auto}
 .wake-sub.on{opacity:1}
+/* Wake word: off until switched on, shown only while the Hub is live. The panels it raises sit over the page. */
+.wake-toggle{display:none;margin:10px auto 0;align-items:center;gap:8px;font-family:'Orbitron',monospace;font-size:9.5px;letter-spacing:1.4px;color:var(--text-muted);
+  background:none;border:1px solid rgba(0,230,118,.22);border-radius:99px;padding:8px 14px;min-height:36px;cursor:pointer;transition:border-color .3s,color .3s,background .3s}
+.hub-up .wake-toggle{display:inline-flex}
+.wake-toggle .dot{width:7px;height:7px;border-radius:50%;background:var(--text-faint);transition:background .3s,box-shadow .3s}
+.wake-toggle.on{color:var(--accent);border-color:var(--accent);background:rgba(0,230,118,.08)}
+.wake-toggle.on .dot{background:var(--accent);box-shadow:0 0 10px var(--accent);animation:wk-dot 2.4s ease-in-out infinite}
+@keyframes wk-dot{50%{opacity:.45}}
+#wake-stage{position:fixed;left:0;right:0;bottom:max(14px,env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 14px;pointer-events:none;z-index:6}
+.wk-card{pointer-events:auto;width:min(440px,100%);box-sizing:border-box;background:rgba(8,12,40,.9);border:1px solid rgba(0,230,118,.3);border-radius:14px;padding:11px 14px;text-align:left;-webkit-user-select:text;user-select:text}
+.wk-card.you{align-self:flex-end;border-color:rgba(59,167,255,.4);color:#cfe6ff;width:auto;max-width:min(440px,100%)}
+.wk-card .wk-t{font:400 14px/1.45 Outfit,system-ui,sans-serif;color:#d9ffe9}
+.wk-card.you .wk-t{color:#cfe6ff}
+.wk-row{display:flex;gap:8px;margin-top:10px}
+.wk-b{display:inline-block;font:700 10px Orbitron,monospace;letter-spacing:1.2px;color:var(--accent);background:none;border:1px solid var(--accent);border-radius:8px;padding:9px 16px;min-height:38px;cursor:pointer;text-decoration:none;margin-top:8px}
+.wk-row .wk-b{margin-top:0}
+@media (min-width:900px){#wake-stage{left:auto;right:28px;bottom:28px;align-items:flex-end}}
+@media (prefers-reduced-motion:reduce){.wake-toggle.on .dot{animation:none}}
 .status{min-height:16px;transition:opacity .15s}
 .status.swap{opacity:0}
 .proposal-card{display:flex;align-items:center;gap:9px;border-style:dashed}
@@ -202,7 +222,9 @@ __SETUP_LINK__
   <button type="button" id="wake-btn" class="wake-btn" data-s="start"><span class="lab s-start">▶ START</span><span class="lab s-starting">STARTING…</span><span class="lab s-enter">▶ ENTER</span></button>
   <button type="button" id="shell-key" class="shell-key" aria-pressed="true">Globe on. Press to switch it off.</button>
   <div class="wake-sub" id="wake-sub"></div>
+  <button type="button" id="wake-toggle" class="wake-toggle" aria-pressed="false"><span class="dot"></span><span class="t">WAKE WORD · OFF</span></button>
 </div>
+<div id="wake-stage" aria-live="polite"></div>
 <script src="/static/agent-hub-mark.js?v=__MARK_VERSION__"></script>
 <script>
 (function () {
@@ -304,7 +326,7 @@ __SETUP_LINK__
   }
   if (mark) {
     remember(on);
-    AgentHubMark.tapToToggle(document, mark, host, {rippleIn: document.body, onToggle: remember, ignore: '#shell-key',
+    AgentHubMark.tapToToggle(document, mark, host, {rippleIn: document.body, onToggle: remember, ignore: '#shell-key,#wake-stage,#wake-toggle',
       onTap: function () { note('toggle'); }});
     key.addEventListener('click', function () { mark.setShell(!mark.isShell()); remember(mark.isShell()); });
   } else key.hidden = true;
@@ -448,6 +470,7 @@ if(window.__hubDropFade&&!document.hidden&&!matchMedia('(prefers-reduced-motion:
  try{document.body.animate([{opacity:0},{opacity:1}],{duration:400});}catch(e){}
 }
 </script>
+<script>__WAKE_JS__</script>
 <script>__DEPTH_LIFT__</script>
 </body>
 </html>
@@ -457,7 +480,7 @@ import hashlib as _hashlib
 _MARK_VERSION = _hashlib.sha256(_MARK_JS.encode("utf-8")).hexdigest()[:12]
 _MARK_URL = "/static/agent-hub-mark.js?v=" + _MARK_VERSION
 _OFFLINE_HTML = (_OFFLINE_HTML.replace("__MARK_VERSION__", _MARK_VERSION).replace("__DL_ARRIVE__", _DL_ARRIVE)
-                 .replace("__DEPTH_LIFT__", _DEPTH_LIFT_JS))
+                 .replace("__WAKE_JS__", _WAKE_JS).replace("__DEPTH_LIFT__", _DEPTH_LIFT_JS))
 _OFFLINE_CACHE = "agent-hub-offline-" + _hashlib.sha1((_OFFLINE_HTML + _MARK_JS).encode("utf-8")).hexdigest()[:10]
 
 _SW_JS = """\
@@ -917,6 +940,7 @@ __SETUP_LINK__
 </div>
 <script>fetch('/api/locations/state',{cache:'no-store'}).then(r=>r.json()).then(j=>{ if(!j.configured) document.getElementById('setup-card').hidden=false; }).catch(()=>{});</script>
 
+<div id="home-panels" aria-label="Overview"></div>
 <div id="apps-before"></div>
 
 <div id="yt-app-area">
@@ -1160,7 +1184,7 @@ const shortcutsEl = document.getElementById('header-shortcuts');
 (function reorderSections() {
   const anchor = document.getElementById('power-scrim');
   if (!anchor || !anchor.parentNode) return;
-  ['apps-before', 'opencode-app-area', 'ytdl-app-area', 'yt-app-area', 'filebrowser-area']
+  ['home-panels', 'apps-before', 'opencode-app-area', 'ytdl-app-area', 'yt-app-area', 'filebrowser-area']
     .forEach(id => { const el = document.getElementById(id); if (el) anchor.parentNode.insertBefore(el, anchor); });
 })();
 
@@ -2413,6 +2437,7 @@ fetch('/api/update', {cache:'no-store'}).then(r => r.ok ? r.json() : null).then(
 }).catch(() => {});
 </script>
 __VOICE_WIDGET__
+<script>__HOME_PANELS_JS__</script>
 <script>__DEPTH_LIFT__</script>
 </body>
 </html>
@@ -2435,6 +2460,7 @@ def _render_menu() -> str:
     shortcuts_json = json.dumps(SHORTCUTS)
     return (_HTML
             .replace("__PICKER_JS__", _PICKER)
+            .replace("__HOME_PANELS_JS__", _HOME_PANELS_JS)
             .replace("__OFFLINE_CACHE__", _OFFLINE_CACHE)
             .replace("__MARK_URL__", _MARK_URL)
             .replace("__DL_ARRIVE__", _DL_ARRIVE)
