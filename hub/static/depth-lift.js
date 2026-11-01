@@ -11,7 +11,7 @@
  // PROTOCOL is the contract between the page that turns and the pages it holds (__hubViewStatus, __hubSuspendView/__hubResumeView,
  // the data-dl-* attributes, go/prepare/isBusy). Bump it only when that contract changes: BUILD changes on every Hub edit, and a tab
  // left open across a restart has an older parent than the Home page it loads, which must still turn, not fall back to a plain load.
- var BUILD='__DL_BUILD__',PROTOCOL=1,FLAG='agenthub:depth-lift:v2',DURATION=2000,PREP_MS=3500,PRIME_MIN_MS=120,PRIME_MAX_MS=700;
+ var BUILD='__DL_BUILD__',PROTOCOL=1,FLAG='agenthub:depth-lift:v2',DURATION=2000,PREP_MS=3500;
  var warmTimer=0,warmPending=false,warmEpoch=0,cancelWarm=null;var tapShield=null,tapAnimation=null,tapElement=null;var views={home:null,landing:null};var activeView=null,cancelPreparation=null,destinationFrame=null;var ready=null,busy=false,raf=0,timers=[],pending=null,closed=false,activeFrom=0,resizeObserver=null;
  var DL={settings:{timing:'free-scatter',spread:.7,liftCells:2},durationMs:DURATION,last:null,build:BUILD,protocol:PROTOCOL,disposed:false};
  function trace(name,data){if(window.__hubTrace)window.__hubTrace(name,data);if(name==='prep-timeout'||name==='transition-abort'||name==='fallback'){try{sessionStorage.setItem('agenthub:transition-exit',JSON.stringify({at:Date.now(),name:name,data:data||{},build:BUILD}));}catch(e){}}}
@@ -211,13 +211,7 @@
     frame.style.zIndex='2147482997';frame.style.opacity='1';frame.style.visibility='visible';frame.style.clipPath='none';frame.style.webkitClipPath='none';frame.style.pointerEvents='none';frame.style.willChange='transform';
     undoPrime=function(){frame.style.visibility=fs[0];frame.style.opacity=fs[1];frame.style.zIndex=fs[2];frame.style.clipPath=fs[3];frame.style.webkitClipPath=fs[4];frame.style.pointerEvents=fs[5];frame.style.willChange=fs[6];cover.style.position=cs[0];cover.style.zIndex=cs[1];cover.style.background=cs[2];};
     trace('raster-prepare',{destination:destination,behindSource:true});
-    // Raster of the destination continues on the GPU after the first frames and freezes the cube turn if it is still
-    // running when the turn starts (a 200 ms stall, measured). Wait, behind the opaque source, until frames pace normally again.
-    var t0=performance.now(),last=0,calm=0;
-    var settle=function(now){if(started||closed)return;if(last)calm=now-last<=26?calm+1:0;last=now;
-     if((calm>=4&&now-t0>=PRIME_MIN_MS)||now-t0>=PRIME_MAX_MS){if(undoPrime){undoPrime();undoPrime=null;}priming=false;trace('raster-prepared',{destination:destination,ms:Math.round(now-t0)});begin();return;}
-     nativeRAF(settle);};
-    nativeRAF(settle);return;
+    nativeRAF(function(){nativeRAF(function(){if(undoPrime){undoPrime();undoPrime=null;}priming=false;if(!started&&!closed){trace('raster-prepared',{destination:destination});begin();}});});return;
    }
    started=true;cancelPreparation=null;hostClear(timer);if(document.hidden||!ready||!equal(ready.v,viewport())){frame.remove();destinationFrame=null;busy=false;release();clearFeedback();navigate();return;}
    var previous=activeView,source=previous||document.body;
