@@ -248,6 +248,45 @@
   DL.isTransitioning=function(){try{return parent.DepthLift.isTransitioning()}catch(e){return false}};return;
  }
  window.addEventListener('popstate',backToDocument);
+
+ // Software graphics notice. When the browser has fallen back to its software renderer (its graphics process crashed, e.g. after a driver
+ // reset), every WebGL page here crawls and nothing in the Hub is at fault; say so instead of leaving it to look like a Hub bug.
+ (function(){
+  if(window.frameElement||matchMedia('(pointer: coarse)').matches)return;
+  var info='';try{var c=document.createElement('canvas'),g=c.getContext('webgl2')||c.getContext('webgl'),x=g&&g.getExtension('WEBGL_debug_renderer_info');info=g?String(x?g.getParameter(x.UNMASKED_RENDERER_WEBGL):''):'no WebGL';var l=g&&g.getExtension('WEBGL_lose_context');if(l)l.loseContext();}catch(e){}
+  DL.renderer=info;DL.software=/basic render|swiftshader|llvmpipe|software|warp|no webgl/i.test(info);
+  if(!DL.software)return;trace('software-graphics',{renderer:info});
+  try{if(sessionStorage.getItem('agenthub:sw-notice')==='x')return;}catch(e){}
+  var n=document.createElement('div');n.setAttribute('role','status');n.style.cssText='position:fixed;left:12px;bottom:12px;max-width:min(420px,calc(100vw - 24px));z-index:2147483003;background:rgba(8,12,40,.94);border:1px solid #e0a53c;color:#e0a53c;border-radius:10px;padding:8px 12px;font:13px/1.4 Outfit,system-ui,sans-serif;cursor:pointer';
+  n.textContent='This browser is drawing graphics in software ('+info.replace(/^ANGLE \(|\)$/g,'')+'), so the Hub will look slow. Fully quit and reopen the browser to get the graphics card back. Tap to hide.';
+  n.onclick=function(){n.remove();try{sessionStorage.setItem('agenthub:sw-notice','x');}catch(e){}};
+  (function add(){if(document.body)document.body.appendChild(n);else hostTimeout(add,50);})();
+ })();
+ // Transition self-test, armed from the Hub side (state file), never by the page: measures this very browser window and reports to /api/diagnose/client.
+ (function(){
+  function active(){var f=activeView;try{return f&&f.contentDocument?f.contentDocument:document;}catch(e){return document;}}
+  function wait(ms){return new Promise(function(r){hostTimeout(r,ms);});}
+  function gpu(){try{var c=document.createElement('canvas'),g=c.getContext('webgl2')||c.getContext('webgl'),x=g&&g.getExtension('WEBGL_debug_renderer_info');return {renderer:x?g.getParameter(x.UNMASKED_RENDERER_WEBGL):'?',webgl2:!!c.getContext&&!!document.createElement('canvas').getContext('webgl2')};}catch(e){return {renderer:'error '+e};}}
+  function monitor(){var m={gaps:[],dts:[],stop:false},prev=0;(function loop(t){if(m.stop)return;if(prev){var d=t-prev;m.dts.push(d);if(d>28)m.gaps.push([Math.round(t),Math.round(d)]);}prev=t;nativeRAF(loop);})(performance.now());return m;}
+  function summary(m){var a=m.dts.slice().sort(function(x,y){return x-y;});return {frames:a.length,p50:+(a[Math.floor(a.length*.5)]||0).toFixed(1),p95:+(a[Math.floor(a.length*.95)]||0).toFixed(1),max:+(a[a.length-1]||0).toFixed(1),over28:m.gaps.length,worst:m.gaps.slice().sort(function(x,y){return y[1]-x[1];}).slice(0,4)};}
+  async function hover(){var m=monitor(),doc=active(),t0=performance.now(),i=0;while(performance.now()-t0<2500){i++;var x=innerWidth/2+Math.cos(i/8)*260,y=innerHeight/2+Math.sin(i/8)*160;try{(doc.defaultView||window).dispatchEvent(new PointerEvent('pointermove',{clientX:x,clientY:y,pointerType:'mouse',bubbles:true}));var el=doc.elementFromPoint(x,y);if(el)el.dispatchEvent(new PointerEvent('pointermove',{clientX:x,clientY:y,pointerType:'mouse',bubbles:true}));}catch(e){}await wait(8);}m.stop=true;return summary(m);}
+  async function go(turns){
+   var out={at:new Date().toISOString(),ua:navigator.userAgent,origin:location.origin,dpr:devicePixelRatio,inner:[innerWidth,innerHeight],screen:[screen.width,screen.height],cores:navigator.hardwareConcurrency,mem:navigator.deviceMemory,gpu:gpu(),build:BUILD,protocol:PROTOCOL,visibility:document.visibilityState,turns:[]};
+   await wait(3500);var idle=monitor();await wait(3000);idle.stop=true;out.idle=summary(idle);
+   out.hover=await hover();
+   for(var i=0;i<turns;i++){
+    var doc=active(),btn=doc.getElementById('wake-btn')||doc.getElementById('orb-home');if(!btn){out.turns.push({error:'no button'});break;}
+    var m=monitor(),ring0=(window.__hubTiming||[]).length,t0=performance.now(),before=DL.last;btn.click();
+    var t=0;while(t<9000&&!(DL.last&&DL.last!==before&&DL.last.phase==='complete')){await wait(50);t+=50;}
+    var L=DL.last||{};await wait(400);m.stop=true;var tr=(window.__hubTiming||[]).slice(ring0),ff=tr.find(function(e){return e.name==='first-frame';}),pr=tr.find(function(e){return e.name==='raster-prepared';});
+    out.turns.push({n:i,from:btn.id,played:L.phase==='complete'&&!L.skipped,tapToFirstFrame:ff?Math.round(ff.at-performance.timeOrigin-t0):null,primeDone:pr?Math.round(pr.at-performance.timeOrigin-t0):null,cubes:L.cubes,turnP95:L.p95?+L.p95.toFixed(1):null,turnMax:L.deltas?+Math.max.apply(null,L.deltas).toFixed(1):null,frames:summary(m),events:tr.map(function(e){return e.name;}).join(' ')});
+    await wait(1200);
+   }
+   try{await fetch('/api/diagnose/client',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(out)});}catch(e){}
+  }
+  if(window.frameElement)return;
+  fetch('/api/diagnose/client/arm',{cache:'no-store'}).then(function(r){return r.json();}).then(function(a){if(a&&a.armed)go(a.turns||6);}).catch(function(){});
+ })();
  document.addEventListener('visibilitychange',onHide);window.addEventListener('resize',onResize);window.addEventListener('pageshow',onShow);if(visualViewport)visualViewport.addEventListener('resize',onResize);
  var stateObserver=new MutationObserver(function(){if(document.documentElement.classList.contains('hub-up'))later(warm,0);else if(document.getElementById('wake-btn')&&!busy&&!window.__depthLiftArrival)release();});stateObserver.observe(document.documentElement,{attributes:true,attributeFilter:['class']});
  function arrive(){cleanCover();later(warm,250);}

@@ -112,7 +112,7 @@ def _apps() -> dict:
     try:
         from .. import runtime as R  # noqa: F401
         from .apps import APP_PROCS
-        return {aid: {"running": bool(ap.running)} for aid, ap in APP_PROCS.items()}
+        return {aid: {"running": bool(ap.running), **({"last_error": redact(ap.last_error)} if getattr(ap, "last_error", "") else {})} for aid, ap in APP_PROCS.items()}
     except Exception as exc:  # noqa: BLE001
         return {"error": f"{type(exc).__name__}: {exc}"[:200]}
 
@@ -163,3 +163,31 @@ async def api_diagnose(request: web.Request) -> web.Response:
     except ValueError:
         lines = 150
     return web.json_response(bundle(lines))
+
+
+# --- transition self-test: the page measures its own browser window and reports here -----------------------------------
+# Armed only from this side (a state file), so a stranger on the tailnet cannot make anyone's browser run it.
+_ARM = RT.STATE / "transition_selftest.arm"
+_RESULT = RT.STATE / "transition_selftest_result.json"
+
+
+@routes.get("/api/diagnose/client/arm")
+async def api_client_arm(request: web.Request) -> web.Response:
+    try:
+        turns = int(_ARM.read_text(encoding="utf-8").strip() or "6")
+        return web.json_response({"armed": True, "turns": max(1, min(turns, 20))})
+    except (OSError, ValueError):
+        return web.json_response({"armed": False})
+
+
+@routes.post("/api/diagnose/client")
+async def api_client_report(request: web.Request) -> web.Response:
+    if not _ARM.exists():                      # only accept a report that was asked for
+        raise web.HTTPForbidden(text="no self-test armed")
+    data = await request.json()
+    RT.write_json(_RESULT, data)
+    try:
+        _ARM.unlink()
+    except OSError:
+        pass
+    return web.json_response({"ok": True})
