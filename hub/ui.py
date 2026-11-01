@@ -1415,6 +1415,24 @@ function buildAppCard(info, editable) {
     const onMac = /Macintosh/.test(navigator.userAgent) && !(navigator.maxTouchPoints > 1);   // iPadOS reports "Macintosh" too, but has touch
     smbBtn.href = (onMac && SMB_SHORTCUT.href_mac) || SMB_SHORTCUT.href;
     smbBtn.title = SMB_SHORTCUT.title;
+    // A press must always do something visible. Windows has no smb:// handler and a home-screen web app on a phone can
+    // swallow the link, which looked like a dead button (1 Nov). So: copy the address, hand the link over where it can
+    // work, and say what happened and what to do if nothing opened.
+    smbBtn.addEventListener('click', async (ev) => {
+      ev.preventDefault();
+      const url = smbBtn.href, onWin = /Windows/.test(navigator.userAgent);
+      const m = /^smb:[/][/]([^/]+)[/](.+)$/.exec(url), bs = String.fromCharCode(92);
+      const unc = m ? bs + bs + m[1] + bs + decodeURIComponent(m[2]).split('/').join(bs) : url;
+      const text = onWin ? unc : url;
+      let copied = false;
+      try { await navigator.clipboard.writeText(text); copied = true; } catch (e) {}
+      if (onWin) {
+        toast((copied ? 'Address copied: ' : 'Address: ') + text + '. Windows cannot open a share from a page; paste it into the File Explorer address bar.', 'ok');
+        return;
+      }
+      toast('Opening Files. ' + (copied ? 'If nothing opens, the address is copied: ' : 'If nothing opens, use: ') + text + '. In Files: more > Connect to Server.', 'ok');
+      window.location.href = url;
+    });
     actions.appendChild(smbBtn);
   }
 

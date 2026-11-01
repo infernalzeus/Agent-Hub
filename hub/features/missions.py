@@ -1177,6 +1177,18 @@ async def _prepare(m: Mission, wt: Path, data_dir: Path) -> None:
         pass
 
 
+def _path_with_python(env: dict) -> None:
+    """Put the Hub's own Python (and its Scripts folder) on an agent's PATH, so `pytest` and `python` resolve in the
+    agent's shell. They did not on 1 Nov: a mission wrote a correct test and then reported "pytest: command not found"."""
+    here = os.path.dirname(sys.executable)
+    extra = [d for d in (here, os.path.join(here, "Scripts")) if os.path.isdir(d)]
+    cur = env.get("PATH") or env.get("Path") or ""
+    have = {os.path.normcase(x) for x in cur.split(os.pathsep) if x}
+    add = [d for d in extra if os.path.normcase(d) not in have]
+    if add:
+        env["PATH"] = os.pathsep.join(add + ([cur] if cur else []))
+
+
 async def _stream_one(m: Mission, wt: Path, data_dir: Path, agent: str, brief: str,
                       *, phase: str = "") -> tuple[int, bool]:
     """One `opencode run` for `agent` in `wt`; stream its NDJSON into the mission;
@@ -1197,6 +1209,7 @@ async def _stream_one(m: Mission, wt: Path, data_dir: Path, agent: str, brief: s
     except Exception as exc:                      # a mission must still run without it
         logger.warning("missions: no hub token for this run: %s", exc)
     LLMK.inject(env)
+    _path_with_python(env)
 
     cmd = [OCM.OPENCODE_EXE, "run", "--dir", str(wt), "--agent", agent, "--format", "json"]
     if m.model:
@@ -2903,6 +2916,7 @@ async def continue_(mid: str, msg: str) -> None:
     env["XDG_DATA_HOME"] = str(wt / ".ocdata")
     env["OPENCODE_CONFIG"] = str(wt / "opencode.json")
     LLMK.inject(env)
+    _path_with_python(env)
     cmd = [OCM.OPENCODE_EXE, "run", "--dir", str(wt), "--continue", "--format", "json", msg]
     m.status = "running"
     m.ended = None
@@ -3180,6 +3194,7 @@ async def api_agent_draft(request: web.Request) -> web.Response:
     env["XDG_DATA_HOME"] = str(wt / ".ocdata")
     env["OPENCODE_CONFIG"] = str(OCM.OPENCODE_CONFIG)
     LLMK.inject(env)
+    _path_with_python(env)
     proc = await asyncio.create_subprocess_exec(
         OCM.OPENCODE_EXE, "run", "--dir", str(wt), "--agent", "agent-smith",
         "--format", "json", ask,
@@ -3224,6 +3239,7 @@ async def ask_scratch(agent: str, brief: str, timeout: float = 120.0) -> str:
     env["XDG_DATA_HOME"] = str(wt / ".ocdata")
     env["OPENCODE_CONFIG"] = str(OCM.OPENCODE_CONFIG)
     LLMK.inject(env)
+    _path_with_python(env)
     started = time.time()
     proc = await asyncio.create_subprocess_exec(
         OCM.OPENCODE_EXE, "run", "--dir", str(wt), "--agent", agent, "--format", "json", brief,
