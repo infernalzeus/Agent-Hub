@@ -238,10 +238,18 @@ globe = globe.replace("state === 'live' && clock - lastPulse >= 6", "clock - las
 globe = globe.replace("!asleep && !reduced", "!reduced")
 
 # Physical iPad Safari rounds 30Hz RAF timestamps to 33/34ms. The old
-# 0.2ms tolerance rejected usable 33ms frames, producing ~20fps. Keep
-# desktop timing unchanged and allow a 1ms scheduling tolerance on touch.
+# 0.2ms tolerance rejected usable 33ms frames, producing ~20fps. Preserve
+# the verified 1ms scheduling tolerance on touch; desktop is patched below.
 globe = sub(globe, 'if (now - g.t + .2 >= interval) g.frame(now);',
             'if (now - g.t + (atlasStep===64?1:.2) >= interval) g.frame(now);', 'Safari rounded RAF cadence')
+
+# Desktop motion targets 60Hz; carry scheduling remainder on high-refresh displays.
+globe = sub(globe, 'var active = false, interval = 1000 / 30;',
+            'var active = false, interval = 1000 / (atlasStep===64?30:60);', 'desktop globe cadence')
+globe = sub(globe, 'if (now - g.t + (atlasStep===64?1:.2) >= interval) g.frame(now);',
+            'if (atlasStep===64) { if(now-g.t+1>=interval)g.frame(now); } else if(g.interacting()){g.frame(now);g.paintDue=0;} else if(!g.paintDue||now+.2>=g.paintDue){g.frame(now);g.paintDue=now+interval-((now-(g.paintDue||now))%interval);}', 'desktop globe phase clock')
+globe = sub(globe, 'var g = { t: 0, running: running, frame: frame, stats: stats,',
+    'var g = { t: 0, running: running, frame: frame, stats: stats, interacting:function(){return hovering&&root.performance.now()-lastMove<100;},', 'display-paced desktop hover')
 
 # ── 2. the flip transition: bound to one host instead of a page element ──────────────────────────────
 flip = read("agent-hub-facet-flip.js")
@@ -460,6 +468,11 @@ glue = sub(glue, 'if(!alive)return;\n      var cores=lite?',
 glue = sub(glue, 'coastOnRelease: true,brightness:.78', 'coastOnRelease: true,brightness:.78,frameMs:33', 'phone crystal cadence')
 crystal_optimized = cap_dpr(read('agent-hub-core-crystal-optimized.js'))
 crystal_optimized = sub(crystal_optimized, 'returning||drag!==-1?16:66', 'returning||drag!==-1?16:(options.frameMs||66)', 'phone idle cap')
+# Do not carry the phone's 15Hz legacy idle limit onto a desktop GPU.
+crystal_optimized = sub(crystal_optimized,
+    'if(now-lastPaint<(returning||drag!==-1?16:(options.frameMs||66))){request();return;}lastPaint=now;',
+    'var budget=options.frameMs?(returning||drag!==-1?16:options.frameMs):(returning||drag!==-1?0:1000/60);if(now-lastPaint+.2<budget){request();return;}lastPaint=options.frameMs||!budget?now:now-((now-lastPaint)%budget);',
+    'desktop crystal phase clock')
 crystal_gpu = read('agent-hub-crystal-gpu.js')
 crystal_gpu = sub(crystal_gpu, 'function prepare(coords,faces,counts){',
     "var uniform={},rotationData=new Float32Array(9),pLocation=gl.getAttribLocation(program,'p'),gradLocation=gl.getAttribLocation(program,'grad');['rotation','clock','pulseAge','viewport','ratio'].forEach(function(n){uniform[n]=gl.getUniformLocation(program,n);});\n function prepare(coords,faces,counts){", 'cached GPU bindings')
@@ -471,6 +484,15 @@ crystal_gpu = sub(crystal_gpu, 'var grad=[0,((screen[ib]-screen[ia])*dx+(screen[
 crystal_gpu = sub(crystal_gpu, 'positions[j+3]=grad[k];', 'positions[j+3]=k===0?0:k===1?gradient:1;', 'same facet gradient')
 crystal_gpu = sub(crystal_gpu, "gl.uniformMatrix3fv(uniform.rotation,false,new Float32Array([matrix[0],matrix[3],matrix[6],matrix[1],matrix[4],matrix[7],matrix[2],matrix[5],matrix[8]]));",
     "rotationData.set([matrix[0],matrix[3],matrix[6],matrix[1],matrix[4],matrix[7],matrix[2],matrix[5],matrix[8]]);gl.uniformMatrix3fv(uniform.rotation,false,rotationData);", 'reused rotation buffer')
+
+# A stationary crystal still animates its lighting. Its projected vertex data does
+# not change with the light clock, so avoid rebuilding/uploading it on each glint.
+crystal_gpu = sub(crystal_gpu, 'return {draw:function(screen,coords,faces,counts,size,matrix,time,age){if(!positions)prepare(coords,faces,counts);',
+    'var lastMatrix=null,lastSize=0;return {draw:function(screen,coords,faces,counts,size,matrix,time,age){if(!positions)prepare(coords,faces,counts);var changed=!lastMatrix||size!==lastSize||matrix.some(function(x,i){return x!==lastMatrix[i];});if(changed){lastMatrix=matrix.slice();lastSize=size;', 'crystal position cache')
+crystal_gpu = sub(crystal_gpu, 'gl.viewport(0,0,canvas.width,canvas.height);',
+    '}gl.viewport(0,0,canvas.width,canvas.height);', 'close position cache')
+crystal_gpu = sub(crystal_gpu, 'gl.bufferData(gl.ARRAY_BUFFER,positions,gl.DYNAMIC_DRAW);',
+    'if(changed)gl.bufferData(gl.ARRAY_BUFFER,positions,gl.DYNAMIC_DRAW);', 'upload changed positions only')
 
 # installFlip must be visible to the glue; define it as a plain function in the shared scope.
 bundle = (

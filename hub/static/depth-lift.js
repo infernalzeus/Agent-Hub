@@ -8,9 +8,12 @@
  if(window.DepthLift&&DepthLift.build==='__DL_BUILD__'&&!DepthLift.disposed)return;
  if(window.DepthLift&&DepthLift.dispose)DepthLift.dispose();
  var hostTasks=window.__hubNativeTasks;var nativeRAF=(hostTasks?hostTasks.raf:window.requestAnimationFrame).bind(window),nativeCancel=(hostTasks?hostTasks.cancel:window.cancelAnimationFrame).bind(window),hostTimeout=(hostTasks?hostTasks.timeout:window.setTimeout).bind(window),hostClear=(hostTasks?hostTasks.clearT:window.clearTimeout).bind(window);
- var BUILD='__DL_BUILD__',FLAG='agenthub:depth-lift:v2',DURATION=2000,PREP_MS=3500;
+ // PROTOCOL is the contract between the page that turns and the pages it holds (__hubViewStatus, __hubSuspendView/__hubResumeView,
+ // the data-dl-* attributes, go/prepare/isBusy). Bump it only when that contract changes: BUILD changes on every Hub edit, and a tab
+ // left open across a restart has an older parent than the Home page it loads, which must still turn, not fall back to a plain load.
+ var BUILD='__DL_BUILD__',PROTOCOL=1,FLAG='agenthub:depth-lift:v2',DURATION=2000,PREP_MS=3500,PRIME_MIN_MS=120,PRIME_MAX_MS=700;
  var warmTimer=0,warmPending=false,warmEpoch=0,cancelWarm=null;var tapShield=null,tapAnimation=null,tapElement=null;var views={home:null,landing:null};var activeView=null,cancelPreparation=null,destinationFrame=null;var ready=null,busy=false,raf=0,timers=[],pending=null,closed=false,activeFrom=0,resizeObserver=null;
- var DL={settings:{timing:'free-scatter',spread:.7,liftCells:2},durationMs:DURATION,last:null,build:BUILD,disposed:false};
+ var DL={settings:{timing:'free-scatter',spread:.7,liftCells:2},durationMs:DURATION,last:null,build:BUILD,protocol:PROTOCOL,disposed:false};
  function trace(name,data){if(window.__hubTrace)window.__hubTrace(name,data);if(name==='prep-timeout'||name==='transition-abort'||name==='fallback'){try{sessionStorage.setItem('agenthub:transition-exit',JSON.stringify({at:Date.now(),name:name,data:data||{},build:BUILD}));}catch(e){}}}
  DL.debugLine=function(){var child=null;try{child=activeView&&activeView.contentWindow.DepthLift&&activeView.contentWindow.DepthLift.build;}catch(e){}var ring=window.__hubTiming||[];return 'host '+BUILD+' active-child '+(child||'root')+' build-fallback '+!!window.__hubLastBuildFallback+(window.__hubPreviousTransitionExit?'\nprevious-exit '+JSON.stringify(window.__hubPreviousTransitionExit):'')+'\n'+ring.slice(-16).map(function(e){return Math.round(e.at-performance.timeOrigin)+'ms '+e.name+' '+JSON.stringify(e.data);}).join('\n');};
  function reduced(){return matchMedia('(prefers-reduced-motion: reduce)').matches;}
@@ -69,7 +72,8 @@
   function destroy(){cleanupMasks();layer.remove();objects.forEach(function(fn){try{fn()}catch(e){}});var ext=gl.getExtension('WEBGL_lose_context');if(ext)ext.loseContext();}
   try{
    var prog=gl.createProgram();objects.push(function(){gl.deleteProgram(prog)});gl.attachShader(prog,sh(gl.VERTEX_SHADER,VERTEX));gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,FRAGMENT));gl.linkProgram(prog);if(!gl.getProgramParameter(prog,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(prog));gl.useProgram(prog);
-   var cell=Math.max(17.6,Math.min(32,v.w/22.5)),C=Math.round(v.w/cell),s=v.w/C,R=Math.ceil(v.h/s),count=C*R;
+   // Keep desktop clipping complexity bounded as the window grows. Phone layout is unchanged.
+   var cell=Math.max(17.6,Math.min(32,v.w/22.5),matchMedia('(pointer: coarse)').matches?0:Math.sqrt(v.w*v.h/480)),C=Math.round(v.w/cell),s=v.w/C,R=Math.ceil(v.h/s),count=C*R;
    var data=[];function face(v,n,id){[0,1,2,0,2,3].forEach(function(i){data.push.apply(data,v[i].concat(n,[[0,0],[1,0],[1,1],[0,1]][i],[id]));});}
    face([[-.5,-.5,.5],[.5,-.5,.5],[.5,.5,.5],[-.5,.5,.5]],[0,0,1],0);
    face([[.5,-.5,-.5],[-.5,-.5,-.5],[-.5,.5,-.5],[.5,.5,-.5]],[0,0,-1],1);
@@ -183,8 +187,8 @@
   busy=true;DL.last={phase:'preparing'};if(!ready)warm(true);
   var existing=views[destination],discard=null;if(existing&&staleView(existing,destination)){discard=existing;trace('stale-view-replaced',{page:destination});if(existing!==activeView)existing.remove();views[destination]=null;existing=null;}var created=!existing,frame=existing||document.createElement('iframe');destinationFrame=frame;frame.removeAttribute('data-dl-view');frame.removeAttribute('data-dl-cached');frame.setAttribute('data-dl-destination','');frame.title=destination==='home'?'Agent Hub Home':'Agent Hub landing';
   if(created)frame.style.cssText='position:fixed;inset:0;border:0;width:100%;height:100%;z-index:2147482999;background:#080c28;visibility:hidden;clip-path:inset(100%)';
-  var timer=later(function(){trace('prep-timeout',{ms:PREP_MS});fail();},PREP_MS),started=false,confirmed=null,readySeen=false;cancelPreparation=fail;
-  function fail(){if(started)return;started=true;cancelPreparation=null;hostClear(timer);if(created)frame.remove();else{frame.removeAttribute('data-dl-destination');frame.setAttribute('data-dl-cached','');suspendView(frame);}destinationFrame=null;busy=false;release();clearFeedback();if(!closed)navigate();}
+  var timer=later(function(){trace('prep-timeout',{ms:PREP_MS});fail();},PREP_MS),started=false,confirmed=null,readySeen=false,primed=false,priming=false,undoPrime=null;cancelPreparation=fail;
+  function fail(){if(started)return;if(undoPrime){undoPrime();undoPrime=null;}started=true;cancelPreparation=null;hostClear(timer);if(created)frame.remove();else{frame.removeAttribute('data-dl-destination');frame.setAttribute('data-dl-cached','');suspendView(frame);}destinationFrame=null;busy=false;release();clearFeedback();if(!closed)navigate();}
   frame.onerror=fail;
   var waitForStatus=function(){if(started||closed)return;try{
    var doc=frame.contentDocument,win=frame.contentWindow,status=win.__hubViewStatus;
@@ -195,7 +199,27 @@
    else if(status.page!=='home'||status.state!=='up'||!doc.getElementById('orb-home')){later(waitForStatus,50);return;}
    if(!readySeen){readySeen=true;trace('ready',{page:status.page,state:status.state});}if(!ready){later(waitForStatus,8);return;}confirmed=status;nativeRAF(begin);
   }catch(e){fail();}};
-  function begin(){if(started||closed)return;started=true;cancelPreparation=null;hostClear(timer);if(document.hidden||!ready||!equal(ready.v,viewport())){frame.remove();destinationFrame=null;busy=false;release();clearFeedback();navigate();return;}
+  function begin(){if(started||closed||priming)return;
+   // The first visible Home paint used to compile/raster inside the cube turn.
+   // Prepare it behind the opaque LIVE source, never above it and never as a poster.
+   if(!primed&&created&&!matchMedia('(pointer: coarse)').matches&&ready){
+    primed=priming=true;var cover=activeView||document.body;
+    var fs=[frame.style.visibility,frame.style.opacity,frame.style.zIndex,frame.style.clipPath,frame.style.webkitClipPath,frame.style.pointerEvents,frame.style.willChange];
+    var cs=[cover.style.position,cover.style.zIndex,cover.style.background];
+    if(getComputedStyle(cover).position==='static')cover.style.position='relative';cover.style.zIndex='2147482998';
+    if(!activeView)cover.style.background=getComputedStyle(document.documentElement).background;
+    frame.style.zIndex='2147482997';frame.style.opacity='1';frame.style.visibility='visible';frame.style.clipPath='none';frame.style.webkitClipPath='none';frame.style.pointerEvents='none';frame.style.willChange='transform';
+    undoPrime=function(){frame.style.visibility=fs[0];frame.style.opacity=fs[1];frame.style.zIndex=fs[2];frame.style.clipPath=fs[3];frame.style.webkitClipPath=fs[4];frame.style.pointerEvents=fs[5];frame.style.willChange=fs[6];cover.style.position=cs[0];cover.style.zIndex=cs[1];cover.style.background=cs[2];};
+    trace('raster-prepare',{destination:destination,behindSource:true});
+    // Raster of the destination continues on the GPU after the first frames and freezes the cube turn if it is still
+    // running when the turn starts (a 200 ms stall, measured). Wait, behind the opaque source, until frames pace normally again.
+    var t0=performance.now(),last=0,calm=0;
+    var settle=function(now){if(started||closed)return;if(last)calm=now-last<=26?calm+1:0;last=now;
+     if((calm>=4&&now-t0>=PRIME_MIN_MS)||now-t0>=PRIME_MAX_MS){if(undoPrime){undoPrime();undoPrime=null;}priming=false;trace('raster-prepared',{destination:destination,ms:Math.round(now-t0)});begin();return;}
+     nativeRAF(settle);};
+    nativeRAF(settle);return;
+   }
+   started=true;cancelPreparation=null;hostClear(timer);if(document.hidden||!ready||!equal(ready.v,viewport())){frame.remove();destinationFrame=null;busy=false;release();clearFeedback();navigate();return;}
    var previous=activeView,source=previous||document.body;
    var seed=new Uint32Array(1);crypto.getRandomValues(seed);ready.randomize(seed[0]);ready.attach(source,frame);ready.draw(0);frame.style.visibility='visible';frame.style.pointerEvents='auto';
    run(0,1,function(skipped){if(skipped){frame.remove();destinationFrame=null;clearFeedback();navigate();return;}ready.finish();ready.layer.style.visibility='hidden';
@@ -225,7 +249,7 @@
  if(document.documentElement.hasAttribute('data-depth-lift-demo'))return;
  if(window.frameElement&&(window.frameElement.hasAttribute('data-dl-destination')||window.frameElement.hasAttribute('data-dl-view')||window.frameElement.hasAttribute('data-dl-cached'))){
   DL.prepare=function(){try{if(parent.DepthLift&&parent.DepthLift.prepare)parent.DepthLift.prepare();}catch(e){}};
-  DL.go=function(d,n,element){try{if(parent.DepthLift&&!parent.DepthLift.disposed){if(parent.DepthLift.build!==BUILD){trace('build-mismatch-fallback',{host:parent.DepthLift.build,child:BUILD});try{sessionStorage.setItem('agenthub:dl-upgrade',JSON.stringify({at:Date.now(),host:parent.DepthLift.build,child:BUILD}));}catch(e){}parent.location.replace(routeFor(d));return;}parent.DepthLift.go(d,function(){parent.location.replace(routeFor(d));},element);return;}}catch(e){}n();};
+  DL.go=function(d,n,element){try{if(parent.DepthLift&&!parent.DepthLift.disposed){if(parent.DepthLift.protocol!==PROTOCOL){trace('build-mismatch-fallback',{host:parent.DepthLift.build,child:BUILD,hostProtocol:parent.DepthLift.protocol,protocol:PROTOCOL});try{sessionStorage.setItem('agenthub:dl-upgrade',JSON.stringify({at:Date.now(),host:parent.DepthLift.build,child:BUILD}));}catch(e){}parent.location.replace(routeFor(d));return;}parent.DepthLift.go(d,function(){parent.location.replace(routeFor(d));},element);return;}}catch(e){}n();};
   DL.isBusy=function(){try{return parent.DepthLift.isBusy()}catch(e){return false}};
   DL.isTransitioning=function(){try{return parent.DepthLift.isTransitioning()}catch(e){return false}};return;
  }

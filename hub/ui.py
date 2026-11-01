@@ -53,9 +53,8 @@ document.addEventListener('DOMContentLoaded',function(){if(!/debug/.test(locatio
  window.__hubSuspendView=function(permanent){if(permanent)window.__hubPageTasks.stop();else window.__hubPageTasks.pause();};
  window.__hubResumeView=function(){window.__hubPageTasks.resume();if(window.__hubRefreshView)window.__hubRefreshView();};
 })();
-// Mobile polish must not compete with the two live pages and cube turn.
+// Secondary page work must not compete with the two live pages and cube turn.
 window.__hubWaitForTransition=async function(){
- if(!matchMedia('(pointer: coarse)').matches)return;
  var until=performance.now()+3500;
  while(window.DepthLift&&DepthLift.isBusy&&DepthLift.isBusy()&&performance.now()<until){await new Promise(function(resolve){setTimeout(resolve,60);});}
 };
