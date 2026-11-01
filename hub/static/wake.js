@@ -74,7 +74,7 @@
     var y = Math.max(60, c.y - c.R * .9 + row * 150 + (left ? 0 : 20)); return { x: x, y: y, w: w };
   }
   function mkBlock(b) {
-    var e = document.createElement('div'); e.className = 'wb ' + (b.cls || ''); var h = document.createElement('h4'); h.textContent = b.t; if (b.n) { var n = document.createElement('span'); n.textContent = b.n; h.appendChild(n); } e.appendChild(h);
+    var e = document.createElement('div'); e.className = 'wb ' + (b.cls || ''); e.dataset.id = b.id || ''; var h = document.createElement('h4'); h.textContent = b.t; if (b.n) { var n = document.createElement('span'); n.textContent = b.n; h.appendChild(n); } e.appendChild(h);
     if (b.type === 'list') b.rows.forEach(function (r) { var d = document.createElement('div'); d.className = 'li'; var i = document.createElement('i'); i.className = r[0] || ''; var bb = document.createElement('b'); bb.textContent = r[1]; d.append(i, bb); if (r[2]) { var s = document.createElement('span'); s.textContent = r[2]; d.appendChild(s); } e.appendChild(d); });
     if (b.type === 'num') { var d = document.createElement('div'); d.className = 'num'; var bb = document.createElement('b'); bb.textContent = b.big; var s = document.createElement('span'); s.textContent = b.cap; d.append(bb, s); e.appendChild(d); }
     if (b.type === 'note') { var nt = document.createElement('div'); nt.className = 'nt'; nt.textContent = b.text; e.appendChild(nt); }
@@ -110,6 +110,14 @@
     });
   }
 
+  function focusBlock(id) {
+    var hit = null; blocks.forEach(function (e) { if (e.dataset.id === id) hit = e; });
+    if (!hit) return false;
+    blocks.forEach(function (e) { if (e === hit) { e.style.zIndex = 5; e.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.7)' }], { duration: reduce.matches ? 1 : 420, easing: EASE, fill: 'forwards' }); } else e.animate([{ opacity: 1 }, { opacity: .1 }], { duration: reduce.matches ? 1 : 300, fill: 'forwards' }); });
+    return true;
+  }
+  function scene() { return blocks.map(function (e) { var h = e.querySelector('h4'); return { id: e.dataset.id, t: h ? h.firstChild.textContent : '' }; }); }
+
   function openHome() {
     say('Opening Home.', 'smith');
     // the same button, the same cube turn, as a tap on ENTER
@@ -119,13 +127,21 @@
   // ---- speaking, with the ring pulsing to the voice
   function play(text) {
     return new Promise(function (resolve) {
-      var done = false, tick = null, rhythm = null;
-      function fin() { if (done) return; done = true; clearInterval(tick); clearInterval(rhythm); S.speaking = false; resolve(); }
+      var done = false, tick = null, rhythm = null, guard = null, node = null;
+      function fin() { if (done) return; done = true; clearInterval(tick); clearInterval(rhythm); clearInterval(guard); try { if (node) node.stop(); } catch (e) {} S.speaking = false; resolve(); }
+      // Talking over the reply: the microphone is listened to while Smith speaks. Its own voice coming back through the speakers is
+      // measured for the first 0.6 s and counts as the floor; only a sound well above that floor, held for 0.3 s, cuts the reply off.
+      var t0 = performance.now(), floor = 0, hi = 0, lastT = t0;
+      guard = setInterval(function () {
+        var now = performance.now(), r = rms(); if (now - t0 < 600) { floor = Math.max(floor, r); lastT = now; return; }
+        var limit = Math.max(0.12, floor * 2.2 + 0.04); hi = r > limit ? hi + (now - lastT) : 0; lastT = now;
+        if (hi > 300 && !done) { S.barged = true; say('(you talked over it)', 'you'); pulse(); fin(); }
+      }, 30);
       S.speaking = true; setState('speak'); pulse(); rhythm = setInterval(pulse, 620);
       var voice = null; try { voice = localStorage.getItem('hubVoiceName'); } catch (e) {}
       post('/api/voice/speak', { text: text, voice: voice || undefined }, 'speech', 20000).then(function (ab) {
         return S.actx.decodeAudioData(ab.slice(0)).then(function (buf) {
-          var src = S.actx.createBufferSource(), an = S.actx.createAnalyser(), data = new Uint8Array(512), last = 0;
+          var src = node = S.actx.createBufferSource(), an = S.actx.createAnalyser(), data = new Uint8Array(512), last = 0;
           an.fftSize = 512; src.buffer = buf; src.connect(an); an.connect(S.actx.destination); src.onended = fin; src.start();
           tick = setInterval(function () { an.getByteTimeDomainData(data); var s = 0; for (var i = 0; i < data.length; i++) { var v = (data[i] - 128) / 128; s += v * v; } if (Math.sqrt(s / data.length) > 0.07 && performance.now() - last > 380) { last = performance.now(); pulse(); } }, 80);
         });
@@ -162,7 +178,7 @@
   function hear(blob) { return post('/api/voice/transcribe', blob, 'audio', 40000).then(function (j) { return (j.text || '').trim(); }); }
 
   // ---- what happens after the word
-  function afterReply() { S.convoUntil = Date.now() + CONVO_MS; setState('convo'); }
+  function afterReply() { S.convoUntil = Date.now() + CONVO_MS; S.barged = false; setState('convo'); }
   function ask(text) {
     setState('think'); say(text, 'you');
     var YES = /^\W*(yes|yeah|yep|sure|okay|ok|go ahead|do it|confirm)\b/i, NO = /^\W*(no|nope|cancel|stop|don'?t|never mind)\b/i;
@@ -171,17 +187,20 @@
       if (YES.test(text)) return act(p, text); if (NO.test(text)) return reply('Okay, cancelled. Nothing was changed.', text);
     }
     S.history.push({ role: 'user', text: text });
-    return post('/api/voice/chat', { text: text, history: S.history.slice(-9, -1) }, 'json', 60000).then(function (r) {
+    return post('/api/voice/chat', { text: text, history: S.history.slice(-9, -1), scene: scene() }, 'json', 60000).then(function (r) {
       S.history.push({ role: 'assistant', text: r.say || '' });
-      if (r.action && r.confirm) { S.pending = r; return reply(r.say, text); }
+      if (r.action && r.confirm) { S.pending = r; return reply(r.say, text, r.ui); }
       if (r.action && !r.url) return act(r, text);
-      return reply(r.say, text);
+      return reply(r.say, text, r.ui);
     });
   }
   function act(r, text) { return post('/api/voice/act', { id: r.action.id, args: r.action.args }, 'json', 90000).then(function (j) { if (j.action && j.confirm) S.pending = j; return reply(j.say, text); }); }
-  function reply(sayText, asked) {
+  function reply(sayText, asked, ui) {
     say(sayText, 'smith');
-    return blocksFor(asked, sayText).then(function (b) { raise(b); return play(sayText); }).then(afterReply);
+    // the answer carries what to show (ui.blocks, ui.focus); the page guesses from the words only when the Hub sent nothing
+    if (ui && ui.focus && focusBlock(ui.focus)) return play(sayText).then(afterReply);
+    var shown = ui && ui.blocks && ui.blocks.length ? Promise.resolve(ui.blocks) : blocksFor(asked, sayText);
+    return shown.then(function (b) { raise(b); return play(sayText); }).then(afterReply);
   }
   function handle(text) {
     if (SLEEP.test(text)) { say('Sleeping.', 'smith'); retract(false); S.convoUntil = 0; return play('Okay.').then(function () { setState('wake'); }); }

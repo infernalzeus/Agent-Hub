@@ -99,7 +99,11 @@
 
   var RENDER = {
     attention: function (s) {
-      var rows = s.attention.map(function (a) { return row(a.level, a.title, a.detail, '', a.go); });
+      var rows = s.attention.map(function (a) {
+        var r = row(a.level, a.title, a.options ? '' : a.detail, '', a.options ? null : a.go);
+        if (a.options) { r.style.flexWrap = 'wrap'; a.options.forEach(function (o) { var b = el('button', 'hp-btn', String(o.name || o.id).toUpperCase()); b.type = 'button'; b.onclick = function () { fetch('/api/acp/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: a.id, option: o.id }) }).then(poll); }; r.appendChild(b); }); }
+        return r;
+      });
       return { node: list(rows, 'Nothing needs you right now.'), n: rows.length, level: s.attention.some(function (a) { return a.level === 'red'; }) ? 'red' : rows.length ? 'amber' : '' };
     },
     runs: function (s) {

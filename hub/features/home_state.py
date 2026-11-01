@@ -46,6 +46,13 @@ def _mission_rows(now: float) -> "list[dict]":
     return out
 
 
+def _sess(a: dict) -> dict:
+    """A Claude Code or Codex session in the same shape as a mission row, so every panel draws both."""
+    return {"id": a["id"], "project": a["project"], "brief": a["title"] or ("Claude Code session" if a["agent"] == "claude" else "Codex session"),
+            "status": a["state"], "agent": "claude code" if a["agent"] == "claude" else "codex", "runtime": a["agent"], "model": None,
+            "age_s": a["age_s"], "error": "", "ended": None, "changed": 0, "ask": a["ask"]}
+
+
 def state() -> dict:
     from . import diagnose as D
     from . import proposals as P
@@ -82,6 +89,26 @@ def state() -> dict:
         attention.append({"level": "red", "kind": "disk", "id": "disk", "go": "/setup",
                           "title": "Little disk space left", "detail": f"{disk} GB free where the Hub keeps its state"})
 
+    try:
+        from . import agent_sessions as AS
+        agents = AS.scan(now)
+    except Exception:  # noqa: BLE001 - Home must draw even if the logs cannot be read
+        agents = []
+    for a in agents:
+        if a["state"] == "needs_you":
+            attention.append({"level": "amber", "kind": "session", "id": a["id"], "go": "/",
+                              "title": f'{"Claude Code" if a["agent"] == "claude" else "Codex"} is waiting: {a["project"]}',
+                              "detail": a["ask"] or a["title"]})
+
+    try:
+        from . import acp_client as ACP
+        for q in ACP.pending():
+            attention.append({"level": "amber", "kind": "agent-asks", "id": q["id"], "go": "/",
+                              "title": f'{q["agent"]} asks: {q["title"]}', "detail": " / ".join(str(o["name"]) for o in q["options"])[:140],
+                              "options": q["options"]})
+    except Exception:  # noqa: BLE001
+        pass
+
     runs = [m for m in ms if m["status"] in ACTIVE]
     working = [m for m in ms if m["status"] in ACTIVE]
     waiting = [m for m in ms if m["status"] in NEEDS_YOU]
@@ -93,7 +120,10 @@ def state() -> dict:
         "generated": now,
         "attention": attention,
         "runs": runs[:8],
-        "sessions": {"needs_you": waiting[:8], "working": working[:8], "idle": idle},
+        "sessions": {
+            "needs_you": waiting[:8] + [_sess(a) for a in agents if a["state"] == "needs_you"],
+            "working": working[:8] + [_sess(a) for a in agents if a["state"] == "working"],
+            "idle": idle + [_sess(a) for a in agents if a["state"] == "idle"][:6]},
         "health": {
             "version": b["hub"]["version"], "uptime_s": b["hub"]["uptime_s"],
             "apps": {"running": [a for a, v in apps.items() if isinstance(v, dict) and v.get("running")],
@@ -103,6 +133,75 @@ def state() -> dict:
             "gpu": None, "gpu_note": "not measured: the Hub does not read the graphics card",
         },
     }
+
+
+# --- the answer contract: what a spoken answer also carries, so the screen can show it ----------------------------------
+import re
+
+_TOPICS = (
+    ("work", re.compile(r"\b(running|mission|attention|need me|needs me|proposal|waiting|session|busy|doing|going on|status)\b", re.I)),
+    ("health", re.compile(r"\b(health|disk|model|computer|machine|pc|space|warning|errors?)\b", re.I)),
+    ("memory", re.compile(r"\b(memory|remember|know about me|facts|rules)\b", re.I)),
+)
+_FOCUS = re.compile(r"\b(?:maximi[sz]e|focus(?: on)?|zoom (?:in )?(?:on|to)|enlarge|expand|show me only)\s+(?:the\s+)?([a-z ]{3,30})", re.I)
+_SLEEP = re.compile(r"\b(go to sleep|goodnight|good night|that'?s all|that is all|goodbye)\b", re.I)
+_HOME = re.compile(r"\b(open (?:the )?(?:home|hub)|go (?:to )?home|take me (?:in|home))\b", re.I)
+
+
+def _blocks(topic: str, st: dict) -> "list[dict]":
+    if topic == "work":
+        att = st["attention"]
+        ss = st["sessions"]
+        return [
+            {"id": "attention", "t": "NEEDS YOU", "n": str(len(att)), "type": "list", "cls": "amber" if att else "",
+             "rows": [["r" if a["level"] == "red" else "a", a["title"], ""] for a in att[:3]] or [["o", "Nothing needs you right now", ""]]},
+            {"id": "runs", "t": "RUNS", "type": "num", "big": str(len(st["runs"])), "cap": "missions running"},
+            {"id": "sessions", "t": "SESSIONS", "type": "num", "big": str(len(ss["working"]) + len(ss["needs_you"])),
+             "cap": f'{len(ss["needs_you"])} need you · {len(ss["working"])} working'},
+        ]
+    if topic == "health":
+        h = st["health"]
+        return [
+            {"id": "health", "t": "HEALTH", "type": "list", "rows": [
+                ["", f'Hub v{h["version"]}', f'up {round(h["uptime_s"] / 60)} min'],
+                ["" if (h["local_model"] or {}).get("listening") else "o", "Local model", "listening" if (h["local_model"] or {}).get("listening") else "off"],
+                ["a" if h["recent_problems"] else "", "Warnings", str(h["recent_problems"])]]},
+            {"id": "disk", "t": "DISK", "type": "num", "big": f'{round(h["disk_free_gb"].get("work") or 0)} GB', "cap": "free where missions work"},
+        ]
+    if topic == "memory":
+        from . import memory_tiers as MT
+        t = MT.status()["tiers"]
+        return [{"id": "memory", "t": "MEMORY", "type": "list", "rows": [["", name, f'{v["count"]}: {v["rule"].split(":")[0]}'] for name, v in t.items()]}]
+    return []
+
+
+def ui_for(text: str, say: str, scene: "list | None" = None) -> dict:
+    """What the screen should do with this answer: raise blocks for a topic, focus one on screen, open Home, or sleep."""
+    out: dict = {"topic": None, "blocks": [], "focus": None, "open": None, "sleep": False}
+    t = str(text or "")
+    if _SLEEP.search(t):
+        out["sleep"] = True
+        return out
+    if _HOME.search(t):
+        out["open"] = "home"
+        return out
+    m = _FOCUS.search(t)
+    if m and scene:
+        want = m.group(1).lower().strip()
+        for item in scene:
+            title = str(item.get("t") or item.get("id") or "").lower()
+            if title and (title in want or want in title or any(w and w in title for w in want.split() if len(w) > 3)):
+                out["focus"] = item.get("id")
+                return out
+    for name, rx in _TOPICS:
+        if rx.search(t):
+            out["topic"] = name
+            try:
+                out["blocks"] = _blocks(name, state())
+            except Exception:  # noqa: BLE001 - an answer must never fail because a panel could not be built
+                out["blocks"] = []
+            return out
+    return out
 
 
 @routes.get("/api/home/state")

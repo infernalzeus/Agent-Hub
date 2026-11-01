@@ -65,8 +65,8 @@
     var apps = (typeof APP_LIST !== 'undefined' ? APP_LIST : []).filter(function (a) { return !a.hidden; });
     // the three built-in cards (Auto-LLM, YouTube Download, YouTube Upload) are page sections, not apps: an icon block scrolls to the card and opens it
     var CARDS = [['oc', 'Auto-LLM', 'oc-header', null], ['ytdl', 'YouTube Download', 'ytdl-header', 'ytdl-toggle-btn'], ['yt', 'YouTube Upload', 'yt-header', 'yt-toggle-btn']].filter(function (c) { return document.getElementById(c[2]); });
-    CARDS.forEach(function (c, i) { defs.push(['card:' + c[0], { t: 'APP', x: -640 + (i % 4) * 165, y: 60 + Math.floor(i / 4) * 82, w: 155, h: 72, card: c }]); });
-    apps.forEach(function (a, i) { var j = i + CARDS.length; defs.push(['app:' + a.id, { t: 'APP', x: -640 + (j % 4) * 165, y: 60 + Math.floor(j / 4) * 82, w: 155, h: 72, app: a }]); });
+    CARDS.forEach(function (c, i) { defs.push(['card:' + c[0], { t: 'APP', x: -640 + (i % 4) * 165, y: -110 + Math.floor(i / 4) * 82, w: 155, h: 72, card: c }]); });
+    apps.forEach(function (a, i) { var j = i + CARDS.length; defs.push(['app:' + a.id, { t: 'APP', x: -640 + (j % 4) * 165, y: -110 + Math.floor(j / 4) * 82, w: 155, h: 72, app: a }]); });
     defs.forEach(function (d) { if (!L[d[0]]) L[d[0]] = { x: d[1].x, y: d[1].y, w: d[1].w, h: d[1].h, min: 0 }; });
 
     function applyBlock(id) { var e = blocks[id], l = L[id]; e.style.left = l.x + 'px'; e.style.top = l.y + 'px'; e.style.width = l.w + 'px'; e.style.height = l.min ? '' : l.h + 'px'; e.classList.toggle('min', !!l.min); e.style.zIndex = l.z || 1; e.hidden = !!hid[id]; }
@@ -95,7 +95,11 @@
     function paint() {
       if (!data) { ['att', 'runs', 'ses', 'hlt'].forEach(function (id) { if (!blocks[id]._in.firstChild) blocks[id]._in.appendChild(el('div', 'hb-note', 'Reading the Hub…')); }); return; }
       var a = blocks.att, nA = data.attention.length; a._in.replaceChildren(); a._n.textContent = nA ? String(nA) : '';
-      if (!nA) a._in.appendChild(el('div', 'hb-note', 'Nothing needs you right now.')); data.attention.forEach(function (x) { var r = li(x.level === 'red' ? 'r' : 'a', x.title, x.detail); a._in.appendChild(r); });
+      if (!nA) a._in.appendChild(el('div', 'hb-note', 'Nothing needs you right now.')); data.attention.forEach(function (x) {
+        var r = li(x.level === 'red' ? 'r' : 'a', x.title, x.options ? '' : x.detail);
+        if (x.options) { var bar = el('div'); bar.style.cssText = 'display:flex;gap:6px;padding:2px 10px 8px'; x.options.forEach(function (o) { var b = el('button', 'hb-btn', String(o.name || o.id).toUpperCase()); b.type = 'button'; b.onclick = function () { fetch('/api/acp/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: x.id, option: o.id }) }).then(function () { if (window.__hubHomePanels) window.__hubHomePanels.refresh(); }); }; bar.appendChild(b); }); a._in.appendChild(r); a._in.appendChild(bar); }
+        else a._in.appendChild(r);
+      });
       a.classList.toggle('amber', nA > 0); a.classList.toggle('red', data.attention.some(function (x) { return x.level === 'red'; }));
       var r = blocks.runs; r._in.replaceChildren(); var st = el('div', 'hb-stat'); st.appendChild(el('b', '', String(data.runs.length))); st.appendChild(el('span', '', data.runs.length ? data.runs.map(function (m) { return m.brief; }).slice(0, 2).join(' · ') : 'missions running')); r._in.appendChild(st);
       var s = blocks.ses; s._in.replaceChildren(); var ss = data.sessions, any = false;

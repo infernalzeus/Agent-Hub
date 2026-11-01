@@ -701,6 +701,37 @@ def _routed(res: dict, heard: str) -> dict:
     return out
 
 
+_PROBATION_USED: "list" = []        # [(rule id, when)] for rules on probation that were in the last model prompt
+_CORRECTION = re.compile(r"^\W*(no\b|nope|wrong|that'?s not|that is not|not that|i said|stop\b|cancel|never mind)", re.I)
+
+
+def _memory_text(text: str) -> str:
+    """What the three memory tiers hand the model: every rule that is on, plus facts and events that match the question."""
+    try:
+        from . import memory_tiers as MT
+        rules = MT.prompt_block()
+        extra = MT.recall(text, ("semantic", "episodic"))
+        _PROBATION_USED[:] = [(k, time.time()) for k, v in MT.rules().items() if v.get("probation")]
+        return ("\n\nRULES YOU HAVE BEEN GIVEN:\n" + rules if rules else "") + ("\n\nRELEVANT MEMORY:\n" + extra if extra else "")
+    except Exception:
+        return ""
+
+
+def _settle_outcomes(text: str) -> None:
+    """A rule on probation is judged by the next thing you say: a correction is a loss, anything else a win."""
+    if not _PROBATION_USED:
+        return
+    try:
+        from . import memory_tiers as MT
+        lost = bool(_CORRECTION.search(text))
+        for rid, at in list(_PROBATION_USED):
+            if time.time() - at < 300:
+                MT.record_outcome(rid, not lost)
+    except Exception:
+        pass
+    _PROBATION_USED.clear()
+
+
 async def _llm(text: str, history: list, mission_id: "str | None") -> "dict | None":
     global _LLM_WHY
     _LLM_WHY = "empty"
@@ -712,7 +743,7 @@ async def _llm(text: str, history: list, mission_id: "str | None") -> "dict | No
     if not chain:
         _LLM_WHY = "unavailable"
         return None
-    msgs = [{"role": "system", "content": _SYSTEM + capabilities_text() + "\n\nHUB STATE:\n" + snapshot(mission_id)}]
+    msgs = [{"role": "system", "content": _SYSTEM + capabilities_text() + "\n\nHUB STATE:\n" + snapshot(mission_id) + _memory_text(text)}]
     for h in (history or [])[-8:]:
         role = "assistant" if h.get("role") in ("assistant", "hub") else "user"
         msgs.append({"role": role, "content": str(h.get("text", ""))[:400]})
@@ -910,6 +941,7 @@ async def _by_understanding(text: str, heard: str) -> "dict | None":
 async def chat(text: str, history: "list | None" = None, mission_id: "str | None" = None, use_model: bool = True) -> dict:
     """One request in, one reply out - and a record of which bin it was put in and what ran."""
     from . import binning as BIN
+    _settle_outcomes(text)
     _LAST_U.clear()
     try:
         decision = BIN.decide(text)
@@ -1145,7 +1177,13 @@ async def api_chat(request: web.Request) -> web.Response:
     text = str(b.get("text") or "").strip()[:500]
     if not text:
         raise web.HTTPBadRequest(text="no text")
-    return web.json_response(await chat(text, b.get("history") if isinstance(b.get("history"), list) else [], b.get("mission") or None))
+    res = await chat(text, b.get("history") if isinstance(b.get("history"), list) else [], b.get("mission") or None)
+    try:                                     # the answer also says what the screen should show (topic blocks, focus, open Home, sleep)
+        from . import home_state as HS
+        res = {**res, "ui": HS.ui_for(text, str(res.get("say") or ""), b.get("scene") if isinstance(b.get("scene"), list) else None)}
+    except Exception:
+        pass
+    return web.json_response(res)
 
 
 @routes.post("/api/voice/act")

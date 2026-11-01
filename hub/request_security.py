@@ -144,6 +144,8 @@ async def middleware(request: web.Request, handler):
     token = identify(request)
     if token is not None:
         request["integration"] = token
+        from . import taint
+        taint.guard(request)                 # outside text read by this caller must not drive an acting endpoint
         return await handler(request)
 
     origin = request.headers.get("Origin") or request.headers.get("Referer") or "(none)"
