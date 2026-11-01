@@ -89,8 +89,8 @@ def state() -> dict:
         attention.append({"level": "red", "kind": "disk", "id": "disk", "go": "/setup",
                           "title": "Little disk space left", "detail": f"{disk} GB free where the Hub keeps its state"})
 
+    from . import agent_sessions as AS
     try:
-        from . import agent_sessions as AS
         agents = AS.scan(now)
     except Exception:  # noqa: BLE001 - Home must draw even if the logs cannot be read
         agents = []
@@ -116,8 +116,13 @@ def state() -> dict:
             and m["ended"] and now - m["ended"] < 24 * 3600][:6]
     model = D._local_model_server()
     b = D.bundle(lines=10)
+    try:
+        usage = AS.usage(now)
+    except Exception:  # noqa: BLE001
+        usage = None
     return {
         "generated": now,
+        "usage": usage,
         "attention": attention,
         "runs": runs[:8],
         "sessions": {
@@ -141,6 +146,7 @@ import re
 _TOPICS = (
     ("work", re.compile(r"\b(running|mission|attention|need me|needs me|proposal|waiting|session|busy|doing|going on|status)\b", re.I)),
     ("health", re.compile(r"\b(health|disk|model|computer|machine|pc|space|warning|errors?)\b", re.I)),
+    ("usage", re.compile(r"\b(usage|tokens?|how much (?:have i|did i|am i)|limit|quota)\b", re.I)),
     ("memory", re.compile(r"\b(memory|remember|know about me|facts|rules)\b", re.I)),
 )
 _FOCUS = re.compile(r"\b(?:maximi[sz]e|focus(?: on)?|zoom (?:in )?(?:on|to)|enlarge|expand|show me only)\s+(?:the\s+)?([a-z ]{3,30})", re.I)
@@ -168,6 +174,11 @@ def _blocks(topic: str, st: dict) -> "list[dict]":
                 ["a" if h["recent_problems"] else "", "Warnings", str(h["recent_problems"])]]},
             {"id": "disk", "t": "DISK", "type": "num", "big": f'{round(h["disk_free_gb"].get("work") or 0)} GB', "cap": "free where missions work"},
         ]
+    if topic == "usage":
+        u = (st.get("usage") or {}).get("claude")
+        if not u:
+            return [{"id": "usage", "t": "USAGE", "type": "note", "text": "Still counting Claude Code's logs; ask again in a few seconds."}]
+        return [{"id": "usage", "t": "USAGE · 24 H", "type": "bars", "values": u["by_hour"], "cap": f'{u["tokens_5h"]:,} tokens in 5 h · {u["tokens_7d"]:,} in 7 days'}]
     if topic == "memory":
         from . import memory_tiers as MT
         t = MT.status()["tiers"]

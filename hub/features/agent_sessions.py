@@ -136,3 +136,66 @@ def scan(now: "float | None" = None, limit: int = 10) -> "list[dict]":
             "title": _title(recs), "state": state, "ask": ask, "age_s": int(age), "id": p.stem[:12],
         })
     return rows
+
+
+# --- usage: how much Claude Code has written lately, counted from the same logs --------------------------------------------
+_USAGE: dict = {"at": 0.0, "value": None, "busy": False}
+USAGE_TTL_S = 300
+_TS = re.compile(r'"timestamp":"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)')
+_OUT = re.compile(r'"output_tokens":(\d+)')
+_IN = re.compile(r'"input_tokens":(\d+)')
+
+
+def _compute_usage(now: float) -> dict:
+    """Output and fresh input tokens Claude Code logged, by hour for the last 24 h and in total for 5 h and 7 days.
+
+    The plan's own limit is not in the logs, so this is a count, not a percentage."""
+    import calendar
+    hours = [0] * 24
+    t5h = t7d = msgs5h = 0
+    for p in CLAUDE_DIR.glob("*/*.jsonl"):
+        try:
+            if now - p.stat().st_mtime > 7 * 86400:
+                continue
+            with p.open("r", encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    if '"output_tokens"' not in line:
+                        continue
+                    m = _TS.search(line)
+                    o = _OUT.search(line)
+                    if not (m and o):
+                        continue
+                    when = calendar.timegm(time.strptime(m.group(1), "%Y-%m-%dT%H:%M:%S"))
+                    age = now - when
+                    if age < 0 or age > 7 * 86400:
+                        continue
+                    n = int(o.group(1)) + int((_IN.search(line) or [0, 0])[1] if _IN.search(line) else 0)
+                    t7d += n
+                    if age <= 5 * 3600:
+                        t5h += n
+                        msgs5h += 1
+                    if age <= 24 * 3600:
+                        hours[23 - int(age // 3600)] += n
+        except OSError:
+            continue
+    return {"claude": {"tokens_5h": t5h, "tokens_7d": t7d, "replies_5h": msgs5h, "by_hour": hours}, "codex": None,
+            "note": "counted from Claude Code's own logs; the plan limit is not in them, so no percentage; Codex not read"}
+
+
+def usage(now: "float | None" = None) -> "dict | None":
+    """The last count, instantly. A fresh one is computed in the background when it is older than USAGE_TTL_S."""
+    import threading
+    now = now or time.time()
+    if now - _USAGE["at"] > USAGE_TTL_S and not _USAGE["busy"]:
+        _USAGE["busy"] = True
+
+        def work():
+            try:
+                _USAGE["value"] = _compute_usage(time.time())
+                _USAGE["at"] = time.time()
+            except Exception:  # noqa: BLE001
+                pass
+            finally:
+                _USAGE["busy"] = False
+        threading.Thread(target=work, daemon=True).start()
+    return _USAGE["value"]

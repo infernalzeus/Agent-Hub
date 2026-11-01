@@ -7,7 +7,7 @@
   var reduce = matchMedia('(prefers-reduced-motion: reduce)');
   var P = {
     att: { t: 'NEEDS ATTENTION', x: -640, y: -330, w: 330, h: 150 }, runs: { t: 'RUNS', x: -290, y: -330, w: 190, h: 112 },
-    ses: { t: 'SESSIONS', x: -80, y: -330, w: 250, h: 150 }, hlt: { t: 'HEALTH', x: 190, y: -330, w: 270, h: 170 }
+    ses: { t: 'SESSIONS', x: -80, y: -330, w: 250, h: 150 }, hlt: { t: 'HEALTH', x: 190, y: -330, w: 270, h: 170 }, use: { t: 'CLAUDE CODE USAGE', x: -640, y: -130, w: 330, h: 130 }
   };
   var ICON = { move: 'M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01', min: 'M6 12h12', foc: 'M5 9V5h4M19 9V5h-4M5 15v4h4M19 15v4h-4', x: 'M6 6l12 12M18 6 6 18' };
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
@@ -61,12 +61,12 @@
     var fitBtn = el('button', 'hb-btn', 'FIT'), tidyBtn = el('button', 'hb-btn', 'TIDY');
     fitBtn.type = tidyBtn.type = 'button'; bar.append(zh, tidyBtn, fitBtn); host.append(bar, world, tray); root.appendChild(host);
 
-    var defs = [['att', P.att], ['runs', P.runs], ['ses', P.ses], ['hlt', P.hlt]];
+    var defs = [['att', P.att], ['runs', P.runs], ['ses', P.ses], ['hlt', P.hlt], ['use', P.use]];
     var apps = (typeof APP_LIST !== 'undefined' ? APP_LIST : []).filter(function (a) { return !a.hidden; });
     // the three built-in cards (Auto-LLM, YouTube Download, YouTube Upload) are page sections, not apps: an icon block scrolls to the card and opens it
     var CARDS = [['oc', 'Auto-LLM', 'oc-header', null], ['ytdl', 'YouTube Download', 'ytdl-header', 'ytdl-toggle-btn'], ['yt', 'YouTube Upload', 'yt-header', 'yt-toggle-btn']].filter(function (c) { return document.getElementById(c[2]); });
-    CARDS.forEach(function (c, i) { defs.push(['card:' + c[0], { t: 'APP', x: -640 + (i % 4) * 165, y: -110 + Math.floor(i / 4) * 82, w: 155, h: 72, card: c }]); });
-    apps.forEach(function (a, i) { var j = i + CARDS.length; defs.push(['app:' + a.id, { t: 'APP', x: -640 + (j % 4) * 165, y: -110 + Math.floor(j / 4) * 82, w: 155, h: 72, app: a }]); });
+    CARDS.forEach(function (c, i) { defs.push(['card:' + c[0], { t: 'APP', x: -640 + (i % 4) * 165, y: 30 + Math.floor(i / 4) * 82, w: 155, h: 72, card: c }]); });
+    apps.forEach(function (a, i) { var j = i + CARDS.length; defs.push(['app:' + a.id, { t: 'APP', x: -640 + (j % 4) * 165, y: 30 + Math.floor(j / 4) * 82, w: 155, h: 72, app: a }]); });
     defs.forEach(function (d) { if (!L[d[0]]) L[d[0]] = { x: d[1].x, y: d[1].y, w: d[1].w, h: d[1].h, min: 0 }; });
 
     function applyBlock(id) { var e = blocks[id], l = L[id]; e.style.left = l.x + 'px'; e.style.top = l.y + 'px'; e.style.width = l.w + 'px'; e.style.height = l.min ? '' : l.h + 'px'; e.classList.toggle('min', !!l.min); e.style.zIndex = l.z || 1; e.hidden = !!hid[id]; }
@@ -93,7 +93,7 @@
     if (apps.length === 0) { /* nothing to add */ }
 
     function paint() {
-      if (!data) { ['att', 'runs', 'ses', 'hlt'].forEach(function (id) { if (!blocks[id]._in.firstChild) blocks[id]._in.appendChild(el('div', 'hb-note', 'Reading the Hub…')); }); return; }
+      if (!data) { ['att', 'runs', 'ses', 'hlt', 'use'].forEach(function (id) { if (!blocks[id]._in.firstChild) blocks[id]._in.appendChild(el('div', 'hb-note', 'Reading the Hub…')); }); return; }
       var a = blocks.att, nA = data.attention.length; a._in.replaceChildren(); a._n.textContent = nA ? String(nA) : '';
       if (!nA) a._in.appendChild(el('div', 'hb-note', 'Nothing needs you right now.')); data.attention.forEach(function (x) {
         var r = li(x.level === 'red' ? 'r' : 'a', x.title, x.options ? '' : x.detail);
@@ -105,6 +105,13 @@
       var s = blocks.ses; s._in.replaceChildren(); var ss = data.sessions, any = false;
       [['needs_you', 'a'], ['working', ''], ['idle', 'o']].forEach(function (g) { ss[g[0]].forEach(function (m) { any = true; s._in.appendChild(li(g[1], m.brief, (m.ask || m.project) + ' · ' + g[0].replace('_', ' '))); }); });
       if (!any) s._in.appendChild(el('div', 'hb-note', 'No agent session is waiting, working or recently finished.'));
+      var u = blocks.use; u._in.replaceChildren(); var cu = data.usage && data.usage.claude;
+      if (!cu) u._in.appendChild(el('div', 'hb-note', 'Counting Claude Code’s logs…'));
+      else {
+        var bars = el('div'); bars.style.cssText = 'display:flex;align-items:flex-end;gap:3px;height:62px;padding:6px 10px 2px'; var mx = Math.max.apply(null, cu.by_hour.concat([1]));
+        cu.by_hour.forEach(function (v) { var i = el('i'); i.style.cssText = 'flex:1;background:linear-gradient(#3ba7ff,rgba(59,167,255,.25));border:1px solid rgba(59,167,255,.6);border-bottom:0;height:' + Math.max(2, Math.round(v / mx * 100)) + '%'; bars.appendChild(i); });
+        u._in.appendChild(bars); u._in.appendChild(el('div', 'hb-note', cu.tokens_5h.toLocaleString() + ' tokens in 5 h · ' + cu.tokens_7d.toLocaleString() + ' in 7 days · counted from the logs, no plan limit'));
+      }
       var h = data.health, hb = blocks.hlt; hb._in.replaceChildren();
       hb._in.appendChild(li('', 'Hub v' + h.version, 'up ' + ago(h.uptime_s)));
       hb._in.appendChild(li(h.local_model && h.local_model.listening ? '' : 'o', 'Local model', h.local_model && h.local_model.listening ? 'listening' : 'off'));

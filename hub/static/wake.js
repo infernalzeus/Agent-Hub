@@ -77,6 +77,11 @@
     var e = document.createElement('div'); e.className = 'wb ' + (b.cls || ''); e.dataset.id = b.id || ''; var h = document.createElement('h4'); h.textContent = b.t; if (b.n) { var n = document.createElement('span'); n.textContent = b.n; h.appendChild(n); } e.appendChild(h);
     if (b.type === 'list') b.rows.forEach(function (r) { var d = document.createElement('div'); d.className = 'li'; var i = document.createElement('i'); i.className = r[0] || ''; var bb = document.createElement('b'); bb.textContent = r[1]; d.append(i, bb); if (r[2]) { var s = document.createElement('span'); s.textContent = r[2]; d.appendChild(s); } e.appendChild(d); });
     if (b.type === 'num') { var d = document.createElement('div'); d.className = 'num'; var bb = document.createElement('b'); bb.textContent = b.big; var s = document.createElement('span'); s.textContent = b.cap; d.append(bb, s); e.appendChild(d); }
+    if (b.type === 'bars') {
+      var bx = document.createElement('div'); bx.style.cssText = 'display:flex;align-items:flex-end;gap:2px;height:70px;padding:6px 10px 2px'; var mx = Math.max.apply(null, b.values.concat([1]));
+      b.values.forEach(function (v) { var i = document.createElement('i'); i.style.cssText = 'flex:1;background:linear-gradient(#3ba7ff,rgba(59,167,255,.25));border:1px solid rgba(59,167,255,.6);border-bottom:0;height:' + Math.max(2, Math.round(v / mx * 100)) + '%'; bx.appendChild(i); }); e.appendChild(bx);
+      var cp = document.createElement('div'); cp.className = 'nt'; cp.style.fontSize = '11.5px'; cp.style.color = '#8fcfb2'; cp.textContent = b.cap; e.appendChild(cp);
+    }
     if (b.type === 'note') { var nt = document.createElement('div'); nt.className = 'nt'; nt.textContent = b.text; e.appendChild(nt); }
     if (b.home) { var row = document.createElement('div'); row.className = 'row'; var g = document.createElement('button'); g.type = 'button'; g.className = 'go'; g.textContent = 'OPEN HOME'; g.onclick = openHome; row.appendChild(g); e.appendChild(row); }
     return e;

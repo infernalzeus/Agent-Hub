@@ -142,8 +142,8 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;overflow:hidden;ove
   -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 /* the mark takes nearly all the room: the screen width less a small margin, or the height left after the
    name, the START button and the message below it; capped so a tablet does not get a giant canvas */
-.globe-wrap{--g:min(calc(100vw - 28px),720px,calc(100vh - 270px));position:relative;width:var(--g);height:var(--g);margin:0 auto 22px}
-@supports (height:100svh){.globe-wrap{--g:min(calc(100vw - 28px),720px,calc(100svh - 270px))}}
+.globe-wrap{--g:min(calc(100vw - 28px),720px,calc(100vh - 335px));position:relative;width:var(--g);height:var(--g);margin:0 auto 22px}
+@supports (height:100svh){.globe-wrap{--g:min(calc(100vw - 28px),720px,calc(100svh - 335px))}}
 .hero-globe{position:relative;width:100%;height:100%;margin:0}
 .hero-globe .hero-icon{width:100%;height:100%;margin:0;visibility:hidden}
 .hero-globe.mark-fallback .hero-icon{visibility:visible}
@@ -179,7 +179,7 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;overflow:hidden;ove
   color:var(--text-muted);line-height:1.6;max-width:280px;margin-left:auto;margin-right:auto}
 .wake-sub.on{opacity:1}
 /* 0-100 meter while the Hub starts: it fills, completes, then ENTER fades in in the same place. */
-.boot{width:210px;margin:12px auto 0;height:22px;opacity:0;transition:opacity .35s;pointer-events:none}
+.boot{width:210px;margin:8px auto 0;height:18px;opacity:0;transition:opacity .35s;pointer-events:none}
 .boot.on{opacity:1}
 .boot .trk{height:4px;border-radius:4px;background:rgba(255,255,255,.1);overflow:hidden}
 .boot .trk i{display:block;height:100%;width:0;background:linear-gradient(90deg,#00e676,#3ba7ff);border-radius:4px;transition:width .25s linear;box-shadow:0 0 10px rgba(0,230,118,.6)}
