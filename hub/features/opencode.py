@@ -73,7 +73,6 @@ _TRANSIENT = re.compile(r"\b504\b|idle timeout|upstream|econnreset|fetch failed|
 # a chat stuck 'busy' longer than this is auto-aborted by the watchdog
 WATCHDOG_SECONDS = 720
 # model fallback chain for the "continue on a steadier model" action
-FALLBACK_MODELS = ["opencode/nemotron-3-ultra-free", "ollama/qwen3.6:32k"]
 
 COPY_IGNORE = shutil.ignore_patterns(
     ".git", "node_modules", "__pycache__", ".venv", ".mypy_cache", ".pytest_cache", ".ocdata",

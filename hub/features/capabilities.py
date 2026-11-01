@@ -43,6 +43,7 @@ ALLOWED: "dict[str, str]" = {
     "/api/apps":         "see which fronted apps exist",
     "/api/start/":       "start a fronted app",
     "/api/status":       "what is running right now",
+    "/api/diagnose":     "read version, services, recent errors and the log tail (secrets removed); read-only",
     "/api/graph":        "the project graph and repository status",
     "/api/locations":    "where the Hub reads and writes",
     "/api/pc/machine/":  "replay something you recorded",

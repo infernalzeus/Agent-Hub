@@ -56,7 +56,6 @@ FIRST_EVENT_SECS = 120         # a local model with no event at all this long af
 LOCAL_STALL_SECS = 420         # a big local model re-reading the prompt is slow, not stuck
 QUIET_DONE_SECS = 20           # idle this long after the agent's final "stop" → done
 EVENT_KEEP = 300               # events held in memory per mission for the SSE tail
-FALLBACK_MODELS = ["ollama/qwen3.6:32k", "opencode/nemotron-3-ultra-free"]
 
 # an error string that means "the provider blipped", not "the code is wrong" —
 # worth a retry / model fallback rather than failing the mission
