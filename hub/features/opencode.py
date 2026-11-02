@@ -280,10 +280,12 @@ def worktree_for(source: str | Path) -> Path:
 
 
 # ── git worktree ───────────────────────────────────────────────────────────
-async def _git(cwd: Path, *args: str, timeout: float = 30) -> tuple[int, str]:
+async def _git(cwd: Path, *args: str, timeout: float = 30, plain: bool = False) -> tuple[int, str]:
+    """`plain` = use the repository's own git configuration (line-ending conversion included) instead of the hub's
+    autocrlf=false; needed to ask a Windows checkout whether it is clean, since every CRLF file looks edited without it."""
     try:
         p = await asyncio.create_subprocess_exec(
-            "git", "-c", "core.autocrlf=false", *args, cwd=str(cwd),
+            "git", *([] if plain else ["-c", "core.autocrlf=false"]), *args, cwd=str(cwd),
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
         out, _ = await asyncio.wait_for(p.communicate(), timeout=timeout)
         return p.returncode or 0, out.decode("utf-8", "replace").strip()
@@ -400,14 +402,46 @@ async def merge_branch(source: Path, branch: str, base: str) -> dict:
     a mission's APPLY."""
     hint = f'git -C "{source}" merge --no-ff {branch}'
     cur = (await _git(source, "symbolic-ref", "--short", "HEAD"))[1]
-    _, dirty = await _git(source, "status", "--porcelain")
-    if cur != base or dirty.strip():
-        return {"ok": False, "branch": branch, "base": base,
-                "reason": f"source repo is on '{cur}'"
-                          + (" with uncommitted changes" if dirty.strip() else ""),
-                "run_this": hint}
-    rc, out = await _git(source, "merge", "--no-ff", "-m", f"merge {branch}", branch)
+    _, dirty = await _git(source, "status", "--porcelain", plain=True)
+    if cur != base:
+        return {"ok": False, "branch": branch, "base": base, "reason": f"source repo is on '{cur}'", "run_this": hint}
+    if dirty.strip():
+        return await _apply_without_merge(source, branch, base, dirty, hint)
+    rc, out = await _git(source, "merge", "--no-ff", "-m", f"merge {branch}", branch, plain=True)   # same view of line endings as the status check above
     return {"ok": rc == 0, "output": out, "branch": branch}
+
+
+async def _apply_without_merge(source: Path, branch: str, base: str, dirty: str, hint: str) -> dict:
+    """The repository has uncommitted work of its own (a development checkout always does), so a merge commit is not safe.
+    If none of the files the branch changed has local edits, apply the branch's change as plain edits to the working tree
+    (checked first, nothing committed); otherwise say which files are in the way."""
+    _, names = await _git(source, "diff", "--name-only", f"{base}...{branch}", plain=True)
+    changed = {n.strip() for n in names.splitlines() if n.strip()}
+    local = set()
+    for ln in dirty.splitlines():
+        path = ln[3:].strip().strip('"')
+        if " -> " in path:
+            path = path.split(" -> ", 1)[1]
+        local.add(path)
+    clash = sorted(changed & local)
+    if clash:
+        return {"ok": False, "branch": branch, "base": base, "run_this": hint,
+                "reason": "these files have uncommitted changes of your own, so the change cannot be applied over them: " + ", ".join(clash[:6])}
+    try:
+        d = await asyncio.create_subprocess_exec("git", "diff", "--binary", f"{base}...{branch}", cwd=str(source),
+                                                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        patch, _ = await asyncio.wait_for(d.communicate(), timeout=60)
+        for extra in (["--check"], []):
+            a = await asyncio.create_subprocess_exec("git", "apply", "--whitespace=nowarn", *extra, cwd=str(source),
+                                                     stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+            out, _ = await asyncio.wait_for(a.communicate(patch), timeout=60)
+            if a.returncode:
+                return {"ok": False, "branch": branch, "base": base, "run_this": hint,
+                        "reason": "the change does not fit the current files: " + out.decode("utf-8", "replace")[:200]}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "branch": branch, "base": base, "run_this": hint, "reason": f"could not apply: {exc}"}
+    return {"ok": True, "branch": branch, "uncommitted": True,
+            "output": f"applied {len(changed)} file(s) as uncommitted edits (the repository has other uncommitted work, so no merge commit was made)"}
 
 
 async def _ensure_worktree(source: Path, slug: str) -> dict:

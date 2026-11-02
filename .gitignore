@@ -186,5 +186,6 @@ hub/info_routines.json
 
 # this PC only: app output, self-test results and arm file
 hub/app_logs/
+hub/agent_events.json
 hub/transition_selftest_result.json
 hub/transition_selftest.arm

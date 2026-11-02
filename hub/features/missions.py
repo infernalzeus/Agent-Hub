@@ -1189,6 +1189,26 @@ def _path_with_python(env: dict) -> None:
         env["PATH"] = os.pathsep.join(add + ([cur] if cur else []))
 
 
+# OpenCode writes one JSON object per line, and a single tool result (a grep over a repository, a file read) can be several
+# hundred KB. asyncio's default 64 KiB line limit made the reader raise "chunk is longer than limit", the loop quietly ended,
+# nobody drained the pipe any more, and the agent hung on a full pipe until the stall timer killed it (the doctor, 2 Nov).
+_PIPE_LIMIT = 32 * 1024 * 1024
+
+
+async def _lines(stream):
+    """Lines of a subprocess pipe; a line beyond even the big limit is skipped instead of ending the stream."""
+    while True:
+        try:
+            raw = await stream.readline()
+        except ValueError:
+            logger.warning("missions: skipped an over-long line from the agent")
+            continue
+        if not raw:
+            return
+        yield raw
+
+
+
 async def _stream_one(m: Mission, wt: Path, data_dir: Path, agent: str, brief: str,
                       *, phase: str = "") -> tuple[int, bool]:
     """One `opencode run` for `agent` in `wt`; stream its NDJSON into the mission;
@@ -1228,7 +1248,7 @@ async def _stream_one(m: Mission, wt: Path, data_dir: Path, agent: str, brief: s
     # stdin is closed on purpose: `opencode run` waits on an inherited stdin that never ends, and sits silent right
     # after "init" (30 Oct: hung with an inherited pipe, finished 3 of 3 with stdin closed).
     proc = await asyncio.create_subprocess_exec(
-        *cmd, cwd=str(wt), env=env, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE, stderr=errf)
+        *cmd, cwd=str(wt), env=env, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE, stderr=errf, limit=_PIPE_LIMIT)
     _assign_to_job(proc.pid)
     m.pid = proc.pid
     S.procs[m.id] = proc
@@ -1280,7 +1300,7 @@ async def _stream_one(m: Mission, wt: Path, data_dir: Path, agent: str, brief: s
         S.events[m.id].append({"type": "step_start", "part": {"phase": phase}})
     try:
         with open(jsonl, "a", encoding="utf-8") as jf:
-            async for raw in proc.stdout:
+            async for raw in _lines(proc.stdout):
                 line = raw.decode("utf-8", "replace")
                 jf.write(line)
                 jf.flush()
@@ -1344,7 +1364,7 @@ async def _stream_one_claude(m: Mission, wt: Path, data_dir: Path, agent: str, b
     except Exception:
         errf = asyncio.subprocess.DEVNULL
     proc = await asyncio.create_subprocess_exec(
-        *cmd, cwd=str(wt), env=env, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE, stderr=errf)
+        *cmd, cwd=str(wt), env=env, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE, stderr=errf, limit=_PIPE_LIMIT)
     _assign_to_job(proc.pid)
     m.pid = proc.pid
     S.procs[m.id] = proc
@@ -1354,7 +1374,7 @@ async def _stream_one_claude(m: Mission, wt: Path, data_dir: Path, agent: str, b
         S.events[m.id].append({"type": "step_start", "part": {"phase": phase}})
     try:
         with open(jsonl, "a", encoding="utf-8") as jf:
-            async for raw in proc.stdout:
+            async for raw in _lines(proc.stdout):
                 line = raw.decode("utf-8", "replace")
                 jf.write(line)
                 jf.flush()
@@ -1642,11 +1662,47 @@ def _run_checks_sync(wt: Path, changed: list[dict]) -> dict | None:
                     for p in wt.rglob("*.py") if ".ocdata" not in p.parts and ".git" not in p.parts)
     if not has_tests:
         return {"ok": True, "step": "compile", "output": f"{len(py)} file(s) compile"}
-    rc, out = _run([str(python_for("apps")), "-m", "pytest", "-x", "-q", "--no-header", "-p", "no:cacheprovider",
-                    "-o", "faulthandler_timeout=12"], 45)     # a hang dumps its stack after 12s so the fixer sees WHERE
+    pyt = [str(python_for("apps")), "-m", "pytest", "-q", "--no-header", "-p", "no:cacheprovider", "-rf", "--maxfail=15",
+           "-o", "faulthandler_timeout=12"]                  # a hang dumps its stack after 12s so the fixer sees WHERE
+    rc, out = _run(pyt, 45)
     if rc == 5:                                   # pytest: no tests collected
         return {"ok": True, "step": "compile", "output": "compiles; no runnable tests found"}
+    if rc != 0:
+        # A project that was already red must not send the agent after tests it did not break: only tests that pass on the
+        # code as it was before this change, and fail now, count (the Hub's own release tests fail on this PC, and the
+        # doctor spent two fix rounds, eight minutes, chasing them).
+        failed = set(re.findall(r"^FAILED (\S+)", out, re.M))
+        if failed:
+            before = _failing_before_the_change(wt, sorted(failed), pyt[:3])
+            if before is not None and not (failed - before):
+                return {"ok": True, "step": "tests", "output": f"{len(failed)} test(s) were already failing before this change "
+                        f"(not caused by it): " + ", ".join(sorted(failed))[:600]}
     return {"ok": rc == 0, "step": "tests", "output": out[-1500:]}
+
+
+def _failing_before_the_change(wt: Path, ids: list[str], py: list[str]) -> "set[str] | None":
+    """Of these test ids, which also fail on the committed code (HEAD) of this worktree? None = could not tell."""
+    import tarfile
+    import tempfile
+    tmp = Path(tempfile.mkdtemp(prefix="hub-base-"))
+    try:
+        tar = tmp / "base.tar"
+        r = subprocess.run(["git", "-C", str(wt), "archive", "--format=tar", "-o", str(tar), "HEAD"], capture_output=True, timeout=60)
+        if r.returncode != 0:
+            return None
+        src = tmp / "src"
+        src.mkdir()
+        with tarfile.open(tar) as tf:
+            tf.extractall(src, **({"filter": "data"} if hasattr(tarfile, "data_filter") else {}))
+        env = os.environ.copy()
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
+        r = subprocess.run([*py, "-q", "--no-header", "-p", "no:cacheprovider", "-rf", *ids], cwd=str(src), env=env,
+                           capture_output=True, text=True, timeout=60)
+        return set(re.findall(r"^FAILED (\S+)", (r.stdout or "") + (r.stderr or ""), re.M))
+    except Exception:  # noqa: BLE001
+        return None
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 _PLACEHOLDER_RE = re.compile(
@@ -1955,6 +2011,25 @@ _PLAN_NUDGE = (
 
 
 async def _run(m: Mission) -> None:
+    """Run a mission; whatever goes wrong, it ends up `failed` with the reason, never `running` forever.
+    (An opencode that could not be started raised out of a background task nobody awaits, and the mission, and the doctor
+    block that follows it, said "working" indefinitely.)"""
+    try:
+        await _run_inner(m)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("missions %s: run crashed", m.id)
+        S.procs.pop(m.id, None)
+        m.status, m.error = "failed", f"could not run: {type(exc).__name__}: {exc}"[:400]
+        try:
+            S.events[m.id].append({"type": "error", "error": m.error})
+            S.save(m)
+        except Exception:  # noqa: BLE001
+            logger.exception("missions %s: could not record the failure", m.id)
+
+
+async def _run_inner(m: Mission) -> None:
     async with S.lock(m.id):
         if m.status not in ("running", "queued"):
             return
@@ -2932,7 +3007,7 @@ async def continue_(mid: str, msg: str) -> None:
     S.save(m)
     proc = await asyncio.create_subprocess_exec(
         *cmd, cwd=str(wt), env=env, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.DEVNULL)
+        stderr=asyncio.subprocess.DEVNULL, limit=_PIPE_LIMIT)
     _assign_to_job(proc.pid)
     S.procs[m.id] = proc
     m.pid = proc.pid
@@ -2941,7 +3016,7 @@ async def continue_(mid: str, msg: str) -> None:
         jsonl = wt / ".ocdata" / "mission.jsonl"
         try:
             with open(jsonl, "a", encoding="utf-8") as jf:
-                async for raw in proc.stdout:
+                async for raw in _lines(proc.stdout):
                     line = raw.decode("utf-8", "replace")
                     jf.write(line); jf.flush()
                     try:

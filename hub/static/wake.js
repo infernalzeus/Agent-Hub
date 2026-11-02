@@ -102,11 +102,32 @@
   // ---- blocks around the ring
   var blocks = [];
   function center() { var r = (globe || document.body).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, R: r.width / 2 }; }
-  function slot(i) {
-    var c = center(), w = 236, vw = innerWidth, left = i % 2 === 0, row = Math.floor(i / 2);
-    var x = left ? Math.max(12, c.x - c.R * 1.02 - w - 8) : Math.min(vw - w - 12, c.x + c.R * 1.02 + 8);
-    if (vw < 760) x = Math.max(8, Math.min(vw - w - 8, left ? 8 : vw - w - 8));
-    return { x: x, y: Math.max(60, c.y - c.R * .9 + row * 150 + (left ? 0 : 20)) };
+  // Blocks stand in two columns either side of the ring and stack by their real heights (and their real widths), so a long
+  // list or the doctor's wide block never lands on the one below it. On a narrow screen they share one column.
+  // A phone has no room beside the ring: blocks fill the free band above the controls, then the band below; one that fits neither is left out.
+  function placeNarrow(list) {
+    var top = innerHeight, bot = 0;
+    ['wake-toggle', 'wake-btn'].forEach(function (id) { var n = document.getElementById(id), r = n && n.getBoundingClientRect(); if (r && r.width) { top = Math.min(top, r.top); bot = Math.max(bot, r.bottom); } });
+    var bands = [{ y: 56, end: top - 12 }, { y: bot + 12, end: innerHeight - 12 }];
+    list.forEach(function (e) {
+      var h = e.offsetHeight, hit = null;
+      bands.forEach(function (b) { if (!hit && b.y + h <= b.end) hit = b; });
+      e.style.display = hit ? '' : 'none';
+      if (hit) { e.style.left = '8px'; e.style.top = hit.y + 'px'; hit.y += h + 10; }
+    });
+  }
+  function place(list) {
+    var c = center(), vw = innerWidth, narrow = vw < 760, cols = [[], []];
+    if (narrow) return placeNarrow(list);
+    list.forEach(function (e, i) { cols[narrow ? 0 : i % 2].push(e); });
+    cols.forEach(function (col, ci) {
+      var y = Math.max(60, c.y - c.R * .9) + (ci ? 20 : 0);
+      col.forEach(function (e) {
+        var w = e.offsetWidth, h = e.offsetHeight;
+        var x = narrow ? 8 : ci === 0 ? Math.max(12, c.x - c.R * 1.02 - w - 8) : Math.min(vw - w - 12, c.x + c.R * 1.02 + 8);
+        e.style.left = x + 'px'; e.style.top = y + 'px'; y += h + 14;
+      });
+    });
   }
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function mkBlock(b) {
@@ -131,10 +152,11 @@
   function raise(list) {
     clearBlocks(function () {
       list.slice(0, 4).forEach(function (b, i) {
-        var e = mkBlock(b), p = slot(i); e.style.left = p.x + 'px'; e.style.top = p.y + 'px'; stage.appendChild(e); blocks.push(e);
+        var e = mkBlock(b); stage.appendChild(e); blocks.push(e);
         if (!reduce.matches) e.animate([{ opacity: 0, transform: 'translateY(14px) scale(.96)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: 60 + i * 100, easing: SPRING, fill: 'backwards' });
         if (b.type === 'doctor') { S.doctor = e; watchDoctor(); }
       });
+      place(blocks);
       S.clear = setTimeout(function () { if (S.state === 'wake' && !S.doctor) clearBlocks(); }, 45000);
     });
   }
@@ -159,6 +181,7 @@
       e._acts.append(ap, dc);
     }
     if (m.status === 'applied') { var rs = el('button', 'go', 'RESTART THE HUB'); rs.type = 'button'; rs.onclick = function () { runLine('restart the hub'); }; e._acts.appendChild(rs); }
+    place(blocks);
   }
   function watchDoctor() {
     clearInterval(S.doctorTimer);
@@ -224,9 +247,13 @@
 
   // ---- one line from you: the Hub decides what it means
   function afterReply() { S.convoUntil = Date.now() + CONVO_MS; S.barged = false; setState('convo'); }
+  // A button (APPLY, DISCARD, RESTART) always works, even while Smith is mid-thought; only a second press of the same one is ignored.
+  var lineBusy = {};
   function runLine(text) {
-    if (S.state === 'think') return;
-    S.convoUntil = Date.now() + CONVO_MS; ask(text).catch(function () { return reply({ say: 'I could not do that just now.' }, text); });
+    if (lineBusy[text]) return;
+    lineBusy[text] = true;
+    var done = function () { lineBusy[text] = false; };
+    S.convoUntil = Date.now() + CONVO_MS; ask(text).catch(function () { return reply({ say: 'I could not do that just now.' }, text); }).then(done, done);
   }
   function ask(text) {
     setState('think'); say(text, 'you');
@@ -257,6 +284,8 @@
     else if (ui.clear) show = function () { clearBlocks(); return play(sayText).then(afterReply); };
     else if (ui.open) show = function () { return play(sayText).then(openHome); };
     else if (ui.focus && focusBlock(ui.focus)) show = function () { return play(sayText).then(afterReply); };
+    // applying or discarding the doctor's work answers inside its own block (which then offers RESTART), not in a new note that would replace it
+    else if ((ui.apply || ui.discard) && S.doctor && S.doctor.isConnected) show = function () { watchDoctor(); return play(sayText).then(afterReply); };
     else {
       var list = ui.blocks && ui.blocks.length ? ui.blocks.slice() : null;
       if (ui.doctor_id) list = [{ id: 'doctor', t: 'THE DOCTOR', type: 'doctor' }];

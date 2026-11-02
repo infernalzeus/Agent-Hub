@@ -1210,7 +1210,7 @@ async def _screen_command(text: str, ui: dict) -> "dict | None":
         row = SUP.latest()
         if row:
             got = await _loop(f"/api/missions/{row['id']}/{'apply' if ui.get('apply') else 'discard'}")
-            say = ("Applied. Say restart the Hub to use it." if ui.get("apply") else "Discarded.") if got["ok"] else "That did not work; the Support page has the details."
+            say = ("Applied. Say restart the Hub to use it." if ui.get("apply") else "Discarded.") if got["ok"] else ("That did not work: " + str(got.get("reason") or "the Support page has the details")[:220])
     if say is None:
         return None
     return {"say": say, "action": None, "confirm": False, "backend": "rules", "heard": text}

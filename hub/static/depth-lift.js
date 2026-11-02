@@ -257,9 +257,13 @@
   DL.renderer=info;DL.software=/basic render|swiftshader|llvmpipe|software|warp|no webgl/i.test(info);
   if(!DL.software)return;trace('software-graphics',{renderer:info});
   try{if(sessionStorage.getItem('agenthub:sw-notice')==='x')return;}catch(e){}
-  var n=document.createElement('div');n.setAttribute('role','status');n.style.cssText='position:fixed;left:12px;bottom:12px;max-width:min(420px,calc(100vw - 24px));z-index:2147483003;background:rgba(8,12,40,.94);border:1px solid #e0a53c;color:#e0a53c;border-radius:10px;padding:8px 12px;font:13px/1.4 Outfit,system-ui,sans-serif;cursor:pointer';
-  n.textContent='This browser is drawing graphics in software ('+info.replace(/^ANGLE \(|\)$/g,'')+'), so the Hub will look slow. Fully quit and reopen the browser to get the graphics card back. Tap to hide.';
-  n.onclick=function(){n.remove();try{sessionStorage.setItem('agenthub:sw-notice','x');}catch(e){}};
+  // The notice must never sit in the way: it lets clicks through (only its own cross takes them), fades in, and fades away by itself.
+  var n=document.createElement('div');n.setAttribute('role','status');n.style.cssText='position:fixed;left:12px;bottom:12px;max-width:min(420px,calc(100vw - 24px));z-index:2147483003;background:rgba(8,12,40,.94);border:1px solid #e0a53c;color:#e0a53c;border-radius:10px;padding:8px 34px 8px 12px;font:13px/1.4 Outfit,system-ui,sans-serif;pointer-events:none;opacity:0;transition:opacity .6s ease';
+  n.textContent='This browser is drawing graphics in software ('+info.replace(/^ANGLE \(|\)$/g,'')+'), so the Hub will look slow. Fully quit and reopen the browser to get the graphics card back.';
+  var gone=function(){n.style.opacity='0';hostTimeout(function(){n.remove();},700);};
+  var xb=document.createElement('button');xb.type='button';xb.setAttribute('aria-label','Hide this notice');xb.textContent='×';xb.style.cssText='position:absolute;right:4px;top:2px;width:26px;height:26px;border:0;background:none;color:#e0a53c;font-size:18px;cursor:pointer;pointer-events:auto';
+  xb.onclick=function(){gone();try{sessionStorage.setItem('agenthub:sw-notice','x');}catch(e){}};n.appendChild(xb);
+  hostTimeout(function(){n.style.opacity='1';},50);hostTimeout(gone,15000);
   (function add(){if(document.body)document.body.appendChild(n);else hostTimeout(add,50);})();
  })();
  // Transition self-test, armed from the Hub side (state file), never by the page: measures this very browser window and reports to /api/diagnose/client.
