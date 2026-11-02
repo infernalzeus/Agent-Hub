@@ -45,6 +45,7 @@ not assumed.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -74,8 +75,10 @@ def materialize_agents(wt: Path, names: list[str], load_persona) -> None:
             (adir / f"{name}.md").write_text(txt, encoding="utf-8")
 
 
-def build_cmd(*, brief: str, agent: str, model: str | None) -> list[str]:
-    cmd = [CLAUDE_EXE, "-p", brief, "--output-format", "stream-json", "--verbose",
+def build_cmd(*, agent: str, model: str | None) -> list[str]:
+    """The brief is NOT here: it goes in on stdin. A command line is limited (8,191 characters through the npm .cmd shim on
+    Windows), and a doctor brief carrying the Hub's facts is longer: 'The command line is too long', 2 Nov 2026."""
+    cmd = [CLAUDE_EXE, "-p", "--output-format", "stream-json", "--verbose",
            "--permission-mode", "acceptEdits", "--agent", agent]
     if model:
         cmd += ["--model", model]
@@ -92,7 +95,10 @@ def extract_session_id(ev: dict) -> str | None:
 def error_text(ev: dict) -> str | None:
     """None if `ev` isn't an error; otherwise a short description."""
     if ev.get("is_error"):
-        return json.dumps(ev)[:400]
+        text = ev.get("result") if isinstance(ev.get("result"), str) else json.dumps(ev)[:400]
+        if re.search(r"401|authenticate|oauth|not logged in|/login", text, re.I):
+            return "Claude Code is signed out (" + text[:140] + "). Open a terminal, run `claude`, sign in with /login, then ask again."
+        return text[:400]
     if ev.get("type") == "system" and ev.get("subtype") in ("error", "api_retry"):
         return ev.get("error") or json.dumps(ev)[:400]
     if ev.get("type") == "result" and ev.get("subtype") not in (None, "success"):

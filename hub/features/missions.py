@@ -1353,7 +1353,7 @@ async def _stream_one_claude(m: Mission, wt: Path, data_dir: Path, agent: str, b
     env["PYTHONIOENCODING"] = "utf-8"
 
     model = m.model if m.model and "/" not in m.model else None   # skip opencode-shaped ids
-    cmd = CRT.build_cmd(brief=brief, agent=agent, model=model)
+    cmd = CRT.build_cmd(agent=agent, model=model)
     logger.info("missions %s: claude %s%s  (%s)", m.id, agent,
                 f" [{phase}]" if phase else "", brief[:70])
     jsonl = data_dir / "mission.jsonl"
@@ -1364,10 +1364,16 @@ async def _stream_one_claude(m: Mission, wt: Path, data_dir: Path, agent: str, b
     except Exception:
         errf = asyncio.subprocess.DEVNULL
     proc = await asyncio.create_subprocess_exec(
-        *cmd, cwd=str(wt), env=env, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE, stderr=errf, limit=_PIPE_LIMIT)
+        *cmd, cwd=str(wt), env=env, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=errf, limit=_PIPE_LIMIT)
     _assign_to_job(proc.pid)
     m.pid = proc.pid
     S.procs[m.id] = proc
+    try:                                           # the brief goes in on stdin (see claude_runtime.build_cmd), then stdin closes
+        proc.stdin.write(brief.encode("utf-8"))
+        await proc.stdin.drain()
+        proc.stdin.close()
+    except (BrokenPipeError, ConnectionResetError, OSError):
+        pass
 
     stop = False
     if phase:
