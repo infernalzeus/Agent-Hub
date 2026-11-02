@@ -44,6 +44,7 @@ ALLOWED: "dict[str, str]" = {
     "/api/start/":       "start a fronted app",
     "/api/status":       "what is running right now",
     "/api/acp/":         "see and answer an agent's permission questions (read; answering needs the Hub itself or a token)",
+    "/api/support/":     "ask the Hub's doctor to look at the Hub and propose a fix (a mission on its own repository; nothing is applied without the owner)",
     "/api/home/state":   "what needs the user, what is running, how the machine is (read-only)",
     "/api/memory/":      "the three memory tiers and their rules (read-only)",
     "/api/diagnose":     "read version, services, recent errors and the log tail (secrets removed); read-only",

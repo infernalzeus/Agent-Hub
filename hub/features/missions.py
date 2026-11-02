@@ -1158,7 +1158,7 @@ async def _prepare(m: Mission, wt: Path, data_dir: Path) -> None:
     cfg["tools"] = {**(cfg.get("tools") or {}), "todowrite": False, "todoread": False}   # bookkeeping calls cost 10-50 s each
     cfg["permission"] = {"edit": "allow", "bash": "allow", "webfetch": "allow",
                          "skill": {"*": "deny", **{n: "allow" for n in skill_allow}}}
-    want_model = m.model or agent_knowledge.resolved_default_model(cfg.get("model"))
+    want_model = m.model or agent_knowledge.model_chain(None, cfg.get("model"), brief=m.brief)[0]      # measurements decide, not a constant
     try:
         known = await asyncio.get_running_loop().run_in_executor(None, OCM._known_models)
         got, note = OCM._resolve_model(want_model, known) if want_model else (want_model, None)

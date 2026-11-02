@@ -39,6 +39,8 @@ from .. import agent_knowledge, decide as DEC
 from ..config import logger
 from .. import runtime as RT
 
+from .. import config
+
 routes = web.RouteTableDef()
 
 # ── what the assistant can do ────────────────────────────────────────────────────────────────────────────────────────
@@ -1171,19 +1173,76 @@ async def _body(request: web.Request) -> dict:
         return {}
 
 
+async def _loop(path: str) -> dict:
+    import aiohttp
+    origin = f"http://127.0.0.1:{config.PORT}"
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as s:
+        async with s.post(origin + path, json={}, headers={"Origin": origin}) as r:
+            return {"ok": r.status == 200, "status": r.status}
+
+
+async def _screen_command(text: str, ui: dict) -> "dict | None":
+    """Commands about the screen itself (clear it, open Home, sleep, the doctor) are answered here and never reach the router:
+    the router would hear "clear the dashboard" as a request to open a page."""
+    from . import support as SUP
+    say = None
+    if ui.get("sleep"):
+        say = "Okay."
+    elif ui.get("clear"):
+        say = "Cleared."
+    elif ui.get("open"):
+        say = "Opening Home."
+    elif ui.get("focus"):
+        say = "Here."
+    elif ui.get("help"):
+        say = ("You can say: show the dashboard, what is running, how is the PC, how much have I used, maximise the usage chart, "
+               "clear the dashboard, open Home, something is wrong with the Hub, or go to sleep.")
+    elif ui.get("restart"):
+        return {"say": "Restart Agent Hub now? Say yes.", "action": None, "confirm": False, "backend": "rules", "heard": text, "ask": "restart"}
+    elif ui.get("doctor"):
+        try:
+            m = await SUP.start(text if len(text) > 25 else "")
+            ui["doctor_id"] = m["id"]
+            say = "The doctor is looking at the Hub. I will show you what it finds."
+        except Exception as exc:  # noqa: BLE001
+            say = f"I could not start the doctor: {str(exc)[:120]}"
+    elif ui.get("apply") or ui.get("discard"):
+        row = SUP.latest()
+        if row:
+            got = await _loop(f"/api/missions/{row['id']}/{'apply' if ui.get('apply') else 'discard'}")
+            say = ("Applied. Say restart the Hub to use it." if ui.get("apply") else "Discarded.") if got["ok"] else "That did not work; the Support page has the details."
+    if say is None:
+        return None
+    return {"say": say, "action": None, "confirm": False, "backend": "rules", "heard": text}
+
+
 @routes.post("/api/voice/chat")
 async def api_chat(request: web.Request) -> web.Response:
     b = await _body(request)
     text = str(b.get("text") or "").strip()[:500]
     if not text:
         raise web.HTTPBadRequest(text="no text")
-    res = await chat(text, b.get("history") if isinstance(b.get("history"), list) else [], b.get("mission") or None)
-    try:                                     # the answer also says what the screen should show (topic blocks, focus, open Home, sleep)
-        from . import home_state as HS
-        res = {**res, "ui": HS.ui_for(text, str(res.get("say") or ""), b.get("scene") if isinstance(b.get("scene"), list) else None)}
+    from . import home_state as HS
+    scene = b.get("scene") if isinstance(b.get("scene"), list) else None
+    try:
+        ui = HS.ui_for(text, "", scene)
     except Exception:
-        pass
-    return web.json_response(res)
+        ui = {}
+    quick = await _screen_command(text, ui) if ui else None
+    if quick:
+        return web.json_response({**quick, "ui": ui})
+    if ui.get("topic") and ui.get("blocks"):
+        # a question the screen can answer with its own data is answered from that data: no router, no model, no wait
+        say = HS.summary(ui["topic"], ui["blocks"]) or "Here you go."
+        try:
+            BIN = __import__("hub.features.binning", fromlist=["x"])
+            BIN.record(text, {"bin": "hub_command", "confidence": 1.0, "by": "rules", "why": f"answered from the screen's own data ({ui['topic']})", "asked": []},
+                       {"action": None, "backend": "screen", "said": say[:120], "ms": 0, "timed_out": False})
+        except Exception:
+            pass
+        return web.json_response({"say": say, "action": None, "confirm": False, "backend": "screen", "heard": text, "ui": ui})
+    res = await chat(text, b.get("history") if isinstance(b.get("history"), list) else [], b.get("mission") or None)
+    return web.json_response({**res, "ui": ui})
 
 
 @routes.post("/api/voice/act")
@@ -1255,7 +1314,7 @@ def _speech_hint() -> str:
     ranked = sorted(names, key=lambda n: (-used.get(n.casefold(), 0), len(n)))[:24]
     if not ranked:
         return ""
-    head = " ".join(f"Open {n}." for n in ranked[:8])
+    head = "Smith, show the dashboard. Smith, clear the dashboard. Smith, open Home. " + " ".join(f"Open {n}." for n in ranked[:8])
     rest = ", ".join(ranked[8:])
     extra = ["ingest", "record", "rename", "Agent Hub", "missions", "automations", "the weather"]
     try:

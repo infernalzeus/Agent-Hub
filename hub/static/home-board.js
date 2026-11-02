@@ -79,13 +79,15 @@
     // the three built-in cards (Auto-LLM, YouTube Download, YouTube Upload) are page sections, not apps: an icon block scrolls to the card and opens it
     var CARDS = [['oc', 'Auto-LLM', 'oc-header', null], ['ytdl', 'YouTube Download', 'ytdl-header', 'ytdl-toggle-btn'], ['yt', 'YouTube Upload', 'yt-header', 'yt-toggle-btn']].filter(function (c) { return document.getElementById(c[2]); });
     CARDS.forEach(function (c, i) { defs.push(['card:' + c[0], { t: 'APP', x: -640 + (i % 4) * 165, y: 30 + Math.floor(i / 4) * 82, w: 155, h: 72, card: c }]); });
-    apps.forEach(function (a, i) { var j = i + CARDS.length; defs.push(['app:' + a.id, { t: 'APP', x: -640 + (j % 4) * 165, y: 30 + Math.floor(j / 4) * 82, w: 155, h: 72, app: a }]); });
+    var SUPPORT = { t: 'APP', x: -640 + (CARDS.length % 4) * 165, y: 30 + Math.floor(CARDS.length / 4) * 82, w: 155, h: 72, extra: ['support', 'Support', '/support', 'M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.4 2.4-2.6-.6-.6-2.6z'] };
+    defs.push(['extra:support', SUPPORT]);
+    apps.forEach(function (a, i) { var j = i + CARDS.length + 1; defs.push(['app:' + a.id, { t: 'APP', x: -640 + (j % 4) * 165, y: 30 + Math.floor(j / 4) * 82, w: 155, h: 72, app: a }]); });
     defs.forEach(function (d) { if (!L[d[0]]) L[d[0]] = { x: d[1].x, y: d[1].y, w: d[1].w, h: d[1].h, min: 0 }; });
 
     function applyBlock(id) { var e = blocks[id], l = L[id]; e.style.left = l.x + 'px'; e.style.top = l.y + 'px'; e.style.width = l.w + 'px'; e.style.height = l.min ? '' : l.h + 'px'; e.classList.toggle('min', !!l.min); e.style.zIndex = l.z || 1; e.hidden = !!hid[id]; }
     function mk(id, d) {
       var e = el('div', 'hk'); e.dataset.id = id;
-      var h = el('div', 'hk-h'); h.appendChild(el('span', 't', (d.app || d.card) ? 'APP' : d.t)); h.appendChild(el('span', 'n'));
+      var h = el('div', 'hk-h'); h.appendChild(el('span', 't', (d.app || d.card || d.extra) ? 'APP' : d.t)); h.appendChild(el('span', 'n'));
       [['col', 'Close this view'], ['out', 'Open in its own tab'], ['min', 'Minimise'], ['foc', 'Focus'], ['x', 'Hide']].forEach(function (b) { var bt = el('button'); bt.type = 'button'; bt.dataset.a = b[0]; bt.setAttribute('aria-label', b[1]); bt.appendChild(svg(ICON[b[0]])); h.appendChild(bt); });
       var body = el('div', 'hk-b'), inn = el('div', 'hk-i'); body.appendChild(inn); e.append(h, body, el('div', 'hk-rz')); e._in = inn; e._n = h.querySelector('.n'); e._app = d.app || null; e._open = null; e._name = d.app ? (d.app.name || d.app.id) : d.card ? d.card[1] : d.t;
       if (d.app) {
@@ -93,6 +95,11 @@
         var ic = (typeof CARD_ICONS !== 'undefined' && CARD_ICONS[a.id]) || null;
         if (ic) gi.innerHTML = ic; else gi.textContent = a.emoji || '';
         var nm = el('div'); nm.appendChild(el('b', '', a.name || a.id)); var st = el('small', a.running ? 'on' : '', a.running ? 'RUNNING' : 'IDLE'); nm.appendChild(st); box.append(gi, nm); inn.appendChild(box); e._st = st;
+      }
+      if (d.extra) {
+        var ex = d.extra, xb = el('div', 'hk-app'), xg = el('div', 'gi'); xg.appendChild(svg(ex[3], 1.8)); xg.firstChild.style.cssText = 'width:26px;height:26px;fill:none;stroke:var(--accent,#00e676);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round';
+        var xn = el('div'); xn.appendChild(el('b', '', ex[1])); xn.appendChild(el('small', '', 'FIX THE HUB')); xb.append(xg, xn); inn.appendChild(xb);
+        e._name = ex[1]; e._spec = { tabs: [['SUPPORT', ex[2]]], w: 780, h: 640 }; e._open = function () { expand(id); };
       }
       if (d.app) { e._spec = { app: d.app.id, w: 780, h: 560 }; e._open = function () { expand(id); }; }
       if (d.card) {

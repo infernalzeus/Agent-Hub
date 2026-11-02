@@ -144,17 +144,28 @@ def state() -> dict:
 import re
 
 _TOPICS = (
-    ("work", re.compile(r"\b(running|mission|attention|need me|needs me|proposal|waiting|session|busy|doing|going on|status)\b", re.I)),
-    ("health", re.compile(r"\b(health|disk|model|computer|machine|pc|space|warning|errors?)\b", re.I)),
+    ("overview", re.compile(r"\b(?:show|bring up|give me|display|open|pull up)\b.*\b(?:dashboard|overview|everything|summary)\b", re.I)),
+    ("work", re.compile(r"\b(running|missions?|attention|need me|needs me|proposals?|waiting|sessions?|busy|doing|going on|status|agents?)\b", re.I)),
+    ("health", re.compile(r"\b(health|disk|model|computer|machine|pc|space|warnings?|errors?|healthy)\b", re.I)),
     ("usage", re.compile(r"\b(usage|tokens?|how much (?:have i|did i|am i)|limit|quota)\b", re.I)),
     ("memory", re.compile(r"\b(memory|remember|know about me|facts|rules)\b", re.I)),
 )
+# Topic answers are for questions and "show" requests. "Open Apple Music on the PC" mentions the PC but is not a question about it.
+_QUESTIONY = re.compile(r"^\W*(?:(?:and|so|ok|okay|hey|please|now|can you|could you|would you|will you)\W+)*(?:show|what|how|any|is|are|tell|give|do|does|display|list|check|where|which|bring)\b", re.I)
 _FOCUS = re.compile(r"\b(?:maximi[sz]e|focus(?: on)?|zoom (?:in )?(?:on|to)|enlarge|expand|show me only)\s+(?:the\s+)?([a-z ]{3,30})", re.I)
-_SLEEP = re.compile(r"\b(go to sleep|goodnight|good night|that'?s all|that is all|goodbye)\b", re.I)
-_HOME = re.compile(r"\b(open (?:the )?(?:home|hub)|go (?:to )?home|take me (?:in|home))\b", re.I)
+_SLEEP = re.compile(r"\b(go to sleep|goodnight|good night|that'?s all|that is all|goodbye|stop listening|dismiss yourself)\b", re.I)
+_CLEAR = re.compile(r"\b(?:clear|hide|dismiss|close|remove|wipe|get rid of|take away)\b.*\b(?:dashboard|screen|everything|blocks?|panels?|cards?|these|that|them|display)\b|\bclear (?:it|that|all)\b", re.I)
+_HOME = re.compile(r"\b(?:enter|open|go|take me|show me|bring up|launch|switch)\b.*\b(?:home|hub|apps|main page|main screen|my apps)\b(?: ?page| ?screen)?|\bgo (?:in|inside)\b|^\W*(?:enter|come in)\W*$", re.I)
+_DOCTOR = re.compile(r"\b(diagnos\w*|the doctor|doctor,|ask the doctor|something(?:'s| is) (?:wrong|broken|off)|(?:fix|repair|check|debug) (?:the |agent )?hub|hub (?:is )?(?:broken|not working|acting up|slow|stuck))\b", re.I)
+_APPLY = re.compile(r"\b(apply|install|accept|use|go with)\b.*\b(fix|change|patch|that|it)\b", re.I)
+_DISCARD = re.compile(r"\b(discard|throw away|drop|reject|forget)\b.*\b(fix|change|patch|that|it)\b", re.I)
+_RESTART = re.compile(r"\brestart (?:the |agent )?hub\b", re.I)
+_HELP = re.compile(r"\b(what can (?:you|i) (?:do|say)|help|commands|what do i say)\b", re.I)
 
 
 def _blocks(topic: str, st: dict) -> "list[dict]":
+    if topic == "overview":
+        return _blocks("work", st) + _blocks("health", st) + _blocks("usage", st)
     if topic == "work":
         att = st["attention"]
         ss = st["sessions"]
@@ -186,14 +197,61 @@ def _blocks(topic: str, st: dict) -> "list[dict]":
     return []
 
 
+def summary(topic: str, blocks: "list[dict]") -> str:
+    """One spoken line for blocks the screen is about to show, so the voice and the picture say the same thing."""
+    by = {b["id"]: b for b in blocks}
+    bits = []
+    if "attention" in by:
+        n = int(by["attention"].get("n") or 0)
+        bits.append(f"{n} need you" if n else "Nothing needs you")
+    if "runs" in by:
+        r = by["runs"]["big"]
+        bits.append("nothing is running" if r == "0" else f"{r} running")
+    if "health" in by:
+        bits.append("the Hub is healthy")
+    if "usage" in by:
+        bits.append(by["usage"].get("cap", "").split(" · ")[0])
+    if "memory" in by:
+        bits.append("three kinds of memory are kept")
+    return (", ".join(b for b in bits if b).capitalize() + ".") if bits else ""
+
+
+def _support_waiting() -> bool:
+    try:
+        from . import support as SUP
+        r = SUP.latest()
+        return bool(r and r["status"] == "awaiting_review" and r["changed"])
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def ui_for(text: str, say: str, scene: "list | None" = None) -> dict:
     """What the screen should do with this answer: raise blocks for a topic, focus one on screen, open Home, or sleep."""
     out: dict = {"topic": None, "blocks": [], "focus": None, "open": None, "sleep": False}
     t = str(text or "")
+    out.update({"clear": False, "doctor": False, "apply": False, "discard": False, "restart": False, "help": False})
     if _SLEEP.search(t):
         out["sleep"] = True
         return out
-    if _HOME.search(t):
+    if _RESTART.search(t):
+        out["restart"] = True
+        return out
+    if _DISCARD.search(t) and _support_waiting():
+        out["discard"] = True
+        return out
+    if _APPLY.search(t) and _support_waiting():
+        out["apply"] = True
+        return out
+    if _CLEAR.search(t):
+        out["clear"] = True
+        return out
+    if _DOCTOR.search(t):
+        out["doctor"] = True
+        return out
+    if _HELP.search(t) and len(t) < 60:
+        out["help"] = True
+        return out
+    if _HOME.search(t) and len(t) < 90:
         out["open"] = "home"
         return out
     m = _FOCUS.search(t)
@@ -205,7 +263,7 @@ def ui_for(text: str, say: str, scene: "list | None" = None) -> dict:
                 out["focus"] = item.get("id")
                 return out
     for name, rx in _TOPICS:
-        if rx.search(t):
+        if rx.search(t) and _QUESTIONY.search(t) and len(t) < 110:
             out["topic"] = name
             try:
                 out["blocks"] = _blocks(name, state())
