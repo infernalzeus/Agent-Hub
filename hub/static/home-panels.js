@@ -263,11 +263,13 @@
   function useBoard() { return !phone.matches && window.__hubBoard; }
   function start() {
     if (useBoard()) { board = window.__hubBoard.mount(root); } else { build(); paint(); }
+    document.documentElement.classList.toggle('hub-board-on', !!board);
     poll(); timer = setInterval(poll, 10000); document.addEventListener('visibilitychange', poll);
   }
   phone.addEventListener('change', function () {
     if (board) { board.destroy(); board = null; }
     if (useBoard()) { board = window.__hubBoard.mount(root); if (data) board.update(data); } else { layout = load(); build(); paint(); }
+    document.documentElement.classList.toggle('hub-board-on', !!board);
   });
   window.__hubHomePanels = { refresh: poll, layout: function () { return JSON.parse(JSON.stringify(layout)); } };
   // First paint of Home is not made to wait for the panels: they start once the cube turn is over.

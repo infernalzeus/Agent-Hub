@@ -23,7 +23,7 @@ RECENT_FAIL_S = 24 * 3600
 LOW_DISK_GB = 5.0
 
 
-def _short(text: str, n: int = 90) -> str:
+def _short(text: str, n: int = 220) -> str:        # blocks wrap their lines and scroll inside, so a line is only cut where it is absurd
     text = " ".join(str(text or "").split())
     return text if len(text) <= n else text[: n - 1] + "…"
 
@@ -48,16 +48,16 @@ def _mission_rows(now: float) -> "list[dict]":
         out.append({
             "id": m.id, "project": m.project_name, "brief": _short(_title(m.brief)), "status": m.status,
             "agent": m.agent, "runtime": m.runtime, "model": m.model,
-            "age_s": int(now - (m.created or now)), "error": _short(m.error, 120),
+            "age_s": int(now - (m.created or now)), "error": _short(m.error, 300),
             "ended": m.ended, "changed": len(m.changed_files),
-            "ask": _short((m.questions[0] or {}).get("q"), 120) if m.status == "needs_input" and m.questions else "",
+            "ask": _short((m.questions[0] or {}).get("q"), 300) if m.status == "needs_input" and m.questions else "",
         })
     return out
 
 
 def _sess(a: dict) -> dict:
     """A Claude Code or Codex session in the same shape as a mission row, so every panel draws both."""
-    return {"id": a["id"], "project": a["project"], "brief": a["title"] or ("Claude Code session" if a["agent"] == "claude" else "Codex session"),
+    return {"id": a["id"], "project": a["project"], "brief": _short(_title(a["title"])) or ("Claude Code session" if a["agent"] == "claude" else "Codex session"),
             "status": a["state"], "agent": "claude code" if a["agent"] == "claude" else "codex", "runtime": a["agent"], "model": None,
             "age_s": a["age_s"], "error": "", "ended": None, "changed": 0, "ask": a["ask"]}
 
@@ -101,7 +101,7 @@ def state() -> dict:
     for aid, a in apps.items():
         if isinstance(a, dict) and a.get("last_error"):
             attention.append({"level": "red", "kind": "app", "id": aid, "go": "/",
-                              "title": f"{aid} did not start", "detail": _short(a["last_error"], 140),
+                              "title": f"{aid} did not start", "detail": _short(a["last_error"], 300),
                           "doctor": f'The app "{aid}" did not start: {_short(a["last_error"], 300)}. Find the cause.', "asked": just_asked})
 
     n_err, newest_err, sample_err = D.recent_errors(now)

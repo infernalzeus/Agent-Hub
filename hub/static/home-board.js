@@ -12,6 +12,15 @@
   var ICON = { col: 'M6 15l6-6 6 6', out: 'M7 17 17 7M9 7h8v8', move: 'M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01', min: 'M6 12h12', foc: 'M5 9V5h4M19 9V5h-4M5 15v4h4M19 15v4h-4', x: 'M6 6l12 12M18 6 6 18' };
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function svg(d, w) { var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('aria-hidden', 'true'); s.style.cssText = 'width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:' + (w || 1.8) + ';stroke-linecap:round;stroke-linejoin:round'; var p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', d); s.appendChild(p); return s; }
+  var PANEL_ICON = { att: 'M12 3 2.5 20h19L12 3Zm0 6v5m0 3v.01', runs: 'M5 4l14 8-14 8V4Z', ses: 'M4 5h16v10H4zM8 19h8M12 15v4', hlt: 'M3 12h4l2-6 4 12 2-6h6', use: 'M5 20V11M12 20V4M19 20v-6' };
+  // An app with no drawn icon (only an emoji in apps.json, such as Movie Clipper) gets a crisp vector tile with its own colour and its emoji or initials drawn at final size.
+  function appTile(a) {
+    var NS = 'http://www.w3.org/2000/svg', key = String(a.id || a.name || '?'), hue = 0, i; for (i = 0; i < key.length; i++) hue = (hue * 31 + key.charCodeAt(i)) % 360;
+    var gid = 'hbt' + hue + '-' + (appTile.n = (appTile.n || 0) + 1), s = document.createElementNS(NS, 'svg'); s.setAttribute('viewBox', '0 0 32 32'); s.setAttribute('aria-hidden', 'true'); s.setAttribute('class', 'tile');
+    s.innerHTML = '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(' + hue + ',70%,34%)"/><stop offset="1" stop-color="hsl(' + ((hue + 50) % 360) + ',75%,16%)"/></linearGradient></defs><rect x="1.5" y="1.5" width="29" height="29" rx="8" fill="url(#' + gid + ')" stroke="hsl(' + hue + ',80%,62%)" stroke-opacity=".75"/>';
+    var t = document.createElementNS(NS, 'text'); t.setAttribute('x', '16'); t.setAttribute('y', a.emoji ? '22' : '21'); t.setAttribute('text-anchor', 'middle'); t.setAttribute('font-size', a.emoji ? '17' : '12'); t.setAttribute('font-weight', '700'); t.setAttribute('fill', '#eafff4');
+    t.textContent = a.emoji || String(a.name || key).replace(/[^A-Za-z0-9 ]/g, '').split(' ').map(function (w) { return w.charAt(0); }).join('').slice(0, 2).toUpperCase(); s.appendChild(t); return s;
+  }
   function ago(s) { return s < 90 ? s + 's' : s < 5400 ? Math.round(s / 60) + 'm' : s < 172800 ? Math.round(s / 3600) + 'h' : Math.round(s / 86400) + 'd'; }
   function li(level, a, b) { var d = el('div', 'hb-li'); d.appendChild(el('i', level || '')); d.appendChild(el('b', '', a)); if (b) d.appendChild(el('span', '', b)); return d; }
 
@@ -19,7 +28,7 @@
     if (document.getElementById('hb-css')) return;
     var s = document.createElement('style'); s.id = 'hb-css';
     s.textContent = [
-      '.hb{position:relative;height:clamp(460px,74vh,860px);margin:6px 0 8px;border:1px solid var(--border-dim,rgba(0,230,118,.25));border-radius:14px;overflow:hidden;background:#04061a;cursor:grab;touch-action:none;animation:hbIn .5s ease both}',
+      '.hb{position:relative;height:clamp(460px,74vh,860px);margin:6px 0 8px;border:1px solid var(--border-dim,rgba(0,230,118,.25));border-radius:14px;overflow:hidden;overflow:clip;background:#04061a;cursor:grab;touch-action:none;animation:hbIn .5s ease both}',
       '.hb:active{cursor:grabbing}',
       '@keyframes hbIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}',
       '.hb::before{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(0,230,118,.09) 1px,transparent 1px);background-size:32px 32px;pointer-events:none}',
@@ -28,14 +37,20 @@
       '.hb-bar>*{pointer-events:auto}.hb-z{font:700 9px Orbitron,monospace;letter-spacing:1.2px;color:var(--text-faint,#6fae92);margin-right:auto;pointer-events:none}',
       '.hb-btn{font:700 9px Orbitron,monospace;letter-spacing:1.2px;color:var(--accent,#00e676);background:rgba(6,10,36,.9);border:1px solid var(--border-dim,rgba(0,230,118,.28));border-radius:7px;padding:7px 11px;min-height:30px;cursor:pointer}',
       '.hb-btn:hover{background:rgba(0,230,118,.14)}',
-      '.hb-tray{position:absolute;left:12px;bottom:10px;display:flex;gap:6px;flex-wrap:wrap;z-index:6;max-width:80%}',
+      '.hb-tray{position:absolute;left:12px;top:48px;display:flex;gap:6px;flex-wrap:wrap;z-index:8;max-width:calc(100% - 24px)}',
+      // A desktop window is a dashboard: the board fills the window under the header, the page never scrolls, and the old cards below it are hidden (everything they did is a block or a bar button here).
+      'html.hub-board-on,html.hub-board-on body{height:100%}html.hub-board-on{overflow:hidden;overflow:clip}html.hub-board-on body{display:flex;flex-direction:column;overflow:visible;padding-bottom:0}',
+      'html.hub-board-on #apps-before,html.hub-board-on #opencode-app-area,html.hub-board-on #ytdl-app-area,html.hub-board-on #yt-app-area,html.hub-board-on #filebrowser-area,html.hub-board-on #apps-after{display:none!important}',
+      'html.hub-board-on #home-panels{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:0 0 84px}html.hub-board-on .hb{flex:1 1 auto;height:auto;min-height:240px}',
+      '.hb-bar .hb-z.hint{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hb-btn.off{color:var(--text-faint,#6fae92);border-style:dashed}.hb-btn.on{border-color:var(--accent,#00e676)}',
+      '.hk-pi{flex:none;color:var(--accent,#00e676)}.hk-app .gi svg.tile{width:32px;height:32px}.hk-app .hb-btn{margin-left:auto;text-decoration:none;padding:5px 8px;min-height:0}',
       '.hk{position:absolute;display:flex;flex-direction:column;min-width:0;transition:border-color .25s,box-shadow .25s,opacity .3s;content-visibility:auto;contain-intrinsic-size:auto 172px auto 110px}',
       '.hk.amber{border-color:rgba(224,165,60,.6)}.hk.red{border-color:rgba(255,92,92,.6)}',
       '.hk.pick{border-color:var(--accent,#00e676);box-shadow:0 0 0 1px var(--accent,#00e676),0 18px 40px rgba(0,0,0,.6)}.hk.dim{opacity:.12;pointer-events:none}',
       '.hk-h{display:flex;align-items:center;gap:4px;padding:4px 4px 4px 9px;cursor:grab;user-select:none;flex:none}',
       '.hk-h .t{font:700 11px Orbitron,monospace;letter-spacing:1px;color:var(--text,#d9ffe9);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.hk-h .n{font:700 11px Orbitron,monospace;color:var(--text-muted,#8fcfb2)}',
-      '.hk-h button{width:24px;height:24px;border:0;background:none;color:var(--text-faint,#6fae92);border-radius:5px;cursor:pointer;display:grid;place-items:center;padding:0}.hk-h button:hover{color:var(--text,#d9ffe9);background:rgba(0,230,118,.12)}',
+      '.hk-h button{width:28px;height:28px;border:0;background:none;color:var(--text-muted,#8fcfb2);opacity:.9;border-radius:5px;cursor:pointer;display:grid;place-items:center;padding:0}.hk-h button svg{width:15px!important;height:15px!important}.hk-h button:hover{color:var(--text,#d9ffe9);background:rgba(0,230,118,.12)}',
       '.hk-b{flex:1;min-height:0;display:grid;grid-template-rows:1fr;transition:grid-template-rows .3s ' + EASE + ';overflow:hidden}.hk.min .hk-b{grid-template-rows:0fr}.hk-i{overflow:hidden;min-height:0}',
       '.hk-rz{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;touch-action:none}.hk.min .hk-rz{display:none}',
       '.hb-li{display:flex;gap:8px;align-items:baseline;padding:5px 10px;border-top:1px solid rgba(255,255,255,.05);font-size:12.5px;color:var(--text,#d9ffe9)}.hb-li i{width:6px;height:6px;border-radius:50%;background:var(--accent,#00e676);flex:none}.hb-li i.a{background:#e0a53c}.hb-li i.r{background:#ff5c5c}.hb-li i.o{background:var(--text-faint,#6fae92)}.hb-li span{color:var(--text-muted,#8fcfb2);font-size:11.5px;overflow-wrap:anywhere}',
@@ -72,8 +87,10 @@
     var host = el('div', 'hb'), world = el('div', 'hb-world'), bar = el('div', 'hb-bar'), zh = el('div', 'hb-z', '100%'), tray = el('div', 'hb-tray');
     var fitBtn = el('button', 'hb-btn', 'FIT'), tidyBtn = el('button', 'hb-btn', 'TIDY'), zin = el('button', 'hb-btn', '+'), zout = el('button', 'hb-btn', '−');
     fitBtn.type = tidyBtn.type = zin.type = zout.type = 'button'; zin.title = 'Zoom in (Ctrl + wheel)'; zout.title = 'Zoom out (Ctrl + wheel)';
-    var hint = el('span', 'hb-z', ''); hint.style.cssText = 'margin-right:8px;opacity:.7'; hint.style.transition = 'opacity .7s'; hint.textContent = 'WHEEL MOVES · CTRL + WHEEL ZOOMS · DRAG A BLOCK TO MOVE IT · CLICK AN APP TO OPEN IT HERE';
-    bar.append(zh, hint, zout, zin, tidyBtn, fitBtn); host.append(bar, world, tray); root.appendChild(host);
+    var hint = el('span', 'hb-z hint', ''); hint.style.cssText = 'margin-right:8px;opacity:.7'; hint.style.transition = 'opacity .7s'; hint.textContent = 'WHEEL MOVES · CTRL + WHEEL ZOOMS · DRAG A BLOCK TO MOVE IT · CLICK AN APP TO OPEN IT HERE';
+    var blocksBtn = el('button', 'hb-btn', 'BLOCKS'), ingestBtn = el('button', 'hb-btn', '+ INGEST APP'), talkBtn = el('button', 'hb-btn', 'TALK'), pcBtn = el('button', 'hb-btn off', 'PC CONTROL');
+    blocksBtn.type = ingestBtn.type = talkBtn.type = pcBtn.type = 'button'; blocksBtn.title = 'Every block, shown or hidden (Ctrl + K)'; ingestBtn.title = 'Teach the Hub another app'; talkBtn.title = 'Talk to the Hub'; pcBtn.title = 'PC control';
+    bar.append(zh, hint, ingestBtn, talkBtn, pcBtn, zout, zin, blocksBtn, tidyBtn, fitBtn); host.append(bar, world, tray); root.appendChild(host); document.documentElement.classList.add('hub-board-on');
 
     var stopEdge = HubBlocks.edge(host), arrived = false;
     var defs = [['att', P.att], ['runs', P.runs], ['ses', P.ses], ['hlt', P.hlt], ['use', P.use]];
@@ -127,7 +144,7 @@
       var T = {}, X0 = -640, G = 22, x = X0, y = -330, rowH = 0;
       ['att', 'runs', 'ses', 'hlt'].forEach(function (id) { var z = sizeOf(id); T[id] = { x: x, y: y }; x += z.w + G; rowH = Math.max(rowH, z.h); });
       y += rowH + G; T.use = { x: X0, y: y }; y += sizeOf('use').h + G + 12;
-      var tiles = defs.filter(function (d) { return !P[d[0]]; }), COLS = 4;
+      var tiles = defs.filter(function (d) { return !P[d[0]]; }), COLS = Math.max(4, Math.min(8, Math.floor(((host.clientWidth || 1100) - 70) / (172 + G + 6))));   // as many tiles per row as the window is wide
       for (var i = 0; i < tiles.length; i += COLS) {
         var row = tiles.slice(i, i + COLS), rh = 0;
         row.forEach(function (d, c) { T[d[0]] = { x: X0 + c * (172 + G), y: y }; rh = Math.max(rh, sizeOf(d[0]).h); });
@@ -145,14 +162,19 @@
     function applyBlock(id) { var e = blocks[id], l = L[id]; e.style.left = l.x + 'px'; e.style.top = l.y + 'px'; e.style.width = l.w + 'px'; e.style.height = l.min ? '' : l.h + 'px'; e.classList.toggle('min', !!l.min); e.style.zIndex = l.z || 1; e.hidden = !!hid[id]; if (nav) nav.refresh(); }
     function mk(id, d) {
       var e = el('div', 'hk hub-block'); e.dataset.id = id; e.tabIndex = 0; e.setAttribute('role', 'group');
-      var h = el('div', 'hk-h'), glyph = el('span', 'hk-glyph'); glyph.appendChild(svg(id === 'runs' ? 'M5 4l14 8-14 8V4Z' : 'M5 5h14v14H5zM8 12h8')); glyph.firstChild.style.width = glyph.firstChild.style.height = ''; h.appendChild(glyph); h.appendChild(el('span', 't', (d.app || d.card || d.extra) ? 'APP' : d.t)); h.appendChild(el('span', 'n'));
-      [['col', 'Close this view'], ['out', 'Open in its own tab'], ['min', 'Minimise'], ['foc', 'Focus'], ['x', 'Hide']].forEach(function (b) { var bt = el('button'); bt.type = 'button'; bt.dataset.a = b[0]; bt.setAttribute('aria-label', b[1]); bt.appendChild(svg(ICON[b[0]])); h.appendChild(bt); });
+      var h = el('div', 'hk-h'), glyph = el('span', 'hk-glyph'); glyph.appendChild(svg(id === 'runs' ? 'M5 4l14 8-14 8V4Z' : 'M5 5h14v14H5zM8 12h8')); glyph.firstChild.style.width = glyph.firstChild.style.height = ''; h.appendChild(glyph); if (PANEL_ICON[id]) { var pi = svg(PANEL_ICON[id], 1.8); pi.classList.add('hk-pi'); pi.style.width = pi.style.height = '15px'; h.appendChild(pi); }
+      h.appendChild(el('span', 't', (d.app || d.card || d.extra || d.act) ? 'APP' : d.t)); h.appendChild(el('span', 'n'));
+      [['col', 'Close this view'], ['out', 'Open in its own tab'], ['min', 'Minimise'], ['foc', 'Focus'], ['x', 'Hide']].forEach(function (b) { var bt = el('button'); bt.type = 'button'; bt.dataset.a = b[0]; bt.setAttribute('aria-label', b[1]); bt.title = b[1]; bt.appendChild(svg(ICON[b[0]])); h.appendChild(bt); });
       var body = el('div', 'hk-b'), inn = el('div', 'hk-i'); body.appendChild(inn); e.append(h, body, el('div', 'hk-rz')); e._in = inn; e._n = h.querySelector('.n'); e._app = d.app || null; e._open = null; e._name = d.app ? (d.app.name || d.app.id) : d.card ? d.card[1] : d.t;
       if (d.app) {
         var a = d.app, box = el('div', 'hk-app'), gi = el('div', 'gi');
         var ic = (typeof CARD_ICONS !== 'undefined' && CARD_ICONS[a.id]) || null;
-        if (ic && /<svg[ >]/i.test(ic)) gi.innerHTML = ic; else gi.appendChild(svg('M4 4h16v16H4zM4 9h16'));
+        if (ic && /<svg[ >]/i.test(ic)) gi.innerHTML = ic; else gi.appendChild(appTile(a));
         var nm = el('div'); nm.appendChild(el('b', '', a.name || a.id)); var st = el('small', a.running ? 'on' : '', a.running ? 'RUNNING' : 'IDLE'); nm.appendChild(st); if (gi.firstElementChild && gi.firstElementChild.tagName.toLowerCase() === 'svg') gi.firstElementChild.style.width = gi.firstElementChild.style.height = '30px'; box.append(gi, nm); inn.appendChild(box); e._st = st;
+        if (a.id === 'file-browser' && typeof SMB_SHORTCUT !== 'undefined' && SMB_SHORTCUT) {   // the old card's SMB link
+          var sm = el('a', 'hb-btn', 'SMB'), onMac = /Macintosh/.test(navigator.userAgent) && !(navigator.maxTouchPoints > 1);
+          sm.href = (onMac && SMB_SHORTCUT.href_mac) || SMB_SHORTCUT.href; sm.title = SMB_SHORTCUT.title || 'Open the network share'; sm.addEventListener('click', function (ev) { ev.stopPropagation(); }); sm.addEventListener('pointerdown', function (ev) { ev.stopPropagation(); }); box.appendChild(sm);
+        }
       }
       if (d.extra) {
         var ex = d.extra, xb = el('div', 'hk-app'), xg = el('div', 'gi'); xg.appendChild(svg(ex[3], 1.8)); xg.firstChild.style.cssText = 'width:26px;height:26px;fill:none;stroke:var(--accent,#00e676);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round';
@@ -160,6 +182,10 @@
         e._name = ex[1]; e._spec = { tabs: [['SUPPORT', ex[2]]], w: 780, h: 640 }; e._open = function () { expand(id); };
       }
       if (d.app) { e._spec = { app: d.app.id, w: 780, h: 560 }; e._open = function () { expand(id); }; }
+      if (d.act) {   // a tile backed by Hub actions (the old cards' action apps): its own dialog
+        var t2 = d.act, ab = el('div', 'hk-app'), ag = el('div', 'gi'); ag.appendChild(appTile(t2)); var an = el('div'); an.appendChild(el('b', '', t2.name || 'Action')); an.appendChild(el('small', '', 'ACTIONS')); ab.append(ag, an); inn.appendChild(ab);
+        e._name = t2.name || 'Action'; e._open = function () { if (typeof openActions === 'function') openActions(t2); };
+      }
       if (d.card) {
         var c = d.card, bx2 = el('div', 'hk-app'), g2 = el('div', 'gi'); g2.appendChild(svg(c[0] === 'oc' ? 'M9 4a3 3 0 0 0-5 3 4 4 0 0 0 0 7 3 3 0 0 0 5 5M15 4a3 3 0 0 1 5 3 4 4 0 0 1 0 7 3 3 0 0 1-5 5M9 3v18M15 3v18M9 8H6M15 13h4' : c[0] === 'ytdl' ? 'M12 3v12M7 10l5 5 5-5M4 16v5h16v-5' : 'M12 15V3M7 8l5-5 5 5M4 16v5h16v-5'));
         g2.firstChild.style.width = g2.firstChild.style.height = '30px';
@@ -171,6 +197,15 @@
     }
     defs.forEach(function (d) { mk(d[0], d[1]); });
     var releaseArrival = HubBlocks.prepare(blocks);
+    // The app list and the action tiles arrive after the page starts; a tile that shows up later gets its block too (nothing the old cards had is ever missing).
+    function syncTiles() {
+      var added = false;
+      (typeof APP_LIST !== 'undefined' ? APP_LIST : []).filter(function (a) { return !a.hidden; }).forEach(function (a) { var id = 'app:' + a.id; if (!blocks[id]) { addDef([id, { t: 'APP', w: 172, h: 64, app: a }]); added = true; } });
+      (typeof ACTION_APPS !== 'undefined' ? ACTION_APPS : []).forEach(function (t) { var id = 'act:' + (t.id || t.name); if (!blocks[id]) { addDef([id, { t: 'APP', w: 172, h: 64, act: t }]); added = true; } });
+      if (added) { relayout(); if (!touched) fit(true); }
+    }
+    function addDef(d) { defs.push(d); L[d[0]] = { x: 0, y: 0, w: d[1].w, h: d[1].h, min: 0, u: 0, rz: 0 }; mk(d[0], d[1]); }
+    defs.filter(function (d) { return false; });
 
     // Click an app and it opens here, inside the board, at a readable size; the cross-arrow button opens it in its own tab instead.
     function settle(b) { if (!motion.allowed()) return; b.classList.add('settle'); setTimeout(function () { b.classList.remove('settle'); }, 450); }
@@ -190,6 +225,7 @@
       } else if (sp.tabs) {
         var tabs = el('div', 'hk-tabs'), fr = frame(sp.tabs[0][1]); b._url = sp.tabs[0][1];
         sp.tabs.forEach(function (t, i) { var tb = el('button', i ? '' : 'on', t[0]); tb.type = 'button'; tb.onclick = function () { Array.prototype.forEach.call(tabs.children, function (x) { x.classList.remove('on'); }); tb.classList.add('on'); fr.src = embedUrl(t[1]); if (motion) motion.frame(fr); b._url = t[1]; }; tabs.appendChild(tb); });
+        if (id === 'card:oc') { var qc = el('button', '', 'QUICK CHAT'); qc.type = 'button'; qc.title = 'A project-less OpenCode chat (opens in a new tab)'; qc.onclick = function () { var sb = document.getElementById('oc-scratch-btn'); if (sb) sb.click(); }; tabs.appendChild(qc); }
         b._in.append(tabs, fr);
       } else if (sp.move) {
         var src = document.getElementById(sp.move), wrap = el('div', 'hk-mv'); b._from = src; b._home = src && src.parentNode; b._next = src && src.nextSibling;
@@ -245,7 +281,7 @@
       hb._in.appendChild(li('o', 'Graphics card', 'not measured'));
       if (h.apps.failed.length) hb._in.appendChild(li('r', 'Failed to start', h.apps.failed.join(', ')));
       Object.keys(blocks).forEach(function (id) { var b = blocks[id]; if (!b.dataset.loading) return; delete b.dataset.loading; if (motion.allowed()) b._in.animate([{opacity:0},{opacity:1}],{duration:220}); });
-      relayout(); if (!touched) fit(true);
+      syncTiles(); relayout(); if (!touched) fit(true); legacy();
       Object.keys(blocks).forEach(function (id) { var b = blocks[id]; if (b._app) { var run = (h.apps.running || []).indexOf(b._app.id) >= 0 || b._app.running; b._st.textContent = run ? 'RUNNING' : 'IDLE'; b._st.className = run ? 'on' : ''; } });
     }
 
@@ -299,7 +335,16 @@
 
     // The wheel moves you around the board; Ctrl + wheel (or a trackpad pinch, which arrives the same way) zooms toward the pointer.
     function zoomAt(px, py, factor) { var k = Math.min(2.6, Math.max(.3, V.k * factor)); V.x = px - (px - V.x) * (k / V.k); V.y = py - (py - V.y) * (k / V.k); V.k = k; place(); }
+    // A list inside a block that can still scroll the way the wheel turns takes the wheel; when it is at its end (or there is none) the board pans. Same rule in a small window and a large one.
+    function innerScroller(t, dy) {
+      for (var n = t; n && n !== host; n = n.parentElement) {
+        if (n.nodeType !== 1) continue; var cs = getComputedStyle(n);
+        if ((cs.overflowY === 'auto' || cs.overflowY === 'scroll') && n.scrollHeight > n.clientHeight + 1 && (dy < 0 ? n.scrollTop > 0 : n.scrollTop + n.clientHeight < n.scrollHeight - 1)) return n;
+      }
+      return null;
+    }
     function onWheel(e) {
+      if (!e.ctrlKey && !e.shiftKey && e.deltaY && innerScroller(e.target, e.deltaY)) return;
       e.preventDefault(); hideHint(); touched = true; var target = physics.target() || { x: V.x, y: V.y, k: V.k }; stopCam(); if (focusId) { focusId = null; undim(); }
       var r = host.getBoundingClientRect();
       if (e.ctrlKey) { var k = Math.min(2.6, Math.max(.3, target.k * Math.exp(-e.deltaY * .004))), px = e.clientX - r.left, py = e.clientY - r.top; physics.aim({ x: px - (px - target.x) * k / target.k, y: py - (py - target.y) * k / target.k, k: k }); return; }
@@ -345,6 +390,12 @@
       if (a === 'x') { var b = blocks[id]; var done = function () { hid[id] = 1; applyBlock(id); b.getAnimations().forEach(function (x) { x.cancel(); }); save(); trayDraw(); }; if (reduce.matches) done(); else b.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.85)' }], { duration: 200, fill: 'forwards' }).onfinish = done; }
     });
     world.addEventListener('dblclick', function (e) { var h = e.target.closest('.hk-h'); if (h && !e.target.closest('button')) focusBlock(h.closest('.hk').dataset.id); });
+    // the old cards' controls, reached from the bar: they stay in the page (hidden) and the bar buttons press them
+    ingestBtn.onclick = function () { var c = document.querySelector('.ingest-card'); if (c) c.click(); };
+    talkBtn.onclick = function () { var t = document.querySelector('[data-talk]'); if (t) t.click(); };
+    pcBtn.onclick = function () { var w = document.getElementById('mcp-wire'); if (w) w.click(); };
+    blocksBtn.onclick = function () { if (nav && nav.toggle) nav.toggle(); };
+    function legacy() { var w = document.getElementById('mcp-wire'); if (w) { pcBtn.className = 'hb-btn ' + (w.classList.contains('off') ? 'off' : 'on'); pcBtn.title = w.title || 'PC control'; } talkBtn.hidden = !document.querySelector('[data-talk]'); ingestBtn.hidden = !document.querySelector('.ingest-card'); pcBtn.hidden = !w; }
     zin.onclick = function () { touched = true; stopCam(); var r = host.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1.25); };
     zout.onclick = function () { touched = true; stopCam(); var r = host.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 0.8); };
     fitBtn.onclick = function () { focusId = null; undim(); fit(true); };

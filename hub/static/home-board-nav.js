@@ -35,7 +35,7 @@
       Object.keys(blocks).forEach(function(i){if(i===id||hidden[i])return;var b=layout[i],dx=b.x+b.w/2-a.x-a.w/2,dy=b.y+b.h/2-a.y-a.h/2,along=dx*axis[0]+dy*axis[1],cross=Math.abs(dx*axis[1]-dy*axis[0]);if(along>0&&along+cross*2<score){score=along+cross*2;best=i;}});
       if(best){e.preventDefault();blocks[best].focus({preventScroll:true});visit(best);}return true;
     }
-    refresh();return {refresh:refresh,key:key,destroy:function(){if(raf)cancelAnimationFrame(raf);map.remove();dialog.remove();}};
+    refresh();return {refresh:refresh,key:key,toggle:function(){key({ctrlKey:true,key:'k',preventDefault:function(){},target:host});},destroy:function(){if(raf)cancelAnimationFrame(raf);map.remove();dialog.remove();}};
   }
   window.__hubBoardNav={mount:mount};
 })();
