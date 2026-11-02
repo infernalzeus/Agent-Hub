@@ -157,6 +157,7 @@
     var edit = el('button', 'hp-btn' + (editing ? ' on' : ''), editing ? 'DONE' : 'CUSTOMISE'); edit.type = 'button';
     edit.onclick = function () { editing = !editing; build(); paint(); };
     bar.appendChild(edit);
+    if (phone.matches && window.__hubBoard) { var db = el('button', 'hp-btn', 'DASHBOARD'); db.type = 'button'; db.title = 'The same board as on a desktop: drag, pinch to zoom'; db.onclick = function () { setView('board'); }; bar.appendChild(db); }
     if (editing) { var rs = el('button', 'hp-btn', 'RESET'); rs.type = 'button'; rs.onclick = function () { layout = JSON.parse(JSON.stringify(DEFAULTS[phone.matches ? 'phone' : 'desktop'])); save(); build(); paint(); }; bar.appendChild(rs); }
     root.appendChild(bar);
     if (editing && hidden.length) {
@@ -260,18 +261,22 @@
       if (!j) return; data = j; if (board) board.update(j); else paint();
     }).catch(function () {});
   }
-  function useBoard() { return !phone.matches && window.__hubBoard; }
+  // A tablet or a desktop opens the board. A phone opens the list (the old cards below it stay) unless the board was chosen.
+  var VIEW = 'agenthub:homeview';
+  function useBoard() { if (!window.__hubBoard) return false; if (!phone.matches) return true; try { return localStorage.getItem(VIEW) === 'board'; } catch (e) { return false; } }
+  function remount() {
+    if (board) { board.destroy(); board = null; }
+    if (useBoard()) { board = window.__hubBoard.mount(root); if (data) board.update(data); } else { layout = load(); build(); paint(); }
+    document.documentElement.classList.toggle('hub-board-on', !!board);
+  }
+  function setView(v) { try { localStorage.setItem(VIEW, v); } catch (e) {} remount(); }
   function start() {
     if (useBoard()) { board = window.__hubBoard.mount(root); } else { build(); paint(); }
     document.documentElement.classList.toggle('hub-board-on', !!board);
     poll(); timer = setInterval(poll, 10000); document.addEventListener('visibilitychange', poll);
   }
-  phone.addEventListener('change', function () {
-    if (board) { board.destroy(); board = null; }
-    if (useBoard()) { board = window.__hubBoard.mount(root); if (data) board.update(data); } else { layout = load(); build(); paint(); }
-    document.documentElement.classList.toggle('hub-board-on', !!board);
-  });
-  window.__hubHomePanels = { refresh: poll, layout: function () { return JSON.parse(JSON.stringify(layout)); } };
+  phone.addEventListener('change', remount);
+  window.__hubHomePanels = { refresh: poll, setView: setView, layout: function () { return JSON.parse(JSON.stringify(layout)); } };
   // First paint of Home is not made to wait for the panels: they start once the cube turn is over.
   (window.__hubWaitForTransition ? window.__hubWaitForTransition() : Promise.resolve()).then(function () { setTimeout(start, 250); });
 })();
