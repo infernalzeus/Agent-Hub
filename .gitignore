@@ -189,3 +189,7 @@ hub/app_logs/
 hub/agent_events.json
 hub/transition_selftest_result.json
 hub/transition_selftest.arm
+
+# this PC only: doctor mission ids and measured model outcomes (written beside the code when run from source)
+hub/support_missions.json
+hub/model_outcomes.json

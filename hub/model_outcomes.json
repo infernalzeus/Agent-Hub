@@ -1,9 +1,0 @@
-[
-  {
-    "model": "ollama/nemotron-3-super:cloud",
-    "ok": true,
-    "secs": 123.0,
-    "chars": 99,
-    "at": 1793575610.2799516
-  }
-]
