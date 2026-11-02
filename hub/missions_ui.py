@@ -15,6 +15,7 @@ hub/features/missions.py:
 from __future__ import annotations
 
 from aiohttp import web
+from .embed import embedded
 
 routes = web.RouteTableDef()
 
@@ -1562,4 +1563,4 @@ async def missions_page(request: web.Request) -> web.Response:
     except Exception:
         m0 = []
     body = _HTML.replace("__VOICE_WIDGET__", _WIDGET).replace("__TALK_BUTTON__", TALK_BUTTON).replace("__ORBS_JS__", _ORBS_JS).replace("__M0_JSON__", json.dumps(m0).replace("</", "<\\/"))
-    return web.Response(text=body, content_type="text/html", charset="utf-8")
+    return web.Response(text=embedded(body, request), content_type="text/html", charset="utf-8")

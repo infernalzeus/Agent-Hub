@@ -8,6 +8,7 @@ in place; it never explodes the graph into extra file nodes.
 from __future__ import annotations
 
 from aiohttp import web
+from .embed import embedded
 
 routes = web.RouteTableDef()
 
@@ -679,4 +680,4 @@ loadGraph();
 
 @routes.get("/graph")
 async def graph_page(request: web.Request) -> web.Response:
-    return web.Response(text=_GRAPH_HTML, content_type="text/html", charset="utf-8")
+    return web.Response(text=embedded(_GRAPH_HTML, request), content_type="text/html", charset="utf-8")

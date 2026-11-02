@@ -1,0 +1,21 @@
+/* Shared landing / board surfaces. Effects are finite or explicitly interaction-driven. */
+.hub-block{--block-line:var(--border-dim,rgba(0,230,118,.28));--block-fill:rgba(6,10,36,.93);background:var(--block-fill);border:1px solid var(--block-line);border-radius:3px;color:var(--text,#d9ffe9)}
+.hub-block:focus-visible{outline:2px solid var(--cyan,#41ebff);outline-offset:3px}
+.hb-skeleton{padding:12px;display:grid;gap:9px;animation:hub-skeleton 1.4s ease-in-out infinite;min-height:76px}
+.hb-skeleton i{display:block;height:7px;border-radius:3px;background:var(--accent,#00e676);opacity:.14}.hb-skeleton i:nth-child(2){width:76%}.hb-skeleton i:nth-child(3){width:52%}
+.hb-skeleton.still{animation:none}.hk-i{position:relative}.hk-loading{position:absolute;inset:0;pointer-events:none;background:var(--block-fill,rgba(6,10,36,.93));z-index:1}
+@keyframes hub-skeleton{50%{opacity:.4}}
+@media(prefers-reduced-motion:reduce){.hb-skeleton{animation:none}}
+
+.hub-block.is-hover{border-color:var(--cyan,#41ebff);background-image:radial-gradient(240px circle at var(--edge-x,50%) var(--edge-y,50%),rgba(65,235,255,.07),transparent 80%)}
+.hub-block.is-hover>.hk-b,.wb.is-hover>.li{transform:translate3d(var(--depth-x,0),var(--depth-y,0),0)}
+.hb::before{background-position:var(--grid-x,0) var(--grid-y,0)}
+
+.hb-map{position:absolute;right:12px;bottom:12px;width:150px;height:90px;padding:0;border:1px solid var(--border-dim);border-radius:7px;background:rgba(8,12,40,.94);z-index:7;cursor:crosshair;overflow:hidden}.hb-map svg{display:block;width:100%;height:100%}.hb-map rect{fill:rgba(0,230,118,.16);stroke:var(--accent,#00e676);stroke-width:.5}.hb-map .viewport{fill:rgba(65,235,255,.05);stroke:var(--cyan,#41ebff);stroke-width:1}
+.hb-jump{position:absolute;inset:44px max(12px,15%);z-index:12;padding:18px;border:1px solid var(--accent,#00e676);border-radius:10px;background:#080c28;box-shadow:0 12px 30px rgba(0,0,0,.5);overflow:auto;animation:hub-jump-in .18s ease}.hb-jump[hidden]{display:none}.hb-jump input{box-sizing:border-box;width:100%;padding:12px;background:#0d1050;border:1px solid var(--border-dim);border-radius:6px;color:var(--text,#d9ffe9);font:14px Orbitron,monospace}.hb-jump button{display:block;width:100%;padding:10px;border:0;border-bottom:1px solid var(--border-dim);background:none;color:var(--text,#d9ffe9);text-align:left;cursor:pointer}.hb-jump button:focus-visible,.hb-jump button:hover{background:rgba(0,230,118,.12);outline:1px solid var(--accent)}
+@keyframes hub-jump-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.hb-jump{animation:none}}
+
+.hub-notice-dock{position:fixed;right:12px;top:max(10px,env(safe-area-inset-top));z-index:8;pointer-events:none}.hub-notice-chip{font:700 9px/1.4 Orbitron,monospace;color:var(--amber,#e0a53c);border:1px solid rgba(224,165,60,.45);border-radius:6px;background:var(--bg,#080c28);padding:3px 5px 3px 9px;max-width:220px;white-space:nowrap}
+
+.hub-block::before,.hub-block::after{content:"";position:absolute;width:9px;height:9px;pointer-events:none}.hub-block::before{left:-2px;top:-2px;border-left:2px solid var(--accent,#00e676);border-top:2px solid var(--accent,#00e676)}.hub-block::after{right:-2px;bottom:-2px;border-right:2px solid var(--accent,#00e676);border-bottom:2px solid var(--accent,#00e676)}

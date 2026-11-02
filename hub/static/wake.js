@@ -36,8 +36,7 @@
     '@keyframes wkBreath{50%{transform:scale(1.035);opacity:.45}}',
     '.wk-wave{position:absolute;inset:6%;border-radius:50%;pointer-events:none;border:2px solid rgba(0,230,118,.8)}',
     '#wake-stage{position:fixed;inset:0;pointer-events:none;z-index:6}',
-    '.wb{position:absolute;width:236px;background:rgba(6,10,36,.93);border:1px solid rgba(0,230,118,.3);border-radius:3px;pointer-events:auto;will-change:transform,opacity;color:#d9ffe9;text-align:left}',
-    '.wb::before,.wb::after{content:"";position:absolute;width:9px;height:9px;pointer-events:none}.wb::before{left:-2px;top:-2px;border-left:2px solid #00e676;border-top:2px solid #00e676}.wb::after{right:-2px;bottom:-2px;border-right:2px solid #00e676;border-bottom:2px solid #00e676}',
+    '.wb{position:absolute;width:236px;pointer-events:auto;text-align:left}',
     '.wb.amber{border-color:rgba(224,165,60,.6)}.wb.red{border-color:rgba(255,92,92,.6)}.wb.wide{width:300px}',
     '.wb h4{margin:0;padding:7px 10px 3px;font:700 8.5px Orbitron,monospace;letter-spacing:1.4px;color:#8fcfb2;display:flex;justify-content:space-between}',
     '.wb .li{display:flex;gap:8px;align-items:baseline;padding:4px 10px;border-top:1px solid rgba(255,255,255,.05);font-size:12.5px}.wb .li i{width:6px;height:6px;border-radius:50%;background:#00e676;flex:none}.wb .li i.a{background:#e0a53c}.wb .li i.r{background:#ff5c5c}.wb .li i.o{background:#6fae92}.wb .li span{color:#8fcfb2;font-size:11.5px;overflow-wrap:anywhere}',
@@ -101,6 +100,7 @@
 
   // ---- blocks around the ring
   var blocks = [];
+  if (window.HubBlocks) { HubBlocks.edge(stage); enterBtn.addEventListener('click', function () { if (enterBtn.dataset.s === 'enter') HubBlocks.remember(blocks); }, true); }
   function center() { var r = (globe || document.body).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, R: r.width / 2 }; }
   // Blocks stand in two columns either side of the ring and stack by their real heights (and their real widths), so a long
   // list or the doctor's wide block never lands on the one below it. On a narrow screen they share one column.
@@ -131,7 +131,7 @@
   }
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function mkBlock(b) {
-    var e = el('div', 'wb ' + (b.cls || '')); e.dataset.id = b.id || ''; var h = el('h4'); h.appendChild(el('span', '', b.t)); if (b.n) h.appendChild(el('span', '', b.n)); e.appendChild(h);
+    var e = el('div', 'wb hub-block ' + (b.cls || '')); e.dataset.id = b.id || ''; var h = el('h4'); h.appendChild(el('span', '', b.t)); if (b.n) h.appendChild(el('span', '', b.n)); e.appendChild(h);
     if (b.type === 'list') b.rows.forEach(function (r) { var d = el('div', 'li'); d.append(el('i', r[0] || ''), el('b', '', r[1])); if (r[2]) d.appendChild(el('span', '', r[2])); e.appendChild(d); });
     if (b.type === 'num') { var d = el('div', 'num'); d.append(el('b', '', b.big), el('span', '', b.cap)); e.appendChild(d); }
     if (b.type === 'bars') {
@@ -191,7 +191,7 @@
 
   function openHome() {
     // the same button, the same cube turn, as a tap on ENTER
-    if (enterBtn && !enterBtn.disabled) { stopAll(false); enterBtn.click(); }
+    if (enterBtn && !enterBtn.disabled) { if (window.HubBlocks) HubBlocks.remember(blocks); stopAll(false); enterBtn.click(); }
   }
 
   // ---- speaking, with the ring pulsing to the voice; talking over it cuts it off

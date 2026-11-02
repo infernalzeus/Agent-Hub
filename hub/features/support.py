@@ -19,6 +19,7 @@ import time
 
 import aiohttp
 from aiohttp import web
+from ..embed import embedded
 
 from .. import config
 from ..config import logger
@@ -195,4 +196,4 @@ load();setInterval(()=>{if(!document.hidden)load()},3000);
 
 @routes.get("/support")
 async def page(request: web.Request) -> web.Response:
-    return web.Response(text=_PAGE, content_type="text/html")
+    return web.Response(text=embedded(_PAGE, request), content_type="text/html")

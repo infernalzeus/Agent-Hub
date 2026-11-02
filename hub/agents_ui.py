@@ -14,6 +14,7 @@ Reads:
 from __future__ import annotations
 
 from aiohttp import web
+from .embed import embedded
 
 routes = web.RouteTableDef()
 
@@ -1060,4 +1061,4 @@ _HTML = (_HTML
 @routes.get("/agents")
 async def agents_page(request: web.Request) -> web.Response:
     # old workspace-chat deep links (`/agents?slug=`) now just land on management
-    return web.Response(text=_HTML, content_type="text/html", charset="utf-8")
+    return web.Response(text=embedded(_HTML, request), content_type="text/html", charset="utf-8")
