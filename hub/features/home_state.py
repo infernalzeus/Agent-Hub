@@ -32,6 +32,8 @@ def _title(brief: str) -> str:
     """What a list should call a mission: a doctor's brief opens with its rules, so show what the owner asked instead."""
     text = str(brief or "")
     if text.startswith("You are the doctor for Agent Hub"):
+        if "THE OWNER SAYS:" not in text:                  # a session list cuts the title short, before the owner's words
+            return "Doctor session"
         ask = text.split("THE OWNER SAYS:", 1)[-1].split("FACTS FROM", 1)[0].split("RESTART TIMING", 1)[0].strip()
         return "Doctor: " + (ask or "a look at the Hub")
     return text
