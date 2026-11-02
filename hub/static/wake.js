@@ -210,7 +210,7 @@
       post('/api/voice/speak', { text: text, voice: voice || undefined }, 'speech', 20000).then(function (ab) {
         return S.actx.decodeAudioData(ab.slice(0)).then(function (buf) {
           var src = node = S.actx.createBufferSource(), an = S.actx.createAnalyser(), data = new Uint8Array(512), last = 0;
-          an.fftSize = 512; src.buffer = buf; src.connect(an); an.connect(S.actx.destination); src.onended = fin; src.start();
+          an.fftSize = 512; src.buffer = buf; src.connect(an); if (window.HubVoiceFx) HubVoiceFx.connect(S.actx, an, S.actx.destination, buf.duration); else an.connect(S.actx.destination); src.onended = fin; src.start();
           tick = setInterval(function () { an.getByteTimeDomainData(data); var s = 0; for (var i = 0; i < data.length; i++) { var v = (data[i] - 128) / 128; s += v * v; } if (Math.sqrt(s / data.length) > 0.07 && performance.now() - last > 380) { last = performance.now(); pulse(); } }, 80);
         });
       }).catch(fin);

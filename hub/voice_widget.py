@@ -12,6 +12,7 @@ _HTML = """<div id="voice" hidden>
   <div class="v-head"><span>TALK TO THE HUB</span><div><button type="button" class="vbtn" id="v-size">MINIMISE</button> <button type="button" class="vbtn" id="v-close" aria-label="Close">CLOSE</button></div></div>
   <div class="v-tools">
     <select id="v-voice" aria-label="TTS voice"></select>
+    <select id="v-fx" aria-label="Voice effect" title="A robotic layer on the same voice"><option value="off">CLEAN</option><option value="light">LIGHT ROBOT</option><option value="robot">ROBOT</option><option value="heavy">HEAVY ROBOT</option></select>
     <button type="button" class="vbtn" id="v-mute">SOUND ON</button>
   </div>
   <div class="v-log" id="v-log"></div>
@@ -37,7 +38,7 @@ def _read(name: str) -> str:
 
 def widget(with_orbs: bool = True) -> str:
     orbs = f"<script>{_read('thinking-orbs.min.js')}</script>\n" if with_orbs else ""
-    return f"<style>{_read('voice.css')}</style>\n{_HTML}\n{orbs}<script>{_read('voice.js')}</script>"
+    return f"<style>{_read('voice.css')}</style>\n{_HTML}\n{orbs}<script>{_read('voice-fx.js')}</script>\n<script>{_read('voice.js')}</script>"
 
 
 TALK_BUTTON = '<button type="button" class="talk-btn" data-talk title="Talk to the hub" aria-label="Talk to the hub"><img src="/smith-icon.png" alt=""></button>'

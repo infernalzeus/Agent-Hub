@@ -81,6 +81,8 @@
       try { const u = new SpeechSynthesisUtterance(text), v = pickBrowserVoice(); if (v) u.voice = v; u.rate = 0.98; u.onend = res; u.onerror = res; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) { res(); }
     });
   }
+  // Smith's voice goes through the layered robotic effect (voice-fx.js) on its way to the speakers; 'clean' skips it.
+  const route = (node, buf) => { if (window.HubVoiceFx) HubVoiceFx.connect(S.actx, node, S.actx.destination, buf.duration); else node.connect(S.actx.destination); };
   // plays the reply; resolves when it ends or when S.stop() is called (talk-over, typing, STOP)
   function play(text) {
     return new Promise(async (resolve) => {
@@ -92,7 +94,7 @@
         const ab = await request('/api/voice/speak', { text, voice: S.voice || undefined }, 'speech', 20000);
         if (done) return;
         try {
-          if (S.actx) { await S.actx.resume(); const buf = await S.actx.decodeAudioData(ab.slice(0)); if (done) return; node = S.actx.createBufferSource(); node.buffer = buf; node.connect(S.actx.destination); node.onended = fin; node.start(); return; }
+          if (S.actx) { await S.actx.resume(); const buf = await S.actx.decodeAudioData(ab.slice(0)); if (done) return; node = S.actx.createBufferSource(); node.buffer = buf; route(node, buf); node.onended = fin; node.start(); return; }
         } catch (e0) { node = null; }                                                 // AudioContext refused or could not decode: use the <audio> element
         try {
           if (done) return;
@@ -100,7 +102,7 @@
           audioUrl = url; a.onended = fin; a.onerror = fin; a.src = url; await a.play();
         } catch (e1) {
           if (!S.actx) throw e1;                                                     // the element was refused: decode and play through the unlocked AudioContext
-          await S.actx.resume(); const buf = await S.actx.decodeAudioData(ab.slice(0)); if (done) return; node = S.actx.createBufferSource(); node.buffer = buf; node.connect(S.actx.destination); node.onended = fin; node.start();
+          await S.actx.resume(); const buf = await S.actx.decodeAudioData(ab.slice(0)); if (done) return; node = S.actx.createBufferSource(); node.buffer = buf; route(node, buf); node.onended = fin; node.start();
         }
       } catch (e) { if (!done) { hint('The hub voice service did not answer, so this is the browser voice. Updating edge-tts on the hub PC usually fixes it.'); await speakBrowser(text); fin(); } }
       finally { if (done) clearTimeout(deadline); }
@@ -358,6 +360,8 @@
       sel.innerHTML = j.voices.map((v) => `<option value="${v.id}">${v.name}</option>`).join('');
       sel.value = S.voice && j.voices.some((v) => v.id === S.voice) ? S.voice : j.default; S.voice = sel.value;
       sel.onchange = () => { S.voice = sel.value; try { localStorage.setItem('hubVoiceName', S.voice); } catch (e) {} };
+      const fx = $('v-fx');
+      if (fx && window.HubVoiceFx) { fx.value = HubVoiceFx.mode(); fx.onchange = () => { HubVoiceFx.set(fx.value); unlockAudio(); play('Smith online.'); }; } else if (fx) fx.hidden = true;
     } catch (e) { $('v-voice').hidden = true; }
   }
   const paintToggles = () => { $('v-mute').textContent = S.mute ? 'SOUND OFF' : 'SOUND ON'; };
