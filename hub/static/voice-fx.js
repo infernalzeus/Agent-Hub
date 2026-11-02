@@ -5,16 +5,14 @@
 //   doubled layer      a copy 15 ms late, wobbling a few milliseconds (a second, slightly off voice on top)
 //   metal layer        a 6 ms comb with feedback (a hollow, tube-like ring)
 //   comms band         110 Hz to 6 kHz, then a compressor so the layers never clip
-// The choice is kept in localStorage 'hubVoiceFx': off | light | robot (default) | heavy.
+// The choice is kept in localStorage 'hubVoiceFx': off | light (5 %) | robot (10 %, default) | heavy (35 %) | full (100 %).
 (function () {
   if (window.HubVoiceFx) return;
   var KEY = 'hubVoiceFx';
-  var MODES = {
-    off: null,
-    light: { dry: .8, ring: .2, ringHz: 70, bits: 7, chorus: .22, comb: .06, out: .95 },
-    robot: { dry: .6, ring: .5, ringHz: 62, bits: 6, chorus: .34, comb: .2, out: .88 },
-    heavy: { dry: .42, ring: .78, ringHz: 48, bits: 5, chorus: .42, comb: .34, out: .82 }
-  };
+  // The effect is one recipe (FULL) mixed in by an amount, so "10 %" means the wet layers at a tenth of their full level over the clean voice.
+  var FULL = { dry: .6, ring: .5, ringHz: 62, bits: 6, chorus: .34, comb: .2, out: .88 };
+  function amount(a) { return { amount: a, dry: 1 - (1 - FULL.dry) * a, ring: FULL.ring * a, ringHz: FULL.ringHz, bits: FULL.bits, chorus: FULL.chorus * a, comb: FULL.comb * a, out: 1 - (1 - FULL.out) * a }; }
+  var MODES = { off: null, light: amount(.05), robot: amount(.1), heavy: amount(.35), full: amount(1) };
   function mode() { try { var v = localStorage.getItem(KEY); if (v && Object.prototype.hasOwnProperty.call(MODES, v)) return v; } catch (e) {} return 'robot'; }
   function set(m) { if (!Object.prototype.hasOwnProperty.call(MODES, m)) return; try { localStorage.setItem(KEY, m); } catch (e) {} }
   function crusher(ctx, bits) {                      // quantise to 2^bits steps, then round the corners: grit without harsh aliasing

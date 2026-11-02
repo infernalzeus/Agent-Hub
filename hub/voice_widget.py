@@ -12,7 +12,7 @@ _HTML = """<div id="voice" hidden>
   <div class="v-head"><span>TALK TO THE HUB</span><div><button type="button" class="vbtn" id="v-size">MINIMISE</button> <button type="button" class="vbtn" id="v-close" aria-label="Close">CLOSE</button></div></div>
   <div class="v-tools">
     <select id="v-voice" aria-label="TTS voice"></select>
-    <select id="v-fx" aria-label="Voice effect" title="A robotic layer on the same voice"><option value="off">CLEAN</option><option value="light">LIGHT ROBOT</option><option value="robot">ROBOT</option><option value="heavy">HEAVY ROBOT</option></select>
+    <select id="v-fx" aria-label="Voice effect" title="A robotic layer on the same voice"><option value="off">CLEAN</option><option value="light">ROBOT 5%</option><option value="robot">ROBOT 10%</option><option value="heavy">ROBOT 35%</option><option value="full">ROBOT 100%</option></select>
     <button type="button" class="vbtn" id="v-mute">SOUND ON</button>
   </div>
   <div class="v-log" id="v-log"></div>
