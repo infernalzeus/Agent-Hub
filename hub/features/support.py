@@ -45,11 +45,32 @@ def _ids() -> "list[str]":
         return []
 
 
+def restart_timing() -> str:
+    """How long the last restarts really took, from the supervisor's own log: the exit, then the new server."""
+    import re
+    from datetime import datetime
+    try:
+        logs = sorted((config.HERE / "logs").glob("hub_*.log"), key=lambda p: p.stat().st_mtime)
+        lines = [ln for p in logs[-2:] for ln in p.read_text(encoding="utf-8", errors="replace").splitlines()]
+    except OSError:
+        return ""
+    ev = []
+    for ln in lines:
+        m = re.match(r"(\d\d-\d\d-\d{4} \d\d:\d\d:\d\d)\s+(server exited, code=(\d+)|starting server)", ln)
+        if m:
+            ev.append((datetime.strptime(m.group(1), "%d-%m-%Y %H:%M:%S"), m.group(2)))
+    out = []
+    for i, (t, what) in enumerate(ev):
+        if what.startswith("server exited") and i + 1 < len(ev):
+            out.append(f"{t:%d %b %H:%M:%S} exit ({what.split('=')[1]}), next server started {int((ev[i + 1][0] - t).total_seconds())} s later")
+    return ("RESTART TIMING (supervisor log):\n" + "\n".join(out[-4:]) + "\n\n") if out else ""
+
+
 def facts() -> str:
     from . import diagnose as D
     b = D.bundle(lines=60)
     keep = {k: b[k] for k in ("hub", "apps", "missions", "local_model_server", "disk_free_gb")}
-    return "FACTS FROM /api/diagnose:\n" + json.dumps(keep, indent=1)[:2500] + "\n\nRECENT WARNINGS AND ERRORS (secrets removed):\n" + "\n".join(b["problems"][-20:])[:5000]
+    return restart_timing() + "FACTS FROM /api/diagnose:\n" + json.dumps(keep, indent=1)[:2500] + "\n\nRECENT WARNINGS AND ERRORS (secrets removed):\n" + "\n".join(b["problems"][-20:])[:5000]
 
 
 def brief_for(text: str) -> str:

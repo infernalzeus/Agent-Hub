@@ -94,6 +94,14 @@ def state() -> dict:
         agents = AS.scan(now)
     except Exception:  # noqa: BLE001 - Home must draw even if the logs cannot be read
         agents = []
+    try:                                   # a hook said so: that is a fact, not an inference from a log
+        from . import agent_events as AE
+        for ev in AE.waiting(now):
+            attention.append({"level": "amber", "kind": "session", "id": ev["session"][:12] or ev["agent"], "go": "/",
+                              "title": f'{"Claude Code" if ev["agent"] == "claude" else ev["agent"].title()} is waiting: {ev["project"] or "a session"}',
+                              "detail": ev["message"]})
+    except Exception:  # noqa: BLE001
+        pass
     for a in agents:
         if a["state"] == "needs_you":
             attention.append({"level": "amber", "kind": "session", "id": a["id"], "go": "/",

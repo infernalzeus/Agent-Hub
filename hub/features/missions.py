@@ -1158,7 +1158,7 @@ async def _prepare(m: Mission, wt: Path, data_dir: Path) -> None:
     cfg["tools"] = {**(cfg.get("tools") or {}), "todowrite": False, "todoread": False}   # bookkeeping calls cost 10-50 s each
     cfg["permission"] = {"edit": "allow", "bash": "allow", "webfetch": "allow",
                          "skill": {"*": "deny", **{n: "allow" for n in skill_allow}}}
-    want_model = m.model or agent_knowledge.model_chain(None, cfg.get("model"), brief=m.brief)[0]      # measurements decide, not a constant
+    want_model = m.model or agent_knowledge.model_chain(None, cfg.get("model"), brief=getattr(m, "brief", None))[0]      # measurements decide, not a constant
     try:
         known = await asyncio.get_running_loop().run_in_executor(None, OCM._known_models)
         got, note = OCM._resolve_model(want_model, known) if want_model else (want_model, None)
@@ -1529,7 +1529,7 @@ async def _stream_resilient(m: Mission, wt: Path, data_dir: Path, agent: str, br
         ws_model = json.loads(Path(OCM.OPENCODE_CONFIG).read_text(encoding="utf-8")).get("model")
     except Exception:
         ws_model = None
-    chain = agent_knowledge.model_chain(m.model or None, ws_model, brief=m.brief)
+    chain = agent_knowledge.model_chain(m.model or None, ws_model, brief=getattr(m, "brief", None))
     if stay_local():
         chain = [x for x in chain if _is_local(x)]
         if not chain:
