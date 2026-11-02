@@ -91,6 +91,17 @@ async def _dispatch(brief: str, runtime: str, model: "str | None") -> dict:
             return await r.json()
 
 
+def last_asked() -> float:
+    """When the doctor was last asked (a mission's creation time), 0 if never."""
+    from . import missions as M
+    t = 0.0
+    for mid in _ids():
+        m = M.S.m.get(mid)
+        if m and m.created:
+            t = max(t, float(m.created))
+    return t
+
+
 def latest() -> "dict | None":
     """The doctor's most recent mission, as a small row, or None."""
     from . import missions as M
@@ -151,6 +162,7 @@ select{color:var(--tx);background:#05081f}button:hover{background:rgba(0,230,118
 <div class="box"><div id="facts" class="pr">Reading the Hub…</div></div>
 <h2>WHAT IS WRONG?</h2>
 <div class="box"><textarea id="t" placeholder="Describe it, or leave this empty and press ASK THE DOCTOR to have it look at the facts above."></textarea>
+<div class="row" id="chips"></div>
 <div class="row"><button id="ask">ASK THE DOCTOR</button><select id="rt"><option value="opencode">LOCAL FIRST (OPENCODE)</option><option value="claude-code">CLAUDE CODE</option></select><button id="rf">REFRESH FACTS</button><span id="msg" class="warn"></span></div></div>
 <h2>THE DOCTOR'S WORK</h2><div id="ms"></div>
 <script>
@@ -166,6 +178,12 @@ function draw(s){
   +(done?'<div>'+m.changed+' file(s) changed'+(m.verify?(' · checks '+(m.verify.ok?'<span class=ok>passed</span>':'<span class=warn>failed</span>')):'')+'</div>':'')
   +'<div class="row">'+(done&&m.changed?'<button data-a="apply" data-id="'+m.id+'">APPLY THE FIX</button>':'')+(done||m.status==='failed'?'<button class="red" data-a="discard" data-id="'+m.id+'">DISCARD</button>':'')+(m.status==='applied'?'<button data-a="restart">RESTART THE HUB TO USE IT</button>':'')+'</div></div>'}).join(''):'<div class="box">Nothing yet.</div>';
 }
+const USES=[['A MISSION FAILED','The last mission that failed: find out why it failed and say whether the cause is in the Hub or in the project it worked on. Fix it only if it is in the Hub.'],
+ ['AN APP WILL NOT START','An app on Home shows "did not start". Read its error in the facts below, find the cause and fix it if it is in the Hub.'],
+ ['RESTART TOOK TOO LONG','Restarting the Hub takes much longer than it should. Use the restart timing in the facts, find what the Hub does before it listens again, and propose the smallest change that shortens it.'],
+ ['THE HUB FEELS SLOW','The Hub feels slow or the page stutters. Look for work done on every request or every poll, repeated log lines, and anything that blocks the event loop; fix the worst one.'],
+ ['READ THE LAST HOUR','Nothing specific is wrong. Read the recent warnings and errors in the facts, group them, and say which matter. Change nothing unless one is clearly a bug.']];
+USES.forEach(u=>{const b=document.createElement('button');b.textContent=u[0];b.title=u[1];b.onclick=()=>{$('t').value=u[1];$('t').focus()};$('chips').appendChild(b)});
 async function load(){try{draw(await api('/api/support/state'))}catch(e){$('facts').textContent='Could not read the Hub: '+e.message}}
 $('ask').onclick=async()=>{$('ask').disabled=true;$('msg').textContent='';try{await api('/api/support/ask',{text:$('t').value,runtime:$('rt').value});$('t').value='';await load()}catch(e){$('msg').textContent=e.message}$('ask').disabled=false};
 $('rf').onclick=load;

@@ -60,6 +60,13 @@ def state() -> dict:
     ms = _mission_rows(now)
     attention: "list[dict]" = []
 
+    try:
+        from . import support as SUP
+        asked = SUP.last_asked()
+    except Exception:  # noqa: BLE001
+        asked = 0.0
+    just_asked = now - asked < 15 * 60
+
     for m in ms:
         if m["status"] in NEEDS_YOU:
             attention.append({"level": "amber", "kind": "mission", "id": m["id"], "go": "/missions",
@@ -70,7 +77,10 @@ def state() -> dict:
         elif m["status"] in FAILED and m["ended"] and now - m["ended"] < RECENT_FAIL_S:
             attention.append({"level": "red", "kind": "mission", "id": m["id"], "go": "/missions",
                               "title": "A mission failed in the last day",
-                              "detail": f'{m["project"]}: {m["error"] or m["brief"]}'})
+                              "detail": f'{m["project"]}: {m["error"] or m["brief"]}',
+                              "doctor": f'Mission {m["id"]} ({m["project"]}) ended {m["status"]}: {m["error"] or m["brief"]}. Find out why. '
+                                        "Fix it only if the cause is in the Hub's own code; otherwise say what went wrong.",
+                              "asked": just_asked})
 
     props = P.load()
     for p in props:
@@ -82,7 +92,14 @@ def state() -> dict:
     for aid, a in apps.items():
         if isinstance(a, dict) and a.get("last_error"):
             attention.append({"level": "red", "kind": "app", "id": aid, "go": "/",
-                              "title": f"{aid} did not start", "detail": _short(a["last_error"], 140)})
+                              "title": f"{aid} did not start", "detail": _short(a["last_error"], 140),
+                          "doctor": f'The app "{aid}" did not start: {_short(a["last_error"], 300)}. Find the cause.', "asked": just_asked})
+
+    n_err, newest_err, sample_err = D.recent_errors(now)
+    if n_err and newest_err > asked:                 # errors the doctor has not been asked about since they happened
+        attention.append({"level": "red", "kind": "hub-errors", "id": "hub-errors", "go": "/support",
+                          "title": f"The Hub logged {n_err} error{'s' if n_err != 1 else ''} in the last hour", "detail": sample_err,
+                          "doctor": f"The Hub logged {n_err} error(s) in the last hour. The newest: {sample_err}. Find the cause.", "asked": False})
 
     disk = D._free_gb(__import__("hub.runtime", fromlist=["STATE"]).STATE)
     if disk is not None and disk < LOW_DISK_GB:

@@ -133,6 +133,23 @@ def _work_dir() -> "str | None":
         return None
 
 
+def recent_errors(now: "float | None" = None, within_s: int = 3600) -> "tuple[int, float, str]":
+    """(how many, when the newest one was, a sample) of ERROR lines in the Hub's own in-memory log within `within_s`."""
+    now = time.time() if now is None else now
+    n, newest, sample = 0, 0.0, ""
+    for line in list(_ring):
+        if " ERROR " not in line:
+            continue
+        try:
+            t = time.mktime(time.strptime(line[:19], "%Y-%m-%d %H:%M:%S"))
+        except ValueError:
+            continue
+        if now - t <= within_s:
+            n += 1
+            newest, sample = max(newest, t), redact(line[20:])[:140]
+    return n, newest, sample
+
+
 def bundle(lines: int = 150) -> dict:
     lines = max(10, min(int(lines), RING_LINES))
     log = [redact(x) for x in list(_ring)]

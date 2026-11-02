@@ -209,6 +209,12 @@
         var r = li(x.level === 'red' ? 'r' : 'a', x.title, x.options ? '' : x.detail);
         if (x.options) { var bar = el('div'); bar.style.cssText = 'display:flex;gap:6px;padding:2px 10px 8px'; x.options.forEach(function (o) { var b = el('button', 'hb-btn', String(o.name || o.id).toUpperCase()); b.type = 'button'; b.onclick = function () { fetch('/api/acp/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: x.id, option: o.id }) }).then(function () { if (window.__hubHomePanels) window.__hubHomePanels.refresh(); }); }; bar.appendChild(b); }); a._in.appendChild(r); a._in.appendChild(bar); }
         else a._in.appendChild(r);
+        if (x.doctor) {
+          var db = el('div'); db.style.cssText = 'display:flex;gap:6px;padding:2px 10px 8px';
+          var ask = el('button', 'hb-btn', x.asked ? 'THE DOCTOR WAS ASKED' : 'ASK THE DOCTOR'); ask.type = 'button'; ask.disabled = !!x.asked;
+          ask.onclick = function () { ask.disabled = true; ask.textContent = 'ASKING…'; fetch('/api/support/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: x.doctor }) }).then(function () { if (window.__hubHomePanels) window.__hubHomePanels.refresh(); }); };
+          db.appendChild(ask); a._in.appendChild(db);
+        }
       });
       a.classList.toggle('amber', nA > 0); a.classList.toggle('red', data.attention.some(function (x) { return x.level === 'red'; }));
       var r = blocks.runs; r._in.replaceChildren(); var st = el('div', 'hb-stat'); st.appendChild(el('b', '', String(data.runs.length))); st.appendChild(el('span', '', data.runs.length ? data.runs.map(function (m) { return m.brief; }).slice(0, 2).join(' · ') : 'missions running')); r._in.appendChild(st);
