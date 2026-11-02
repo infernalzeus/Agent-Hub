@@ -28,6 +28,15 @@ def _short(text: str, n: int = 90) -> str:
     return text if len(text) <= n else text[: n - 1] + "…"
 
 
+def _title(brief: str) -> str:
+    """What a list should call a mission: a doctor's brief opens with its rules, so show what the owner asked instead."""
+    text = str(brief or "")
+    if text.startswith("You are the doctor for Agent Hub"):
+        ask = text.split("THE OWNER SAYS:", 1)[-1].split("FACTS FROM", 1)[0].split("RESTART TIMING", 1)[0].strip()
+        return "Doctor: " + (ask or "a look at the Hub")
+    return text
+
+
 def _mission_rows(now: float) -> "list[dict]":
     try:
         from . import missions as M
@@ -37,7 +46,7 @@ def _mission_rows(now: float) -> "list[dict]":
     out = []
     for m in sorted(rows, key=lambda x: x.created, reverse=True):
         out.append({
-            "id": m.id, "project": m.project_name, "brief": _short(m.brief), "status": m.status,
+            "id": m.id, "project": m.project_name, "brief": _short(_title(m.brief)), "status": m.status,
             "agent": m.agent, "runtime": m.runtime, "model": m.model,
             "age_s": int(now - (m.created or now)), "error": _short(m.error, 120),
             "ended": m.ended, "changed": len(m.changed_files),

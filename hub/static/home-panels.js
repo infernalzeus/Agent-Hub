@@ -10,14 +10,15 @@
   var KEY = function () { return 'agenthub:home-layout:' + (phone.matches ? 'phone' : 'desktop'); };
   var EASE = 'cubic-bezier(.2,.8,.2,1)';
   var DEFAULTS = {
-    desktop: { order: ['attention', 'runs', 'sessions', 'health'], min: {}, hidden: {} },
-    phone: { order: ['attention', 'sessions', 'runs', 'health'], min: { runs: 1, health: 1 }, hidden: {} }
+    desktop: { order: ['attention', 'runs', 'sessions', 'health', 'usage'], min: {}, hidden: {} },
+    phone: { order: ['attention', 'sessions', 'runs', 'health', 'usage'], min: { runs: 1, health: 1, usage: 1 }, hidden: {} }
   };
   var PANELS = {
     attention: { title: 'NEEDS ATTENTION', wide: true, icon: 'M12 3 2.5 20h19L12 3Zm0 6v5m0 3v.01' },
     runs: { title: 'RUNS', icon: 'M5 4l14 8-14 8V4Z' },
     sessions: { title: 'SESSIONS', icon: 'M4 5h16v10H4zM8 19h8M12 15v4' },
-    health: { title: 'HEALTH', icon: 'M3 12h4l2-6 4 12 2-6h6' }
+    health: { title: 'HEALTH', icon: 'M3 12h4l2-6 4 12 2-6h6' },
+    usage: { title: 'CLAUDE CODE USAGE', icon: 'M5 20V11M12 20V4M19 20v-6' }
   };
   var data = null, layout = load(), editing = false, els = {}, board = null;
 
@@ -102,6 +103,11 @@
       var rows = s.attention.map(function (a) {
         var r = row(a.level, a.title, a.options ? '' : a.detail, '', a.options ? null : a.go);
         if (a.options) { r.style.flexWrap = 'wrap'; a.options.forEach(function (o) { var b = el('button', 'hp-btn', String(o.name || o.id).toUpperCase()); b.type = 'button'; b.onclick = function () { fetch('/api/acp/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: a.id, option: o.id }) }).then(poll); }; r.appendChild(b); }); }
+        if (a.doctor) {            // a failed mission, an app that did not start, errors in the log: the same button as on the board
+          r.style.flexWrap = 'wrap'; var d = el('button', 'hp-btn', a.asked ? 'THE DOCTOR WAS ASKED' : 'ASK THE DOCTOR'); d.type = 'button'; d.disabled = !!a.asked;
+          d.onclick = function (e) { e.preventDefault(); e.stopPropagation(); d.disabled = true; d.textContent = 'ASKING…'; fetch('/api/support/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: a.doctor }) }).then(function () { if (window.__hubHomePanels) window.__hubHomePanels.refresh(); }); };
+          r.appendChild(d);
+        }
         return r;
       });
       return { node: list(rows, 'Nothing needs you right now.'), n: rows.length, level: s.attention.some(function (a) { return a.level === 'red'; }) ? 'red' : rows.length ? 'amber' : '' };
@@ -118,6 +124,14 @@
         f.appendChild(list(arr.map(function (m) { return row(x[2], m.brief, m.ask || m.project, m.agent, '/missions'); })));
       });
       return { node: f.children.length ? f : el('div', 'hp-empty', 'No agent session is waiting, working or recently finished.'), n: n, level: s.sessions.needs_you.length ? 'amber' : '' };
+    },
+    usage: function (s) {
+      var cu = s.usage && s.usage.claude; if (!cu) return { node: el('div', 'hp-empty', 'Counting Claude Code’s logs…'), n: 0 };
+      var f = el('div'), bars = el('div'), mx = Math.max.apply(null, cu.by_hour.concat([1]));
+      bars.style.cssText = 'display:flex;align-items:flex-end;gap:3px;height:62px;padding:6px 12px 2px';
+      cu.by_hour.forEach(function (v) { var i = el('i'); i.style.cssText = 'flex:1;background:linear-gradient(#3ba7ff,rgba(59,167,255,.25));border:1px solid rgba(59,167,255,.6);border-bottom:0;height:' + Math.max(2, Math.round(v / mx * 100)) + '%'; bars.appendChild(i); });
+      f.appendChild(bars); f.appendChild(el('div', 'hp-empty', cu.tokens_5h.toLocaleString() + ' tokens in 5 h · ' + cu.tokens_7d.toLocaleString() + ' in 7 days · counted from the logs, no plan limit'));
+      return { node: f, n: 0 };
     },
     health: function (s) {
       var h = s.health, f = el('div'), kv = el('div', 'hp-kv');

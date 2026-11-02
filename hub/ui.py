@@ -791,8 +791,12 @@ body.edit-mode .drag-handle{display:block}
 #loc-btn{--g:rgba(56,182,255,.85)}#loc-btn svg{width:20px;height:20px;stroke:#38b6ff;filter:drop-shadow(0 0 3px rgba(56,182,255,.85))}
 #loc-btn svg .loc-marker{fill:#070b25;stroke:#304a9d;stroke-width:2;filter:drop-shadow(0 0 2px rgba(48,74,157,.72))}
 @media (max-width:720px){#loc-btn svg{width:18px;height:18px}}
+/* On a phone the power button sits in the bottom-right corner, smaller, and the page keeps room under its last card, so it never
+   floats over a list or a card's buttons (it did, centred, over the Sessions rows and Auto-LLM's buttons). */
+@media (max-width:720px){.power-wrap{left:auto;right:calc(12px + env(safe-area-inset-right));bottom:calc(12px + env(safe-area-inset-bottom));transform:none;align-items:flex-end}.power-btn{width:52px;height:52px}.power-btn svg{width:34px;height:34px}body{padding-bottom:calc(84px + env(safe-area-inset-bottom))}}
 @media (max-width:720px){header{gap:5px;padding:calc(10px + env(safe-area-inset-top)) 10px 10px}.brand{font-size:13px;letter-spacing:2px}.orb-home{width:30px;height:30px}
   .conn-label{display:none}.restart-btn,.shutdown-btn{width:36px;height:36px;border-radius:11px}.restart-btn svg,.shutdown-btn svg{width:18px;height:18px}}
+@media (max-width:360px){.brand{font-size:11px;letter-spacing:1px}.header-controls{gap:3px}.header-controls>*{width:32px;height:32px;min-width:0}}
 .ico{width:14px;height:14px;vertical-align:-2px;margin-right:6px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .wire-out .ico,.yt-queue-del .ico{margin:0;width:13px;height:13px}
 header{column-gap:10px}.brand{white-space:nowrap}.header-shortcuts:empty{display:none}.conn-label{white-space:nowrap}
