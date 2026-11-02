@@ -48,7 +48,8 @@
       'html.hub-board-on,html.hub-board-on body{height:100%}html.hub-board-on{overflow:hidden;overflow:clip}html.hub-board-on body{overflow:visible;padding:0}',
       // The header and the first-time card float over the board as glass; the board itself is the whole window.
       'html.hub-board-on body>header{position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:30;width:auto;max-width:calc(100vw - 16px);margin:0;padding:6px 14px;background:rgba(6,10,36,.66);border:1px solid var(--border-dim,rgba(0,230,118,.28));border-radius:14px;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}',
-      'html.hub-board-on #setup-card{position:fixed;bottom:98px;left:50%;transform:translateX(-50%);z-index:29;width:min(560px,calc(100vw - 16px));max-height:34vh;overflow:auto;margin:0;background:rgba(36,28,12,.82);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}',
+      'html.hub-board-on #setup-card{position:fixed;bottom:98px;left:50%;transform:translateX(-50%);z-index:29;width:auto;max-width:calc(100vw - 16px);display:flex;align-items:center;gap:14px;padding:8px 14px;margin:0;background:rgba(36,28,12,.82);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}',
+      'html.hub-board-on #setup-card .sc-text{display:none}html.hub-board-on #setup-card[hidden]{display:none}',
       'html.hub-board-on #apps-before,html.hub-board-on #opencode-app-area,html.hub-board-on #ytdl-app-area,html.hub-board-on #yt-app-area,html.hub-board-on #filebrowser-area,html.hub-board-on #apps-after{display:none!important}',
       'html.hub-board-on #home-panels{height:0;margin:0;padding:0;overflow:visible}',
       '.hb-bar .hb-z.hint{flex:1 1 200px;min-width:0;white-space:normal;line-height:1.35;text-align:left}.hb-btn.off{color:var(--text-faint,#6fae92);border-style:dashed}.hb-btn.on{border-color:var(--accent,#00e676)}',
@@ -96,6 +97,7 @@
 
     root.replaceChildren(); // Home is a 520 px column; the board breaks out of it to the width of the window.
     root.style.width = 'min(96vw,1500px)'; root.style.maxWidth = 'none'; root.style.marginLeft = 'calc((100% - min(96vw,1500px)) / 2)'; root.style.boxSizing = 'border-box';
+    var setupCard = document.getElementById('setup-card'), setupText = setupCard && setupCard.querySelector('.sc-text'); if (setupText) setupCard.title = setupText.textContent;   // the first-time notice is a small chip over the board; the sentence is its tooltip
     var host = el('div', 'hb'), world = el('div', 'hb-world'), bar = el('div', 'hb-bar'), zh = el('div', 'hb-z', '100%'), tray = el('div', 'hb-tray');
     var fitBtn = el('button', 'hb-btn', 'FIT'), tidyBtn = el('button', 'hb-btn', 'TIDY'), zin = el('button', 'hb-btn', '+'), zout = el('button', 'hb-btn', '−');
     fitBtn.type = tidyBtn.type = zin.type = zout.type = 'button'; zin.title = 'Zoom in (Ctrl + wheel)'; zout.title = 'Zoom out (Ctrl + wheel)';
@@ -263,12 +265,12 @@
     }
     function collapse(id, faded) {
       var b = blocks[id], l = L[id]; if (!l.exp || l.closing) return;
-      if (!faded && motion.allowed()) { l.closing = true; b._in.animate([{opacity:1},{opacity:0}],{duration:120}).onfinish = function () { l.closing = false; if (alive) collapse(id, true); }; return; }
+      if (!faded && motion.allowed()) { l.closing = true; b.dataset.motion = 'close'; b._in.animate([{opacity:1},{opacity:0}],{duration:120}).onfinish = function () { l.closing = false; if (alive) collapse(id, true); }; return; }
       var before = b.getBoundingClientRect();
       if (b._from && b._home) { b._home.insertBefore(b._from, b._next || null); b._from = null; }
       b._in.replaceChildren.apply(b._in, b._icon || []); l.exp = 0; b._url = null; b.classList.remove('exp'); l.w = l.ow; l.h = l.oh; b.querySelector('.hk-h .t').textContent = b._name; applyBlock(id);
       Object.keys(L).forEach(function (k) { var o = L[k]; if (o.from && o.u) { o.x = o.from.x; o.y = o.from.y; settle(blocks[k]); applyBlock(k); } o.from = null; }); resolve(null);
-      if (motion) motion.flip(b, before, V.k, 'close');
+      if (motion) { motion.flip(b, before, V.k, 'close'); if (!b._flip) delete b.dataset.motion; }
       if (focusId === id) { focusId = null; undim(); fit(true); } else if (l.looked) fit(true);
       l.looked = 0;
     }
