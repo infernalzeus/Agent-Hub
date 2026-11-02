@@ -68,6 +68,30 @@ _TRAILING = __import__("re").compile(
     r"\s*\b(?:for me|please|now|again|up|app|application|program)\b\s*$", __import__("re").I)
 
 
+# "Play some songs from my Apple Music" has no "open" in it, and "open the playlist ADHD on Apple Music" has the app at the
+# END: read as one name it became an app called "playlist adhd on apple music" that the launcher fuzzily matched to Apple
+# Music, and the playlist was dropped (the 2 Nov transcript). The app is the last "on/in/from X"; what comes before it is the ask.
+_ACT_ON_RX = __import__("re").compile(
+    r"\b((?:play|put on|shuffle|queue|search for|search|find|pause|skip|add|download|show)\b[^,.;!?]*?)\s+"
+    r"(?:on|in|from|using|through|via|inside)\s+(?:my\s+|the\s+)?([a-z0-9][a-z0-9 '&.+-]{1,40}?)\s*[.?!]*$",
+    __import__("re").I)
+_THING_FIRST = __import__("re").compile(
+    r"^(?:(?:the|my)\s+)?(?:playlist|song|track|album|artist|folder|file|document|tab|channel|video|page|project|chat|library|music)s?\b"
+    r"|^(?:some|any)\s+\w+",
+    __import__("re").I)
+_ON_APP_RX = __import__("re").compile(
+    r"^(.+?)\s+(?:on|in|from|using|through|via|inside)\s+(?:my\s+|the\s+)?([a-z0-9][a-z0-9 '&.+-]{1,40})$", __import__("re").I)
+
+
+def _trim_name(name: str) -> str:
+    for _ in range(3):                       # "apple music for me please" -> "apple music"
+        trimmed = _TRAILING.sub("", name)
+        if trimmed == name:
+            break
+        name = trimmed
+    return name
+
+
 def classify_request(text: str) -> dict | None:
     """Classify a spoken or typed request into a task, before any routine is looked up.
 
@@ -77,14 +101,21 @@ def classify_request(text: str) -> dict | None:
     import re
     t = " ".join((text or "").casefold().split())
     m = _OPEN_RX.search(t)
+    if m and (on := _ON_APP_RX.match(m.group(1))) and _THING_FIRST.match(on.group(1)):
+        app = canonical_app_name(_trim_name(on.group(2)))
+        if len(app) >= 2 and app not in _NOT_A_NAME:
+            then = t[m.start():m.start(1) + len(on.group(1))].strip()          # "open the playlist adhd", "put on some music"
+            return {"kind": "launch_app", "app": app, "intent": _intent(app), "then": then}
     if not m:
-        return None
+        act = _ACT_ON_RX.search(t)
+        if not act:
+            return None
+        app = canonical_app_name(_trim_name(act.group(2)))
+        if len(app) < 2 or app in _NOT_A_NAME or _NOT_AN_APP.search(act.group(2)):
+            return None
+        return {"kind": "launch_app", "app": app, "intent": _intent(app), "then": act.group(1).strip()}
     name = m.group(1)
-    for _ in range(3):                       # "apple music for me please" -> "apple music"
-        trimmed = _TRAILING.sub("", name)
-        if trimmed == name:
-            break
-        name = trimmed
+    name = _trim_name(name)
     app = canonical_app_name(name)
     # "open the" must not resolve to an application called "the".
     if len(app) < 2 or app in _NOT_A_NAME or _NOT_AN_APP.search(name):
@@ -676,6 +707,23 @@ def parse_tree(text: str) -> "list[dict]":
     return out
 
 
+def container_of(nodes: "list[dict]", i: int) -> str:
+    """The name of the nearest named group a node sits in ("" at the top of its window).
+
+    Two controls can share a name ("Play" in the player bar, "Play" on a playlist, "Play" on a song); the group they sit in
+    is what tells them apart, so a routine stores it and a model is shown it.
+    """
+    own = (nodes[i].get("name") or "").strip()
+    p = nodes[i].get("parent")
+    while p is not None:
+        n = nodes[p]
+        nm = (n.get("name") or "").strip()
+        if n["control"] != "window" and nm and nm != own:
+            return nm
+        p = n.get("parent")
+    return ""
+
+
 def parse_snapshot(text: str) -> "list[dict]":
     """Every element with a position - what a routine can actually click.
 
@@ -683,9 +731,10 @@ def parse_snapshot(text: str) -> "list[dict]":
     x, y), so routine replay and identity matching did not have to change; they
     were correct, and simply never received anything to work on.
     """
-    return [{"window": n["window"], "control": n["control"], "name": n["name"],
+    nodes = parse_tree(text)
+    return [{"window": n["window"], "control": n["control"], "name": n["name"], "path": container_of(nodes, i),
              "x": n["x"], "y": n["y"], "action": "click" if n["clickable"] else ""}
-            for n in parse_tree(text) if "x" in n]
+            for i, n in enumerate(nodes) if "x" in n]
 
 
 _STABLE_CONTROLS = {"button", "tab item", "menu item", "toggle button"}
@@ -731,9 +780,10 @@ async def _raw_tree(app: str = "") -> "list[dict]":
 
 
 async def _snapshot(app: str = "") -> "list[dict]":
-    return [{"window": n["window"], "control": n["control"], "name": n["name"],
+    nodes = await _raw_tree(app)
+    return [{"window": n["window"], "control": n["control"], "name": n["name"], "path": container_of(nodes, i),
              "x": n["x"], "y": n["y"], "action": "click" if n["clickable"] else ""}
-            for n in await _raw_tree(app) if "x" in n]
+            for i, n in enumerate(nodes) if "x" in n]
 
 
 def _match(elements: list[dict], target: dict) -> dict | None:
@@ -744,6 +794,10 @@ def _match(elements: list[dict], target: dict) -> dict | None:
     """
     name, control = target.get("name", ""), (target.get("control") or "").lower()
     window = target.get("window", "")
+    if target.get("path"):                 # same name AND the same group: the playlist's Play, not the player bar's
+        for e in elements:
+            if e["name"] == name and e["control"] == control and e["window"] == window and e.get("path") == target["path"]:
+                return e
     for e in elements:
         if e["name"] == name and e["control"] == control and e["window"] == window:
             return e
@@ -1285,7 +1339,10 @@ def locate(nodes: "list[dict]", then: str, app: str = "") -> dict:
 
 def do_intent(app: str, then: str) -> str:
     """The key a taught follow-on is stored under, stable across wordings."""
-    return "do:" + canonical_app_name(app) + ":" + " ".join(sorted(content_words(then)))
+    # "play the ADHD playlist" and "open the ADHD playlist" name the same thing but are different jobs: the first must not be
+    # answered by a routine that only opens the page.
+    verb = "play:" if re.match(r"^\s*(?:play|resume|shuffle|put on)\b", then or "", re.I) else ""
+    return "do:" + canonical_app_name(app) + ":" + verb + " ".join(sorted(content_words(then)))
 
 
 def _ask(say: str, action: str, args: dict, label: str, detail: str = "") -> dict:
@@ -1319,9 +1376,9 @@ def _ask(say: str, action: str, args: dict, label: str, detail: str = "") -> dic
 
 def flatten(nodes: "list[dict]") -> "list[dict]":
     """The positioned elements of a tree, in the shape ui_signature expects."""
-    return [{"window": n["window"], "control": n["control"], "name": n["name"],
+    return [{"window": n["window"], "control": n["control"], "name": n["name"], "path": container_of(nodes, i),
              "x": n["x"], "y": n["y"], "action": "click" if n["clickable"] else ""}
-            for n in nodes if "x" in n]
+            for i, n in enumerate(nodes) if "x" in n]
 
 
 def window_state(nodes: "list[dict]", window: str) -> dict:
@@ -1376,11 +1433,34 @@ async def after(app: str, then: str, request: str, tree=None) -> dict:
         return {"ok": False, "say": f"Opened {name}. {got.get('say') or 'The recording did not run.'}"}
     if taught and taught["tool"] == "ui" and _steps(taught["id"]):
         got = await replay_ui_routine(taught, request)
+        if got.get("ok") and tree is None:
+            # A replay that changed the window is not a replay that played music: Windows says whether something is playing.
+            from . import desktop_agent as DA
+            heard = None
+            for _ in range(3 if DA.wants_music(then) else 0):       # a track takes a moment to start
+                heard = DA.playing_now(await DA.media_sessions(), app)
+                if heard:
+                    break
+                await asyncio.sleep(1.5)
+            if DA.wants_music(then) and not heard:
+                _remember_outcome(taught["id"], False)
+                got = {"ok": False, "route": "fall-through", "say": "It ran, but nothing is playing."}
         if got.get("ok"):
             return {"ok": True, "say": f"Opened {name} and {then}.", "routine": got.get("routine")}
         if got.get("route") != "fall-through":
             return {"ok": False, "say": f"Opened {name}. {got.get('say') or 'The rest did not run.'}"}
         # "Recorded on a different screen": nothing was pressed, so look at this screen afresh below.
+
+    # Nothing taught for this. A model that can see the app's controls does it step by step, and the outcome is
+    # checked (for music: Windows says it is playing). This used to stop at "Press X?" or "Record it?" for every ask.
+    if tree is None and os.environ.get("HUB_DESKTOP_AGENT", "1") != "0":
+        from . import desktop_agent as DA
+        got = await DA.run(then, app)
+        _record_run(request, "agent", "done" if got["ok"] else "failed",
+                    f"{then}: {got['say'][:140]} [{', '.join(t['model'] for t in got['tries'])}]", level="ui-tree" if got["ok"] else "")
+        if got["ok"]:
+            return {"ok": True, "say": f"Opened {name}. {got['say']}", "routine": got.get("routine"), "tries": got["tries"]}
+        logger.info("pc_control: the desktop agent could not %r in %s: %s", then, app, got["say"])
 
     try:
         nodes = await (tree(app) if tree else _raw_tree(app))

@@ -72,6 +72,7 @@ ACTIONS = {
     "pc_steps": {"desc": "Do a task on a web page or in an app from discrete steps the user gave (go to, click, type, press, expect), checking each step on screen. Offered after the user writes 'steps: ...', never chosen by a model.", "args": "steps, request", "confirm": True},
     "pc_path": {"desc": "Press a short, shown path of controls in a Windows app (for example open its navigation, then the item asked for), checking each step. Offered by the PC pipeline, never chosen by a model.", "args": "app, then, request, steps", "confirm": True},
     "pc_direct": {"desc": "Carry out a bounded PC command directly: open Edge, YouTube, Google, or a web search. PC control must be on.", "args": "kind, value (optional)", "confirm": False},
+    "media": {"desc": "Pause, resume, skip to the next song or go back, through the Windows media session, whatever player is open. Rules only.", "args": "command: pause|play|next|previous", "confirm": False},
     "pc_app": {"desc": "Open a named Windows application through the Windows MCP App tool and learn its launch routine. 'then' is the rest of the request, if the sentence asked for something inside the app as well.", "args": "app, request, then", "confirm": False},
     # The three ways the half of a request that lives inside another app's window
     # can be finished. Each is offered by pc_app's own answer, never chosen by a
@@ -422,6 +423,9 @@ async def run_action(aid: str, args: dict) -> dict:
             names = ", ".join(f"{k}{'' if v.get('enabled', True) else ' (switched off)'}" for k, v in s.items())
             extra = " Say enable PC control to switch it on." if any(not v.get("enabled", True) for v in s.values()) else ""
             return {"say": f"OpenCode has {len(s)} MCP server{'s' if len(s) != 1 else ''}: {names}. I can report on them and switch PC control on or off, but not add or change servers.{extra}"}
+        if aid == "media":
+            from . import desktop_agent as DA
+            return await DA.media_control(str(args.get("command") or ""))
         if aid == "pc_app":
             from . import pc_control as PC
             return await PC.launch_app(str(args.get("app") or ""), str(args.get("request") or args.get("app") or ""),
@@ -999,6 +1003,11 @@ async def _location_statement(text: str, heard: str) -> "dict | None":
     return _reply(f"Save {place} as your location?{heard_as}", ("remember_fact", {"key": "location", "value": place}), "rules", heard)
 
 
+# "Pause", "skip this song", "resume the music": the media session answers these; nothing needs clicking.
+_MEDIA_RX = re.compile(r"^(?:please |can you |could you |hey smith )*(pause|stop|resume|continue|unpause|play|next|skip|previous|back)"
+                       r"(?: the| this| that| my)?(?: (?:music|song|track|playback|songs|tune|playing))?(?: please)?[.!?]*$")
+
+
 async def _chat(text: str, history: "list | None" = None, mission_id: "str | None" = None, use_model: bool = True) -> dict:
     heard = text
     located = await _location_statement(text, heard)
@@ -1035,6 +1044,14 @@ async def _chat(text: str, history: "list | None" = None, mission_id: "str | Non
     if re.fullmatch(r"(?:what (?:mcp tools|pc control tools)(?: are available)?|mcp status|pc control status)", t):
         return _reply("", ("mcp_status", {}), "rules", heard)
     # "steps: go to ...; click ...; type ..." - discrete instructions: show the whole path, ask once.
+    heard_media = _MEDIA_RX.match(t)
+    if heard_media:
+        word = heard_media.group(1)
+        command = {"pause": "pause", "stop": "pause", "resume": "play", "continue": "play", "play": "play", "unpause": "play",
+                   "next": "next", "skip": "next", "previous": "previous", "back": "previous"}.get(word, "")
+        if command:
+            return _reply({"pause": "Pausing.", "play": "Resuming.", "next": "Skipping.", "previous": "Going back."}[command],
+                          ("media", {"command": command}), "rules", heard)
     from . import pc_steps as PS
     planned = PS.plan_reply(text)
     if planned:
