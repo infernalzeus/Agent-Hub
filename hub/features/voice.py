@@ -73,6 +73,7 @@ ACTIONS = {
     "pc_path": {"desc": "Press a short, shown path of controls in a Windows app (for example open its navigation, then the item asked for), checking each step. Offered by the PC pipeline, never chosen by a model.", "args": "app, then, request, steps", "confirm": True},
     "pc_direct": {"desc": "Carry out a bounded PC command directly: open Edge, YouTube, Google, or a web search. PC control must be on.", "args": "kind, value (optional)", "confirm": False},
     "media": {"desc": "Pause, resume, skip to the next song or go back, through the Windows media session, whatever player is open. Rules only.", "args": "command: pause|play|next|previous", "confirm": False},
+    "desktop_task": {"desc": "Do something INSIDE an installed Windows app on this PC - play a song or a playlist, open a page, search, press a control. It opens the app, works it step by step from its real controls, checks the result (for music: that Windows says it is playing) and keeps what worked as a routine. Use it for any such request; never say you cannot control an app.", "args": "app (the installed app's name), goal (what to do inside it, in the user's words)", "confirm": False},
     "pc_app": {"desc": "Open a named Windows application through the Windows MCP App tool and learn its launch routine. 'then' is the rest of the request, if the sentence asked for something inside the app as well.", "args": "app, request, then", "confirm": False},
     # The three ways the half of a request that lives inside another app's window
     # can be finished. Each is offered by pc_app's own answer, never chosen by a
@@ -93,12 +94,11 @@ def limits() -> list:
     elif not win["installed"]:
         pc = "Control the rest of the PC: NOT possible; a Windows MCP entry exists but its program is missing."
     elif not win["enabled"]:
-        pc = ("Control the rest of the PC: currently OFF. Windows MCP is installed and can be switched on with pc_control (needs a yes). Even when on, only OpenCode "
-              "agents inside an ask use it, and only to click, type, take screenshots, open apps, use the clipboard and scrape pages (PowerShell, registry, files and "
-              "process control are excluded); YOU do not click things yourself.")
+        pc = ("Control the rest of the PC: currently OFF. Windows MCP is installed and can be switched on with pc_control (needs a yes); until then, say that PC control "
+              "is off and offer to switch it on. Never say you are unable to control an app.")
     else:
-        pc = ("Control the rest of the PC: ON for OpenCode agents inside an ask (click, type, screenshots, apps, clipboard, scraping; PowerShell, registry, files and "
-              "process control are excluded). YOU do not click things yourself: start an ask for it.")
+        pc = ("Control the rest of the PC: ON. You CAN work inside any installed app (play music, open a playlist, search, press controls): use the desktop_task action "
+              "with the app's name and the goal. You see the app's real controls and check the result, so do not say you cannot control it.")
     return [pc,
             "Add, edit or remove MCP servers by voice: NOT built. You can only report them and switch PC control on or off.",
             "Change folder locations by voice: NOT built; you can open the Locations page.",
@@ -257,6 +257,23 @@ def _mcp_servers() -> dict:
 def capabilities_text() -> str:
     can = "\n".join(f"- {k}({v['args']}): {v['desc']}{' [needs the user to say yes first]' if v['confirm'] else ''}" for k, v in ACTIONS.items())
     return "YOU CAN DO (action ids):\n" + can + "\n\nYOU CANNOT DO (say so plainly, and say what would be needed):\n" + "\n".join("- " + x for x in limits())
+
+
+def machine_text() -> str:
+    """What is on this PC, for the model: without it the model only knew about asks and said it could not do anything else."""
+    try:
+        from . import pc_control as PC
+        hist = sorted(PC._launch_history().items(), key=lambda kv: -kv[1])[:12]
+        with PC._db() as db:
+            known = [r["title"] for r in db.execute("SELECT title FROM pc_routines WHERE status!='disabled' AND tool IN ('ui','surface') ORDER BY updated DESC LIMIT 10")]
+    except Exception:
+        hist, known = [], []
+    lines = []
+    if hist:
+        lines.append("Apps the user opens: " + ", ".join(PC.display_app_name(a) for a, _ in hist) + ".")
+    if known:
+        lines.append("Things already learned on this PC (replayed with no thinking): " + "; ".join(known) + ".")
+    return ("\n\nTHIS PC:\n" + "\n".join(lines)) if lines else ""
 
 
 def help_text() -> str:
@@ -426,6 +443,12 @@ async def run_action(aid: str, args: dict) -> dict:
         if aid == "media":
             from . import desktop_agent as DA
             return await DA.media_control(str(args.get("command") or ""))
+        if aid == "desktop_task":
+            from . import pc_control as PC
+            app, goal = str(args.get("app") or ""), str(args.get("goal") or args.get("text") or "")
+            if not app or not goal:
+                return {"ok": False, "say": "Tell me which app, and what to do in it."}
+            return await PC.launch_app(app, goal, goal)
         if aid == "pc_app":
             from . import pc_control as PC
             return await PC.launch_app(str(args.get("app") or ""), str(args.get("request") or args.get("app") or ""),
@@ -683,17 +706,17 @@ def _schema() -> dict:
     return {"type": "object", "properties": {
         "say": {"type": "string"},
         "action": {"type": "string", "enum": ["none"] + list(ACTIONS)},
-        "page": {"type": "string"}, "mission": {"type": "string"}, "text": {"type": "string"}, "project": {"type": "string"}, "url": {"type": "string"}, "state": {"type": "string", "enum": ["on", "off"]}, "key": {"type": "string"}, "value": {"type": "string"}, "name": {"type": "string"}},
+        "page": {"type": "string"}, "mission": {"type": "string"}, "text": {"type": "string"}, "project": {"type": "string"}, "url": {"type": "string"}, "state": {"type": "string", "enum": ["on", "off"]}, "key": {"type": "string"}, "value": {"type": "string"}, "name": {"type": "string"}, "app": {"type": "string"}, "goal": {"type": "string"}},
         "required": ["say", "action"]}
 
 
 _SYSTEM = (
     "You are the voice of Agent Hub, a personal hub that runs AI 'asks' (missions) on the user's projects and fronts a few apps. You are talking "
     "aloud, so answer in one or two short plain sentences, British English, no lists, no markdown. Be professional, warm and respectful; "
-    "avoid sarcasm, jokes about failures, curt replies like 'Yes?', and repeating your introduction. Use ONLY the facts in HUB STATE; never invent "
+    "avoid sarcasm, jokes about failures, curt replies like 'Yes?', and repeating your introduction. Use ONLY the facts in HUB STATE and THIS PC; never invent "
     "an ask, a project or a result. If the user wants something you can do, set action to its id and fill the fields it needs (mission = an exact "
     "ask id from HUB STATE); otherwise action is none. When the user says open it, show me or read it about an ask, use open_mission. Always put a short sentence in say. Actions that need a yes are only proposed: say what you are about to do and ask for a yes. "
-    "If the user asks for something you cannot do, say so plainly and say what would be needed. If it is unclear which ask they mean, ask one short "
+    "If the user asks for something you cannot do, say so plainly and say what would be needed. When a request is about music, a video or a document and names no app, use the app the user opens most that fits, from THIS PC. If it is unclear which ask they mean, ask one short "
     "question instead of guessing. If they just chat, chat back briefly and offer what you can do.\n\n")
 
 
@@ -749,7 +772,7 @@ async def _llm(text: str, history: list, mission_id: "str | None") -> "dict | No
     if not chain:
         _LLM_WHY = "unavailable"
         return None
-    msgs = [{"role": "system", "content": _SYSTEM + capabilities_text() + "\n\nHUB STATE:\n" + snapshot(mission_id) + _memory_text(text)}]
+    msgs = [{"role": "system", "content": _SYSTEM + capabilities_text() + "\n\nHUB STATE:\n" + snapshot(mission_id) + machine_text() + _memory_text(text)}]
     for h in (history or [])[-8:]:
         role = "assistant" if h.get("role") in ("assistant", "hub") else "user"
         msgs.append({"role": role, "content": str(h.get("text", ""))[:400]})
@@ -995,6 +1018,8 @@ async def _location_statement(text: str, heard: str) -> "dict | None":
 
 
 # "Pause", "skip this song", "resume the music": the media session answers these; nothing needs clicking.
+_NOW_RX = re.compile(r"^(?:(?:can you |could you )?(?:tell me |say )?)?(?:what(?:'s| is)(?: the)?(?: song| track| music| tune)?(?: that(?:'s| is))? (?:playing|on)(?: right now| now)?|what am i listening to|what song is (?:this|playing)|what(?:'s| is) this (?:song|track)|who(?:'s| is) (?:singing|playing) this)[?.!]*$")
+_VOLUME_RX = re.compile(r"^(?:please |can you |could you )*(?:turn (?:the )?volume (up|down)|volume (up|down)|turn it (up|down)|(louder|quieter|softer)|(mute|unmute)(?: it| the sound| the music)?)(?: please)?[.!?]*$")
 _MEDIA_RX = re.compile(r"^(?:please |can you |could you |hey smith )*(pause|stop|resume|continue|unpause|play|next|skip|previous|back)"
                        r"(?: the| this| that| my)?(?: (?:music|song|track|playback|songs|tune|playing))?(?: please)?[.!?]*$")
 
@@ -1035,6 +1060,22 @@ async def _chat(text: str, history: "list | None" = None, mission_id: "str | Non
     if re.fullmatch(r"(?:what (?:mcp tools|pc control tools)(?: are available)?|mcp status|pc control status)", t):
         return _reply("", ("mcp_status", {}), "rules", heard)
     # "steps: go to ...; click ...; type ..." - discrete instructions: show the whole path, ask once.
+    if _NOW_RX.match(t):
+        from . import desktop_agent as DA
+        now = await DA.media_sessions()
+        top = next((m for m in now if m.get("status") == "Playing"), None) or (now[0] if now else None)
+        if not top or not top.get("title"):
+            return _reply("Nothing is playing that Windows can see.", None, "rules", heard)
+        state = "is playing" if top.get("status") == "Playing" else "is paused on"
+        by = f" by {top.get('artist')}" if top.get("artist") else ""
+        from . import pc_control as PC
+        who = next((n for n in await PC.start_app_names() if PC._squash(n) and PC._squash(n) in PC._squash(top.get("app"))), "") or "Your player"
+        return _reply(f"{who} {state} “{top.get('title')}”{by}.", None, "rules", heard)
+    vol = _VOLUME_RX.match(t)
+    if vol:
+        word = next(g for g in vol.groups() if g)
+        command = {"up": "volume_up", "louder": "volume_up", "down": "volume_down", "quieter": "volume_down", "softer": "volume_down", "mute": "mute", "unmute": "mute"}[word]
+        return _reply({"volume_up": "Turning it up.", "volume_down": "Turning it down.", "mute": "Toggling mute."}[command], ("media", {"command": command}), "rules", heard)
     heard_media = _MEDIA_RX.match(t)
     if heard_media:
         word = heard_media.group(1)
@@ -1063,7 +1104,19 @@ async def _chat(text: str, history: "list | None" = None, mission_id: "str | Non
                 return _reply(asked["say"].split(":")[0] + ". PC control is off, so I did not open it. "
                               "Switch on the wireframe PC button beside TALK and ask again.", None, "rules", heard)
         return _reply(asked["say"], act, "rules", heard)
-    direct = _direct_pc_request(text)
+    from . import pc_control as PC
+    taught = PC.untaught(text)
+    if taught != text:                                  # "record a routine for playing X": doing it once, checked, is how it is learned
+        text = taught
+        t = _clean(text)
+    mention = None
+    if use_model and not PC.classify_request(text):
+        try:
+            from . import desktop_agent as DA
+            mention = await PC.mention_task(text, await DA.media_sessions() if re.match(r"^(?:(?:can|could|would) you |please )*(?:play|put on|shuffle|queue)\b", t) else None)
+        except Exception as exc:
+            logger.info("voice: could not tell which app that was about: %s", exc)
+    direct = None if mention else _direct_pc_request(text)
     if direct:
         from . import mcp as MCP
         win = next((x for x in MCP.servers() if x["name"] == "windows"), None)
@@ -1077,14 +1130,18 @@ async def _chat(text: str, history: "list | None" = None, mission_id: "str | Non
                 return _reply(f"Carrying out the first part. I can't do the rest yet: {rest}.", ("pc_direct", direct), "rules", heard)
             return _reply("Carrying that out directly.", ("pc_direct", direct), "rules", heard)
         return _reply("PC control is off. Switch on the wireframe PC button beside TALK, then I can directly open Edge, YouTube, Google, or a web search.", None, "rules", heard)
-    from . import pc_control as PC
-    task = PC.classify_request(text)
+    task = PC.classify_request(text) or mention
     # The launcher is sure of an app it can place. When it is not - a name it cannot find, or no command
     # at all - the decision model is asked what was meant, before anything is guessed at.
     sure = False
     if task and task["kind"] == "launch_app":
         try:
-            sure = PC.resolve_app(task["app"], await PC.start_app_names())["status"] in ("exact", "likely")
+            found = PC.resolve_app(task["app"], await PC.start_app_names())
+            sure = found["status"] in ("exact", "likely")
+            if found["status"] == "unknown" and task.get("explicit") and await PC.start_app_names():
+                # "play something on Spotify" with no Spotify installed: say so, instead of asking "which app?" about an app that was named
+                near = ", ".join(found["options"][:3])
+                return _reply(f"I can't find an app called {task['app'].title()} on this PC." + (f" The closest are {near}." if near else ""), None, "rules", heard)
         except Exception:
             sure = True
     if use_model and not sure and not CONV.match(text) and not smalltalk(text, history or []):
@@ -1149,7 +1206,7 @@ async def _chat(text: str, history: "list | None" = None, mission_id: "str | Non
             return _reply("That response took too long. Please try again, or use a simple command such as open missions.", None, "rules", heard)
         if got:
             j, aid = got, str(got.get("action") or "none")
-            args = {k: j[k] for k in ("page", "mission", "text", "project", "url", "state", "key", "value", "name") if j.get(k)}
+            args = {k: j[k] for k in ("page", "mission", "text", "project", "url", "state", "key", "value", "name", "app", "goal") if j.get(k)}
             if aid == "pc_control" and args.get("state") not in ("on", "off"):
                 return _reply("Would you like PC control switched on or off?", None, "model", heard)
             if aid in ("open_mission", "mission_info") and not args.get("mission") and mission_id:

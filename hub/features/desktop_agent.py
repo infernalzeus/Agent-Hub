@@ -194,10 +194,29 @@ async def media_sessions(command: str = "") -> "list[dict]":
         return []
 
 
+_VOLUME_KEYS = {"volume_down": 174, "volume_up": 175, "mute": 173}
+
+
+async def _press_media_key(code: int, times: int) -> None:
+    script = "$s = New-Object -ComObject WScript.Shell; 1.." + str(times) + " | ForEach-Object { $s.SendKeys([char]" + str(code) + ") }"
+    enc = base64.b64encode(script.encode("utf-16-le")).decode()
+
+    def run() -> None:
+        subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-EncodedCommand", enc], capture_output=True, timeout=15,
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    await asyncio.get_running_loop().run_in_executor(None, run)
+
+
 async def media_control(command: str) -> dict:
-    """Pause, resume, skip or go back through the Windows media session - no screen driving needed. Says what it found."""
+    """Pause, resume, skip or go back through the Windows media session - no screen driving needed - or change the volume with the
+    keyboard's own volume keys. Says what it found."""
+    if command in _VOLUME_KEYS:
+        if sys.platform != "win32":
+            return {"ok": False, "say": "I can only change the volume on Windows."}
+        await _press_media_key(_VOLUME_KEYS[command], 1 if command == "mute" else 5)         # five presses is about ten per cent
+        return {"ok": True, "say": {"volume_up": "Turned up.", "volume_down": "Turned down.", "mute": "Mute toggled."}[command]}
     if command not in _MEDIA_CMDS:
-        return {"ok": False, "say": "I can pause, resume, skip to the next song or go back."}
+        return {"ok": False, "say": "I can pause, resume, skip to the next song, go back, or change the volume."}
     before = await media_sessions()
     if not before:
         return {"ok": False, "say": "Nothing is open that I can control: no player has a media session."}

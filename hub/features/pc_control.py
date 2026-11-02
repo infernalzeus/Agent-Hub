@@ -92,6 +92,25 @@ def _trim_name(name: str) -> str:
     return name
 
 
+_TEACH_RX = __import__("re").compile(
+    r"^(?:(?:hey )?smith[, ]*)?(?:(?:can|could|would) you |please )*(?:record|learn|teach yourself|teach you|remember|save)\s+"
+    r"(?:(?:a|the|this)\s+)?(?:routine\s+|macro\s+|way\s+|how\s+)?(?:for|to|of)?\s*(.+?)[.?!]*$", __import__("re").I)
+_GERUND = {"playing": "play", "opening": "open", "searching": "search", "finding": "find", "starting": "start", "shuffling": "shuffle",
+           "pausing": "pause", "queueing": "queue", "downloading": "download", "showing": "show", "adding": "add"}
+
+
+def untaught(text: str) -> str:
+    """"record a routine for playing the ADHD playlist" -> "play the ADHD playlist". The Hub learns a task by doing it once
+    and checking it worked, so asking it to learn one is asking it to do it. Returns the text unchanged when it is not that."""
+    m = _TEACH_RX.match(" ".join((text or "").split()))
+    if not m:
+        return text
+    inner = m.group(1).strip()
+    first, _, rest = inner.partition(" ")
+    inner = (_GERUND.get(first.casefold(), first) + (" " + rest if rest else "")).strip()
+    return inner if len(inner) >= 4 else text
+
+
 def classify_request(text: str) -> dict | None:
     """Classify a spoken or typed request into a task, before any routine is looked up.
 
@@ -105,7 +124,11 @@ def classify_request(text: str) -> dict | None:
         app = canonical_app_name(_trim_name(on.group(2)))
         if len(app) >= 2 and app not in _NOT_A_NAME:
             then = t[m.start():m.start(1) + len(on.group(1))].strip()          # "open the playlist adhd", "put on some music"
-            return {"kind": "launch_app", "app": app, "intent": _intent(app), "then": then}
+            more = _LEADING.sub("", t[m.end():].strip(" ,.;!?")).strip()
+            more = _TRAILING.sub("", more).strip()
+            if len(more) >= 3:                                                # "... and shuffle it": the rest of the sentence goes with it
+                then += " and " + more
+            return {"kind": "launch_app", "app": app, "intent": _intent(app), "then": then, "explicit": True}
     if not m:
         act = _ACT_ON_RX.search(t)
         if not act:
@@ -113,7 +136,7 @@ def classify_request(text: str) -> dict | None:
         app = canonical_app_name(_trim_name(act.group(2)))
         if len(app) < 2 or app in _NOT_A_NAME or _NOT_AN_APP.search(act.group(2)):
             return None
-        return {"kind": "launch_app", "app": app, "intent": _intent(app), "then": act.group(1).strip()}
+        return {"kind": "launch_app", "app": app, "intent": _intent(app), "then": act.group(1).strip(), "explicit": True}
     name = m.group(1)
     name = _trim_name(name)
     app = canonical_app_name(name)
@@ -129,6 +152,79 @@ def classify_request(text: str) -> dict | None:
     rest = _TRAILING.sub("", rest).strip()
     return {"kind": "launch_app", "app": app, "intent": _intent(app),
             "then": rest if len(rest) >= 3 else ""}
+
+
+# Words that are also installed apps' names ("Photos", "Mail", "Clock"): a sentence is not about those unless it says "open".
+_COMMON_APP_WORDS = {"photos", "mail", "clock", "calendar", "camera", "maps", "weather", "news", "store", "settings", "movies", "calculator",
+                     "files", "music", "video", "paint", "notes", "people", "phone", "tips", "help", "edge", "chrome", "browser", "google",
+                     "youtube", "firefox", "terminal", "windows", "search", "voice", "recorder", "sound", "games", "xbox", "teams"}
+_ACTION_START = re.compile(r"^(?:(?:hey )?smith[, ]*)?(?:(?:can|could|would) you |please |i want you to |i'd like you to )*"
+                           r"(?:play|put on|shuffle|queue|search|find|look up|show|add|download|pause|skip|open|press|click|type|select|start)\b", re.I)
+_MUSIC_APP = re.compile(r"music|spotify|itunes|vlc|foobar|winamp|tidal|deezer|groove|musicbee|aimp", re.I)
+
+
+def _squash(s: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", (s or "").casefold())
+
+
+def mentioned_app(text: str, names: "list[str]") -> str:
+    """The installed app a sentence is about, by name ("search Apple Music for Daft Punk" -> "apple music"), or "".
+
+    Longest name wins. Names that are also everyday words are left out (see _COMMON_APP_WORDS)."""
+    t = " " + re.sub(r"[^a-z0-9&+.' -]+", " ", (text or "").casefold()) + " "
+    best = ""
+    for n in names or []:
+        k = canonical_app_name(n)
+        if len(k) < 5 or k in _COMMON_APP_WORDS or len(k) <= len(best):
+            continue
+        if f" {k} " in t or f" {k}'s " in t:
+            best = k
+    return best
+
+
+def default_music_app(names: "list[str]", playing: "list[dict] | None" = None) -> str:
+    """Which app "play the ADHD playlist" means when it does not say: the one playing or paused right now, else the music app
+    that has been opened most often."""
+    for m in playing or []:
+        sq = _squash(m.get("app"))
+        for n in names or []:
+            if _squash(n) and _squash(n) in sq:
+                return canonical_app_name(n)
+    best, top = "", 0
+    for app, n in _launch_history().items():
+        if _MUSIC_APP.search(app) and n > top:
+            best, top = app, n
+    return canonical_app_name(best)
+
+
+def strip_mention(text: str, app: str) -> str:
+    """The ask without the app and the politeness around it: "can you search Apple Music for Daft Punk?" -> "search for daft punk"."""
+    t = " ".join((text or "").casefold().split())
+    t = re.sub(r"\b(?:on|in|from|using|with|through|inside|within|at|via)?\s*(?:my\s+|the\s+)?" + re.escape(app) + r"(?:'s)?\b", " ", t, count=1)
+    t = re.sub(r"^(?:(?:hey )?smith[, ]*)?(?:(?:can|could|would) you |please |i want you to |i'd like you to )+", "", t.strip())
+    t = re.sub(r"\b(?:for me|please)\b", " ", t)
+    return " ".join(t.strip(" ,.;!?").split())
+
+
+async def mention_task(text: str, playing: "list[dict] | None" = None) -> "dict | None":
+    """A task for a sentence that names an installed app without the "open ... on ..." shape, or an app-less "play ..." (the app is then
+    the one already playing, or the most-used music app). None when the sentence is about neither."""
+    if not _ACTION_START.match(" ".join((text or "").casefold().split())):
+        return None
+    names = await start_app_names()
+    if not names:
+        return None
+    app = mentioned_app(text, names)
+    why = "mentioned"
+    if not app and re.match(r"^(?:(?:can|could|would) you |please )*(?:play|put on|shuffle|queue)\b", " ".join(text.casefold().split())):
+        app, why = default_music_app(names, playing), "default music app"
+    if not app:
+        return None
+    then = strip_mention(text, app) if why == "mentioned" else " ".join(text.casefold().split()).strip(" ?.!")
+    then = re.sub(r"^(?:(?:can|could|would) you |please )+", "", then)
+    if len(then) < 3:
+        return None
+    return {"kind": "launch_app", "app": app, "intent": _intent(app), "then": then, "why": why}
 
 
 def _consolidate_launch_routines(db: sqlite3.Connection) -> None:
