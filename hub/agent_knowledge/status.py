@@ -25,7 +25,6 @@ _WIKILINK_RE = re.compile(r"\[\[([^\]|#]+)")
 
 MARKER_NAME = ".agent-hub-source.json"
 READY_MARKER_NAME = ".agent-hub-ready-to-push"
-NOISE_DIRS = {".git", "node_modules", "__pycache__", ".venv", ".mypy_cache", ".pytest_cache", ".ocdata"}
 # Hub-injected scaffolding dropped into a worktree — never "the agent changed
 # the project". A linked worktree shares .git/info/exclude with the real repo,
 # so we cannot gitignore these there; filter them here instead.

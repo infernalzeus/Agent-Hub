@@ -23,9 +23,6 @@ FILE = RT.STATE / 'onboarding.json'
 _task = None
 _state_lock = threading.RLock()
 _busy = asyncio.Lock()
-# The two that make a Hub a Hub. Shown first, and starred. Nothing is forced:
-# 'Set up as I use it' still walks past all of them.
-RECOMMENDED = ('tailscale', 'agents')
 
 CAPABILITIES = {
     'tailscale': ('Private device access', 'Install Tailscale, then sign in on this PC and every device using the same tailnet.'),

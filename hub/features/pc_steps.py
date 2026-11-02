@@ -144,11 +144,6 @@ def _remember(steps: "list[dict]", ok: bool) -> dict:
     return row
 
 
-# -- doing it --------------------------------------------------------------------------------------------------------
-def _flags(node: dict) -> str:
-    return PC.step_blocker(node, "Click")
-
-
 async def _find(name: str, nodes: "list[dict]") -> dict:
     # A control whose whole name is what was asked for beats any word-by-word match ("Search" the link over
     # "Search" the word inside a heading); only when there is no such control does the looser lookup run.

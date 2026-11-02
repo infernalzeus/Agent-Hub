@@ -134,11 +134,6 @@ def cancel() -> bool:
     return True
 
 
-def clear_result() -> None:
-    """Drop the record once its outcome has been shown."""
-    cancel()
-
-
 # macOS and Linux have the same problem and a simpler answer: no registry, and a
 # shell that can replace a running script's own files once the process is gone.
 # What breaks instead is the launcher entry - a .desktop file on Linux, a Dock or

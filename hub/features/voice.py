@@ -783,15 +783,6 @@ async def _llm(text: str, history: list, mission_id: "str | None") -> "dict | No
 # next time the same request arrives it just works. Without the remembering this
 # is an interrogation; without the asking it is a dead end.
 
-# Which requests need which fact now lives with the routines that need them
-# (converse.py): a routine declares what it needs, instead of this file keeping a
-# second list of phrases. The tuple below is unused and kept only so an old
-# import does not break.
-_NEEDS_FACT = (
-    (re.compile(r"\b(weather|forecast|rain|temperature|how (?:hot|cold|warm))\b", re.I), "location"),
-    (re.compile(r"\bwhat(?:'s| is) it like outside\b", re.I), "location"),
-    (re.compile(r"\b(?:what time|the time)\b.*\b(?:here|for me|local)\b", re.I), "timezone"),
-)
 _TELLING = re.compile(
     r"^(?:my |the )?(?P<key>location|timezone|time zone|name|units)\s*(?:is|=|:)\s*(?P<value>.+)$", re.I)
 _CORRECT = re.compile(

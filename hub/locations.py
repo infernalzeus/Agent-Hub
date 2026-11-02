@@ -313,19 +313,6 @@ def recent_downloads() -> list[str]:
     return [x for x in v if isinstance(x, str)] if isinstance(v, list) else []
 
 
-def remember_download(path: str) -> None:
-    """Keep the last few folders a download was sent to, newest first, so the SAVE TO list can offer them again."""
-    recents = [path] + [x for x in recent_downloads() if x != path]
-    merged = dict(saved())
-    merged["recent_downloads"] = recents[:6]
-    FILE.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(FILE.parent), suffix=".tmp")
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        json.dump(merged, f, indent=2, ensure_ascii=False)
-    os.replace(tmp, FILE)
-    _CACHE["stamp"] = None
-
-
 def suggest_sources() -> list[dict]:
     """Folders under the usual places that already hold several git repos, with counts."""
     cands = [HOME, HOME / "Documents", HOME / "Documents" / "GitHub", HOME / "source" / "repos", HOME / "Projects", HOME / "dev", HOME / "code", HOME / "repos"]

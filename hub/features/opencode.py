@@ -57,7 +57,6 @@ WORKTREES = Path(LOC.get("work_dir"))
 PUBLIC_BASE = 8100
 PORT_SPAN = 40                     # public 8100–8139
 INTERNAL_OFFSET = 1000             # private serve on public+1000 (9100–9139)
-PUBLIC_RANGE = range(PUBLIC_BASE, PUBLIC_BASE + PORT_SPAN)
 INTERNAL_RANGE = range(PUBLIC_BASE + INTERNAL_OFFSET, PUBLIC_BASE + PORT_SPAN + INTERNAL_OFFSET)
 
 # The Scratch workspace — one always-present repo-less workspace (quick chats,
@@ -128,17 +127,6 @@ def _port_bindable(port: int) -> bool:
     try:
         s.bind(("0.0.0.0", port))
         return True
-    except OSError:
-        return False
-    finally:
-        s.close()
-
-
-def _listening(port: int) -> bool:
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.settimeout(0.25)
-    try:
-        return s.connect_ex(("127.0.0.1", port)) == 0
     except OSError:
         return False
     finally:

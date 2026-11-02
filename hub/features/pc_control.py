@@ -1433,7 +1433,7 @@ async def after(app: str, then: str, request: str, tree=None) -> dict:
         return {"ok": False, "say": f"Opened {name}. {got.get('say') or 'The recording did not run.'}"}
     if taught and taught["tool"] == "ui" and _steps(taught["id"]):
         got = await replay_ui_routine(taught, request)
-        if got.get("ok") and tree is None:
+        if got.get("ok") and tree is None and os.environ.get("HUB_DESKTOP_AGENT", "1") != "0":
             # A replay that changed the window is not a replay that played music: Windows says whether something is playing.
             from . import desktop_agent as DA
             heard = None

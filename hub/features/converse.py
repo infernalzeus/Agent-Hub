@@ -87,14 +87,6 @@ class ProcedureError(Exception):
     """The procedure ran but did not produce a result it can stand behind."""
 
 
-class Ambiguous(Exception):
-    """More than one thing fits, and guessing would be a confident wrong answer."""
-
-    def __init__(self, options: "list[dict]", why: str = ""):
-        super().__init__(why or "more than one place fits")
-        self.options = options
-
-
 # -- the store -------------------------------------------------------------------
 def load() -> "list[dict]":
     try:

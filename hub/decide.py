@@ -37,10 +37,6 @@ def q_choice(qid: str, text: str, options: list[str], descriptions: "dict[str, s
     return q
 
 
-def q_score(qid: str, text: str, scale: int = 5) -> dict:
-    return {"id": qid, "text": text, "options": [str(i) for i in range(1, scale + 1)]}
-
-
 # ── backend 1: rules ─────────────────────────────────────────────────────────────────────────────────────────────────
 RULES: dict[str, Callable[[dict], "tuple[str, float] | None"]] = {}
 

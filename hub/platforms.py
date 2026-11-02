@@ -61,28 +61,6 @@ def power_commands() -> dict[str, list[str]]:
     return dict(_POWER_COMMANDS["windows"]) if WINDOWS else {}
 
 
-# ── installing things ────────────────────────────────────────────────────────
-def package_manager() -> tuple[str, list[str]] | None:
-    """(name, command prefix) for installing a third-party tool, if there is one."""
-    if WINDOWS and shutil.which("winget"):
-        return "winget", ["winget", "install", "--exact", "--accept-package-agreements",
-                          "--accept-source-agreements", "--id"]
-    if MACOS and shutil.which("brew"):
-        return "brew", ["brew", "install"]
-    if LINUX and shutil.which("apt-get"):
-        return "apt", ["sudo", "apt-get", "install", "-y"]
-    return None
-
-
-def open_path(path: str) -> list[str]:
-    """Command that shows a folder in the desktop's file manager."""
-    if WINDOWS:
-        return ["explorer.exe", path]
-    if MACOS:
-        return ["open", path]
-    return ["xdg-open", path]
-
-
 def tailscale_exe() -> str:
     """Default location of the Tailscale CLI for this OS."""
     found = shutil.which("tailscale")
@@ -96,12 +74,3 @@ def tailscale_exe() -> str:
     return "/usr/bin/tailscale"
 
 
-def unsupported_note(capability: str) -> str:
-    """Why a capability is missing here — shown instead of a dead control."""
-    if capability in CAPABILITIES:
-        return ""
-    return {
-        "power": "Power controls are Windows-only for now.",
-        "pc_control": "PC control needs a Windows MCP provider; not available on " + NAME + " yet.",
-        "smb_share": "Windows-managed share credentials are Windows-only; mount the share yourself on " + NAME + ".",
-    }.get(capability, capability + " is not available on " + NAME + ".")
