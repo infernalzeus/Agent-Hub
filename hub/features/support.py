@@ -27,6 +27,17 @@ from ..runtime import STATE, write_json
 
 routes = web.RouteTableDef()
 FILE = STATE / "support_missions.json"
+SETTINGS = STATE / "support_settings.json"
+RUNTIMES = ("claude-code", "opencode")     # how the doctor works: Claude Code (default) or the local-first OpenCode team
+
+
+def default_runtime() -> str:
+    """The method the doctor uses when nobody picks one for this ask: what the owner chose on the Support page, else Claude Code."""
+    try:
+        v = json.loads(SETTINGS.read_text(encoding="utf-8")).get("runtime")
+        return v if v in RUNTIMES else RUNTIMES[0]
+    except (OSError, ValueError, AttributeError):
+        return RUNTIMES[0]
 
 RULES = """You are the doctor for Agent Hub, a Python (aiohttp) app. Your working copy is a private git worktree of its repository;
 nothing you change reaches the running Hub until the owner presses APPLY, and the owner restarts it. Rules:
@@ -114,7 +125,8 @@ def latest() -> "dict | None":
     return None
 
 
-async def start(text: str, runtime: str = "opencode", model: "str | None" = None) -> dict:
+async def start(text: str, runtime: "str | None" = None, model: "str | None" = None) -> dict:
+    runtime = runtime if runtime in RUNTIMES else default_runtime()
     m = await _dispatch(brief_for(text), runtime, model)
     write_json(FILE, (_ids() + [m["id"]])[-30:])
     logger.info("support: doctor started as mission %s (%s)", m["id"], runtime)
@@ -127,9 +139,21 @@ async def api_ask(request: web.Request) -> web.Response:
         b = await request.json()
     except Exception:  # noqa: BLE001
         b = {}
-    runtime = "claude-code" if b.get("runtime") == "claude-code" else "opencode"
+    runtime = b.get("runtime") if b.get("runtime") in RUNTIMES else default_runtime()
     m = await start(str(b.get("text") or ""), runtime, str(b.get("model") or "") or None)
     return web.json_response({"ok": True, "mission": m["id"], "runtime": runtime})
+
+
+@routes.post("/api/support/runtime")
+async def api_runtime(request: web.Request) -> web.Response:
+    try:
+        v = (await request.json()).get("runtime")
+    except Exception:  # noqa: BLE001
+        v = None
+    if v not in RUNTIMES:
+        raise web.HTTPBadRequest(text="runtime must be one of: " + ", ".join(RUNTIMES))
+    write_json(SETTINGS, {"runtime": v})
+    return web.json_response({"ok": True, "runtime": v})
 
 
 @routes.get("/api/support/state")
@@ -143,7 +167,7 @@ async def api_state(request: web.Request) -> web.Response:
             s = m.summary()
             rows.append({k: s.get(k) for k in ("id", "status", "model", "runtime", "changed", "answer", "error", "created", "verify", "work_secs")})
     b = D.bundle(lines=10)
-    return web.json_response({"problems": b["problems"][-12:], "hub": b["hub"], "apps": b["apps"], "disk_free_gb": b["disk_free_gb"], "missions": rows})
+    return web.json_response({"runtime": default_runtime(), "problems": b["problems"][-12:], "hub": b["hub"], "apps": b["apps"], "disk_free_gb": b["disk_free_gb"], "missions": rows})
 
 
 _PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Agent Hub support</title>
@@ -164,12 +188,13 @@ select{color:var(--tx);background:#05081f}button:hover{background:rgba(0,230,118
 <h2>WHAT IS WRONG?</h2>
 <div class="box"><textarea id="t" placeholder="Describe it, or leave this empty and press ASK THE DOCTOR to have it look at the facts above."></textarea>
 <div class="row" id="chips"></div>
-<div class="row"><button id="ask">ASK THE DOCTOR</button><select id="rt"><option value="opencode">LOCAL FIRST (OPENCODE)</option><option value="claude-code">CLAUDE CODE</option></select><button id="rf">REFRESH FACTS</button><span id="msg" class="warn"></span></div></div>
+<div class="row"><button id="ask">ASK THE DOCTOR</button><select id="rt" title="How the doctor works. Your choice is kept."><option value="claude-code">CLAUDE CODE</option><option value="opencode">LOCAL FIRST (OPENCODE)</option></select><button id="rf">REFRESH FACTS</button><span id="msg" class="warn"></span></div></div>
 <h2>THE DOCTOR'S WORK</h2><div id="ms"></div>
 <script>
 const $=(i)=>document.getElementById(i), esc=(s)=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 async function api(u,b){const r=await fetch(u,{method:b===undefined?'GET':'POST',headers:{'Content-Type':'application/json'},body:b===undefined?undefined:JSON.stringify(b||{})});if(!r.ok)throw new Error((await r.text()).slice(0,200));return r.json()}
 function draw(s){
+ if(s.runtime&&document.activeElement!==$('rt'))$('rt').value=s.runtime;
  const bad=s.problems.length, apps=Object.entries(s.apps||{}).filter(([k,v])=>v&&v.last_error).map(([k,v])=>k+': '+v.last_error);
  $('facts').innerHTML='<span class="'+(bad||apps.length?'warn':'ok')+'">'+(bad||apps.length?bad+' recent warning(s)':'No recent warnings')+'</span>  ·  Hub v'+esc(s.hub.version)+' up '+Math.round(s.hub.uptime_s/60)+' min  ·  disk free '+esc(JSON.stringify(s.disk_free_gb))+(apps.length?'\\n'+esc(apps.join('\\n')):'')+(bad?'\\n\\n'+esc(s.problems.join('\\n')):'');
  $('ms').innerHTML=s.missions.length?s.missions.map(m=>{const done=m.status==='awaiting_review',live=m.status==='running'||m.status==='queued';
@@ -188,6 +213,7 @@ USES.forEach(u=>{const b=document.createElement('button');b.textContent=u[0];b.t
 async function load(){try{draw(await api('/api/support/state'))}catch(e){$('facts').textContent='Could not read the Hub: '+e.message}}
 $('ask').onclick=async()=>{$('ask').disabled=true;$('msg').textContent='';try{await api('/api/support/ask',{text:$('t').value,runtime:$('rt').value});$('t').value='';await load()}catch(e){$('msg').textContent=e.message}$('ask').disabled=false};
 $('rf').onclick=load;
+$('rt').onchange=()=>api('/api/support/runtime',{runtime:$('rt').value}).catch(e=>{$('msg').textContent=e.message});
 $('ms').onclick=async(e)=>{const b=e.target.closest('button[data-a]');if(!b)return;const a=b.dataset.a,id=b.dataset.id;b.disabled=true;
  try{if(a==='apply')await api('/api/missions/'+id+'/apply',{});if(a==='discard')await api('/api/missions/'+id+'/discard',{});if(a==='restart'){if(!confirm('Restart Agent Hub now?'))return;await api('/api/restart',{})}}catch(x){$('msg').textContent=x.message}load()};
 load();setInterval(()=>{if(!document.hidden)load()},3000);
