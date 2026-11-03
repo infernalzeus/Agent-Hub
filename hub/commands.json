@@ -2,21 +2,21 @@
   "open_missions": {
     "action": ["open_page", {"page": "missions"}],
     "templates": [
-      "... (open|show|go to|take me to|bring up|view) ... (mission|missions|ask|asks) ...",
+      "... (open|show|go to|take me to|bring up|pull up|pull|display|check|look at|see|view) ... (mission|missions|ask|asks) ...",
       "[the] (mission|missions) [page]"
     ]
   },
   "open_agents": {
     "action": ["open_page", {"page": "agents"}],
     "templates": [
-      "... (open|show|go to|take me to|bring up|view) ... (agent|agents) ...",
+      "... (open|show|go to|take me to|bring up|pull up|pull|display|check|look at|see|view) ... (agent|agents) ...",
       "[the] (agent|agents) [page]"
     ]
   },
   "open_graph": {
     "action": ["open_page", {"page": "graph"}],
     "templates": [
-      "... (open|show|go to|take me to|bring up|view) ... (graph|projects map) ...",
+      "... (open|show|go to|take me to|bring up|pull up|pull|display|check|look at|see|view) ... (graph|projects map) ...",
       "[the] graph"
     ]
   },

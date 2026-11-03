@@ -96,7 +96,7 @@ def error_text(ev: dict) -> str | None:
     """None if `ev` isn't an error; otherwise a short description."""
     if ev.get("is_error"):
         text = ev.get("result") if isinstance(ev.get("result"), str) else json.dumps(ev)[:400]
-        if re.search(r"401|authenticate|oauth|not logged in|/login", text, re.I):
+        if re.search(r"\b401\b|authenticate|oauth|not logged in|/login", text, re.I):
             return "Claude Code is signed out (" + text[:140] + "). Open a terminal, run `claude`, sign in with /login, then ask again."
         return text[:400]
     if ev.get("type") == "system" and ev.get("subtype") in ("error", "api_retry"):

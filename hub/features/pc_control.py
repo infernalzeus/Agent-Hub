@@ -1521,6 +1521,17 @@ def _learn(chosen: str, ok: bool, t0: float, app: str) -> None:
         pass
 
 
+_GENERIC_PLAY = {"play", "put", "on", "some", "any", "something", "anything", "music", "song", "songs", "track", "tracks", "random", "whatever", "good", "nice",
+                 "a", "an", "the", "my", "me", "for", "please", "from", "in", "of", "to", "start", "tunes", "stuff", "can", "you", "could", "something"}
+
+
+def _open_ended_play(then: str, app: str = "") -> bool:
+    """A request to play that names nothing to play ("play some music", "put something on")."""
+    words = re.findall(r"[a-z0-9']+", (then or "").casefold())
+    appw = set(canonical_app_name(app).split())
+    return bool(words) and bool(re.search(r"\b(?:play|put|start)\b", then or "", re.I)) and all(w in _GENERIC_PLAY or w in appw for w in words)
+
+
 async def after(app: str, then: str, request: str, tree=None) -> dict:
     """Deal with the rest of the sentence, once the app is open.
 
@@ -1530,6 +1541,10 @@ async def after(app: str, then: str, request: str, tree=None) -> dict:
     """
     name = display_app_name(app)
     t0 = time.time()
+    if tree is None and _open_ended_play(then, app):
+        # "play some music" names nothing. Guessing wastes a minute on a library full of choices; one short question does not.
+        return _ask(f"{name} is open. You did not name anything, so I can shuffle your whole library, or start a radio station. Shall I shuffle your library?",
+                    "desktop_task", {"app": app, "goal": "shuffle all songs in my library"}, "Shuffle my library")
     taught = _routine(do_intent(app, then))
     if taught and taught["tool"] == "surface" and taught["status"] != "disabled":
         from . import machine_routines as MR

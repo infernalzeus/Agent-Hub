@@ -267,7 +267,7 @@
     if (!S.whisper) { releaseStream(); S.on = false; paintOn(); hint('Local speech recognition is not ready on the hub PC. Type below.'); setState('breathing', 'No local Whisper'); return; }
     hint('');
     while (S.on && listen === S.listen) {
-      if (S.busy || S.speaking) { await new Promise((r) => setTimeout(r, 60)); continue; }
+      if (S.speaking) { await new Promise((r) => setTimeout(r, 60)); continue; }          // not while the hub is talking (it would hear itself); while it is working it keeps listening
       const capture = S.capture;
       let blob = S.carry; S.carry = null;
       if (!blob) { setState('listening', 'Listening…'); try { blob = await recordUtterance(); } catch (e) { blob = null; } }
@@ -279,18 +279,23 @@
       if (!S.on || listen !== S.listen || capture !== S.capture) continue;
       if (Date.now() - (S.lastSpokenEnd || 0) < 4000) text = dropEcho(text, S.lastSaid);
       if (text.replace(/[^\w]/g, '').length < 2) continue;
-      hint(''); await handle(text);
+      hint(''); handle(text);                                  // not awaited: the next thing you say is heard while this one is still being worked on
     }
     // startLoop owns cleanup, so a quick stop/start cannot leave two recorders running.
   }
 
   // ---- talking to the assistant
   const YES = /^(yes|yeah|yep|yup|sure|okay|ok|go ahead|do it|confirm|please do|correct)\b/i, NO = /^(no|nope|cancel|stop|don'?t|do not|never mind|leave it)\b/i;
+  // 'stop' and its kin always cut in. While a task on the PC is running, any other new request waits its turn instead of cutting the task off.
+  const STOP = /^(?:ok(?:ay)?[,. ]*)?(?:please[, ]+)?(?:stop|cancel|abort|never ?mind|forget it|that'?s enough|enough|hold on|wait)\b[\s.!]*(?:that|it|this|now|please)?[\s.!]*$/i;
+  function stopNow() { cancelTurn(); S.pending = null; S.queued = null; S.acting = false; showBtns(false); fetch('/api/voice/cancel', { method: 'POST' }).catch(() => {}); log('hub', 'Stopped.'); ready(); }
   async function handle(text) {
+    if (S.busy && STOP.test(String(text).trim())) { log('you', text); stopNow(); return; }
+    if (S.busy && S.acting) { S.queued = text; log('you', text); log('hub', 'Noted. I will do that as soon as this is finished; say stop to cancel this one.'); return; }
     cancelTurn(); const turn = S.turn; S.busy = true;
     try { await answer(text, turn); }
     catch (e) { if (turn === S.turn) { log('hub', e.name === 'AbortError' ? 'That took too long. Please try again.' : 'I could not complete that request. Please try again.'); hint(String(e.message || e).slice(0, 140)); } }
-    finally { if (turn === S.turn) { S.busy = false; if (S.pending) setState('breathing', 'Waiting for confirmation'); else ready(); } }
+    finally { if (turn === S.turn) { S.busy = false; S.acting = false; if (S.pending) setState('breathing', 'Waiting for confirmation'); else ready(); const q = S.queued; if (q && !S.pending) { S.queued = null; setTimeout(() => handle(q), 0); } } }
   }
   async function answer(text, turn) {
     log('you', text);
@@ -326,7 +331,7 @@
     // A slow action says one short line after 3 s, so a long task does not read as a crash; quick ones stay silent, and the answer is never held up by it.
     const line = window.HubVoiceGate ? window.HubVoiceGate.workingLine(r.action.id) : '';
     let said = null; const nudge = line && !S.mute ? setTimeout(() => { if (turn === S.turn) said = speak(line); }, 3000) : null;
-    let j; try { j = await request('/api/voice/act', { id: r.action.id, args: r.action.args }); } finally { if (nudge) clearTimeout(nudge); }
+    let j; S.acting = true; try { j = await request('/api/voice/act', { id: r.action.id, args: r.action.args }, null, 180000); } finally { S.acting = false; if (nudge) clearTimeout(nudge); }
     if (said) { if (S.stop) S.stop(); await said; }        // the answer never waits for the working line: a line still being made or said is dropped
     if (turn !== S.turn) return;
     log('hub', j.say, j.routine && j.routine.tag); if (j.detail) log('hub', j.detail); recPaint();
@@ -410,7 +415,7 @@
     $('v-size').onclick = () => { S.compact = !S.compact; layout(); };
     $('v-history').onclick = () => { S.expanded = !S.expanded; layout(); };
     $('v-new').onclick = fresh;
-    $('v-stop').onclick = () => { cancelTurn(); S.pending = null; showBtns(false); fetch('/api/voice/cancel', { method: 'POST' }).catch(() => {}); log('hub', 'Stopped.'); ready(); };
+    $('v-stop').onclick = stopNow;
     $('v-cancel').onclick = () => { cancelTurn(); S.pending = null; showBtns(false); hint('Reply stopped. An action already sent may still finish; check its status before retrying.'); ready(); };
     $('v-mute').onclick = () => { unlockAudio(); S.mute = !S.mute; if (S.mute && S.stop) S.stop(); try { localStorage.setItem('hubVoiceMute', S.mute ? '1' : '0'); } catch (e) {} paintToggles(); };
     paintToggles();
@@ -449,7 +454,7 @@
   });
 
   // the Missions input bar (and anything else) can hand a typed question to the same conversation
-  window.HubVoice = { ask(text) { unlockAudio(); open(false); return handle(String(text || '')); }, open, close,
+  window.HubVoice = { state() { return { busy: S.busy, acting: S.acting, queued: S.queued || null, speaking: S.speaking }; }, ask(text) { unlockAudio(); open(false); return handle(String(text || '')); }, open, close,
     contextChanged(id) { if (S.context !== id) { S.context = id; fresh(); } S.compact = true; layout(); } };
 })();
 

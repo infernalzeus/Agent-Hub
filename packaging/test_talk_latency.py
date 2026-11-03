@@ -64,3 +64,26 @@ def test_a_working_line_never_holds_the_answer_up(talk):
     assert 2800 < line["at"] < 3500                                                        # the line is only asked for after three seconds
     assert answer["at"] - 3600 < 400, answer["at"]                                         # the answer is asked for the moment the action returns
     assert len(talk.evaluate("window.__starts")) == 1                                      # the dropped line was never played; only the answer was
+
+
+def test_talk_keeps_listening_while_a_task_runs_stop_cuts_in_and_another_request_waits_its_turn(talk):
+    talk.evaluate("""window.__cfg.say = 'On it.'; window.__cfg.action = { id: 'desktop_task', args: {} }; window.__cfg.act = 2500; window.__cfg.speak = [50];
+                     window.__chats = 0; const f = window.fetch; window.fetch = (u, o) => { if (String(u).includes('/api/voice/chat')) window.__chats++; return f(u, o); };
+                     HubVoice.ask('play the playlist'); void 0""")
+    talk.wait_for_timeout(500)
+    talk.evaluate("HubVoice.ask('and then open missions'); void 0")
+    talk.wait_for_timeout(300)
+    assert talk.evaluate("window.__chats") == 1                                            # the second request is held, not sent and not cutting the task off
+    assert "I will do that as soon as this is finished" in talk.inner_text("#voice")
+    talk.evaluate("HubVoice.ask('stop'); void 0")
+    talk.wait_for_timeout(300)
+    assert "Stopped." in talk.inner_text("#voice")
+    talk.wait_for_timeout(2600)
+    assert talk.evaluate("window.__chats") == 1                                            # stop also dropped the waiting request
+
+
+def test_a_second_request_runs_after_the_first_finishes(talk):
+    talk.evaluate("""window.__cfg.say = 'On it.'; window.__cfg.action = { id: 'desktop_task', args: {} }; window.__cfg.act = 1200; window.__cfg.speak = [50];
+                     window.__chats = 0; const f = window.fetch; window.fetch = (u, o) => { if (String(u).includes('/api/voice/chat')) window.__chats++; return f(u, o); };
+                     HubVoice.ask('first'); setTimeout(() => HubVoice.ask('second'), 300); void 0""")
+    talk.wait_for_function("window.__chats === 2", timeout=9000)
