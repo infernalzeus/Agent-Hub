@@ -5,8 +5,8 @@
 //   doubled layer      a copy 15 ms late, wobbling a few milliseconds (a second, slightly off voice on top)
 //   metal layer        a 6 ms comb with feedback (a hollow, tube-like ring)
 //   comms band         110 Hz to 6 kHz, then a compressor so the layers never clip
-// Two choices, kept in localStorage: 'hubVoiceFx' = how much (off | p5 | p10 | p15 | p20 default | p25 | p35 | p50 | p75 | p100)
-// and 'hubVoiceFxStyle' = which layers (blend default | ring | double | metal | radio). Older saved names (light, robot, heavy, full) still work.
+// Two choices, kept in localStorage: 'hubVoiceFx' = how much (off | p5 | p10 | p15 | p20 | p25 default | p35 | p50 | p75 | p100)
+// and 'hubVoiceFxStyle' = which layers (blend | ring | double | metal | radio default). Older saved names (light, robot, heavy, full) still work.
 (function () {
   if (window.HubVoiceFx) return;
   var KEY = 'hubVoiceFx', SKEY = 'hubVoiceFxStyle';
@@ -26,10 +26,10 @@
     return { amount: a, dry: 1 - (1 - FULL.dry) * a, ring: FULL.ring * a * w.ring, ringHz: FULL.ringHz, bits: FULL.bits, chorus: FULL.chorus * a * w.chorus, comb: FULL.comb * a * w.comb, out: 1 - (1 - FULL.out) * a, hi: w.hi, lo: w.lo };
   }
   var LEVELS = { off: null, p5: .05, p10: .1, p15: .15, p20: .2, p25: .25, p35: .35, p50: .5, p75: .75, p100: 1 };
-  var DEFAULT = 'p20';
+  var DEFAULT = 'p25';
   function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
   function mode() { try { var v = localStorage.getItem(KEY); v = LEGACY[v] || v; if (v && has(LEVELS, v)) return v; } catch (e) {} return DEFAULT; }
-  function style() { try { var v = localStorage.getItem(SKEY); if (v && has(STYLES, v)) return v; } catch (e) {} return 'blend'; }
+  function style() { try { var v = localStorage.getItem(SKEY); if (v && has(STYLES, v)) return v; } catch (e) {} return 'radio'; }
   function set(m) { m = LEGACY[m] || m; if (!has(LEVELS, m)) return; try { localStorage.setItem(KEY, m); } catch (e) {} }
   function setStyle(s) { if (!has(STYLES, s)) return; try { localStorage.setItem(SKEY, s); } catch (e) {} }
   function crusher(ctx, bits) {                      // quantise to 2^bits steps, then round the corners: grit without harsh aliasing

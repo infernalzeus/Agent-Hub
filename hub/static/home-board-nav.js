@@ -17,14 +17,19 @@
     function refresh() { if (!raf) raf=requestAnimationFrame(paint); }
     map.onclick=function(e){e.stopPropagation();if(!bounds)return;var r=map.getBoundingClientRect(),x=e.detail?(e.clientX-r.left)/r.width*150:75,y=e.detail?(e.clientY-r.top)/r.height*90:45;visit(null,{x:bounds.x+(x-6)/bounds.scale,y:bounds.y+(y-6)/bounds.scale});};
     var dialog=document.createElement('div');dialog.className='hb-jump';dialog.hidden=true;dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');dialog.setAttribute('aria-label','Jump to block');
-    var input=document.createElement('input');input.placeholder='Jump to a block';input.setAttribute('aria-label','Find a block');var list=document.createElement('div');dialog.append(input,list);host.appendChild(dialog);var origin=null, closing=null;
+    var input=document.createElement('input');input.placeholder='Jump to a block';input.setAttribute('aria-label','Find a block');var list=document.createElement('div');var head=document.createElement('div');head.className='hb-jump-h';var title=document.createElement('span');title.textContent='BLOCKS';var closeBtn=document.createElement('button');closeBtn.type='button';closeBtn.className='hb-jump-x';closeBtn.setAttribute('aria-label','Close the block list');closeBtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';head.append(title,closeBtn);dialog.append(head,input,list);host.appendChild(dialog);var origin=null, closing=null;
     function dismiss(){if(window.HubBlocks&&HubBlocks.allowed()){closing=dialog.animate([{opacity:1},{opacity:0}],{duration:140});closing.onfinish=function(){dialog.hidden=true;closing=null;};}else dialog.hidden=true;if(origin&&origin.isConnected)origin.focus({preventScroll:true});}
     function choose(id){dismiss();visit(id);blocks[id].focus({preventScroll:true});if(blocks[id]._open)open(id);}
     function search(){list.replaceChildren();Object.keys(blocks).filter(function(id){return blocks[id]._name.toLowerCase().includes(input.value.toLowerCase());}).forEach(function(id){var b=document.createElement('button');b.type='button';b.textContent=blocks[id]._name;b.onclick=function(){choose(id);};list.appendChild(b);});}
     input.oninput=search;input.onkeydown=function(e){if(e.key==='Enter'&&list.firstChild){e.preventDefault();list.firstChild.click();}if(e.key==='ArrowDown'&&list.firstChild){e.preventDefault();list.firstChild.focus();}};
     dialog.addEventListener('keydown',function(e){if(e.key!=='Tab')return;var all=[input].concat(Array.from(list.children)),at=all.indexOf(document.activeElement);if(e.shiftKey&&at===0){e.preventDefault();all[all.length-1].focus();}else if(!e.shiftKey&&at===all.length-1){e.preventDefault();input.focus();}});
+    closeBtn.onclick=function(){dismiss();};
+    // the list sits below the bar so the BLOCKS button stays reachable, and a click anywhere else on the board closes it
+    function outside(e){if(dialog.hidden||e.target.closest('.hb-jump,.hb-btn'))return;dismiss();}
+    host.addEventListener('pointerdown',outside,true);
+    function place(){var bar=host.querySelector('.hb-bar');if(bar)dialog.style.setProperty('--jump-top',Math.round(bar.getBoundingClientRect().bottom-host.getBoundingClientRect().top+8)+'px');}
     function key(e){
-      if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();if(!dialog.hidden){dismiss();return true;}if(closing){closing.cancel();closing=null;}origin=document.activeElement;input.value='';search();dialog.hidden=false;input.focus();return true;}
+      if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();if(!dialog.hidden){dismiss();return true;}if(closing){closing.cancel();closing=null;}origin=document.activeElement;input.value='';search();place();dialog.hidden=false;input.focus();return true;}
       if(e.key==='Escape'&&!dialog.hidden){e.preventDefault();dismiss();return true;}
       if(e.target.closest('input,textarea,select,[contenteditable=true],button'))return false;
       var block=e.target.closest('.hk'),id=block&&block.dataset.id;
@@ -35,7 +40,7 @@
       Object.keys(blocks).forEach(function(i){if(i===id||hidden[i])return;var b=layout[i],dx=b.x+b.w/2-a.x-a.w/2,dy=b.y+b.h/2-a.y-a.h/2,along=dx*axis[0]+dy*axis[1],cross=Math.abs(dx*axis[1]-dy*axis[0]);if(along>0&&along+cross*2<score){score=along+cross*2;best=i;}});
       if(best){e.preventDefault();blocks[best].focus({preventScroll:true});visit(best);}return true;
     }
-    refresh();return {refresh:refresh,key:key,toggle:function(){key({ctrlKey:true,key:'k',preventDefault:function(){},target:host});},destroy:function(){if(raf)cancelAnimationFrame(raf);map.remove();dialog.remove();}};
+    refresh();return {refresh:refresh,key:key,toggle:function(){key({ctrlKey:true,key:'k',preventDefault:function(){},target:host});},destroy:function(){if(raf)cancelAnimationFrame(raf);host.removeEventListener('pointerdown',outside,true);map.remove();dialog.remove();}};
   }
   window.__hubBoardNav={mount:mount};
 })();

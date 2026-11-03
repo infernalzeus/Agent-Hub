@@ -58,6 +58,20 @@
     return pool[i];
   }
 
-  root.HubVoiceGate = { make, workingLine, defaults: D };
+  // A reply is spoken sentence by sentence: the first piece is synthesised alone and starts playing while the rest are still being made, so
+  // a three-sentence answer starts after about the time of its first sentence (measured: 1.6 s) instead of the whole answer (6.3 s).
+  function sentences(text) {
+    const parts = String(text || '').replace(/\s+/g, ' ').trim().match(/[^.!?]+(?:[.!?]+["')\]]*|$)/g) || [];
+    const out = []; let cur = '';
+    for (const raw of parts) {
+      const p = raw.trim(); if (!p) continue;
+      if (!out.length && cur.length >= 24 && /[.!?]["')\]]*$/.test(cur)) { out.push(cur); cur = ''; }          // the first piece is one whole sentence of some length
+      if (cur && (cur + ' ' + p).length > 170 && out.length) { out.push(cur); cur = p; } else cur = cur ? cur + ' ' + p : p;
+    }
+    if (cur) out.push(cur);
+    return out;
+  }
+
+  root.HubVoiceGate = { make, workingLine, sentences, defaults: D };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.HubVoiceGate;
 })(typeof window !== 'undefined' ? window : globalThis);

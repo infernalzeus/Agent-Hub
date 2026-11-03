@@ -1485,8 +1485,9 @@ async def api_transcribe(request: web.Request) -> web.Response:
 
 # ── speaking: Microsoft neural voices via edge-tts (the reply text is sent, never your audio) ───────────────────────────
 VOICES = [
-    {"id": "smith", "name": "Smith · Australian, low and measured", "voice": "en-AU-WilliamNeural", "rate": "-10%", "pitch": "-12Hz"},
-    {"id": "smith-deep", "name": "Smith · deeper and slower", "voice": "en-AU-WilliamNeural", "rate": "-14%", "pitch": "-22Hz"},
+    {"id": "smith", "name": "Smith · Australian, deep, normal pace", "voice": "en-AU-WilliamNeural", "rate": "+0%", "pitch": "-22Hz"},
+    {"id": "smith-deep", "name": "Smith · deep, a little slower", "voice": "en-AU-WilliamNeural", "rate": "-8%", "pitch": "-22Hz"},
+    {"id": "smith-low", "name": "Smith · lower and measured (the earlier default)", "voice": "en-AU-WilliamNeural", "rate": "-10%", "pitch": "-12Hz"},
     {"id": "sonia", "name": "Sonia · British, female", "voice": "en-GB-SoniaNeural", "rate": "+4%", "pitch": "+0Hz"},
     {"id": "ryan", "name": "Ryan · British, male", "voice": "en-GB-RyanNeural", "rate": "+2%", "pitch": "+0Hz"},
     {"id": "libby", "name": "Libby · British, female", "voice": "en-GB-LibbyNeural", "rate": "+4%", "pitch": "+0Hz"},

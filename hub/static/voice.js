@@ -83,29 +83,49 @@
   }
   // Smith's voice goes through the layered robotic effect (voice-fx.js) on its way to the speakers; 'clean' skips it.
   const route = (node, buf) => { if (window.HubVoiceFx) HubVoiceFx.connect(S.actx, node, S.actx.destination, buf.duration); else node.connect(S.actx.destination); };
-  // plays the reply; resolves when it ends or when S.stop() is called (talk-over, typing, STOP)
+  // Plays the reply a sentence at a time: the first sentence is made alone and starts playing while the next ones (up to three in flight) are being made,
+  // so an answer starts after about the time of its first sentence, not of the whole answer. Resolves when it ends or when S.stop() is called
+  // (talk-over, typing, STOP, or an answer arriving while a "working on it" line is still being said).
   function play(text) {
     return new Promise(async (resolve) => {
-      let done = false, node = null, deadline = null, audioUrl = null;
+      let done = false, node = null, deadline = null, audioUrl = null, endPiece = null;
       const fin = () => { if (!done) { done = true; clearTimeout(deadline); if (audioUrl) URL.revokeObjectURL(audioUrl); S.stop = null; resolve(); } };
-      S.stop = () => { try { if (S.audio) S.audio.pause(); } catch (e) {} try { if (node) node.stop(); } catch (e) {} try { speechSynthesis.cancel(); } catch (e) {} fin(); };
-      deadline = setTimeout(() => { if (!done && S.stop) S.stop(); }, 45000);
+      S.stop = () => { try { if (S.audio) S.audio.pause(); } catch (e) {} try { if (node) node.stop(); } catch (e) {} try { speechSynthesis.cancel(); } catch (e) {} if (endPiece) endPiece(); fin(); };
+      deadline = setTimeout(() => { if (!done && S.stop) S.stop(); }, 60000);
+      const parts = (window.HubVoiceGate && HubVoiceGate.sentences(text)) || [String(text)];
+      if (!parts.length) { fin(); return; }
+      const get = (t) => { const r = request('/api/voice/speak', { text: t, voice: S.voice || undefined }, 'speech', 20000); r.catch(() => {}); return r; };
+      const got = parts.map((t, i) => (i < 3 ? get(t) : null));
+      // one piece of audio, to its end (or to a stop)
+      async function piece(ab) {
+        await new Promise(async (end) => {
+          endPiece = end;
+          try {
+            if (S.actx) {
+              try { await S.actx.resume(); const buf = await S.actx.decodeAudioData(ab.slice(0)); if (done) return end(); node = S.actx.createBufferSource(); node.buffer = buf; route(node, buf); node.onended = end; node.start(); return; }
+              catch (e0) { node = null; }                                             // AudioContext refused or could not decode: use the <audio> element
+            }
+            const a = S.audio || (S.audio = new Audio()), url = URL.createObjectURL(new Blob([ab], { type: 'audio/mpeg' }));
+            if (audioUrl) URL.revokeObjectURL(audioUrl);
+            audioUrl = url; a.onended = end; a.onerror = end; a.src = url; await a.play();
+          } catch (e1) {
+            if (!S.actx) return end();
+            try { await S.actx.resume(); const buf = await S.actx.decodeAudioData(ab.slice(0)); if (done) return end(); node = S.actx.createBufferSource(); node.buffer = buf; route(node, buf); node.onended = end; node.start(); } catch (e2) { end(); }
+          }
+        });
+        endPiece = null;
+      }
+      let at = 0;
       try {
-        const ab = await request('/api/voice/speak', { text, voice: S.voice || undefined }, 'speech', 20000);
-        if (done) return;
-        try {
-          if (S.actx) { await S.actx.resume(); const buf = await S.actx.decodeAudioData(ab.slice(0)); if (done) return; node = S.actx.createBufferSource(); node.buffer = buf; route(node, buf); node.onended = fin; node.start(); return; }
-        } catch (e0) { node = null; }                                                 // AudioContext refused or could not decode: use the <audio> element
-        try {
+        for (; at < parts.length && !done; at++) {
+          if (!got[at]) got[at] = get(parts[at]);
+          if (at + 3 < parts.length && !got[at + 3]) got[at + 3] = get(parts[at + 3]);
+          const ab = await got[at];
           if (done) return;
-          const a = S.audio || (S.audio = new Audio()), url = URL.createObjectURL(new Blob([ab], { type: 'audio/mpeg' }));
-          audioUrl = url; a.onended = fin; a.onerror = fin; a.src = url; await a.play();
-        } catch (e1) {
-          if (!S.actx) throw e1;                                                     // the element was refused: decode and play through the unlocked AudioContext
-          await S.actx.resume(); const buf = await S.actx.decodeAudioData(ab.slice(0)); if (done) return; node = S.actx.createBufferSource(); node.buffer = buf; route(node, buf); node.onended = fin; node.start();
+          await piece(ab);
         }
-      } catch (e) { if (!done) { hint('The hub voice service did not answer, so this is the browser voice. Updating edge-tts on the hub PC usually fixes it.'); await speakBrowser(text); fin(); } }
-      finally { if (done) clearTimeout(deadline); }
+        fin();
+      } catch (e) { if (!done) { hint('The hub voice service did not answer, so this is the browser voice. Updating edge-tts on the hub PC usually fixes it.'); await speakBrowser(parts.slice(at).join(' ')); fin(); } }
     });
   }
 
@@ -303,11 +323,11 @@
     if (turn !== S.turn) return;
     if (r.url) { navigate(r.url); return; }
     setState('working', 'Doing it…');
-    // A slow action says one short line after 2 s, so a long task does not read as a crash; quick ones stay silent.
+    // A slow action says one short line after 3 s, so a long task does not read as a crash; quick ones stay silent, and the answer is never held up by it.
     const line = window.HubVoiceGate ? window.HubVoiceGate.workingLine(r.action.id) : '';
-    let said = null; const nudge = line && !S.mute ? setTimeout(() => { if (turn === S.turn) said = speak(line); }, 2000) : null;
+    let said = null; const nudge = line && !S.mute ? setTimeout(() => { if (turn === S.turn) said = speak(line); }, 3000) : null;
     let j; try { j = await request('/api/voice/act', { id: r.action.id, args: r.action.args }); } finally { if (nudge) clearTimeout(nudge); }
-    if (said) await said;                                 // let the line finish before the answer, rather than cutting it off
+    if (said) { if (S.stop) S.stop(); await said; }        // the answer never waits for the working line: a line still being made or said is dropped
     if (turn !== S.turn) return;
     log('hub', j.say, j.routine && j.routine.tag); if (j.detail) log('hub', j.detail); recPaint();
     // The question's YES / NO appear before the sentence is spoken, not after: a long
