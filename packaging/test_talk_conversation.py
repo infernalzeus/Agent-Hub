@@ -71,3 +71,24 @@ def test_the_stop_button_and_switching_pc_control_off_reach_the_signal(monkeypat
     g = PC.stop_gen()
     asyncio.run(V.api_cancel(None))
     assert PC.stop_gen() == g + 1
+
+
+@pytest.mark.parametrize("text,nsp,lp,cr,keep", [
+    ("[music]", 0, 0, 1, False), ("(static)", 0, 0, 1, False), ("♪ la la ♪", 0, 0, 1, False), ("", 0, 0, 1, False),
+    ("you", .9, -1.4, 1, False),                                   # the model thinks it was silence and is unsure
+    ("open the file browser", .1, -.3, 1, True),
+    ("stop", .5, -.5, 1, True),                                    # a short command with so-so confidence is still a command
+    ("thank you", .05, -.2, 1, True), ("thank you", .45, -.3, 1, False), ("thanks", .1, -.9, 1, False),
+    ("the the the the the the", 0, -.4, 3.4, False),
+])
+def test_noise_segments_are_dropped_and_real_commands_kept(text, nsp, lp, cr, keep):
+    from hub.features import voice
+    assert voice._keep_segment(text, nsp, lp, cr) is keep
+
+
+def test_filler_and_sound_words_alone_are_not_a_transcript():
+    from hub.features import voice
+    for t in ("Music.", "Uh...", "Hmm.", "Please subscribe!", "Subtitles by the Amara.org community"):
+        assert voice._clean(t) in voice._HALLUCINATIONS, t
+    for t in ("stop", "open notepad", "so play the playlist"):
+        assert voice._clean(t) not in voice._HALLUCINATIONS, t

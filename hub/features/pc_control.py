@@ -549,7 +549,12 @@ async def launch_app(app: str, request: str, then: str = "") -> dict:
         return {"ok": False, "say": "Tell me which application to open."}
 
     corrected = False
-    names = await start_app_names()
+    t0 = time.time()
+    # An app that has already been opened and verified once is a routine: its exact Start-menu name is known, so the (slow, cached) listing of every
+    # installed app is not needed. The first open after a restart used to wait several seconds for that listing.
+    fast = _routine(_intent(canonical_app_name(heard)))
+    names = [] if fast else await start_app_names()
+    t_list = time.time() - t0
     if names:
         res = resolve_app(heard, names, _launch_history())
         if res["status"] == "unknown":
@@ -566,16 +571,23 @@ async def launch_app(app: str, request: str, then: str = "") -> dict:
         corrected = res["status"] == "likely"
     else:
         target = heard                       # no listing available: pass it through
+        if fast:
+            try:
+                target = str(json.loads(fast["args_json"]).get("name") or heard)    # the exact name that opened it before
+            except Exception:
+                pass
 
     key = canonical_app_name(target)
     known = _routine(_intent(key))
     args = json.loads(known["args_json"]) if known else {"mode": "launch", "name": target}
     route = "routine" if known else "discovery"
+    t1 = time.time()
     try:
         result = await MCP.call_tool("windows", "App", args)
     except Exception as exc:
         _record_run(request, route, "failed", str(exc))
         return {"ok": False, "say": f"I could not open {target}: {str(exc)[:150]}."}
+    logger.info("pc_control: open %r took %.1f s (listing apps %.1f s, %s; opening %.1f s)", target, time.time() - t0, t_list, "skipped, routine known" if fast else "listed", time.time() - t1)
 
     # Windows reports "<name> launched.", or "<name> not found in start menu.", or
     # "Launching <name> sent, but window not detected yet." - all as ordinary text.

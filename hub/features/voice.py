@@ -1334,7 +1334,25 @@ async def api_act(request: web.Request) -> web.Response:
 # ── local speech-to-text ─────────────────────────────────────────────────────────────────────────────────────────────
 _MODEL: dict = {}
 _LOCK = asyncio.Lock()
-_HALLUCINATIONS = {"you", "thank you for watching", "thanks for watching", "bye"}
+_HALLUCINATIONS = {"you", "thank you for watching", "thanks for watching", "bye", "bye bye", "so", "uh", "um", "hmm", "mm", "mhm", "oh", "ah", "the", "i", "okay", "ok",
+                   "music", "applause", "laughter", "silence", "noise", "static", "subtitles by the amara org community", "subtitles by amara org",
+                   "please subscribe", "see you next time", "see you in the next video"}
+# Speech-to-text invents words from hiss and hum. A segment the model itself doubts (it thinks there was no speech and is unsure of the words) is dropped,
+# and so is a bracketed sound description such as "[music]" or "(static)". A bare "thank you" is kept only when the model was sure of it.
+_SOUND_NOTE = re.compile(r"^\s*[\[(*♪].*[\])*♪]\s*$")
+
+
+def _keep_segment(text: str, no_speech_prob: float = 0.0, avg_logprob: float = 0.0, compression_ratio: float = 1.0) -> bool:
+    t = (text or "").strip()
+    if not t or _SOUND_NOTE.match(t):
+        return False
+    if no_speech_prob > 0.6 and avg_logprob < -0.8:
+        return False
+    if compression_ratio > 2.6:                      # the same few words repeated: a loop on noise
+        return False
+    if _clean(t) in ("thank you", "thanks") and (no_speech_prob > 0.3 or avg_logprob < -0.6):
+        return False
+    return True
 
 
 def _cached_model_name() -> "str | None":
@@ -1415,7 +1433,8 @@ def _transcribe_file(path: str, name: str, lang: "str | None", hint: str = "") -
     segs, _info = _load_model(name).transcribe(path, language=lang, vad_filter=True, beam_size=3,
                                                condition_on_previous_text=False,
                                                initial_prompt=hint or None)
-    text = " ".join(s.text.strip() for s in segs).strip()
+    text = " ".join(s.text.strip() for s in segs
+                    if _keep_segment(s.text, getattr(s, "no_speech_prob", 0.0), getattr(s, "avg_logprob", 0.0), getattr(s, "compression_ratio", 1.0))).strip()
     return "" if _clean(text) in _HALLUCINATIONS else text
 
 
