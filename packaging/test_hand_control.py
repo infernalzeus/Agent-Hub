@@ -115,9 +115,10 @@ def test_setup_choices_are_kept_at_once_and_do_not_start_the_camera(page):
  page.get_by_role('button',name='FIST TILTS 3D: ON',exact=True).click()
  assert 'FIST TILTS 3D: OFF' in page.locator('.hands-setup').inner_text()
  assert json.loads(page.evaluate("localStorage.getItem('hub-hands-profile')"))['orbit'] is False
- page.get_by_role('button',name='CALIBRATE PINCH',exact=True).click()
- assert 'turn HANDS on explicitly' in page.locator('.hands-setup').inner_text()
+ page.get_by_role('button',name='SAVE LAST MINUTE',exact=True).click()
+ assert 'Turn HANDS on' in page.locator('.hands-setup').inner_text()
  assert page.evaluate('__hubHands.tracker.stats.enabled') is False
+ assert page.locator('.hands-setup button').count()==5                               # few choices
  page.get_by_role('button',name='RESET TO DEFAULTS',exact=True).click()
  assert 'FIST TILTS 3D: ON' in page.locator('.hands-setup').inner_text()
  page.get_by_role('button',name='CLOSE',exact=True).click()
@@ -189,3 +190,45 @@ def test_a_guided_trace_records_numbers_only_and_is_saved(page):
  for _ in range(10):
   page.evaluate('feedHands([[600,400,1,true]],5)');page.wait_for_timeout(60)
  page.wait_for_function("document.querySelector('.hands-status')&&/TRACE SAVED/.test(document.querySelector('.hands-status').textContent)",timeout=8000)
+
+
+def test_thumb_to_middle_is_only_a_right_click_and_never_turns_the_board(page):
+ page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()');page.evaluate("__hubBoard.active.view().setMode('3d')");page.wait_for_timeout(900)
+ before=page.evaluate('__hubBoard.active.view().tilt()')
+ page.evaluate('feedWith(openFrame,still(560,445,20))')
+ page.evaluate('feedWith(midFrame,Array.from({length:14},(_,i)=>[560+i*20,445+i*6]))')       # pinched, and the hand moves a long way
+ page.evaluate('feedWith(openFrame,still(840,530,8))')
+ assert page.evaluate('__hubBoard.active.view().tilt()')==before
+
+
+def test_three_fingertips_together_zoom_with_one_hand_up_in_and_down_out(page):
+ page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
+ page.evaluate("window.tripleFrame=(x,y)=>{const a=handFrame(x,y,1,true);const m={x:(a[8].x+a[12].x)/2,y:(a[8].y+a[12].y)/2,z:0};a[4]=m;return a;}")
+ k0=page.evaluate('__hubBoard.active.state().V.k')
+ page.evaluate('feedWith(openFrame,still(700,500,20))')
+ page.evaluate('feedWith(tripleFrame,still(700,500,6))')
+ assert page.evaluate('__hubHands.stats().presses')==1                                   # the zoom hold is on, and it pressed nothing on the board
+ page.evaluate('feedWith(tripleFrame,Array.from({length:12},(_,i)=>[700,500-i*14]))')    # hand up
+ page.wait_for_timeout(500)
+ k1=page.evaluate('__hubBoard.active.state().V.k')
+ assert k1>k0*1.1,(k0,k1)
+ page.evaluate('feedWith(tripleFrame,Array.from({length:20},(_,i)=>[700,332+i*14]))')    # hand down
+ page.wait_for_timeout(500)
+ assert page.evaluate('__hubBoard.active.state().V.k')<k1
+ assert page.evaluate('__hubHands.stats().clicks')==0
+
+
+def test_a_click_survives_the_hand_wandering_a_little(page):
+ page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
+ page.evaluate('feedWith(openFrame,still(560,445,20))')
+ page.evaluate('feedWith((x,y)=>closeFrame(x,y,.1,0),Array.from({length:10},(_,i)=>[560+i*3,445+(i%2)*4]))')    # 27 px of drift while pinched, well inside a screen-sized tolerance
+ page.evaluate('feedWith(openFrame,still(587,445,8))')
+ assert page.evaluate('counters')=={'click':1,'ctx':0}
+
+
+def test_the_last_minute_can_be_saved_from_setup(page):
+ page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
+ page.evaluate('feedWith(openFrame,still(560,445,30))')
+ page.get_by_role('button',name='HAND SETUP',exact=True).click()
+ page.get_by_role('button',name='SAVE LAST MINUTE',exact=True).click()
+ page.wait_for_function("document.querySelector('.hands-setup').innerText.includes('Saved trace-')",timeout=6000)

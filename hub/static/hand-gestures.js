@@ -42,7 +42,7 @@ SOFTWARE.
   const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
   const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
   const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
-  function isClick(start,end,maxTravel){return Math.max(distance(start,end),maxTravel||0)<TUNING.clickSlop;}
+  function isClick(start,end,maxTravel,slop){return Math.max(distance(start,end),maxTravel||0)<(slop||TUNING.clickSlop);}
   function zoomMath(a,b,initial,current){const d=Math.max(1,distance(a,b)),mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};return {ratio:d/Math.max(1,initial.distance),mid,scale:clamp(initial.scale*d/Math.max(1,initial.distance),.3,2.6),x:mid.x-initial.world.x*clamp(initial.scale*d/Math.max(1,initial.distance),.3,2.6),y:mid.y-initial.world.y*clamp(initial.scale*d/Math.max(1,initial.distance),.3,2.6)};}
   class Engine{
     constructor(options={}){this.options=options;this.tuning={...TUNING,...options.tuning};this.reset();}
@@ -63,14 +63,25 @@ SOFTWARE.
         // true distances: the camera's own pixels plus its depth estimate (same scale as x), so the picture's shape and overlap cannot fake a pinch
         const P=raw.map(p=>[p.x*cw,p.y*ch,(p.z||0)*cw]),d3=(a,b)=>Math.hypot(P[a][0]-P[b][0],P[a][1]-P[b][1],P[a][2]-P[b][2]);
         const size=Math.max(1e-6,d3(0,9)),gap=d3(4,8)/size,gapM=d3(4,12)/size,span=Math.max(1,distance(points[0],points[9]));
+        // a fist is four fingertips pulled in to the palm; a pinch with the other fingers curled is NOT one (the index fingertip stays about a hand-size from the palm)
+        const pc=[0,1,2].map(k=>PALM.reduce((a,j)=>a+P[j][k],0)/PALM.length),dp=i=>Math.hypot(P[i][0]-pc[0],P[i][1]-pc[1],P[i][2]-pc[2]);
+        const fistShape=[8,12,16,20].every(i=>dp(i)<.75*size);
         const fist=this.options.fistGrab&&s.pinched&&[[8,6],[12,10],[16,14],[20,18]].every(([a,b])=>d3(a,0)<d3(b,0)*1.05);
         let wantsI=fist||(s.pinched?gap<t.pinchOff:gap<t.pinchOn),wantsM=s.rpinched?gapM<t.pinchOff:gapM<t.pinchOn;
-        if(wantsI&&wantsM){if(s.pinched||(!s.rpinched&&gap<=gapM))wantsM=false;else wantsI=false;}      // one pinch at a time: the one already held, else the tighter
+        // thumb, index and middle fingertips all together is a third thing, the zoom hold: it is neither of the two single pinches
+        // (stricter than a single pinch: with the index finger resting beside the middle one, a thumb-to-middle pinch is also fairly close to the index tip)
+        let wantsT=s.triple?(gap<t.pinchOff*.6&&gapM<t.pinchOff*.6):(gap<t.pinchOn*.6&&gapM<t.pinchOn*.6);
+        if(wantsT){wantsI=false;wantsM=false;}
+        else if(wantsI&&wantsM){if(s.pinched||(!s.rpinched&&gap<=gapM))wantsM=false;else wantsI=false;}      // one pinch at a time: the one already held, else the tighter
         if(wantsI&&!s.pinched){if(s.pinchSince===null)s.pinchSince=now;}else if(!wantsI)s.pinchSince=null;
         if(wantsM&&!s.rpinched){if(s.rSince===null)s.rSince=now;}else if(!wantsM)s.rSince=null;
+        if(wantsT&&!s.triple){if(s.tSince==null)s.tSince=now;}else if(!wantsT)s.tSince=null;
+        if(fistShape&&!fist){wantsI=false;wantsM=false;wantsT=false;}
         const settled=now-s.changedAt>=t.settleMs;
         const pinched=s.pinched?wantsI:wantsI&&s.pinchSince!==null&&now-s.pinchSince>=t.confirmMs&&settled;
         const rpinched=s.rpinched?wantsM:wantsM&&s.rSince!==null&&now-s.rSince>=t.confirmMs&&settled;
+        const triple=s.triple?wantsT:wantsT&&s.tSince!=null&&now-s.tSince>=t.confirmMs&&settled;
+        if(pinched||rpinched||triple)s.lastPinchAt=now;
         const tip=points[8];
         if(fist&&!s.grabOffset)s.grabOffset={x:(s.out?.x??tip.x)-wrist.x,y:(s.out?.y??tip.y)-wrist.y};if(!fist)s.grabOffset=null;
         const pos=s.cursor.filter(fist?wrist.x+s.grabOffset.x:tip.x,fist?wrist.y+s.grabOffset.y:tip.y,now/1000);
@@ -83,20 +94,18 @@ SOFTWARE.
         s.rollU=s.rollRaw===null?rr:s.rollU+wrap(rr-s.rollRaw);s.rollRaw=rr;const roll=s.rollF.filter(s.rollU,now/1000);
         // a fist is four fingertips pulled in to the palm; a pinch with the other fingers curled is NOT one (the index fingertip stays about a
         // hand-size away from the palm), and neither is anything where the thumb touches a fingertip, so a pinch can never start a tilt
-        const pc=[0,1,2].map(k=>PALM.reduce((a,j)=>a+P[j][k],0)/PALM.length),dp=i=>Math.hypot(P[i][0]-pc[0],P[i][1]-pc[1],P[i][2]-pc[2]);
-        const fistShape=[8,12,16,20].every(i=>dp(i)<.8*size)&&gap>t.pinchOff&&gapM>t.pinchOff;
         const ext=(a,b)=>d3(a,0)>d3(b,0)*1.12;
         const fingers={thumb:d3(4,0)>d3(2,0)*1.35||d3(4,6)>size*1.1,index:ext(8,6),middle:ext(12,10),ring:ext(16,14),pinky:ext(20,18)};
         const up=Object.values(fingers).filter(Boolean).length;
-        const pose=pinched||rpinched?'pinch':up>=4?'open':fingers.index&&!fingers.middle&&!fingers.ring&&!fingers.pinky?'point':fistShape?'fist':'none';
-        if(pinched||rpinched){s.held='pinch';s.pose='pinch';s.poseAt=now;}else if(s.pose!==pose){s.pose=pose;s.poseAt=now;if(s.held==='pinch')s.held='none';}else if(now-s.poseAt>=t.poseHoldMs){if(s.held!==pose&&s.held!=='pinch')s.changedAt=now;s.held=pose;}
-        s.pinched=pinched;s.rpinched=rpinched;
-        s.out={id,...pos,aimX:s.aim.x,aimY:s.aim.y,pinched,rpinched,gesture:s.held,points,span,fingers,pointerFinger:'index',handedness:label,palm,roll,
+        const pose=pinched||rpinched||triple?'pinch':up>=4?'open':fingers.index&&!fingers.middle&&!fingers.ring&&!fingers.pinky?'point':fistShape?'fist':'none';
+        if(pinched||rpinched||triple){s.held='pinch';s.pose='pinch';s.poseAt=now;}else if(s.pose!==pose){s.pose=pose;s.poseAt=now;if(s.held==='pinch')s.held='none';}else if(now-s.poseAt>=t.poseHoldMs){if(s.held!==pose&&s.held!=='pinch')s.changedAt=now;s.held=pose;}
+        s.pinched=pinched;s.rpinched=rpinched;s.triple=triple;
+        s.out={id,...pos,aimX:s.aim.x,aimY:s.aim.y,pinched,rpinched,triple,sincePinch:s.lastPinchAt==null?1e9:now-s.lastPinchAt,gesture:s.held,points,span,fingers,pointerFinger:'index',handedness:label,palm,roll,
                closeness:clamp(1-(gap-t.pinchOn)/(t.pinchOff-t.pinchOn),0,1),closenessM:clamp(1-(gapM-t.pinchOn)/(t.pinchOff-t.pinchOn),0,1),gap,gapM};
         out.push(s.out);
       }
       for(const [id,s]of this.hands)if(!seen.has(id)){lost.push(s.out);this.hands.delete(id);}
-      const open=out.length===1&&out[0].gesture==='open'&&!out[0].pinched&&!out[0].rpinched;let fit=false;
+      const open=out.length===1&&out[0].gesture==='open'&&!out[0].pinched&&!out[0].rpinched&&!out[0].triple;let fit=false;
       if(open){if(this.openSince===null)this.openSince=now;if(!this.fitLatched&&now-this.openSince>=t.fitHoldMs){fit=true;this.fitLatched=true;}}else{this.openSince=null;this.fitLatched=false;}
       return {hands:out,lost,fit,zoom:out.length===2&&out.every(h=>h.pinched)?{mid:{x:(out[0].palm.x+out[1].palm.x)/2,y:(out[0].palm.y+out[1].palm.y)/2},distance:distance(out[0].palm,out[1].palm)}:null};
     }
