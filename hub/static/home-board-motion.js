@@ -33,13 +33,14 @@
   function frame(f) {
     if (f._wait) f._wait.remove();
     var wait = f._wait = skeleton('Loading tool'); wait.classList.add('hk-loading'); delete f.dataset.ready; f.setAttribute('aria-busy','true');
-    requestAnimationFrame(function () { if (f.isConnected && !f.dataset.ready) f.before(wait); });
+    requestAnimationFrame(function () { if (f.isConnected && f._wait === wait && !f.dataset.ready) f.before(wait); });
     f.style.opacity = '0'; f.style.transition = allowed() ? 'opacity .22s ease' : 'none';
     if (f._loadBound) return; f._loadBound = true;
     f.addEventListener('load', function () {
       f.style.opacity = '1'; f.dataset.ready = '1'; f.removeAttribute('aria-busy'); var wait = f._wait;
       if (!wait) return; f._wait = null;
-      if (allowed() && wait.isConnected) wait.animate([{opacity:1},{opacity:0}],{duration:180}).onfinish=function(){wait.remove();}; else wait.remove();
+      // The frame already fades in. A second animated loading sheet can outlive a rapid tab switch.
+      wait.remove();
     });
   }
   window.__hubBoardMotion = { allowed: allowed, flip: flip, frame: frame, skeleton: skeleton, number: number };

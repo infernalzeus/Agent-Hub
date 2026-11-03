@@ -331,6 +331,6 @@
   // It keeps listening when another window comes in front (opening an app by voice used to switch it off); only leaving the page ends it.
   addEventListener('pagehide', function () { if (S.on) stopAll(); });
   addEventListener('resize', function () { if (blocks.length) clearBlocks(); });
-  window.__hubWake = { state: function () { return S.state; }, blocks: function () { return blocks.length; }, say: function (t) { return ask(t); } };
+  window.__hubWake = { stop: function(){stopAll(false);}, state: function () { return S.state; }, blocks: function () { return blocks.length; }, say: function (t) { return ask(t); } };
   setState('off');
 })();

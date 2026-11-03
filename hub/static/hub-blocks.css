@@ -8,7 +8,7 @@
 @media(prefers-reduced-motion:reduce){.hb-skeleton{animation:none}}
 
 .hub-block.is-hover{border-color:var(--cyan,#41ebff);background-image:radial-gradient(240px circle at var(--edge-x,50%) var(--edge-y,50%),rgba(65,235,255,.07),transparent 80%)}
-.hub-block.is-hover>.hk-b,.wb.is-hover>.li{transform:translate3d(var(--depth-x,0),var(--depth-y,0),0)}
+.hub-block.is-hover:not(.exp)>.hk-b,.wb.is-hover>.li{transform:translate3d(var(--depth-x,0),var(--depth-y,0),0)}
 .hb::before{background-position:var(--grid-x,0) var(--grid-y,0)}
 
 .hb-map{position:absolute;right:12px;bottom:12px;width:150px;height:90px;padding:0;border:1px solid var(--border-dim);border-radius:7px;background:rgba(8,12,40,.94);z-index:7;cursor:crosshair;overflow:hidden}.hb-map svg{display:block;width:100%;height:100%}.hb-map rect{fill:rgba(0,230,118,.16);stroke:var(--accent,#00e676);stroke-width:.5}.hb-map .viewport{fill:rgba(65,235,255,.05);stroke:var(--cyan,#41ebff);stroke-width:1}

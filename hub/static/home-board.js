@@ -1,7 +1,7 @@
 // Home board (desktop): the overview panels and your app icons as blocks on a canvas.
 // The wheel zooms toward the pointer, dragging the background pans, a block is picked up by its title (an app icon by
 // its body), double-click a title to focus one block, the corner resizes, the cross hides it into the tray.
-// Phones keep the plain list (home-panels.js); the app cards further down the page are untouched.
+// Every width uses the board; hidden legacy cards still host the borrowed app controls.
 (function () {
   var TW = 224, PEEK = 52, EASE = 'cubic-bezier(.2,.8,.2,1)', SPRING = 'cubic-bezier(.34,1.45,.64,1)', KEY = 'agenthub:board:v2';
   var reduce = matchMedia('(prefers-reduced-motion: reduce)'), motion = window.__hubBoardMotion;
@@ -50,7 +50,7 @@
       'html.hub-board-on body>header{position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:30;width:auto;max-width:calc(100vw - 16px);margin:0;padding:6px 14px;background:rgba(6,10,36,.66);border:1px solid var(--border-dim,rgba(0,230,118,.28));border-radius:14px;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}',
       'html.hub-board-on #setup-card{position:static;display:flex;align-items:center;gap:10px;padding:2px 8px;margin:0;border-radius:8px;background:rgba(36,28,12,.82);max-width:none}html.hub-board-on #setup-card .sc-title{white-space:nowrap}html.hub-board-on #setup-card .btn{padding:4px 10px;min-height:0;font-size:9px}',
       '.hk[hidden]{display:none!important}html.hub-board-on #setup-banner{display:none}html.hub-board-on #setup-card .sc-text{display:none}html.hub-board-on #setup-card[hidden]{display:none}',
-      'html.hub-board-on #apps-before,html.hub-board-on #opencode-app-area,html.hub-board-on #ytdl-app-area,html.hub-board-on #yt-app-area,html.hub-board-on #filebrowser-area,html.hub-board-on #apps-after{display:none!important}',
+      'html.hub-board-on body>#apps-before,html.hub-board-on body>#opencode-app-area,html.hub-board-on body>#ytdl-app-area,html.hub-board-on body>#yt-app-area,html.hub-board-on body>#filebrowser-area,html.hub-board-on body>#apps-after{display:none!important}',
       'html.hub-board-on #home-panels{height:0;margin:0;padding:0;overflow:visible}',
       '.hb-bar .hb-z.hint{flex:1 1 200px;min-width:0;white-space:normal;line-height:1.35;text-align:left}.hb-btn.off{color:var(--text-faint,#6fae92);border-style:dashed}.hb-btn.on{border-color:var(--accent,#00e676)}',
       '.hk-pi{flex:none;color:var(--accent,#00e676)}.hk-app .gi svg.tile{width:32px;height:32px}.hk-app .hb-btn{margin-left:auto;text-decoration:none;padding:5px 8px;min-height:0}',
@@ -104,10 +104,10 @@
     var hint = el('span', 'hb-z hint', ''); hint.style.cssText = 'margin-right:8px;opacity:.7'; hint.style.transition = 'opacity .7s'; hint.textContent = matchMedia('(pointer:coarse)').matches ? 'DRAG TO MOVE · PINCH TO ZOOM · DRAG A TITLE TO MOVE A BLOCK · TAP AN APP TO OPEN IT HERE' : 'WHEEL MOVES · CTRL + WHEEL ZOOMS · DRAG A BLOCK TO MOVE IT · CLICK AN APP TO OPEN IT HERE';
     var blocksBtn = el('button', 'hb-btn', 'BLOCKS'), ingestBtn = el('button', 'hb-btn', '+ INGEST APP'), talkBtn = el('button', 'hb-btn', 'TALK'), pcBtn = el('button', 'hb-btn off', 'PC CONTROL');
     blocksBtn.type = ingestBtn.type = talkBtn.type = pcBtn.type = 'button'; blocksBtn.title = 'Every block, shown or hidden (Ctrl + K)'; ingestBtn.title = 'Teach the Hub another app'; talkBtn.title = 'Talk to the Hub'; pcBtn.title = 'PC control';
-    var listBtn = el('button', 'hb-btn', 'LIST'); listBtn.type = 'button'; listBtn.title = 'Back to the simple list'; listBtn.hidden = !matchMedia('(max-width:720px)').matches; listBtn.onclick = function () { if (window.__hubHomePanels && window.__hubHomePanels.setView) window.__hubHomePanels.setView('list'); };
+    // Home is board-only; legacy cards remain hidden control hosts, never a navigation option.
     var setupHome = setupCard && { parent: setupCard.parentNode, next: setupCard.nextSibling };   // the first-time notice lives in the bar, where it can never sit over a block
     var setupBtn = el('button', 'hb-btn', 'SETUP'); setupBtn.type = 'button'; setupBtn.hidden = true; setupBtn.title = 'Things the Hub found that need setting up'; setupBtn.onclick = function () { location.href = '/setup'; };
-    bar.append(zh, hint, setupBtn, ingestBtn, talkBtn, pcBtn, zout, zin, blocksBtn, tidyBtn, fitBtn, listBtn); if (setupCard) bar.insertBefore(setupCard, hint); host.append(bar, world); document.body.appendChild(tray); root.appendChild(host); document.documentElement.classList.add('hub-board-on');
+    bar.append(zh, hint, setupBtn, ingestBtn, talkBtn, pcBtn, zout, zin, blocksBtn, tidyBtn, fitBtn); if (setupCard) bar.insertBefore(setupCard, hint); host.append(bar, world); document.body.appendChild(tray); root.appendChild(host); document.documentElement.classList.add('hub-board-on');
     // how you move around the board (classic, CAD, 3D): a prototype, classic stays the default
     view = window.__hubBoardView ? window.__hubBoardView.mount({ host: host, V: function () { return V; }, place: function () { place(); }, stop: function () { stopCam(); }, touch: function () { touched = true; }, fit: function (a) { fit(a); }, motion: motion }) : null;
     if (view) bar.insertBefore(view.btn, zout);
@@ -192,13 +192,13 @@
       defs.forEach(function (d) { blocks[d[0]]._shown = true; });
     }
 
-    function applyBlock(id) { var e = blocks[id], l = L[id]; e.style.left = l.x + 'px'; e.style.top = l.y + 'px'; e.style.width = l.w + 'px'; e.style.height = l.min ? (32 + PEEK) + 'px' : l.h + 'px'; e.classList.toggle('min', !!l.min); e.style.zIndex = l.z || 1; e.hidden = !!hid[id]; if (nav) nav.refresh(); }
+    function applyBlock(id) { var e = blocks[id], l = L[id]; if (!e.classList.contains('pick')) { e.style.left = l.x + 'px'; e.style.top = l.y + 'px'; } e.style.width = l.w + 'px'; e.style.height = l.min ? (32 + PEEK) + 'px' : l.h + 'px'; e.classList.toggle('min', !!l.min); e.style.zIndex = l.z || 1; e.hidden = !!hid[id]; if (nav) nav.refresh(); }
     function mk(id, d) {
       var e = el('div', 'hk hub-block' + ((d.app || d.card || d.extra || d.act) ? ' tile' : '')); e.dataset.id = id; e.tabIndex = 0; e.setAttribute('role', 'group');
       var h = el('div', 'hk-h'), glyph = el('span', 'hk-glyph'); glyph.appendChild(svg(id === 'runs' ? 'M5 4l14 8-14 8V4Z' : 'M5 5h14v14H5zM8 12h8')); glyph.firstChild.style.width = glyph.firstChild.style.height = ''; h.appendChild(glyph); if (PANEL_ICON[id]) { var pi = svg(PANEL_ICON[id], 1.8); pi.classList.add('hk-pi'); pi.style.width = pi.style.height = '15px'; h.appendChild(pi); }
       h.appendChild(el('span', 't', d.app ? (d.app.name || d.app.id) : d.card ? d.card[1] : d.extra ? d.extra[1] : d.act ? (d.act.name || 'Action') : d.t)); h.appendChild(el('span', 'n'));
       [['col', 'Close this view'], ['out', 'Open in its own tab'], ['min', 'Minimise'], ['foc', 'Focus'], ['x', 'Hide']].forEach(function (b) { var bt = el('button'); bt.type = 'button'; bt.dataset.a = b[0]; bt.setAttribute('aria-label', b[1]); bt.title = b[1]; bt.appendChild(svg(ICON[b[0]])); h.appendChild(bt); });
-      var body = el('div', 'hk-b'), inn = el('div', 'hk-i'); body.appendChild(inn); e.append(h, body, el('div', 'hk-rz')); e._in = inn; e._n = h.querySelector('.n'); e._app = d.app || null; e._open = null; e._name = d.app ? (d.app.name || d.app.id) : d.card ? d.card[1] : d.t;
+      var body = el('div', 'hk-b'), inn = el('div', 'hk-i'); body.appendChild(inn); var solid=el('div','hk-solid');solid.setAttribute('aria-hidden','true');['back','left','right','top','bottom'].forEach(function(side){solid.appendChild(el('i',side));});e.append(solid, h, body, el('div', 'hk-rz')); e._in = inn; e._n = h.querySelector('.n'); e._app = d.app || null; e._open = null; e._name = d.app ? (d.app.name || d.app.id) : d.card ? d.card[1] : d.t;
       if (d.app) {
         var a = d.app, box = el('div', 'hk-app'), gi = el('div', 'gi');
         var ic = (typeof CARD_ICONS !== 'undefined' && CARD_ICONS[a.id]) || null;
@@ -249,7 +249,7 @@
       if (l.exp) { collapse(id); return; }
       var before = b.getBoundingClientRect();
       l.exp = 1; l.ow = l.w; l.oh = l.h; l.min = 0; l.z = ++zTop; b._icon = Array.prototype.slice.call(b._in.childNodes); b._in.replaceChildren();
-      b.classList.add('exp'); b.querySelector('.hk-h .t').textContent = String(b._name).toUpperCase(); l.w = sp.w; l.h = sp.h; applyBlock(id); resolve(id);
+      b.classList.add('exp'); b.querySelector('.hk-h .t').textContent = String(b._name).toUpperCase(); l.w = host.clientWidth < 900 ? Math.max(260, Math.min(sp.w, host.clientWidth - 28)) : sp.w; l.h = host.clientWidth < 900 ? Math.max(240, Math.min(sp.h, host.clientHeight - TOP() - 28)) : sp.h; applyBlock(id); resolve(id);
       if (sp.app) {
         b._in.appendChild(motion.skeleton('Starting ' + b._name));
         fetch('/api/start/' + sp.app, { method: 'POST' }).then(function (r) { if (!r.ok) throw new Error('could not start'); return r.json(); }).then(function (j) {
@@ -349,6 +349,7 @@
     // the camera goes to a block you opened, but the others stay clickable (focus dims them; opening does not)
     function lookAt(id) {
       var l = L[id], r = host.getBoundingClientRect(), k = Math.min(2.4, Math.min(r.width * .7 / l.w, r.height * .7 / (l.min ? 32 + PEEK : l.h)));
+      if (l.exp && r.width < 900) { var top=TOP();k=Math.min(1.2,(r.width-28)/l.w,(r.height-top-28)/l.h);cam({k:k,x:r.width/2-(l.x+l.w/2)*k,y:top+(r.height-top-l.h*k)/2-l.y*k},520);return; }
       cam({ k: k, x: r.width / 2 - (l.x + l.w / 2) * k, y: r.height / 2 - (l.y + (l.min ? (32 + PEEK) / 2 : l.h / 2)) * k }, 520);
     }
     function focusBlock(id) {
@@ -393,11 +394,11 @@
     // Two fingers: pinch to zoom around the point between them (a trackpad pinch arrives as Ctrl + wheel and is handled above).
     var pts = {}, pinch = null;
     function two() { var k = Object.keys(pts); return k.length === 2 ? [pts[k[0]], pts[k[1]]] : null; }
-    host.addEventListener('pointerdown', function (e) { if (e.pointerType !== 'touch') return; pts[e.pointerId] = [e.clientX, e.clientY]; var p = two(); if (p) { stopCam(); touched = true; var r = host.getBoundingClientRect(), cx = (p[0][0] + p[1][0]) / 2 - r.left, cy = (p[0][1] + p[1][1]) / 2 - r.top; pinch = { d: Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]) || 1, k: V.k, wx: (cx - V.x) / V.k, wy: (cy - V.y) / V.k }; } }, true);
+    host.addEventListener('pointerdown', function (e) { if (e.pointerType !== 'touch' || e.target.closest('.hb-bar,.hb-gizmo,.hb-tray,.hb-map,.hb-jump')) return; pts[e.pointerId] = [e.clientX, e.clientY]; var p = two(); if (p) { stopCam(); touched = true; var r = host.getBoundingClientRect(), cx = (p[0][0] + p[1][0]) / 2 - r.left, cy = (p[0][1] + p[1][1]) / 2 - r.top; pinch = { d: Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]) || 1, k: V.k, wx: (cx - V.x) / V.k, wy: (cy - V.y) / V.k }; } }, true);
     host.addEventListener('pointermove', function (e) { if (!pts[e.pointerId]) return; pts[e.pointerId] = [e.clientX, e.clientY]; var p = two(); if (!p || !pinch) return; var r = host.getBoundingClientRect(), cx = (p[0][0] + p[1][0]) / 2 - r.left, cy = (p[0][1] + p[1][1]) / 2 - r.top, k = Math.min(2.6, Math.max(.3, pinch.k * Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]) / pinch.d)); V.k = k; V.x = cx - pinch.wx * k; V.y = cy - pinch.wy * k; place(); }, true);
     ['pointerup', 'pointercancel'].forEach(function (t) { host.addEventListener(t, function (e) { delete pts[e.pointerId]; if (Object.keys(pts).length < 2) pinch = null; }, true); });
     host.addEventListener('pointerdown', function (e) {
-      if (e.button || e.target.closest('.hk,.hb-bar .hb-btn,.hb-tray,.hb-map,.hb-jump')) return;
+      if (e.button || e.target.closest('.hk,.hb-bar,.hb-gizmo,.hb-tray,.hb-map,.hb-jump')) return;
       touched = true; stopCam(); host.classList.add('panning'); var sx = e.clientX - V.x, sy = e.clientY - V.y;
       var lastX = e.clientX, lastY = e.clientY, lastT = performance.now(), vx = 0, vy = 0;
       function mv(ev) { if (pinch || Object.keys(pts).length > 1) { sx = ev.clientX - V.x; sy = ev.clientY - V.y; return; } var now = performance.now(), dt = Math.max(8, now - lastT); vx = vx * .4 + (ev.clientX - lastX) / dt * .6; vy = vy * .4 + (ev.clientY - lastY) / dt * .6; lastX = ev.clientX; lastY = ev.clientY; lastT = now; V.x = ev.clientX - sx; V.y = ev.clientY - sy; place(); }
@@ -407,18 +408,22 @@
     host.addEventListener('dblclick', function (e) { if (!e.target.closest('.hk,.hb-btn,.hb-tray')) { focusId = null; undim(); fit(true); } });
     world.addEventListener('pointerdown', function (e) {
       var b = e.target.closest('.hk'); if (!b || e.button) return; var id = b.dataset.id, l = L[id]; touched = true; stopCam();
+      var dragRect=host.getBoundingClientRect(), depth=Number.parseFloat(getComputedStyle(b).getPropertyValue('--hb-dz'))||0;
+      function point(ev){return view?view.toWorld(ev.clientX,ev.clientY,depth,dragRect):{x:(ev.clientX-dragRect.left-V.x)/V.k,y:(ev.clientY-dragRect.top-V.y)/V.k};}
+      var press=point(e);
       if (e.target.closest('.hk-rz')) {
         e.preventDefault(); var sw = l.w, sh = l.h, sx = e.clientX, sy = e.clientY;
-        var mv = function (ev) { l.w = Math.max(130, sw + (ev.clientX - sx) / V.k); l.h = Math.max(70, sh + (ev.clientY - sy) / V.k); applyBlock(id); };
+        var mv = function (ev) { var p=point(ev);l.w = Math.max(130, sw + p.x-press.x); l.h = Math.max(70, sh + p.y-press.y); applyBlock(id); };
         var up = function () { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); l.u = 1; l.rz = 1; resolve(id); save(); dragCleanups = []; };
         addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up); dragCleanups.push(function () { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); }); return;
       }
       if (e.target.closest('button')) return;
       var grab = e.target.closest('.hk-h') || (b._open && !l.exp ? b : null); if (!grab) return;
-      e.preventDefault(); l.z = ++zTop; applyBlock(id); b.classList.add('pick'); host.classList.add('hb-dragging');
-      var sx2 = e.clientX, sy2 = e.clientY, ox = l.x, oy = l.y, moved = false;
-      function mv2(ev) { var dx = ev.clientX - sx2, dy = ev.clientY - sy2; if (Math.abs(dx) + Math.abs(dy) > 5) moved = true; l.x = ox + dx / V.k; l.y = oy + dy / V.k; guides.snap(id, false); applyBlock(id); }
-      function up2(event) { removeEventListener('pointermove', mv2); removeEventListener('pointerup', up2); removeEventListener('pointercancel', up2); b.classList.remove('pick'); host.classList.remove('hb-dragging'); if (moved) { var before = b.getBoundingClientRect(); guides.snap(id, true); l.u = 1; applyBlock(id); resolve(id); if (motion) motion.flip(b, before, V.k, 'drop'); } guides.clear(); save(); dragCleanups = []; if ((!event || event.type !== 'pointercancel') && !moved && b._open && !l.exp) b._open(); }
+      e.preventDefault(); if(b._flip)b._flip.cancel(); b.classList.remove('settle'); l.z = ++zTop; applyBlock(id); b.classList.add('pick'); host.classList.add('hb-dragging');
+      var sx2 = e.clientX, sy2 = e.clientY, ox = l.x, oy = l.y, moved = false, dragFrame = 0;
+      function drawDrag(){dragFrame=0;b.style.transform='translate3d('+(l.x-ox)+'px,'+(l.y-oy)+'px,0)';if(nav)nav.refresh();}
+      function mv2(ev) { var dx = ev.clientX - sx2, dy = ev.clientY - sy2; if (Math.abs(dx) + Math.abs(dy) > 5) moved = true; var p=point(ev); l.x = ox + p.x-press.x; l.y = oy + p.y-press.y; guides.snap(id, false); if(!dragFrame)dragFrame=requestAnimationFrame(drawDrag); }
+      function up2(event) { removeEventListener('pointermove', mv2); removeEventListener('pointerup', up2); removeEventListener('pointercancel', up2); if(dragFrame)cancelAnimationFrame(dragFrame);b.style.transform=''; b.classList.remove('pick'); applyBlock(id); host.classList.remove('hb-dragging'); if (moved) { var before = b.getBoundingClientRect(); guides.snap(id, true); l.u = 1; applyBlock(id); resolve(id); if (motion) motion.flip(b, before, V.k, 'drop'); } guides.clear(); save(); dragCleanups = []; if ((!event || event.type !== 'pointercancel') && !moved && b._open && !l.exp) b._open(); }
       addEventListener('pointermove', mv2); addEventListener('pointerup', up2); addEventListener('pointercancel', up2); dragCleanups.push(function () { removeEventListener('pointermove', mv2); removeEventListener('pointerup', up2); removeEventListener('pointercancel', up2); });
     });
     world.addEventListener('click', function (e) {
@@ -456,12 +461,12 @@
     function onKey(e) { if (nav && nav.key(e)) return; if (e.key === 'Escape' && focusId) { focusId = null; undim(); fit(true); } }
     nav = __hubBoardNav.mount(host, blocks, L, hid, function () { return V; }, function (id, point) { touched = true; stopCam(); if (id) { if (hid[id]) { hid[id] = 0; applyBlock(id); resolve(id); trayDraw(); save(); } lookAt(id); } else cam({x:host.clientWidth/2-point.x*V.k,y:host.clientHeight/2-point.y*V.k,k:V.k},350); }, expand, collapse);
     document.addEventListener('keydown', onKey);
-    function onResize() { setTop(); }
+    var resizeFrame=0; function onResize() { if(resizeFrame)return;resizeFrame=requestAnimationFrame(function(){resizeFrame=0;if(!alive)return;setTop();relayout();if(!touched)fit(false);}); }
     addEventListener('resize', onResize); setTop();
     relayout(); trayDraw(); paint(); requestAnimationFrame(function () { setTop(); fit(false); });
     var instance = {
       update: function (d) { data = d; paint(); HubBlocks.graphics(); if (!arrived) { arrived = true; HubBlocks.arrive(blocks, function () { return V.k; }, releaseArrival); } },
-      destroy: function () { if (!alive) return; alive = false; if (view) view.destroy(); if (setupHome && setupHome.parent) setupHome.parent.insertBefore(setupCard, setupHome.next); if (wireWatch) wireWatch.disconnect(); if (bannerWatch) bannerWatch.disconnect(); if (window.__hubBoard.active === instance) window.__hubBoard.active = null; releaseArrival(); clearTimeout(hintTimer); dragCleanups.forEach(function (fn) { fn(); }); stopCam(); stopEdge(); guides.destroy(); if (nav) nav.destroy(); document.removeEventListener('keydown', onKey); removeEventListener('resize', onResize); tray.remove(); root.replaceChildren(); root.style.width = root.style.maxWidth = root.style.marginLeft = ''; root.__hubBoardInstance = null; },
+      destroy: function () { if (!alive) return; alive = false; if (view) view.destroy(); if (setupHome && setupHome.parent) setupHome.parent.insertBefore(setupCard, setupHome.next); if (wireWatch) wireWatch.disconnect(); if (bannerWatch) bannerWatch.disconnect(); if (window.__hubBoard.active === instance) window.__hubBoard.active = null; releaseArrival(); clearTimeout(hintTimer); dragCleanups.forEach(function (fn) { fn(); }); stopCam(); stopEdge(); guides.destroy(); if (nav) nav.destroy(); document.removeEventListener('keydown', onKey); removeEventListener('resize', onResize); if(resizeFrame)cancelAnimationFrame(resizeFrame); tray.remove(); root.replaceChildren(); root.style.width = root.style.maxWidth = root.style.marginLeft = ''; root.__hubBoardInstance = null; },
       state: function () { return { V: V, L: L, hid: hid }; },
       view: function () { return view; },
       // what Talk can see of the board, and what it may do to it (the answer's `ui`: a panel to bring up, tidy, fit, zoom, the mouse scheme)

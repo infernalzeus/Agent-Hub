@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded',function(){if(!/debug/.test(locatio
  resume:function(){if(stopped)return;paused=false;window.__hubViewSuspended=false;jobs.forEach(arm);animations.forEach(function(a){try{a.play()}catch(e){}});animations=[];},
  stop:function(){if(stopped)return;stopped=true;window.__hubViewGeneration=(window.__hubViewGeneration||0)+1;jobs.forEach(disarm);jobs.clear();animations=[];window.setTimeout=raw.timeout;window.setInterval=raw.interval;window.clearTimeout=raw.clearT;window.clearInterval=raw.clearI;window.requestAnimationFrame=raw.raf;window.cancelAnimationFrame=raw.cancel;},
  stats:function(){var kinds={timeout:0,interval:0,raf:0};jobs.forEach(function(j){kinds[j.kind]++});return {paused:paused,stopped:stopped,jobs:kinds};}};
- window.__hubSuspendView=function(permanent){if(permanent)window.__hubPageTasks.stop();else window.__hubPageTasks.pause();};
+ window.__hubSuspendView=function(permanent){if(window.__hubWake&&__hubWake.stop)__hubWake.stop();if(window.__hubReleaseMic)__hubReleaseMic();if(permanent)window.__hubPageTasks.stop();else window.__hubPageTasks.pause();};
  window.__hubResumeView=function(){window.__hubPageTasks.resume();if(window.__hubRefreshView)window.__hubRefreshView();};
 })();
 // Secondary page work must not compete with the two live pages and cube turn.
@@ -308,7 +308,7 @@ __SETUP_LINK__
   document.addEventListener('click', function (e) { note('click on ' + ((e.target && (e.target.id || e.target.tagName)) || '?')); }, true);
   window.addEventListener('error', function (e) { window.__markError = window.__markError || ('js: ' + e.message); });
   if (/debug/.test(location.hash)) {
-    var box = document.createElement('pre'), t0 = Date.now(), f0 = 0;
+    var box = document.createElement('pre'), t0 = Date.now(), f0 = 0, q0 = null;
     box.style.cssText = 'position:fixed;left:6px;right:6px;bottom:6px;margin:0;padding:6px 8px;z-index:99;border-radius:6px;'
       + 'background:rgba(0,0,0,.75);color:#9fffd0;font:10px/1.4 monospace;white-space:pre-wrap;pointer-events:none';
     document.body.appendChild(box);
@@ -318,9 +318,12 @@ __SETUP_LINK__
       var lose = probe && probe.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext(); } catch (e) {}
     setInterval(function () {
       var st = mark && mark.stats ? mark.stats : {frames: 0, frameMs: 0}, secs = (Date.now() - t0) / 1000;
+      var q = mark && mark.globe && mark.globe.getQuaternion ? mark.globe.getQuaternion() : null;
+      var angular = q && q0 && secs > 0 ? 2*Math.acos(Math.min(1,Math.abs(q.reduce(function(s,v,i){return s+v*q0[i];},0))))*180/Math.PI/secs : 0; q0=q;
       var fps = secs > 0 ? ((st.frames - f0) / secs).toFixed(1) : '0'; f0 = st.frames; t0 = Date.now();
       box.textContent = [
         'mark: ' + (mark ? mark.getMode() + (mark.isShell() ? ' shell on' : ' shell off') : 'NOT MOUNTED'),
+        'globe deg/s ' + angular.toFixed(2) + '  q ' + (q ? q.map(function(v){return v.toFixed(3)}).join(',') : 'unavailable'),
         'draws/s ' + fps + '  ms/frame ' + st.frameMs.toFixed(1) + '  dpr ' + devicePixelRatio + '  ' + innerWidth + 'x' + innerHeight,
         'reduced-motion ' + matchMedia('(prefers-reduced-motion: reduce)').matches + '  webgl ' + !!gl + '  hidden ' + document.hidden,
         'sw ' + !!(navigator.serviceWorker && navigator.serviceWorker.controller) + '  last error: ' + (window.__markError || 'none') + '  poll: ' + (window.__poll || 'none'),
@@ -944,6 +947,9 @@ body.edit-mode #trash-zone{opacity:1;transform:translateX(-50%) translateY(0)}
 header>*{animation:hdIn .5s ease both}header>*:nth-child(2){animation-delay:.05s}header>*:nth-child(3){animation-delay:.1s}header>*:nth-child(4){animation-delay:.15s}header>*:nth-child(5){animation-delay:.2s}
 @media (prefers-reduced-motion:reduce){header>*{animation:none}#hub-boot,#hub-boot .hbk i{transition:none}}
 #hub-toast.err{border-color:rgba(255,92,92,.6);color:#ffb3b3}
+/* Legacy cards are control hosts, not a first-paint Home view. */
+body>#apps-before,body>#opencode-app-area,body>#ytdl-app-area,body>#yt-app-area,body>#filebrowser-area,body>#apps-after{display:none!important}
+html:not(.hub-board-on) #setup-card{visibility:hidden}
 </style>
 </head>
 <body>
@@ -1718,7 +1724,7 @@ const connDot   = document.getElementById('conn-dot');
 const orbHome   = document.getElementById('orb-home');
 
 let orbMark = null;
-window.__hubSuspendView = (permanent) => { if(permanent){if(orbMark){orbMark.destroy();orbMark=null;}quiesceLivePage();}else window.__hubPageTasks.pause(); };
+window.__hubSuspendView = (permanent) => { if(window.HubVoice)HubVoice.close(); if(window.__hubReleaseMic)window.__hubReleaseMic(); if(permanent){if(orbMark){orbMark.destroy();orbMark=null;}quiesceLivePage();}else window.__hubPageTasks.pause(); };
 window.__hubRefreshView=refresh;
 // The orb takes you back to the landing page (the screen with START / ENTER).
 orbHome.onclick = () => {
@@ -1851,6 +1857,9 @@ async function prepareDormant() {
 // Everything the live page started - timers, animation loops, sockets - must stop before the dormant page
 // takes the window over, or it keeps running behind it (it did, and a phone does not have the headroom).
 function quiesceLivePage() {
+  try { if (window.HubVoice) HubVoice.close(); } catch (e) {}
+  // Dispose the header renderer before cancelling its pending frame. An in-place rewrite keeps window globals alive.
+  if (orbMark) { orbMark.destroy(); orbMark = null; }
   try { if (window.__hubReleaseMic) window.__hubReleaseMic(); } catch (e) {}      // the dormant screen must not keep the microphone the live page opened
   try {
     if(window.__hubPageTasks)window.__hubPageTasks.stop();

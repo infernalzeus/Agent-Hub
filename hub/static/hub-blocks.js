@@ -5,8 +5,8 @@
   var m = navigator.mediaDevices;
   if (!m || !m.getUserMedia || m.__hubWrapped) return;
   var open = m.getUserMedia.bind(m); window.__hubStreams = window.__hubStreams || []; m.__hubWrapped = true;
-  m.getUserMedia = function () { return open.apply(null, arguments).then(function (s) { window.__hubStreams.push(s); return s; }); };
-  window.__hubReleaseMic = function () { (window.__hubStreams || []).splice(0).forEach(function (s) { try { s.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} }); };
+  m.getUserMedia = function () { var epoch = m.__hubMicEpoch || 0; return open.apply(null, arguments).then(function (s) { if (epoch !== (m.__hubMicEpoch || 0)) { s.getTracks().forEach(function(t){t.stop();}); throw new DOMException('The view no longer owns this microphone request', 'AbortError'); } window.__hubStreams.push(s); return s; }); };
+  window.__hubReleaseMic = function () { m.__hubMicEpoch = (m.__hubMicEpoch || 0) + 1; (window.__hubStreams || []).splice(0).forEach(function (s) { try { s.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} }); };
 })();
 (function () {
   if (window.HubBlocks) return;
@@ -15,7 +15,7 @@
   function edge(root) {
     var raf = 0, hit = null, event = null;
     function clear() { if (raf) cancelAnimationFrame(raf); raf = 0; if (hit) hit.classList.remove('is-hover'); hit = null; }
-    function paint() { raf = 0; if (!event || !allowed()) return clear(); var b = event.target.closest('.hub-block'); if (!b) return clear(); if (hit && hit !== b) hit.classList.remove('is-hover'); hit = b;
+    function paint() { raf = 0; if (!event || !allowed() || root.classList.contains('hb-dragging')) return clear(); var b = event.target.closest('.hub-block'); if (!b) return clear(); if (hit && hit !== b) hit.classList.remove('is-hover'); hit = b;
       var r = b.getBoundingClientRect(), x = (event.clientX - r.left) / r.width, y = (event.clientY - r.top) / r.height;
       b.style.setProperty('--edge-x', x * 100 + '%'); b.style.setProperty('--edge-y', y * 100 + '%'); b.style.setProperty('--depth-x', (x - .5) * 2 + 'px'); b.style.setProperty('--depth-y', (y - .5) * 2 + 'px'); b.classList.add('is-hover');
     }

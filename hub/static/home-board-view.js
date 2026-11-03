@@ -1,7 +1,7 @@
 // How you move around the board. CLASSIC is what the board always did (wheel moves, Ctrl + wheel zooms, drag the background to pan).
 //   CAD  the wheel zooms toward the pointer, the middle button drags the board, a double middle-click fits everything (SolidWorks style)
 //   3D   CAD plus a tilt (Blender style): right-drag, or Shift + middle-drag, orbits up to 40 degrees; blocks sit at a depth by kind
-//        (needs-attention near, health and usage far); a block you press flattens the board first, so nothing is dragged crooked
+//        (needs-attention near, health and usage far); pointer rays meet each pane's own depth plane
 // The axis gizmo (CAD and 3D) does the same with one finger or one mouse button: drag it to orbit (3D) or pan, tap an axis to look along it,
 // RESET to come back flat and fit. The choice is kept in localStorage 'agenthub:board:nav'. This is a prototype: CLASSIC stays the default.
 (function () {
@@ -13,13 +13,15 @@
   };
   var LIM = 40, PERSP = 1500, PREVIEW = [16, -20];
   var CSS = '.hb-3d{perspective:' + PERSP + 'px}.hb-3d .hb-world{transform-style:preserve-3d}.hb-3d .hk{content-visibility:visible;translate:0 0 var(--hb-dz,0px)}'
-    + ".hb-3d .hk[data-id=att]{--hb-dz:70px}.hb-3d .hk[data-id=runs],.hb-3d .hk[data-id=ses]{--hb-dz:30px}.hb-3d .hk[data-id=hlt],.hb-3d .hk[data-id=use]{--hb-dz:-50px}"
-    + '.hb-gizmo{position:absolute;right:12px;bottom:112px;z-index:8;width:112px;display:none;flex-direction:column;align-items:center;gap:3px;touch-action:none;user-select:none;-webkit-user-select:none}'
+    + ".hb-3d .hk[data-id=att]{--hb-dz:150px}.hb-3d .hk[data-id=runs],.hb-3d .hk[data-id=ses]{--hb-dz:65px}.hb-3d .hk[data-id=hlt],.hb-3d .hk[data-id=use]{--hb-dz:-100px}"
+    + '.hb-gizmo{position:absolute;right:12px;bottom:112px;z-index:8;width:144px;display:none;flex-direction:column;align-items:center;gap:3px;touch-action:none;user-select:none;-webkit-user-select:none}'
     + '.hb-gizmo.on{display:flex}.hb-gizmo svg{width:104px;height:104px;border-radius:50%;background:rgba(6,10,36,.62);border:1px solid var(--border-dim,rgba(0,230,118,.28));cursor:grab;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}'
     + '.hb-gizmo.drag svg{cursor:grabbing}.hb-gizmo .gz-tools{display:flex;gap:3px;width:100%}'
-    + ".hb-gizmo .gz-tools button{flex:1 1 0;font:700 8px Orbitron,monospace;letter-spacing:.4px;padding:4px 2px;min-height:22px;color:var(--text-muted,#8fcfb2);background:rgba(6,10,36,.74);border:1px solid var(--border-dim,rgba(0,230,118,.28));border-radius:6px;cursor:pointer}"
-    + '.hb-gizmo .gz-tools button.on{color:var(--accent,#00e676);border-color:var(--accent,#00e676)}.hb-gizmo [data-snap]{cursor:pointer}'
-    + '@media (pointer:coarse){.hb-gizmo{width:132px}.hb-gizmo svg{width:124px;height:124px}.hb-gizmo .gz-tools button{min-height:32px;padding:6px 3px}}';
+    + ".hb-gizmo .gz-tools button{flex:1 1 0;font:700 8px Orbitron,monospace;letter-spacing:.4px;padding:4px 2px;min-height:36px;color:var(--text-muted,#8fcfb2);background:rgba(6,10,36,.74);border:1px solid var(--border-dim,rgba(0,230,118,.28));border-radius:6px;cursor:pointer}"
+    + '.hb-gizmo .gz-tools button.on{color:var(--accent,#00e676);border-color:var(--accent,#00e676)}.hb-gizmo [data-snap]{cursor:pointer}.gz-readout{font:700 8px/1.7 Orbitron,monospace;text-align:center;color:var(--cyan,#41ebff)}'
+    + '.hb-3d .hk{transform-style:preserve-3d;box-shadow:0 18px 32px rgba(0,0,0,.45)}.hb-3d .hk.tile{--hb-dz:20px}.hb-3d .hk.exp{--hb-dz:170px}'
+    + '.hk-solid{display:none;position:absolute;inset:0;pointer-events:none;transform-style:preserve-3d}.hb-3d .hk-solid{display:block}.hk-solid i{position:absolute;display:block;box-sizing:border-box;border:1px solid #148d91;backface-visibility:visible}.hk-solid .back{inset:0;transform:translateZ(-36px);background:#082d46}.hk-solid .left,.hk-solid .right{top:0;width:36px;height:100%;transform-origin:left center;transform:rotateY(90deg);background:linear-gradient(90deg,#126d88,#071e39)}.hk-solid .left{left:0}.hk-solid .right{left:100%}.hk-solid .top,.hk-solid .bottom{left:0;width:100%;height:36px;transform-origin:center top;transform:rotateX(-90deg);background:linear-gradient(#137f88,#06344b)}.hk-solid .top{top:0}.hk-solid .bottom{top:100%}'
+    + '@media (pointer:coarse){.hb-gizmo{width:132px}.hb-gizmo svg{width:124px;height:124px}.hb-gizmo .gz-tools button{min-height:44px;padding:6px 3px}}';
   function load() { try { var v = localStorage.getItem(KEY); return ORDER.indexOf(v) >= 0 ? v : 'classic'; } catch (e) { return 'classic'; } }
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function sv(tag, attrs, parent) { var e = document.createElementNS('http://www.w3.org/2000/svg', tag); for (var k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
@@ -35,11 +37,13 @@
     var host = c.host, mode = load(), rx = 0, ry = 0, tool = 'orbit', flat = 0, ac = new AbortController(), sig = { signal: ac.signal };
     var btn = el('button', 'hb-btn', NAME[mode]); btn.type = 'button';
     var gz = el('div', 'hb-gizmo'), svg = sv('svg', { viewBox: '-52 -52 104 104', role: 'img', 'aria-label': 'Axes: drag to move around the board' }, gz);
+    var readout = el('output', 'gz-readout'); readout.setAttribute('aria-label', 'Board rotation'); gz.appendChild(readout);
     var tools = el('div', 'gz-tools'), tOrbit = el('button', '', 'ORBIT'), tPan = el('button', '', 'PAN'), tReset = el('button', '', 'RESET');
     [tOrbit, tPan, tReset].forEach(function (b) { b.type = 'button'; tools.appendChild(b); }); gz.append(svg, tools); host.appendChild(gz);
     tOrbit.title = 'Dragging the axes turns the board'; tPan.title = 'Dragging the axes moves the board'; tReset.title = 'Flat again, and everything in view';
 
     function paintGizmo() {
+      readout.textContent = (mode === '3d' ? 'DRAG TO ORBIT' : 'DRAG TO PAN') + ' · ' + Math.round(rx) + ' / ' + Math.round(ry) + ' DEG';
       svg.textContent = '';
       sv('circle', { cx: 0, cy: 0, r: 2.4, fill: 'rgba(217,255,233,.5)' }, svg);
       var axes = [['x', [1, 0, 0], '#ff5c5c', 'X'], ['y', [0, -1, 0], '#5fe08a', 'Y'], ['z', [0, 0, 1], '#3ba7ff', 'Z']], pts = [];
@@ -66,7 +70,7 @@
     btn.onclick = function () { setMode(ORDER[(ORDER.indexOf(mode) + 1) % ORDER.length]); };
 
     function clampTilt() { rx = Math.max(-LIM, Math.min(LIM, rx)); ry = Math.max(-LIM, Math.min(LIM, ry)); }
-    function orbit(dx, dy) { if (mode !== '3d') return; c.stop(); ry += dx * .25; rx -= dy * .25; clampTilt(); paintGizmo(); c.place(); }
+    function orbit(dx, dy) { if (mode !== '3d') return; ++flat; c.stop(); ry += dx * .25; rx -= dy * .25; clampTilt(); paintGizmo(); c.place(); }
     function pan(dx, dy) { c.stop(); var V = c.V(); V.x += dx; V.y += dy; c.place(); }
     // eased move of the tilt to (tx, ty); the board is left where it is
     function tiltTo(tx, ty, ms) {
@@ -86,7 +90,7 @@
     // ---- gizmo: drag moves or turns the board, a tap on an axis looks along it
     var gdrag = null;
     svg.addEventListener('pointerdown', function (e) {
-      if (e.button) return; e.preventDefault();
+      if (e.button) return; e.preventDefault(); e.stopPropagation(); ++flat;
       var hit = e.target.closest && e.target.closest('[data-snap]');
       gdrag = { id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false, snap: hit ? hit.getAttribute('data-snap') : null };
       try { svg.setPointerCapture(e.pointerId); } catch (x) {} gz.classList.add('drag');
@@ -98,7 +102,7 @@
       gdrag.moved = true; (mode === '3d' && tool === 'orbit' ? orbit : pan)(dx, dy);
     }, sig);
     function gup(e) { if (!gdrag || e.pointerId !== gdrag.id) return; var d = gdrag; gdrag = null; gz.classList.remove('drag'); if (!d.moved && d.snap && e.type === 'pointerup') snap(d.snap); }
-    svg.addEventListener('pointerup', gup, sig); svg.addEventListener('pointercancel', gup, sig);
+    svg.addEventListener('pointerup', gup, sig); svg.addEventListener('pointercancel', gup, sig); svg.addEventListener('lostpointercapture', gup, sig);
     tOrbit.onclick = function () { tool = 'orbit'; toolPaint(); };
     tPan.onclick = function () { tool = 'pan'; toolPaint(); };
     tReset.onclick = function () { tiltTo(0, 0, 240); c.fit(true); };
@@ -108,7 +112,7 @@
     host.addEventListener('pointerdown', function (e) {
       if (mode === 'classic') return;
       if (e.target.closest('.hb-bar,.hb-tray,.hb-gizmo,.hb-map,.hb-jump')) return;
-      if (e.button === 0 && (rx || ry) && e.target.closest('.hk')) { flatten(); return; }
+      // Pane controls and grabs retain the chosen orientation.
       var middle = e.button === 1, right = e.button === 2 && mode === '3d' && !e.target.closest('.hk');
       if (!middle && !right) return;
       e.preventDefault(); c.touch(); c.stop();
@@ -133,7 +137,7 @@
       setMode: setMode,
       // the world's transform: unchanged when flat, so CLASSIC is exactly what it was
       transform: function (V) {
-        var base = 'translate3d(' + V.x + 'px,' + V.y + 'px,0) scale(' + V.k + ')';
+        var base = 'translate3d(' + V.x + 'px,' + V.y + 'px,0) ' + (mode === '3d' ? 'scale3d(' + V.k + ',' + V.k + ',' + V.k + ')' : 'scale(' + V.k + ')');
         if (!rx && !ry) return base;
         var cx = host.clientWidth / 2, cy = host.clientHeight / 2;
         return 'translate3d(' + cx + 'px,' + cy + 'px,0) rotateX(' + rx + 'deg) rotateY(' + ry + 'deg) translate3d(' + (-cx) + 'px,' + (-cy) + 'px,0) ' + base;
@@ -143,6 +147,15 @@
         if (mode === 'classic' || e.ctrlKey || e.shiftKey) return false;
         var dy = e.deltaMode === 1 ? e.deltaY * 32 : e.deltaY, k = Math.min(2.6, Math.max(.3, target.k * Math.exp(-dy * .0018))), px = e.clientX - r.left, py = e.clientY - r.top;
         aim({ x: px - (px - target.x) * k / target.k, y: py - (py - target.y) * k / target.k, k: k }); return true;
+      },
+      // Inverse perspective ray / pane-plane intersection. No layout reads while following the pointer.
+      toWorld: function (x, y, z, rect) {
+        var V=c.V(), dx=x-rect.left-host.clientWidth/2, dy=y-rect.top-host.clientHeight/2;
+        if(mode!=='3d')return {x:(x-rect.left-V.x)/V.k,y:(y-rect.top-V.y)/V.k};
+        var cx=Math.cos(rx*rad),sx=Math.sin(rx*rad),cy=Math.cos(ry*rad),sy=Math.sin(ry*rad);
+        var a=sy*dx-cy*sx*dy,b=cy*cx*PERSP,t=(z*V.k-b)/(a-b);
+        var ux=cy*dx*t+sy*sx*dy*t-sy*cx*PERSP*(1-t),uy=cx*dy*t+sx*PERSP*(1-t);
+        return {x:(ux+host.clientWidth/2-V.x)/V.k,y:(uy+host.clientHeight/2-V.y)/V.k};
       },
       flatten: flatten,
       destroy: function () { ac.abort(); gz.remove(); host.classList.remove('hb-3d', 'hb-cad'); }

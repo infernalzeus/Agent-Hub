@@ -129,7 +129,9 @@
   async function ensureStream() {
     if (S.stream && S.stream.active) return true;
     try {
-      S.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      const listen = S.listen, stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      if (!S.on || listen !== S.listen) { stream.getTracks().forEach(t => t.stop()); return false; }
+      S.stream = stream;
       const AC = window.AudioContext || window.webkitAudioContext; S.ctx = new AC(); S.an = S.ctx.createAnalyser(); S.an.fftSize = 1024; S.ctx.createMediaStreamSource(S.stream).connect(S.an);
       return true;
     } catch (e) { return false; }
@@ -237,7 +239,7 @@
     }
     if (!(await ensureStream())) { S.on = false; paintOn(); hint('The microphone is blocked for this site. Allow it in the browser, or type below.'); setState('breathing', 'Microphone blocked'); return; }
     if (S.whisper === null) { try { S.whisper = (await (await fetch('/api/voice/status')).json()).whisper; } catch (e) { S.whisper = false; } }
-    if (!S.whisper) { S.on = false; paintOn(); hint('Local speech recognition is not ready on the hub PC. Type below.'); setState('breathing', 'No local Whisper'); return; }
+    if (!S.whisper) { releaseStream(); S.on = false; paintOn(); hint('Local speech recognition is not ready on the hub PC. Type below.'); setState('breathing', 'No local Whisper'); return; }
     hint('');
     while (S.on && listen === S.listen) {
       if (S.busy || S.speaking) { await new Promise((r) => setTimeout(r, 60)); continue; }
@@ -354,7 +356,7 @@
     if (!RECPOLL) RECPOLL = setInterval(recPaint, 1500);
     if (autoStart && !S.on) { S.on = true; paintOn(); startLoop(); }
   }
-  function close() { S.on = false; S.listen++; fresh(); paintOn(); $('voice').hidden = true; if (RECPOLL) { clearInterval(RECPOLL); RECPOLL = null; } }
+  function close() { S.on = false; S.listen++; releaseStream(); fresh(); paintOn(); $('voice').hidden = true; if (RECPOLL) { clearInterval(RECPOLL); RECPOLL = null; } }
   function toggle() { unlockAudio(); if (S.on) { S.on = false; S.listen++; cancelTurn(); S.pending = null; showBtns(false); saveSession(); paintOn(); ready(); } else { S.on = true; paintOn(); startLoop(); } }
 
   async function fillVoices() {
