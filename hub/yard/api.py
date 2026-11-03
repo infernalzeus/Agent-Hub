@@ -28,7 +28,8 @@ def status() -> dict:
         ready = True
     except ImportError:
         ready = False
-    return {"ready": ready, "ran": rep is not None, "report": rep, "max_episodes": MAX_EPISODES,
+    from . import shadow
+    return {"ready": ready, "ran": rep is not None, "report": rep, "shadow": shadow.summary(), "max_episodes": MAX_EPISODES,
             "needs": None if ready else "numpy is not installed; practising needs it, nothing else does"}
 
 

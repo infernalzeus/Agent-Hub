@@ -223,7 +223,7 @@
         var c = d.card, bx2 = el('div', 'hk-app'), g2 = el('div', 'gi'); g2.appendChild(cardIcon(c[2]) || svg(c[0] === 'oc' ? 'M9 4a3 3 0 0 0-5 3 4 4 0 0 0 0 7 3 3 0 0 0 5 5M15 4a3 3 0 0 1 5 3 4 4 0 0 1 0 7 3 3 0 0 1-5 5M9 3v18M15 3v18M9 8H6M15 13h4' : c[0] === 'ytdl' ? 'M12 3v12M7 10l5 5 5-5M4 16v5h16v-5' : 'M12 15V3M7 8l5-5 5 5M4 16v5h16v-5'));
         if (!g2.firstChild.classList.contains('cardicon')) g2.firstChild.style.width = g2.firstChild.style.height = '30px';
         var nm2 = el('div'); nm2.appendChild(el('b', '', c[1])); nm2.appendChild(el('small', '', 'OPEN')); bx2.append(g2, nm2); inn.appendChild(bx2);
-        e._spec = c[0] === 'oc' ? { tabs: [['MISSIONS', '/missions'], ['AGENTS', '/agents'], ['GRAPH', '/graph']], w: 860, h: 600 } : { move: c[0] === 'ytdl' ? 'ytdl-app-area' : 'yt-app-area', toggle: c[3], w: 560, h: 620 };
+        e._spec = c[0] === 'oc' ? { tabs: [['MISSIONS', '/missions'], ['AGENTS', '/agents'], ['GRAPH', '/graph'], ['PRACTICE', '/yard']], w: 860, h: 600 } : { move: c[0] === 'ytdl' ? 'ytdl-app-area' : 'yt-app-area', toggle: c[3], w: 560, h: 620 };
         e._open = function () { expand(id); };
       }
       e.setAttribute('aria-label', e._name); blocks[id] = e; world.appendChild(e); applyBlock(id); return e;
@@ -242,7 +242,7 @@
 
     // Click an app and it opens here, inside the board, at a readable size; the cross-arrow button opens it in its own tab instead.
     function settle(b) { if (!motion.allowed()) return; b.classList.add('settle'); setTimeout(function () { b.classList.remove('settle'); }, 450); }
-    function embedUrl(url) { var u = new URL(url, location.href); if (['/missions', '/agents', '/graph', '/support'].indexOf(u.pathname) >= 0) u.searchParams.set('embed', '1'); return u.href; }
+    function embedUrl(url) { var u = new URL(url, location.href); if (['/missions', '/agents', '/graph', '/yard', '/support'].indexOf(u.pathname) >= 0) u.searchParams.set('embed', '1'); return u.href; }
     function frame(url) { var f = el('iframe', 'hk-fr'); f.src = embedUrl(url); f.setAttribute('loading', 'lazy'); f.title = 'Embedded Hub tool'; if (motion) motion.frame(f); return f; }
     function expand(id) {
       var b = blocks[id], l = L[id], sp = b._spec; if (!sp) return;
@@ -491,7 +491,7 @@
       },
       // Talk asked for a Hub page ("open missions"): it opens inside the board, on the right tab, never as a separate page.
       openTool: function (url) {
-        var u = new URL(url, location.href), id = u.pathname === '/support' ? 'extra:support' : (['/missions', '/agents', '/graph'].indexOf(u.pathname) >= 0 ? 'card:oc' : null);
+        var u = new URL(url, location.href), id = u.pathname === '/support' ? 'extra:support' : (['/missions', '/agents', '/graph', '/yard'].indexOf(u.pathname) >= 0 ? 'card:oc' : null);
         if (!alive || !id || !blocks[id] || !L[id]) return false;
         touched = true; stopCam();
         if (hid[id]) { hid[id] = 0; applyBlock(id); resolve(id); trayDraw(); save(); }

@@ -1,6 +1,7 @@
 """The practice yard: the pretend apps are exact, the real agent runs against them, the learner learns, and it never reaches outside itself."""
 import asyncio
 import json
+from pathlib import Path
 
 import pytest
 
@@ -93,3 +94,96 @@ def test_a_running_hub_serves_the_yard_status(hub):
     import urllib.request
     d = json.load(urllib.request.urlopen(hub + "/api/yard/status"))
     assert d["ready"] is True and d["max_episodes"] == api.MAX_EPISODES
+
+
+# ---- shadow mode: what the trained policy would have pressed, recorded beside the live agent, never altering it
+@pytest.fixture
+def shadowed(tmp_path, monkeypatch):
+    from hub.yard import shadow as SH
+    monkeypatch.setattr(SH, "DIR", tmp_path)
+    monkeypatch.setattr(SH, "POLICY", tmp_path / "policy.json")
+    monkeypatch.setattr(SH, "LOG", tmp_path / "shadow.jsonl")
+    monkeypatch.setitem(SH._CACHE, "mtime", None)
+    monkeypatch.setenv("HUB_YARD_SHADOW", "1")
+    lr, _ = P.train(1200, hidden=0, seed=0)
+    (tmp_path / "policy.json").write_text(json.dumps({"linear": lr.actor.dump()}))
+    return SH
+
+
+def _agent_run(world, decide, shadow=True):
+    return asyncio.run(DA.attempt(world.goal, APP, decide, tree=world.tree, media=world.media, click=world.click, type_=world.type_, key=world.key,
+                                  settle=0, shadow=shadow))
+
+
+def test_shadow_writes_what_the_policy_would_do_beside_what_the_agent_did_and_changes_nothing(shadowed):
+    a, b = World("menu", 11), World("menu", 11)
+    plain = _agent_run(a, L.greedy_policy, shadow=False)
+    watched = _agent_run(b, L.greedy_policy, shadow=True)
+    assert [t.get("do") for t in plain["trace"]] == [t.get("do") for t in watched["trace"]] and plain["ok"] == watched["ok"] and a.success() == b.success()
+    rows = [json.loads(l) for l in shadowed.LOG.read_text().splitlines()]
+    steps = [r for r in rows if r["kind"] == "step"]
+    assert len(steps) == len(watched["trace"]) and {"live", "would", "agree"} <= set(steps[0])
+    assert rows[-1]["kind"] == "result" and rows[-1]["ok"] == watched["ok"]
+    s = shadowed.summary()
+    assert s["steps"] == len(steps) and s["tasks"] == 1
+
+
+def test_shadow_writes_nothing_without_a_trained_policy_or_when_switched_off(shadowed, monkeypatch):
+    shadowed.POLICY.unlink()
+    _agent_run(World("direct", 2), L.greedy_policy)
+    assert not shadowed.LOG.exists()
+    shadowed.POLICY.write_text(json.dumps({"linear": L.Learner().actor.dump()}))
+    monkeypatch.setenv("HUB_YARD_SHADOW", "0")
+    _agent_run(World("direct", 2), L.greedy_policy)
+    assert not shadowed.LOG.exists()
+
+
+def test_a_broken_policy_file_never_breaks_a_task(shadowed):
+    shadowed.POLICY.write_text("{not json")
+    res = _agent_run(World("direct", 5), L.greedy_policy)
+    rows = [json.loads(l) for l in shadowed.LOG.read_text().splitlines()] if shadowed.LOG.exists() else []
+    assert res["trace"] and not any(r["kind"] == "step" for r in rows)       # no step is noted, and the task ran as usual
+
+
+def test_shadow_costs_the_agent_under_five_milliseconds_a_step(shadowed):
+    import time
+    w = World("direct", 7)
+    asyncio.run(w.tree())
+    o = L.parse(DA.brief(w.goal, APP, DA.controls(_nodes(w), APP, w.goal), [], [], 0))
+    t0 = time.perf_counter()
+    for _ in range(50):
+        shadowed.note(w.goal, APP, DA.brief(w.goal, APP, DA.controls(_nodes(w), APP, w.goal), [], [], 0), {"do": "click", "control": {"id": 1}}, 0)
+    assert (time.perf_counter() - t0) / 50 < 0.005
+    assert o["controls"]
+
+
+def test_the_practice_page_is_served_and_the_board_offers_it_as_a_tab(hub):
+    import urllib.request
+    html = urllib.request.urlopen(hub + "/yard").read().decode()
+    assert "PRACTICE YARD" in html and "/api/yard/practice" in html and "/api/yard/status" in html
+    board = (Path(__file__).resolve().parents[1] / "hub" / "static" / "home-board.js").read_text(encoding="utf-8")
+    assert "['PRACTICE', '/yard']" in board
+
+
+def test_the_practice_tab_opens_the_page_inside_the_board_and_a_run_fills_its_tables(hub):
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        b = p.chromium.launch(headless=True)
+        pg = b.new_context(service_workers="block").new_page()
+        errors = []
+        pg.on("pageerror", lambda e: errors.append(str(e)))
+        pg.goto(hub + "/?enter=1")
+        pg.wait_for_function("!!(window.__hubBoard && __hubBoard.active)")
+        assert pg.evaluate("__hubBoard.open('/yard')")
+        pg.wait_for_function("[...document.querySelectorAll('.hk-fr')].some(f => f.src.includes('/yard'))")
+        assert "PRACTICE" in pg.inner_text(".hk[data-id='card:oc']")
+        page = b.new_context(service_workers="block").new_page()
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        page.goto(hub + "/yard")
+        assert page.evaluate("fetch('/api/yard/practice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true,episodes:100})}).then(r=>r.status)") == 200
+        page.reload()
+        page.wait_for_function("document.querySelectorAll('#means tr').length > 4")
+        assert "learned, linear" in page.inner_text("#means") and "direct" in page.inner_text("#layouts")
+        assert page.inner_text("#shadowsub")
+        b.close()
+    assert errors == []

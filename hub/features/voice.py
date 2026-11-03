@@ -44,9 +44,9 @@ from .. import config
 routes = web.RouteTableDef()
 
 # ── what the assistant can do ────────────────────────────────────────────────────────────────────────────────────────
-PAGES = {"missions": "/missions", "agents": "/agents", "graph": "/graph", "locations": "/setup", "hub": "/"}
+PAGES = {"missions": "/missions", "agents": "/agents", "graph": "/graph", "locations": "/setup", "yard": "/yard", "hub": "/"}
 ACTIONS = {
-    "open_page": {"desc": "Open a page: missions, agents, graph, locations, hub.", "args": "page", "confirm": False},
+    "open_page": {"desc": "Open a page: missions, agents, graph, locations, yard (the practice yard), hub.", "args": "page", "confirm": False},
     "status": {"desc": "Say what is waiting for the user and what is running, hub-wide.", "args": "", "confirm": False},
     # An automation that stops to ask is useless if the answer can only be typed.
     "automation_waiting": {"desc": "Say which automation runs are waiting, and what each one is waiting for.", "args": "", "confirm": False},

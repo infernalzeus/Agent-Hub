@@ -262,8 +262,20 @@ async def _key(k: str) -> None:
     await MCP.call_tool("windows", "Shortcut", {"shortcut": k})
 
 
-async def attempt(goal: str, app: str, decide, *, tree=None, media=None, click=None, type_=None, key=None,
-                  settle: float = SETTLE, max_steps: int = MAX_STEPS) -> dict:
+async def attempt(goal: str, app: str, decide, *, shadow: bool = True, **kw) -> dict:
+    """`_attempt`, plus shadow mode: beside each choice the model makes, the yard's trained policy says what it would have pressed (record only)."""
+    res = await _attempt(goal, app, decide, shadow=shadow, **kw)
+    if shadow:
+        try:
+            from ..yard import shadow as SH
+            SH.note_result(goal, app, bool(res.get("ok")), len(res.get("trace") or []))
+        except Exception:  # noqa: BLE001 - recording must never touch the result
+            pass
+    return res
+
+
+async def _attempt(goal: str, app: str, decide, *, tree=None, media=None, click=None, type_=None, key=None,
+                   settle: float = SETTLE, max_steps: int = MAX_STEPS, shadow: bool = False) -> dict:
     """One model's try at the goal. `decide(system, user)` returns the model's raw answer.
 
     Returns {ok, say, steps, trace, saved} - `steps` are the presses that worked, in the shape a routine stores.
@@ -300,6 +312,12 @@ async def attempt(goal: str, app: str, decide, *, tree=None, media=None, click=N
             trace.append({"step": step, "error": str(exc)[:160], "ms": int((time.time() - t0) * 1000)})
             return {"ok": False, "say": f"The model did not answer: {str(exc)[:100]}", "steps": steps, "trace": trace}
         act = parse_action(raw, shown)
+        if shadow:
+            try:
+                from ..yard import shadow as SH
+                SH.note(goal, app, prompt, act, step)
+            except Exception:  # noqa: BLE001
+                pass
         trace.append({"step": step, "ms": int((time.time() - t0) * 1000), "raw": str(raw)[:300],
                       "do": act["do"], "control": describe(act["control"]) if act.get("control") else "", "why": act.get("why", "")})
         if act["do"] == "invalid":

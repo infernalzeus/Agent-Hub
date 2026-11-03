@@ -25,7 +25,7 @@ _LOOP = asyncio.new_event_loop()
 
 def run_episode(world: World, decide, max_steps: int = DA.MAX_STEPS) -> dict:
     res = _LOOP.run_until_complete(DA.attempt(world.goal, APP, decide, tree=world.tree, media=world.media, click=world.click,
-                                              type_=world.type_, key=world.key, settle=0, max_steps=max_steps))
+                                              type_=world.type_, key=world.key, settle=0, max_steps=max_steps, shadow=False))
     trace = res.get("trace") or []
     return {"success": world.success(), "agent_said_ok": bool(res.get("ok")), "trace": trace, "steps": len(trace),
             "invalid": sum(1 for t in trace if t.get("do") == "invalid"),
