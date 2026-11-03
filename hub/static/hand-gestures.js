@@ -81,10 +81,14 @@ SOFTWARE.
         const palm=s.palmF.filter(PALM.reduce((a,j)=>a+points[j].x,0)/PALM.length,PALM.reduce((a,j)=>a+points[j].y,0)/PALM.length,now/1000);
         const rr=Math.atan2((1-raw[9].x)-(1-raw[0].x),-(raw[9].y-raw[0].y));
         s.rollU=s.rollRaw===null?rr:s.rollU+wrap(rr-s.rollRaw);s.rollRaw=rr;const roll=s.rollF.filter(s.rollU,now/1000);
+        // a fist is four fingertips pulled in to the palm; a pinch with the other fingers curled is NOT one (the index fingertip stays about a
+        // hand-size away from the palm), and neither is anything where the thumb touches a fingertip, so a pinch can never start a tilt
+        const pc=[0,1,2].map(k=>PALM.reduce((a,j)=>a+P[j][k],0)/PALM.length),dp=i=>Math.hypot(P[i][0]-pc[0],P[i][1]-pc[1],P[i][2]-pc[2]);
+        const fistShape=[8,12,16,20].every(i=>dp(i)<.8*size)&&gap>t.pinchOff&&gapM>t.pinchOff;
         const ext=(a,b)=>d3(a,0)>d3(b,0)*1.12;
         const fingers={thumb:d3(4,0)>d3(2,0)*1.35||d3(4,6)>size*1.1,index:ext(8,6),middle:ext(12,10),ring:ext(16,14),pinky:ext(20,18)};
-        const up=Object.values(fingers).filter(Boolean).length,curled=!fingers.index&&!fingers.middle&&!fingers.ring&&!fingers.pinky;
-        const pose=pinched||rpinched?'pinch':up>=4?'open':fingers.index&&!fingers.middle&&!fingers.ring&&!fingers.pinky?'point':curled?'fist':'none';
+        const up=Object.values(fingers).filter(Boolean).length;
+        const pose=pinched||rpinched?'pinch':up>=4?'open':fingers.index&&!fingers.middle&&!fingers.ring&&!fingers.pinky?'point':fistShape?'fist':'none';
         if(pinched||rpinched){s.held='pinch';s.pose='pinch';s.poseAt=now;}else if(s.pose!==pose){s.pose=pose;s.poseAt=now;if(s.held==='pinch')s.held='none';}else if(now-s.poseAt>=t.poseHoldMs){if(s.held!==pose&&s.held!=='pinch')s.changedAt=now;s.held=pose;}
         s.pinched=pinched;s.rpinched=rpinched;
         s.out={id,...pos,aimX:s.aim.x,aimY:s.aim.y,pinched,rpinched,gesture:s.held,points,span,fingers,pointerFinger:'index',handedness:label,palm,roll,

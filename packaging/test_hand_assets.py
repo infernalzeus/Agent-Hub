@@ -48,3 +48,18 @@ def test_a_model_of_the_right_size_but_the_wrong_bytes_is_refused(monkeypatch,as
  monkeypatch.setattr(H,'MODEL_SHA256','0'*64)
  with pytest.raises(ValueError,match='checksum'):H.install()
  assert not H.status()['ready']
+
+
+def test_a_trace_is_kept_in_the_state_folder_as_numbers_and_only_when_asked(monkeypatch,tmp_path):
+ import asyncio,json as js
+ monkeypatch.setattr(H,'TRACES',tmp_path/'hands')
+ class Req:
+  def __init__(s,b):s.b=b
+  async def json(s):return s.b
+ ok=asyncio.run(H.api_trace(Req({'confirm':True,'trace':{'version':2,'frames':[{'t':0,'step':'rest','hands':[]}]}})))
+ saved=js.loads(ok.text)
+ assert (tmp_path/'hands'/saved['saved']).is_file() and saved['frames']==1
+ import aiohttp.web as web
+ for bad in ({'trace':{'frames':[]}},{'confirm':True},{'confirm':True,'trace':{'frames':'x'}}):
+  try:asyncio.run(H.api_trace(Req(bad)));assert False
+  except web.HTTPBadRequest:pass

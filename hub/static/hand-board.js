@@ -36,7 +36,7 @@ SOFTWARE.
   function styles(){if(document.getElementById('hands-style'))return;const s=document.createElement('style');s.id='hands-style';s.textContent='.hb-hands{display:inline-flex;align-items:center;gap:5px}.hb-hands svg{width:17px;height:17px}.hb-hands i{width:6px;height:6px;border-radius:50%;background:var(--text-faint);display:inline-block}.hb-hands.live i{background:var(--accent);box-shadow:0 0 5px var(--accent)}.hb-hands.live{border-color:var(--cyan);color:var(--cyan)}.hands-overlay{position:fixed;inset:0;pointer-events:none;z-index:54}.hands-legend,.hands-status{position:fixed;z-index:55;pointer-events:none;max-width:min(520px,calc(100vw - 32px));padding:10px 14px;border:1px solid var(--border-dim);border-radius:9px;background:rgba(8,12,40,.96);color:var(--text);font:11px/1.8 Orbitron,monospace}.hands-legend{left:16px;bottom:calc(22px + env(safe-area-inset-bottom));transition:opacity .3s}.hands-status{left:16px;top:calc(12px + env(safe-area-inset-top));color:var(--cyan);font-size:10px}.hands-setup{position:fixed;inset:auto;left:50%;top:50%;transform:translate(-50%,-50%);z-index:95;box-sizing:border-box;width:min(460px,calc(100vw - 28px));padding:20px;border:1px solid var(--accent);border-radius:12px;background:#080c28;color:var(--text);font:12px/1.8 Orbitron,monospace;box-shadow:0 14px 50px #0009}.hands-setup button{margin:8px 6px 0 0}.hands-setup p{font-family:Outfit,system-ui,sans-serif;font-size:14px}.hands-legend[hidden],.hands-status[hidden],.hands-setup[hidden]{display:none!important}@media(prefers-reduced-motion:reduce){.hands-legend{transition:none}}';document.head.appendChild(s);}
   function mount({host,bar,fitButton}){
     styles();
-    let typedAt=-Infinity,lastAction=-Infinity,alive=true,enabled=false,canvas=null,ctx=null,legend=null,status=null,legendTimer=0,used=false,zooming=false,interlock=false,cooldown=0,diagnostic=false,measurementLabel='MEASURING',hint='',hintAt=0,calibration=null;
+    let recording=null,typedAt=-Infinity,lastAction=-Infinity,alive=true,enabled=false,canvas=null,ctx=null,legend=null,status=null,legendTimer=0,used=false,zooming=false,interlock=false,cooldown=0,diagnostic=false,measurementLabel='MEASURING',hint='',hintAt=0,calibration=null;
     let profile={v:PROFILE_VERSION,fist:false,orbit:true};
     try{const saved=JSON.parse(localStorage.getItem('hub-hands-profile')||'null');if(saved&&saved.v===PROFILE_VERSION)profile={...profile,...saved};}catch(_){}      // an older profile was measured in other units: start again
     const engine=new G.Engine({}),detected=new Set(),presses=new Map(),btn=document.createElement('button');
@@ -112,9 +112,10 @@ SOFTWARE.
       counts.latencies.push(performance.now()-(Number.isFinite(meta.inferenceMs)?now:processingAt));if(Number.isFinite(meta.captureTime))counts.cameraLatencies.push(performance.now()-meta.captureTime);
       if(counts.latencies.length>1800)counts.latencies.shift();if(counts.cameraLatencies.length>1800)counts.cameraLatencies.shift();
       if(output.hands.length)counts.handFrames++;
-      if(status&&output.hands[0]&&performance.now()-hintAt>2500){const h=output.hands[0];status.textContent=(diagnostic?measurementLabel+' · ACTIONS PAUSED':'CAMERA ON')+' · L '+h.gap.toFixed(2)+' · R '+h.gapM.toFixed(2)+' (press below '+engine.tuning.pinchOn.toFixed(2)+')';}
+      if(status&&output.hands[0]&&performance.now()-hintAt>2500){const h=output.hands[0];status.textContent=(diagnostic?measurementLabel+' · ACTIONS PAUSED':'CAMERA ON')+' · L '+h.gap.toFixed(2)+' · R '+h.gapM.toFixed(2)+' (press below '+engine.tuning.pinchOn.toFixed(2)+') · '+(h.pinched?'LEFT PRESS':h.rpinched?'RIGHT PRESS':String(h.gesture).toUpperCase());}
       else if(status&&hint&&performance.now()-hintAt<=2500)status.textContent=hint;
       for(const lost of output.lost)release(lost.id,true);
+      if(recording)traceFrame(output,result,now);
       if(calibration){cancelAll();const h=output.hands[0];
         if(h&&output.hands.length===1){calibration.samples.push(h.gap);
           if(now-calibration.at>=2000&&calibration.samples.length>=25){const a=calibration.samples.slice().sort((x,y)=>x-y),v=a[Math.floor(a.length/2)];
@@ -144,6 +145,29 @@ SOFTWARE.
     function stopped(reason){enabled=false;btn.classList.remove('live');btn.setAttribute('aria-pressed','false');btn.title='Hand control off: '+reason;cancelAll();calibration=null;diagnostic=false;engine.reset();detected.clear();clearOverlay();}
     const tracker=root.HubHandsTracker.create({onFrame:feed,onStop:stopped,onState(s){if(s.enabled){enabled=true;showOverlay();btn.classList.add('live');btn.setAttribute('aria-pressed','true');}btn.setAttribute('aria-busy',String(s.loading));btn.title=s.error||('Hand control '+s.reason);},...(root.__HUB_HANDS_TEST?.tracker||{})});
 
+    // ---- a guided recording of hand shapes, for tuning from real data: numbers only (21 points per hand, the gaps and the shape the engine named), never an image
+    const STEPS=[['relaxed','Rest your hand, relaxed, fingers loose'],['point','Point at the screen with your index finger, other fingers curled'],['open','Open hand, fingers spread'],
+      ['pinch_index','Pinch thumb to INDEX fingertip, hold a second, release: three times'],['pinch_middle','Pinch thumb to MIDDLE fingertip, hold, release: three times'],
+      ['fist','Make a FIST, hold, then open: twice'],['three_together','Bring thumb, index and middle together, then spread them: three times'],['rest','Rest your hand again, relaxed']];
+    function startTrace(message){
+      const stepMs=(root.__HUB_HANDS_TEST&&root.__HUB_HANDS_TEST.traceStepMs)||4000;cancelAll();diagnostic=true;
+      recording={t0:performance.now(),stepMs,frames:[],lastAt:-1e9,steps:STEPS.map(x=>x[0]),message,done:false};
+      const tick=()=>{if(!recording||!alive)return;const i=Math.floor((performance.now()-recording.t0)/stepMs);
+        if(i>=STEPS.length){finishTrace();return;}
+        if(status)status.textContent='RECORDING '+(i+1)+'/'+STEPS.length+' · '+STEPS[i][1].toUpperCase();setTimeout(tick,120);};tick();
+    }
+    function traceFrame(output,result,now){
+      const r=recording;if(!r||now-r.lastAt<66||r.frames.length>=900)return;r.lastAt=now;const i=Math.min(STEPS.length-1,Math.floor((performance.now()-r.t0)/r.stepMs)),rd=v=>Math.round(v*1000)/1000;
+      r.frames.push({t:Math.round(performance.now()-r.t0),step:STEPS[i][0],hands:output.hands.map((h,k)=>({gesture:h.gesture,pinched:h.pinched,rpinched:h.rpinched,gap:rd(h.gap),gapM:rd(h.gapM),roll:rd(h.roll),
+        lm:(result.landmarks[k]||[]).map(p=>[rd(p.x),rd(p.y),rd(p.z||0)])}))});
+    }
+    async function finishTrace(){
+      const r=recording;recording=null;diagnostic=false;engine.reset();interlock=true;if(!r)return;
+      try{const x=await fetch('/api/hands/trace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true,trace:{version:2,tuning:{on:engine.tuning.pinchOn,off:engine.tuning.pinchOff},steps:r.steps,frames:r.frames}})});
+        if(!x.ok)throw Error('not saved');const j=await x.json();say('TRACE SAVED: '+j.saved+' ('+Math.round(j.bytes/1024)+' KB). Tell Claude it is there.');if(r.message)r.message.textContent='Saved '+j.saved+' in the Hub data folder: only numbers, no pictures. Tell Claude it is there.';}
+      catch(e){say('TRACE NOT SAVED: '+e.message);if(r.message)r.message.textContent='The trace could not be saved: '+e.message;}
+    }
+
     // ---- setup: nothing to save by hand; a choice or a calibration is kept in this browser at once
     function saveProfile(){cancelAll();engine.reset();engine.options.fistGrab=!!profile.fist;engine.tuning.pinchOn=G.TUNING.pinchOn;engine.tuning.pinchOff=G.TUNING.pinchOff;
       if(Number.isFinite(profile.pinchOn)&&profile.pinchOn>.05&&profile.pinchOff>profile.pinchOn&&profile.pinchOff<1.2){engine.tuning.pinchOn=profile.pinchOn;engine.tuning.pinchOff=profile.pinchOff;}
@@ -157,6 +181,7 @@ SOFTWARE.
       mk('FIST TILTS 3D: '+(profile.orbit?'ON':'OFF'),()=>{profile.orbit=!profile.orbit;saveProfile();calibrationPanel();});
       mk('FIST CONTINUES DRAG: '+(profile.fist?'ON':'OFF'),()=>{profile.fist=!profile.fist;saveProfile();calibrationPanel();});
       mk('CALIBRATE PINCH',()=>{if(!enabled){p.textContent='Close setup, turn HANDS on explicitly, then return here to calibrate.';return;}calibration={phase:'open',at:performance.now(),samples:[],message:p};p.textContent='Hold one hand steady, thumb away from your index fingertip, for two seconds. Board actions are paused.';});
+      mk('RECORD HAND TRACE',()=>{if(!enabled){p.textContent='Close setup, turn HANDS on explicitly, then return here to record.';return;}p.textContent='Recording about 32 seconds of your hand shapes, as numbers only. Follow the prompts at the top left; close this panel first so you can see them.';setup.hidden=true;startTrace(p);});
       mk('RESET TO DEFAULTS',()=>{profile={v:PROFILE_VERSION,fist:false,orbit:true};saveProfile();calibrationPanel();});
       mk('CLOSE',()=>{calibration=null;diagnostic=false;engine.reset();interlock=true;setup.hidden=true;});
     }
@@ -178,7 +203,7 @@ SOFTWARE.
     const typing=e=>{if(e.isTrusted&&e.key!=='Escape')typedAt=performance.now();};
     document.addEventListener('pointerdown',physical,true);document.addEventListener('wheel',physical,{capture:true,passive:true});document.addEventListener('keydown',escape,true);document.addEventListener('keydown',typing,true);
     const api={button:btn,tracker,feed,
-      stats(){const l=counts.latencies;return {...counts,latencies:l.slice(),cameraLatencies:counts.cameraLatencies.slice(),tracker:{...tracker.stats},presses:presses.size};},
+      startTrace,stats(){const l=counts.latencies;return {...counts,latencies:l.slice(),cameraLatencies:counts.cameraLatencies.slice(),tracker:{...tracker.stats},presses:presses.size};},
       measure(on,label){diagnostic=!!on;measurementLabel=label||'MEASURING';counts=fresh();cancelAll();},
       destroy(){alive=false;tracker.destroy();cancelAll();clearOverlay();setup.remove();btn.remove();configure.remove();document.removeEventListener('pointerdown',physical,true);document.removeEventListener('wheel',physical,true);document.removeEventListener('keydown',escape,true);document.removeEventListener('keydown',typing,true);if(root.__hubHands===api)root.__hubHands=null;}};
     if(root.__HUB_HANDS_TEST)api.testEnable=()=>{enabled=true;engine.reset();showOverlay();};

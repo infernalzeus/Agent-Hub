@@ -15,7 +15,7 @@ def page(hub,tmp_path):
  with sync_playwright() as p:
   b=p.chromium.launch(channel=os.environ.get('AGENTHUB_TEST_BROWSER','msedge'),headless=False,args=['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--use-file-for-fake-video-capture='+str(clip)])
   ctx=b.new_context(viewport={'width':1400,'height':950},service_workers='block',permissions=['camera'])
-  ctx.add_init_script("window.__HUB_HANDS_TEST={tracker:{manifest:{ready:true},factory:async()=>({detectForVideo:()=>({landmarks:[]}),close(){}})}}")
+  ctx.add_init_script("window.__HUB_HANDS_TEST={traceStepMs:60,tracker:{manifest:{ready:true},factory:async()=>({detectForVideo:()=>({landmarks:[]}),close(){}})}}")
   pg=ctx.new_page();pg.goto(hub+'/?enter=1');pg.wait_for_function('!!window.__hubHands')
   pg.evaluate("""marks=>{window.recordedMarks=marks;window.handTime=performance.now();window.handFrame=(x,y,gap=1,open=false)=>{let a=recordedMarks.map(p=>({...p})),dx=1-x/innerWidth-a[8].x,dy=y/innerHeight-a[8].y;a[4].x=a[8].x+gap*.16;if(open)for(let i of [12,16,20])a[i].y=.27;return a.map(p=>({x:p.x+dx,y:p.y+dy,z:0}));};window.feedHands=(poses,n=30)=>{for(let i=0;i<n;i++){handTime+=20;__hubHands.feed({landmarks:poses.map(p=>handFrame(...p)),handedness:poses.map(()=>[{categoryName:'Right'}])},handTime)}}}""",MARKS)
   pg.evaluate("""()=>{
@@ -177,3 +177,15 @@ def test_an_open_hand_resting_while_you_type_does_not_refit_the_board(page):
  page.wait_for_timeout(700);page.evaluate('__hubHands.testEnable()');page.keyboard.press('a')
  page.evaluate('feedHands([],1);feedHands([[700,450,1,true]],90)');page.wait_for_timeout(600)
  assert page.evaluate('__hubHands.stats().fits')==0
+
+
+def test_a_guided_trace_records_numbers_only_and_is_saved(page):
+ page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
+ page.evaluate('__hubHands.startTrace(null)')
+ for _ in range(4):
+  page.evaluate('feedHands([[600,400,.1,true]],5)');page.wait_for_timeout(60)
+ assert page.evaluate('__hubHands.stats().presses')==0                              # actions are paused while it records
+ assert 'RECORDING' in page.inner_text('.hands-status')
+ for _ in range(10):
+  page.evaluate('feedHands([[600,400,1,true]],5)');page.wait_for_timeout(60)
+ page.wait_for_function("document.querySelector('.hands-status')&&/TRACE SAVED/.test(document.querySelector('.hands-status').textContent)",timeout=8000)

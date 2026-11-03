@@ -9,6 +9,7 @@ import shutil
 import tarfile
 import tempfile
 import threading
+import time
 import urllib.request
 from pathlib import Path
 from aiohttp import web
@@ -113,6 +114,25 @@ async def api_install(request):
     except Exception:
         raise web.HTTPBadGateway(text='Hand-tracking download failed. Nothing was enabled; try again.')
     return web.json_response(result)
+
+
+TRACES = STATE / 'data' / 'hands'
+
+
+@routes.post('/api/hands/trace')
+async def api_trace(request):
+    """A recording the person made on purpose from HAND SETUP: landmark numbers only, kept in the state folder (never committed or shipped)."""
+    body = await request.json()
+    trace = body.get('trace')
+    if body.get('confirm') is not True or not isinstance(trace, dict) or not isinstance(trace.get('frames'), list):
+        raise web.HTTPBadRequest(text='Record a trace from HAND SETUP first')
+    raw = json.dumps(trace, separators=(',', ':'))
+    if len(raw) > 6_000_000:
+        raise web.HTTPRequestEntityTooLarge(max_size=6_000_000, actual_size=len(raw))
+    TRACES.mkdir(parents=True, exist_ok=True)
+    name = time.strftime('trace-%Y%m%d-%H%M%S.json')
+    (TRACES / name).write_text(raw, encoding='utf-8')
+    return web.json_response({'saved': name, 'bytes': len(raw), 'frames': len(trace['frames'])})
 
 
 @routes.get('/api/hands/assets/{asset:.+}')
