@@ -48,8 +48,8 @@
       'html.hub-board-on,html.hub-board-on body{height:100%}html.hub-board-on{overflow:hidden;overflow:clip}html.hub-board-on body{overflow:visible;padding:0}',
       // The header and the first-time card float over the board as glass; the board itself is the whole window.
       'html.hub-board-on body>header{position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:30;width:auto;max-width:calc(100vw - 16px);margin:0;padding:6px 14px;background:rgba(6,10,36,.66);border:1px solid var(--border-dim,rgba(0,230,118,.28));border-radius:14px;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}',
-      'html.hub-board-on #setup-card{position:fixed;bottom:98px;left:50%;transform:translateX(-50%);z-index:29;width:auto;max-width:calc(100vw - 16px);display:flex;align-items:center;gap:14px;padding:8px 14px;margin:0;background:rgba(36,28,12,.82);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}',
-      'html.hub-board-on #setup-card .sc-text{display:none}html.hub-board-on #setup-card[hidden]{display:none}',
+      'html.hub-board-on #setup-card{position:static;display:flex;align-items:center;gap:10px;padding:2px 8px;margin:0;border-radius:8px;background:rgba(36,28,12,.82);max-width:none}html.hub-board-on #setup-card .sc-title{white-space:nowrap}html.hub-board-on #setup-card .btn{padding:4px 10px;min-height:0;font-size:9px}',
+      '.hk[hidden]{display:none!important}html.hub-board-on #setup-banner{display:none}html.hub-board-on #setup-card .sc-text{display:none}html.hub-board-on #setup-card[hidden]{display:none}',
       'html.hub-board-on #apps-before,html.hub-board-on #opencode-app-area,html.hub-board-on #ytdl-app-area,html.hub-board-on #yt-app-area,html.hub-board-on #filebrowser-area,html.hub-board-on #apps-after{display:none!important}',
       'html.hub-board-on #home-panels{height:0;margin:0;padding:0;overflow:visible}',
       '.hb-bar .hb-z.hint{flex:1 1 200px;min-width:0;white-space:normal;line-height:1.35;text-align:left}.hb-btn.off{color:var(--text-faint,#6fae92);border-style:dashed}.hb-btn.on{border-color:var(--accent,#00e676)}',
@@ -86,7 +86,7 @@
   function mount(root) {
     if (root.__hubBoardInstance) root.__hubBoardInstance.destroy();
     css();
-    var L = {}, hid = {}, touched = false, data = null, V = { x: 0, y: 0, k: 1 }, focusId = null, zTop = 2, blocks = {}, nav = null, alive = true, dragCleanups = [];
+    var view = null, L = {}, hid = {}, touched = false, data = null, V = { x: 0, y: 0, k: 1 }, focusId = null, zTop = 2, blocks = {}, nav = null, alive = true, dragCleanups = [];
     try { var saved = JSON.parse(localStorage.getItem(KEY) || 'null'); if (saved) { L = saved.L || {}; hid = saved.hid || {}; } } catch (e) {}
     function save() {
       try {
@@ -105,7 +105,12 @@
     var blocksBtn = el('button', 'hb-btn', 'BLOCKS'), ingestBtn = el('button', 'hb-btn', '+ INGEST APP'), talkBtn = el('button', 'hb-btn', 'TALK'), pcBtn = el('button', 'hb-btn off', 'PC CONTROL');
     blocksBtn.type = ingestBtn.type = talkBtn.type = pcBtn.type = 'button'; blocksBtn.title = 'Every block, shown or hidden (Ctrl + K)'; ingestBtn.title = 'Teach the Hub another app'; talkBtn.title = 'Talk to the Hub'; pcBtn.title = 'PC control';
     var listBtn = el('button', 'hb-btn', 'LIST'); listBtn.type = 'button'; listBtn.title = 'Back to the simple list'; listBtn.hidden = !matchMedia('(max-width:720px)').matches; listBtn.onclick = function () { if (window.__hubHomePanels && window.__hubHomePanels.setView) window.__hubHomePanels.setView('list'); };
-    bar.append(zh, hint, ingestBtn, talkBtn, pcBtn, zout, zin, blocksBtn, tidyBtn, fitBtn, listBtn); host.append(bar, world); document.body.appendChild(tray); root.appendChild(host); document.documentElement.classList.add('hub-board-on');
+    var setupHome = setupCard && { parent: setupCard.parentNode, next: setupCard.nextSibling };   // the first-time notice lives in the bar, where it can never sit over a block
+    var setupBtn = el('button', 'hb-btn', 'SETUP'); setupBtn.type = 'button'; setupBtn.hidden = true; setupBtn.title = 'Things the Hub found that need setting up'; setupBtn.onclick = function () { location.href = '/setup'; };
+    bar.append(zh, hint, setupBtn, ingestBtn, talkBtn, pcBtn, zout, zin, blocksBtn, tidyBtn, fitBtn, listBtn); if (setupCard) bar.insertBefore(setupCard, hint); host.append(bar, world); document.body.appendChild(tray); root.appendChild(host); document.documentElement.classList.add('hub-board-on');
+    // how you move around the board (classic, CAD, 3D): a prototype, classic stays the default
+    view = window.__hubBoardView ? window.__hubBoardView.mount({ host: host, V: function () { return V; }, place: function () { place(); }, stop: function () { stopCam(); }, touch: function () { touched = true; }, fit: function (a) { fit(a); }, motion: motion }) : null;
+    if (view) bar.insertBefore(view.btn, zout);
 
     var stopEdge = HubBlocks.edge(host), arrived = false;
     var defs = [['att', P.att], ['runs', P.runs], ['ses', P.ses], ['hlt', P.hlt], ['use', P.use]];
@@ -314,7 +319,7 @@
     }
 
     function place() {
-      world.style.transform = 'translate3d(' + V.x + 'px,' + V.y + 'px,0) scale(' + V.k + ')'; zh.textContent = Math.round(V.k * 100) + '%'; host.style.setProperty('--hb-scale', V.k); HubBlocks.grid(host, V); if (nav) nav.refresh();
+      world.style.transform = view ? view.transform(V) : 'translate3d(' + V.x + 'px,' + V.y + 'px,0) scale(' + V.k + ')'; zh.textContent = Math.round(V.k * 100) + '%'; host.style.setProperty('--hb-scale', V.k); HubBlocks.grid(host, V); if (nav) nav.refresh();
       var compact = V.k < .7;
       if (host.classList.contains('hb-compact') !== compact) host.classList.toggle('hb-compact', compact);
     }
@@ -372,9 +377,10 @@
       return null;
     }
     function onWheel(e) {
-      if (!e.ctrlKey && !e.shiftKey && e.deltaY && innerScroller(e.target, e.deltaY)) return;
+      if (!e.ctrlKey && !e.shiftKey && !e.altKey && e.deltaY && innerScroller(e.target, e.deltaY)) return;
       e.preventDefault(); hideHint(); touched = true; var target = physics.target() || { x: V.x, y: V.y, k: V.k }; stopCam(); if (focusId) { focusId = null; undim(); }
       var r = host.getBoundingClientRect();
+      if (view && view.wheel(e, target, r, function (t) { physics.aim(t); })) return;
       if (e.ctrlKey) { var k = Math.min(2.6, Math.max(.3, target.k * Math.exp(-e.deltaY * .004))), px = e.clientX - r.left, py = e.clientY - r.top; physics.aim({ x: px - (px - target.x) * k / target.k, y: py - (py - target.y) * k / target.k, k: k }); return; }
       var dx = e.deltaX, dy = e.deltaY; if (e.shiftKey && !dx) { dx = dy; dy = 0; }
       if (e.deltaMode === 1) { dx *= 32; dy *= 32; }
@@ -429,7 +435,7 @@
     talkBtn.onclick = function () { var t = document.querySelector('[data-talk]'); if (t) t.click(); };
     pcBtn.onclick = function () { var w = document.getElementById('mcp-wire'); if (w) w.click(); };
     blocksBtn.onclick = function () { if (nav && nav.toggle) nav.toggle(); };
-    function legacy() { var w = document.getElementById('mcp-wire'); if (w) { pcBtn.className = 'hb-btn ' + (w.classList.contains('off') ? 'off' : 'on'); pcBtn.title = w.title || 'PC control'; } talkBtn.hidden = !document.querySelector('[data-talk]'); ingestBtn.hidden = !document.querySelector('.ingest-card'); pcBtn.hidden = !w; }
+    function legacy() { var w = document.getElementById('mcp-wire'); if (w) { pcBtn.className = 'hb-btn ' + (w.classList.contains('off') ? 'off' : 'on'); pcBtn.title = w.title || 'PC control'; pcBtn.disabled = !!w.disabled; pcBtn.textContent = w.disabled && !w.classList.contains('unusable') ? 'PC CONTROL…' : 'PC CONTROL'; } talkBtn.hidden = !document.querySelector('[data-talk]'); ingestBtn.hidden = !document.querySelector('.ingest-card'); pcBtn.hidden = !w; var issues = document.querySelectorAll('#setup-banner .setup-issue').length; setupBtn.hidden = !issues; setupBtn.textContent = 'SETUP · ' + issues; }
     zin.onclick = function () { touched = true; stopCam(); var r = host.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1.25); };
     zout.onclick = function () { touched = true; stopCam(); var r = host.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 0.8); };
     fitBtn.onclick = function () { focusId = null; undim(); fit(true); };
@@ -443,6 +449,10 @@
         defs.forEach(function (d) { var f = from[d[0]], t = T[d[0]], l = L[d[0]]; if (l.exp) return; l.x = f.x + (t.x - f.x) * e; l.y = f.y + (t.y - f.y) * e; applyBlock(d[0]); });
         if (u < 1) requestAnimationFrame(s); else { relayout(); save(); trayDraw(); fit(true); } })(t0);
     };
+    var wire = document.getElementById('mcp-wire'), wireWatch = wire && window.MutationObserver ? new MutationObserver(legacy) : null;   // the bar mirrors the page's PC-control button the moment it changes, not at the next 10 s poll
+    var banner = document.getElementById('setup-banner'), bannerWatch = banner && window.MutationObserver ? new MutationObserver(legacy) : null;   // the banner is hidden under the board; its issues show as a SETUP button
+    if (bannerWatch) bannerWatch.observe(banner, { childList: true });
+    if (wireWatch) wireWatch.observe(wire, { attributes: true, attributeFilter: ['class', 'title', 'disabled'] });
     function onKey(e) { if (nav && nav.key(e)) return; if (e.key === 'Escape' && focusId) { focusId = null; undim(); fit(true); } }
     nav = __hubBoardNav.mount(host, blocks, L, hid, function () { return V; }, function (id, point) { touched = true; stopCam(); if (id) { if (hid[id]) { hid[id] = 0; applyBlock(id); resolve(id); trayDraw(); save(); } lookAt(id); } else cam({x:host.clientWidth/2-point.x*V.k,y:host.clientHeight/2-point.y*V.k,k:V.k},350); }, expand, collapse);
     document.addEventListener('keydown', onKey);
@@ -451,10 +461,42 @@
     relayout(); trayDraw(); paint(); requestAnimationFrame(function () { setTop(); fit(false); });
     var instance = {
       update: function (d) { data = d; paint(); HubBlocks.graphics(); if (!arrived) { arrived = true; HubBlocks.arrive(blocks, function () { return V.k; }, releaseArrival); } },
-      destroy: function () { if (!alive) return; alive = false; releaseArrival(); clearTimeout(hintTimer); dragCleanups.forEach(function (fn) { fn(); }); stopCam(); stopEdge(); guides.destroy(); if (nav) nav.destroy(); document.removeEventListener('keydown', onKey); removeEventListener('resize', onResize); tray.remove(); root.replaceChildren(); root.style.width = root.style.maxWidth = root.style.marginLeft = ''; root.__hubBoardInstance = null; },
-      state: function () { return { V: V, L: L, hid: hid }; }
+      destroy: function () { if (!alive) return; alive = false; if (view) view.destroy(); if (setupHome && setupHome.parent) setupHome.parent.insertBefore(setupCard, setupHome.next); if (wireWatch) wireWatch.disconnect(); if (bannerWatch) bannerWatch.disconnect(); if (window.__hubBoard.active === instance) window.__hubBoard.active = null; releaseArrival(); clearTimeout(hintTimer); dragCleanups.forEach(function (fn) { fn(); }); stopCam(); stopEdge(); guides.destroy(); if (nav) nav.destroy(); document.removeEventListener('keydown', onKey); removeEventListener('resize', onResize); tray.remove(); root.replaceChildren(); root.style.width = root.style.maxWidth = root.style.marginLeft = ''; root.__hubBoardInstance = null; },
+      state: function () { return { V: V, L: L, hid: hid }; },
+      view: function () { return view; },
+      // what Talk can see of the board, and what it may do to it (the answer's `ui`: a panel to bring up, tidy, fit, zoom, the mouse scheme)
+      scene: function () { return Object.keys(blocks).filter(function (i) { return !hid[i]; }).map(function (i) { return { id: i, t: String(blocks[i]._name || (blocks[i].querySelector('.hk-h .t') || {}).textContent || i) }; }); },
+      applyUi: function (ui) {
+        if (!alive || !ui) return false;
+        if (ui.board) {
+          var b = ui.board; touched = true;
+          if (b === 'tidy') tidyBtn.onclick(); else if (b === 'fit') fitBtn.onclick(); else if (b === 'zoom-in') zin.onclick(); else if (b === 'zoom-out') zout.onclick();
+          else if (b.indexOf('view:') === 0 && view) view.setMode(b.slice(5)); else return false;
+          return true;
+        }
+        var MAP = { attention: 'att', runs: 'runs', sessions: 'ses', health: 'hlt', usage: 'use', disk: 'hlt' };
+        var ids = (ui.focus ? [ui.focus] : (ui.blocks || []).map(function (x) { return x.id; })).map(function (i) { return blocks[i] ? i : MAP[i]; }).filter(function (i, n, a) { return i && blocks[i] && a.indexOf(i) === n; });
+        if (!ids.length) return false;
+        touched = true; stopCam();
+        ids.forEach(function (i) { if (hid[i]) { hid[i] = 0; applyBlock(i); resolve(i); } });
+        trayDraw(); save();
+        if (ids.length === 1) { if (focusId !== ids[0]) focusBlock(ids[0]); } else { focusId = null; undim(); lookAt(ids[0]); }
+        return true;
+      },
+      // Talk asked for a Hub page ("open missions"): it opens inside the board, on the right tab, never as a separate page.
+      openTool: function (url) {
+        var u = new URL(url, location.href), id = u.pathname === '/support' ? 'extra:support' : (['/missions', '/agents', '/graph'].indexOf(u.pathname) >= 0 ? 'card:oc' : null);
+        if (!alive || !id || !blocks[id] || !L[id]) return false;
+        touched = true; stopCam();
+        if (hid[id]) { hid[id] = 0; applyBlock(id); resolve(id); trayDraw(); save(); }
+        var b = blocks[id]; if (!L[id].exp) expand(id);
+        var fr = b.querySelector('iframe'), want = u.pathname.slice(1).toUpperCase();
+        Array.prototype.forEach.call(b.querySelectorAll('.hk-tabs button'), function (t) { t.classList.toggle('on', t.textContent === want); });
+        if (fr) { var next = embedUrl(u.pathname + u.search); if (fr.src !== next) { fr.src = next; if (motion) motion.frame(fr); } b._url = u.pathname + u.search; }
+        L[id].z = ++zTop; applyBlock(id); lookAt(id); return true;
+      }
     };
-    root.__hubBoardInstance = instance; return instance;
+    root.__hubBoardInstance = instance; window.__hubBoard.active = instance; return instance;
   }
-  window.__hubBoard = { mount: mount };
+  window.__hubBoard = { mount: mount, active: null, open: function (url) { return !!(this.active && this.active.openTool(url)); }, scene: function () { return this.active ? this.active.scene() : null; }, applyUi: function (ui) { return !!(this.active && this.active.applyUi(ui)); } };
 })();

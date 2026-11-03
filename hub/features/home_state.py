@@ -11,6 +11,7 @@ because nothing in the Hub reads it, and the panel says so rather than showing a
 from __future__ import annotations
 
 import time
+from pathlib import Path
 
 from aiohttp import web
 
@@ -64,6 +65,30 @@ def _sess(a: dict) -> dict:
             "age_s": a["age_s"], "error": "", "ended": None, "changed": 0, "ask": a["ask"]}
 
 
+_STALE: dict = {"at": 0.0, "newest": 0.0}
+
+
+def stale_code(now: float) -> "float | None":
+    """When the newest Hub source file was saved, if that is later than this process started: the Hub is running older code than
+    is on disk (a change was made and nobody restarted it). None for a packaged install, which cannot change under itself.
+    Looked at most every 20 s: it walks about 400 files."""
+    from . import diagnose as D
+    from .. import runtime as RT
+    if RT.PACKAGED:
+        return None
+    if now - _STALE["at"] > 20:
+        root = Path(__file__).resolve().parents[1]
+        newest = 0.0
+        for p in root.rglob("*"):
+            if p.suffix in (".py", ".js", ".css", ".html") and "__pycache__" not in p.parts and p.is_file():
+                try:
+                    newest = max(newest, p.stat().st_mtime)
+                except OSError:
+                    pass
+        _STALE.update(at=now, newest=newest)
+    return _STALE["newest"] if _STALE["newest"] > D._STARTED + 5 else None
+
+
 def state() -> dict:
     from . import diagnose as D
     from . import proposals as P
@@ -111,6 +136,12 @@ def state() -> dict:
         attention.append({"level": "red", "kind": "hub-errors", "id": "hub-errors", "go": "/support",
                           "title": f"The Hub logged {n_err} error{'s' if n_err != 1 else ''} in the last hour", "detail": sample_err,
                           "doctor": f"The Hub logged {n_err} error(s) in the last hour. The newest: {sample_err}. Find the cause.", "asked": False})
+
+    newer = stale_code(now)
+    if newer:
+        attention.append({"level": "amber", "kind": "restart", "id": "stale-code", "go": "/",
+                          "title": "Agent Hub is running older code than is on disk",
+                          "detail": "Files were saved after it started, so what you see and what was built can differ. Restart it from the power menu to use them."})
 
     disk = D._free_gb(__import__("hub.runtime", fromlist=["STATE"]).STATE)
     if disk is not None and disk < LOW_DISK_GB:
@@ -171,7 +202,7 @@ def state() -> dict:
                      "failed": [a for a, v in apps.items() if isinstance(v, dict) and v.get("last_error")]},
             "local_model": model, "stay_local": b["missions"].get("stay_local"),
             "disk_free_gb": b["disk_free_gb"], "recent_problems": len(b["problems"]),
-            "gpu": None, "gpu_note": "not measured: the Hub does not read the graphics card",
+            "stale_code": bool(newer), "gpu": None, "gpu_note": "not measured: the Hub does not read the graphics card",
         },
     }
 
@@ -196,6 +227,16 @@ _DOCTOR = re.compile(r"\b(diagnos\w*|the doctor|doctor,|ask the doctor|something
 _APPLY = re.compile(r"\b(apply|install|accept|use|go with)\b.*\b(fix|change|patch|that|it)\b", re.I)
 _DISCARD = re.compile(r"\b(discard|throw away|drop|reject|forget)\b.*\b(fix|change|patch|that|it)\b", re.I)
 _RESTART = re.compile(r"\brestart (?:the |agent )?hub\b", re.I)
+# commands about the board itself: tidy it, fit everything, zoom, switch how the mouse moves it
+_BOARD = (
+    ("tidy", re.compile(r"\b(?:tidy|organi[sz]e|arrange|clean up|sort out)\b.*\b(?:board|dashboard|blocks|panels|windows|screen)\b|\b(?:board|dashboard|blocks|panels|windows)\b.*\b(?:tidy|organi[sz]ed?|arranged)\b", re.I)),
+    ("fit", re.compile(r"\b(?:fit|show|see)\b.*\b(?:everything|all (?:of )?(?:the |my )?(?:blocks|panels|windows))\b|\bzoom to fit\b", re.I)),
+    ("zoom-in", re.compile(r"^\W*zoom in\W*$", re.I)),
+    ("zoom-out", re.compile(r"^\W*zoom out\W*$", re.I)),
+    ("view:3d", re.compile(r"\b(?:3 ?d|three ?d)\b.*\b(?:view|mode|navigation|board|dashboard)\b|\b(?:switch|change|go|use|set|turn)\b.*\b(?:3 ?d|three ?d)\b", re.I)),
+    ("view:cad", re.compile(r"\bcad\b.*\b(?:view|mode|navigation|style)\b|\b(?:switch|change|go|use|set|turn)\b.*\bcad\b", re.I)),
+    ("view:classic", re.compile(r"\bclassic\b.*\b(?:view|mode|navigation|style)\b|\b(?:switch|change|go|use|set|turn)\b.*\bclassic\b", re.I)),
+)
 _HELP = re.compile(r"\b(what can (?:you|i) (?:do|say)|help|commands|what do i say)\b", re.I)
 
 
@@ -265,7 +306,7 @@ def ui_for(text: str, say: str, scene: "list | None" = None) -> dict:
     """What the screen should do with this answer: raise blocks for a topic, focus one on screen, open Home, or sleep."""
     out: dict = {"topic": None, "blocks": [], "focus": None, "open": None, "sleep": False}
     t = str(text or "")
-    out.update({"clear": False, "doctor": False, "apply": False, "discard": False, "restart": False, "help": False})
+    out.update({"clear": False, "doctor": False, "apply": False, "discard": False, "restart": False, "help": False, "board": None})
     if _SLEEP.search(t):
         out["sleep"] = True
         return out
@@ -287,6 +328,11 @@ def ui_for(text: str, say: str, scene: "list | None" = None) -> dict:
     if _HELP.search(t) and len(t) < 60:
         out["help"] = True
         return out
+    if len(t) < 90:
+        for name, rx in _BOARD:
+            if rx.search(t):
+                out["board"] = name
+                return out
     if _HOME.search(t) and len(t) < 90:
         out["open"] = "home"
         return out

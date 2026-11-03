@@ -394,7 +394,7 @@ return {stop:stopFacetFlip,off:function(){stopFacetFlip();host.removeEventListen
       var speed=math.sqrt(velocity[0]*velocity[0]+velocity[1]*velocity[1]+velocity[2]*velocity[2]);
       if(!dragging && (!hovering || now-lastMove>80)) {
         if(speed>.002) {
-          rotate(q,velocity[0]/speed,velocity[1]/speed,velocity[2]/speed,math.max(.10,speed)*dt*(state==='dormant'?.4:1));
+          rotate(q,velocity[0]/speed,velocity[1]/speed,velocity[2]/speed,math.max(.10,speed)*dt);
           // Bearing resistance removes excess speed, preserving the spin axis.
           var factor=(.10+math.max(0,speed-.10)*math.exp(-dt/coast))/speed;
           velocity[0]*=factor;velocity[1]*=factor;velocity[2]*=factor;

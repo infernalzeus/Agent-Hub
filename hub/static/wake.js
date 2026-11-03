@@ -189,6 +189,7 @@
     tick(); S.doctorTimer = setInterval(tick, 3000);
   }
 
+  var TOOL = /^\/(missions|agents|graph|support)(\?|$)/;
   function openHome() {
     // the same button, the same cube turn, as a tap on ENTER
     if (enterBtn && !enterBtn.disabled) { if (window.HubBlocks) HubBlocks.remember(blocks); stopAll(false); enterBtn.click(); }
@@ -286,6 +287,7 @@
     else if (ui.focus && focusBlock(ui.focus)) show = function () { return play(sayText).then(afterReply); };
     // applying or discarding the doctor's work answers inside its own block (which then offers RESTART), not in a new note that would replace it
     else if ((ui.apply || ui.discard) && S.doctor && S.doctor.isConnected) show = function () { watchDoctor(); return play(sayText).then(afterReply); };
+    else if (r.url && TOOL.test(r.url) && !(ui.blocks && ui.blocks.length) && !ui.doctor_id && !ui.help) show = function () { try { sessionStorage.setItem('agenthub:tool', r.url); } catch (e) {} return play(sayText).then(openHome); };   // the dashboard opens on that tool
     else {
       var list = ui.blocks && ui.blocks.length ? ui.blocks.slice() : null;
       if (ui.doctor_id) list = [{ id: 'doctor', t: 'THE DOCTOR', type: 'doctor' }];

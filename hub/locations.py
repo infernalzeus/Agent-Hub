@@ -86,6 +86,8 @@ _BY_KEY = {r["key"]: r for r in REGISTRY}
 # folders as its defaults. Absent or empty ⇒ no migration, _default() applies.
 # See local_settings.example.py for LEGACY_PATHS / LEGACY_SOURCES.
 def _legacy_settings() -> tuple[dict, list]:
+    if os.environ.get("AGENTHUB_NO_LEGACY"):      # test hubs: never fall back to this machine's real OpenCode folder, work folder or projects
+        return {}, []
     try:
         from . import local_settings as ls
     except Exception:

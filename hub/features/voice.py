@@ -1257,6 +1257,8 @@ async def _screen_command(text: str, ui: dict) -> "dict | None":
         say = "Cleared."
     elif ui.get("open"):
         say = "Opening Home."
+    elif ui.get("board"):
+        say = {"tidy": "Tidied.", "fit": "Everything is in view.", "zoom-in": "Zoomed in.", "zoom-out": "Zoomed out."}.get(ui["board"], "Switched the view.")
     elif ui.get("focus"):
         say = "Here."
     elif ui.get("help"):

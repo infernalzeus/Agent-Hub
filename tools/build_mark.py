@@ -146,6 +146,8 @@ globe = sub(globe, "var r=math.max(.45,width/190)*(3.3+brightness[k]*2),tint=var
             "if(fade[k]<=0)continue;var pop=fade[k]<1?1+2.70158*Math.pow(fade[k]-1,3)+1.70158*Math.pow(fade[k]-1,2):1;"
             "var r=math.max(.45,width/190)*(2.2+brightness[k]*1.3)*pop,tint=variation[k]>.86?Math.min(3,depth[k]):depth[k];f.globalAlpha=.15+brightness[k]*.12;",
             "front nodes")
+# the dormant screen calms the idle drift (kept), but a hand on the globe must turn it as fast as on the live screen: hover and flick velocity was scaled by .4 there
+globe = sub(globe, "math.max(.10,speed)*dt*(state==='dormant'?.4:1)", "math.max(.10,speed)*dt", "hover turns the globe at full speed when dormant")
 globe = sub(globe, "if (!alive || reduced || state === 'dormant') return;\n      pulseStart = clock;",
             "if (!alive || reduced || state === 'dormant' || shellP === 0) return;\n      pulseStart = clock;", "pulse needs shell")
 globe = sub(globe, "function running() { return alive && visible && !doc.hidden && !reduced; }",

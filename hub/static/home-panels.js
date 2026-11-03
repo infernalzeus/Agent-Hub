@@ -273,6 +273,7 @@
   function start() {
     if (useBoard()) { board = window.__hubBoard.mount(root); } else { build(); paint(); }
     document.documentElement.classList.toggle('hub-board-on', !!board);
+    try { var tool = sessionStorage.getItem('agenthub:tool'); if (tool) { sessionStorage.removeItem('agenthub:tool'); if (board) setTimeout(function () { window.__hubBoard.open(tool); }, 900); } } catch (e) {}   // Talk on the landing page asked for a tool
     poll(); timer = setInterval(poll, 10000); document.addEventListener('visibilitychange', poll);
   }
   phone.addEventListener('change', remount);

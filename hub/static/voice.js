@@ -275,10 +275,12 @@
     }
     setState('solving', 'Thinking…');
     const ctx = (window.__voiceCtx && window.__voiceCtx()) || {};
-    const r = await request('/api/voice/chat', { text, history: S.history.slice(-9, -1), mission: ctx.mission || null });
+    const board = window.__hubBoard && window.__hubBoard.scene();            // on the dashboard Talk sees its blocks and may move them
+    const r = await request('/api/voice/chat', { text, history: S.history.slice(-9, -1), mission: ctx.mission || null, scene: board || undefined });
     if (turn !== S.turn) return;
     const serverResult = r.action && !r.confirm && !r.url;          // its own result is the answer: do not also say the model's sentence
     if (!serverResult) log('hub', r.say);
+    if (r.ui && board && window.__hubBoard.applyUi(r.ui)) { S.compact = true; S.expanded = false; layout(); }   // a panel asked for, tidy, fit, a mouse scheme: done on the board itself
     if (r.action && r.confirm) { S.pending = r; showBtns(true); setState('breathing', 'Waiting for your yes'); await speak(r.say); return; }
     if (serverResult) return execute(r, turn);
     await speak(r.say);
@@ -286,6 +288,7 @@
     if (r.action) await execute(r, turn);
   }
   function navigate(url) {
+    if (window.__hubBoard && window.__hubBoard.open(url)) { S.compact = true; S.expanded = false; layout(); return; }   // on the dashboard a Hub page opens as a block on it, not as the old standalone page
     if (location.pathname + location.search !== url) { saveSession(url); location.href = url; }
     else { S.compact = true; S.expanded = false; layout(); }
   }

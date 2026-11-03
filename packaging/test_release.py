@@ -164,6 +164,20 @@ class PackageTests(unittest.TestCase):
     def test_no_legacy_projects_are_discovered(self):
         self.assertEqual(LOC._legacy('project_sources'), None)
 
+    def test_the_staged_tree_carries_every_ui_file_and_none_of_this_machines_run_state(self):
+        import tempfile
+        import stage_release
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / 's'
+            stage_release.stage(root, out)
+            staged = {str(p.relative_to(out)).replace(chr(92), '/') for p in out.rglob('*') if p.is_file()}
+        for need in ('hub/static/home-board.js', 'hub/static/home-board-motion.js', 'hub/static/voice-fx.js', 'hub/static/wake.js',
+                     'hub/graph_ui.py', 'hub/features/desktop_agent.py'):
+            self.assertIn(need, staged)      # nothing is listed by hand, so a new file ships by existing
+        for never in ('hub/support_missions.json', 'hub/agent_events.json', 'hub/model_outcomes.json', 'hub/update.json', 'hub/locations.json'):
+            self.assertNotIn(never, staged)
+
     def test_startup_accepts_missing_ingested_apps(self):
         import app
         with patch.dict(app.config.APPS, {}, clear=True):

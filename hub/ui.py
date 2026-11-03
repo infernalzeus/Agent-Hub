@@ -24,6 +24,7 @@ _BLOCKS_JS = ("(function(){if(document.getElementById('hub-blocks-css'))return;v
 _HOME_BOARD_JS = (_BLOCKS_JS + "\n" + (Path(__file__).parent / "static" / "home-board-motion.js").read_text(encoding="utf-8") + "\n"
                   + (Path(__file__).parent / "static" / "home-board-controls.js").read_text(encoding="utf-8") + "\n"
                   + (Path(__file__).parent / "static" / "home-board-nav.js").read_text(encoding="utf-8") + "\n"
+                  + (Path(__file__).parent / "static" / "home-board-view.js").read_text(encoding="utf-8") + "\n"
                   + (Path(__file__).parent / "static" / "home-board.js").read_text(encoding="utf-8"))
 _WAKE_JS = (_BLOCKS_JS + "\n" + (Path(__file__).parent / "static" / "voice-fx.js").read_text(encoding="utf-8") + "\n"
             + (Path(__file__).parent / "static" / "wake.js").read_text(encoding="utf-8"))
