@@ -1,12 +1,12 @@
 // Shared block treatment. Decoration never changes a block's layout or runs while idle.
-// Every microphone the page opens is remembered, so the page can let go of all of them when it turns into the dormant screen (a page
+// Every microphone or camera the page opens is remembered, so the page can let go of all of them when it turns into the dormant screen (a page
 // rewritten in place keeps the old page's microphone open: an iPad showed the recording indicator on the dormant page).
 (function () {
   var m = navigator.mediaDevices;
   if (!m || !m.getUserMedia || m.__hubWrapped) return;
   var open = m.getUserMedia.bind(m); window.__hubStreams = window.__hubStreams || []; m.__hubWrapped = true;
   m.getUserMedia = function () { var epoch = m.__hubMicEpoch || 0; return open.apply(null, arguments).then(function (s) { if (epoch !== (m.__hubMicEpoch || 0)) { s.getTracks().forEach(function(t){t.stop();}); throw new DOMException('The view no longer owns this microphone request', 'AbortError'); } window.__hubStreams.push(s); return s; }); };
-  window.__hubReleaseMic = function () { m.__hubMicEpoch = (m.__hubMicEpoch || 0) + 1; (window.__hubStreams || []).splice(0).forEach(function (s) { try { s.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} }); };
+  window.__hubReleaseMic = function () { (window.__hubMediaStops ? Array.from(window.__hubMediaStops) : []).forEach(function(stop){try{stop();}catch(e){}}); m.__hubMicEpoch = (m.__hubMicEpoch || 0) + 1; (window.__hubStreams || []).splice(0).forEach(function (s) { try { s.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} }); };
 })();
 (function () {
   if (window.HubBlocks) return;

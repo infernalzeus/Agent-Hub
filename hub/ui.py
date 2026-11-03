@@ -21,7 +21,8 @@ _BLOCK_CSS = (Path(__file__).parent / "static" / "hub-blocks.css").read_text(enc
 _BLOCKS_JS = ("(function(){if(document.getElementById('hub-blocks-css'))return;var s=document.createElement('style');"
               "s.id='hub-blocks-css';s.textContent=" + json.dumps(_BLOCK_CSS) + ";document.head.appendChild(s);})();\n"
               + (Path(__file__).parent / "static" / "hub-blocks.js").read_text(encoding="utf-8"))
-_HOME_BOARD_JS = (_BLOCKS_JS + "\n" + (Path(__file__).parent / "static" / "home-board-motion.js").read_text(encoding="utf-8") + "\n"
+_HAND_JS = "\n".join((Path(__file__).parent / "static" / n).read_text(encoding="utf-8") for n in ("hand-gestures.js", "hand-tracker.js", "hand-board.js"))
+_HOME_BOARD_JS = (_BLOCKS_JS + "\n" + _HAND_JS + "\n" + (Path(__file__).parent / "static" / "home-board-motion.js").read_text(encoding="utf-8") + "\n"
                   + (Path(__file__).parent / "static" / "home-board-controls.js").read_text(encoding="utf-8") + "\n"
                   + (Path(__file__).parent / "static" / "home-board-nav.js").read_text(encoding="utf-8") + "\n"
                   + (Path(__file__).parent / "static" / "home-board-view.js").read_text(encoding="utf-8") + "\n"

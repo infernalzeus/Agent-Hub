@@ -172,7 +172,7 @@ class PackageTests(unittest.TestCase):
             out = Path(tmp) / 's'
             stage_release.stage(root, out)
             staged = {str(p.relative_to(out)).replace(chr(92), '/') for p in out.rglob('*') if p.is_file()}
-        for need in ('hub/static/home-board.js', 'hub/static/home-board-motion.js', 'hub/static/voice-fx.js', 'hub/static/voice-gate.js', 'hub/netgate.py', 'hub/static/wake.js',
+        for need in ('hub/static/home-board.js', 'hub/static/home-board-motion.js', 'hub/static/voice-fx.js', 'hub/static/voice-gate.js', 'hub/netgate.py', 'hub/hand_tracking.py', 'hub/static/hand-gestures.js', 'hub/static/hand-tracker.js', 'hub/static/hand-board.js', 'hub/static/wake.js',
                      'hub/graph_ui.py', 'hub/features/desktop_agent.py'):
             self.assertIn(need, staged)      # nothing is listed by hand, so a new file ships by existing
         for never in ('hub/support_missions.json', 'hub/agent_events.json', 'hub/model_outcomes.json', 'hub/update.json', 'hub/locations.json'):

@@ -402,7 +402,7 @@
       touched = true; stopCam(); host.classList.add('panning'); var sx = e.clientX - V.x, sy = e.clientY - V.y;
       var lastX = e.clientX, lastY = e.clientY, lastT = performance.now(), vx = 0, vy = 0;
       function mv(ev) { if (pinch || Object.keys(pts).length > 1) { sx = ev.clientX - V.x; sy = ev.clientY - V.y; return; } var now = performance.now(), dt = Math.max(8, now - lastT); vx = vx * .4 + (ev.clientX - lastX) / dt * .6; vy = vy * .4 + (ev.clientY - lastY) / dt * .6; lastX = ev.clientX; lastY = ev.clientY; lastT = now; V.x = ev.clientX - sx; V.y = ev.clientY - sy; place(); }
-      function up() { host.classList.remove('panning'); removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); if (performance.now() - lastT < 100) physics.coast(vx, vy); dragCleanups = []; }
+      function up(event) { host.classList.remove('panning'); removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); if ((!event || event.type !== 'pointercancel') && performance.now() - lastT < 100) physics.coast(vx, vy); dragCleanups = []; }
       addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up); dragCleanups.push(function () { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); });
     });
     host.addEventListener('dblclick', function (e) { if (!e.target.closest('.hk,.hb-btn,.hb-tray')) { focusId = null; undim(); fit(true); } });
@@ -464,9 +464,10 @@
     var resizeFrame=0; function onResize() { if(resizeFrame)return;resizeFrame=requestAnimationFrame(function(){resizeFrame=0;if(!alive)return;setTop();relayout();if(!touched)fit(false);}); }
     addEventListener('resize', onResize); setTop();
     relayout(); trayDraw(); paint(); requestAnimationFrame(function () { setTop(); fit(false); });
+    var hands = window.HubHandsBoard ? HubHandsBoard.mount({host:host,bar:bar,fitButton:fitBtn}) : null;
     var instance = {
       update: function (d) { data = d; paint(); HubBlocks.graphics(); if (!arrived) { arrived = true; HubBlocks.arrive(blocks, function () { return V.k; }, releaseArrival); } },
-      destroy: function () { if (!alive) return; alive = false; if (view) view.destroy(); if (setupHome && setupHome.parent) setupHome.parent.insertBefore(setupCard, setupHome.next); if (wireWatch) wireWatch.disconnect(); if (bannerWatch) bannerWatch.disconnect(); if (window.__hubBoard.active === instance) window.__hubBoard.active = null; releaseArrival(); clearTimeout(hintTimer); dragCleanups.forEach(function (fn) { fn(); }); stopCam(); stopEdge(); guides.destroy(); if (nav) nav.destroy(); document.removeEventListener('keydown', onKey); removeEventListener('resize', onResize); if(resizeFrame)cancelAnimationFrame(resizeFrame); tray.remove(); root.replaceChildren(); root.style.width = root.style.maxWidth = root.style.marginLeft = ''; root.__hubBoardInstance = null; },
+      destroy: function () { if (!alive) return; alive = false; if(hands)hands.destroy(); if (view) view.destroy(); if (setupHome && setupHome.parent) setupHome.parent.insertBefore(setupCard, setupHome.next); if (wireWatch) wireWatch.disconnect(); if (bannerWatch) bannerWatch.disconnect(); if (window.__hubBoard.active === instance) window.__hubBoard.active = null; releaseArrival(); clearTimeout(hintTimer); dragCleanups.forEach(function (fn) { fn(); }); stopCam(); stopEdge(); guides.destroy(); if (nav) nav.destroy(); document.removeEventListener('keydown', onKey); removeEventListener('resize', onResize); if(resizeFrame)cancelAnimationFrame(resizeFrame); tray.remove(); root.replaceChildren(); root.style.width = root.style.maxWidth = root.style.marginLeft = ''; root.__hubBoardInstance = null; },
       state: function () { return { V: V, L: L, hid: hid }; },
       view: function () { return view; },
       // what Talk can see of the board, and what it may do to it (the answer's `ui`: a panel to bring up, tidy, fit, zoom, the mouse scheme)
