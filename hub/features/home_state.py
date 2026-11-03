@@ -234,6 +234,7 @@ _BOARD = (
     ("zoom-in", re.compile(r"^\W*zoom in\W*$", re.I)),
     ("zoom-out", re.compile(r"^\W*zoom out\W*$", re.I)),
     ("view:3d", re.compile(r"\b(?:3 ?d|three ?d)\b.*\b(?:view|mode|navigation|board|dashboard)\b|\b(?:switch|change|go|use|set|turn)\b.*\b(?:3 ?d|three ?d)\b", re.I)),
+    ("view:2d", re.compile(r"\b(?:2 ?d|two ?d|flat)\b.*\b(?:view|mode|navigation|board|dashboard)\b|\b(?:switch|change|go|use|set|turn)\b.*\b(?:2 ?d|two ?d|flat)\b", re.I)),
     ("view:cad", re.compile(r"\bcad\b.*\b(?:view|mode|navigation|style)\b|\b(?:switch|change|go|use|set|turn)\b.*\bcad\b", re.I)),
     ("view:classic", re.compile(r"\bclassic\b.*\b(?:view|mode|navigation|style)\b|\b(?:switch|change|go|use|set|turn)\b.*\bclassic\b", re.I)),
 )

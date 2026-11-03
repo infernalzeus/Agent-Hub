@@ -108,9 +108,9 @@
     var setupHome = setupCard && { parent: setupCard.parentNode, next: setupCard.nextSibling };   // the first-time notice lives in the bar, where it can never sit over a block
     var setupBtn = el('button', 'hb-btn', 'SETUP'); setupBtn.type = 'button'; setupBtn.hidden = true; setupBtn.title = 'Things the Hub found that need setting up'; setupBtn.onclick = function () { location.href = '/setup'; };
     bar.append(zh, hint, setupBtn, ingestBtn, talkBtn, pcBtn, zout, zin, blocksBtn, tidyBtn, fitBtn); if (setupCard) bar.insertBefore(setupCard, hint); host.append(bar, world); document.body.appendChild(tray); root.appendChild(host); document.documentElement.classList.add('hub-board-on');
-    // how you move around the board (classic, CAD, 3D): a prototype, classic stays the default
+    // how you move around the board: 2D (flat; wheel zooms, middle-drag pans) or 3D (tilt and orbit)
     view = window.__hubBoardView ? window.__hubBoardView.mount({ host: host, V: function () { return V; }, place: function () { place(); }, stop: function () { stopCam(); }, touch: function () { touched = true; }, fit: function (a) { fit(a); }, motion: motion }) : null;
-    if (view) bar.insertBefore(view.btn, zout);
+    if (view) { bar.insertBefore(view.btn, zout); bar.insertBefore(view.gizmoBtn, zout); }
 
     var stopEdge = HubBlocks.edge(host), arrived = false;
     var defs = [['att', P.att], ['runs', P.runs], ['ses', P.ses], ['hlt', P.hlt], ['use', P.use]];
@@ -243,7 +243,22 @@
     // Click an app and it opens here, inside the board, at a readable size; the cross-arrow button opens it in its own tab instead.
     function settle(b) { if (!motion.allowed()) return; b.classList.add('settle'); setTimeout(function () { b.classList.remove('settle'); }, 450); }
     function embedUrl(url) { var u = new URL(url, location.href); if (['/missions', '/agents', '/graph', '/yard', '/support'].indexOf(u.pathname) >= 0) u.searchParams.set('embed', '1'); return u.href; }
-    function frame(url) { var f = el('iframe', 'hk-fr'); f.src = embedUrl(url); f.setAttribute('loading', 'lazy'); f.title = 'Embedded Hub tool'; if (motion) motion.frame(f); return f; }
+    // A block's own page is a separate document: events inside it never reach the board. These hooks hand the few that matter across: the pressed wheel (orbit or pan,
+    // even when the pointer is over a window), Alt or Ctrl with the wheel (tilt, zoom), and a press anywhere in a window brings that window to the front.
+    function hookFrame(f, id) {
+      try {
+        var w = f.contentWindow; if (!w || !w.document) return;
+        w.document.addEventListener('mousedown', function (e) { if (e.button === 1) e.preventDefault(); }, true);
+        w.addEventListener('pointerdown', function (e) { if (id && L[id]) { L[id].z = ++zTop; applyBlock(id); if (stackDepth) stackDepth(); } if (view && e.button === 1) view.drag(e, w); }, true);
+        w.addEventListener('wheel', function (e) {
+          if (!view || !(e.altKey || e.ctrlKey)) return; e.preventDefault();
+          var r = f.getBoundingClientRect(), k = (r.width / (f.clientWidth || r.width)) || 1;
+          host.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaX: e.deltaX, deltaY: e.deltaY, deltaMode: e.deltaMode, ctrlKey: e.ctrlKey, altKey: e.altKey, shiftKey: e.shiftKey, clientX: r.left + e.clientX * k, clientY: r.top + e.clientY * k }));
+        }, { capture: true, passive: false });
+      } catch (err) { /* a page from another origin keeps its own events */ }
+    }
+    var stackDepth = null;
+    function frame(url, id) { var f = el('iframe', 'hk-fr'); f.src = embedUrl(url); f.setAttribute('loading', 'lazy'); f.title = 'Embedded Hub tool'; f.addEventListener('load', function () { hookFrame(f, id); }); if (motion) motion.frame(f); return f; }
     function expand(id) {
       var b = blocks[id], l = L[id], sp = b._spec; if (!sp) return;
       if (l.exp) { collapse(id); return; }
@@ -253,10 +268,10 @@
       if (sp.app) {
         b._in.appendChild(motion.skeleton('Starting ' + b._name));
         fetch('/api/start/' + sp.app, { method: 'POST' }).then(function (r) { if (!r.ok) throw new Error('could not start'); return r.json(); }).then(function (j) {
-          if (!l.exp) return; b._url = j.base_path + '/'; b._in.replaceChildren(frame(b._url));
+          if (!l.exp) return; b._url = j.base_path + '/'; b._in.replaceChildren(frame(b._url, id));
         }).catch(function (err) { if (l.exp) b._in.replaceChildren(el('div', 'hk-wait', 'Could not start ' + b._name + ': ' + err.message)); });
       } else if (sp.tabs) {
-        var tabs = el('div', 'hk-tabs'), fr = frame(sp.tabs[0][1]); b._url = sp.tabs[0][1];
+        var tabs = el('div', 'hk-tabs'), fr = frame(sp.tabs[0][1], id); b._url = sp.tabs[0][1];
         sp.tabs.forEach(function (t, i) { var tb = el('button', i ? '' : 'on', t[0]); tb.type = 'button'; tb.onclick = function () { Array.prototype.forEach.call(tabs.children, function (x) { x.classList.remove('on'); }); tb.classList.add('on'); fr.src = embedUrl(t[1]); if (motion) motion.frame(fr); b._url = t[1]; }; tabs.appendChild(tb); });
         if (id === 'card:oc') { var qc = el('button', '', 'QUICK CHAT'); qc.type = 'button'; qc.title = 'A project-less OpenCode chat (opens in a new tab)'; qc.onclick = function () { var sb = document.getElementById('oc-scratch-btn'); if (sb) sb.click(); }; tabs.appendChild(qc); }
         b._in.append(tabs, fr);

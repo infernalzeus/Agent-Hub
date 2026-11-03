@@ -193,3 +193,6 @@ hub/transition_selftest.arm
 # this PC only: doctor mission ids and measured model outcomes (written beside the code when run from source)
 hub/support_missions.json
 hub/model_outcomes.json
+# the Hub's own record of its choices (R1): this PC's data, never committed
+hub/choices.jsonl
+hub/choices.jsonl.1
