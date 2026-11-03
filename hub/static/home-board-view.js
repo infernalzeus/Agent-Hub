@@ -1,6 +1,7 @@
 // How you move around the board. CLASSIC is what the board always did (wheel moves, Ctrl + wheel zooms, drag the background to pan).
 //   CAD  the wheel zooms toward the pointer, the middle button drags the board, a double middle-click fits everything (SolidWorks style)
-//   3D   CAD plus a tilt (Blender style): right-drag, or Shift + middle-drag, orbits up to 40 degrees; blocks sit at a depth by kind
+//   3D   CAD plus a tilt (Blender style): the middle button (the wheel pressed in) or right-drag orbits up to 40 degrees, Shift + middle-drag pans,
+//        Alt + wheel tilts and Alt + Shift + wheel turns; blocks sit at a depth by kind
 //        (needs-attention near, health and usage far); pointer rays meet each pane's own depth plane
 // The axis gizmo (CAD and 3D) does the same with one finger or one mouse button: drag it to orbit (3D) or pan, tap an axis to look along it,
 // RESET to come back flat and fit. The choice is kept in localStorage 'agenthub:board:nav'. This is a prototype: CLASSIC stays the default.
@@ -9,7 +10,7 @@
   var TITLE = {
     classic: 'CLASSIC: wheel moves, Ctrl + wheel zooms, drag the background to pan. Click for CAD: wheel zooms, middle-drag pans.',
     cad: 'Wheel zooms toward the pointer, middle-drag (or the gizmo) pans, double middle-click fits. Click for 3D.',
-    '3d': 'CAD plus tilt: right-drag or Shift + middle-drag orbits, blocks sit at a depth. Click for CLASSIC.'
+    '3d': 'CAD plus tilt: middle-drag or right-drag orbits, Shift + middle-drag pans, Alt + wheel tilts, blocks sit at a depth. Click for CLASSIC.'
   };
   var LIM = 40, PERSP = 1500, PREVIEW = [16, -20];
   var CSS = '.hb-3d{perspective:' + PERSP + 'px}.hb-3d .hb-world{transform-style:preserve-3d}.hb-3d .hk{content-visibility:visible;translate:0 0 var(--hb-dz,0px)}'
@@ -116,7 +117,7 @@
       var middle = e.button === 1, right = e.button === 2 && mode === '3d' && !e.target.closest('.hk');
       if (!middle && !right) return;
       e.preventDefault(); c.touch(); c.stop();
-      var turnIt = right || (middle && e.shiftKey && mode === '3d'), lx = e.clientX, ly = e.clientY, sx = lx, sy = ly, moved = false, id = e.pointerId;
+      var turnIt = right || (middle && !e.shiftKey && mode === '3d'), lx = e.clientX, ly = e.clientY, sx = lx, sy = ly, moved = false, id = e.pointerId;
       host.classList.add('panning');
       function mv(ev) { if (ev.pointerId !== id) return; var dx = ev.clientX - lx, dy = ev.clientY - ly; lx = ev.clientX; ly = ev.clientY; if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) > 3) moved = true; (turnIt ? orbit : pan)(dx, dy); }
       function up(ev) {
@@ -144,6 +145,7 @@
       },
       // the wheel in CAD and 3D zooms toward the pointer; Shift + wheel still pans sideways; Ctrl + wheel / a pinch is left to the board
       wheel: function (e, target, r, aim) {
+        if (mode === '3d' && e.altKey) { var d = (e.shiftKey ? e.deltaX || e.deltaY : e.deltaY) * (e.deltaMode === 1 ? 32 : 1); if (e.shiftKey) orbit(-d * .12, 0); else orbit(0, -d * .12); return true; }
         if (mode === 'classic' || e.ctrlKey || e.shiftKey) return false;
         var dy = e.deltaMode === 1 ? e.deltaY * 32 : e.deltaY, k = Math.min(2.6, Math.max(.3, target.k * Math.exp(-dy * .0018))), px = e.clientX - r.left, py = e.clientY - r.top;
         aim({ x: px - (px - target.x) * k / target.k, y: py - (py - target.y) * k / target.k, k: k }); return true;

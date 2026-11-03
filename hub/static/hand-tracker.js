@@ -58,7 +58,7 @@ SOFTWARE.
       try{
         const result=model.detectForVideo(video,stamp);stats.inferenceMs=clock()-begun;stats.frames++;
         stats.handCount=result.landmarks?.length||0;if(stats.handCount)lastHand=clock();
-        options.onFrame?.(result,begun,{captureTime:meta.captureTime,mediaTime:meta.mediaTime,inferenceMs:stats.inferenceMs});
+        options.onFrame?.(result,begun,{captureTime:meta.captureTime,mediaTime:meta.mediaTime,inferenceMs:stats.inferenceMs,cam:{w:video.videoWidth||640,h:video.videoHeight||480}});
         stats.callbackToPointerMs=clock()-begun;stats.captureToPointerMs=Number.isFinite(meta.captureTime)?clock()-meta.captureTime:null;
         if(stats.frames%15===0)report();
       }catch(error){stats.error=String(error.message||error);stop('tracking failed');return;}
