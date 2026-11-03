@@ -12,7 +12,8 @@ _HTML = """<div id="voice" hidden>
   <div class="v-head"><span>TALK TO THE HUB</span><div><button type="button" class="vbtn" id="v-size">MINIMISE</button> <button type="button" class="vbtn" id="v-close" aria-label="Close">CLOSE</button></div></div>
   <div class="v-tools">
     <select id="v-voice" aria-label="TTS voice"></select>
-    <select id="v-fx" aria-label="Voice effect" title="A robotic layer on the same voice"><option value="off">CLEAN</option><option value="light">ROBOT 5%</option><option value="robot">ROBOT 10%</option><option value="heavy">ROBOT 35%</option><option value="full">ROBOT 100%</option></select>
+    <select id="v-fx" aria-label="Voice effect amount" title="How much of a robotic layer sits on the same voice"><option value="off">CLEAN</option><option value="p5">ROBOT 5%</option><option value="p10">ROBOT 10%</option><option value="p15">ROBOT 15%</option><option value="p20">ROBOT 20%</option><option value="p25">ROBOT 25%</option><option value="p35">ROBOT 35%</option><option value="p50">ROBOT 50%</option><option value="p75">ROBOT 75%</option><option value="p100">ROBOT 100%</option></select>
+    <select id="v-fxs" aria-label="Voice effect style" title="Which layers make the robotic sound"><option value="blend">BLEND</option><option value="ring">RING</option><option value="double">DOUBLE</option><option value="metal">METAL</option><option value="radio">RADIO</option></select>
     <button type="button" class="vbtn" id="v-mute">SOUND ON</button>
   </div>
   <div class="v-log" id="v-log"></div>

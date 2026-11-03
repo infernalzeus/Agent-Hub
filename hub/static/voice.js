@@ -361,7 +361,11 @@
       sel.value = S.voice && j.voices.some((v) => v.id === S.voice) ? S.voice : j.default; S.voice = sel.value;
       sel.onchange = () => { S.voice = sel.value; try { localStorage.setItem('hubVoiceName', S.voice); } catch (e) {} };
       const fx = $('v-fx');
-      if (fx && window.HubVoiceFx) { fx.value = HubVoiceFx.mode(); fx.onchange = () => { HubVoiceFx.set(fx.value); unlockAudio(); play('Smith online.'); }; } else if (fx) fx.hidden = true;
+      const fxs = $('v-fxs');
+      if (fx && window.HubVoiceFx) {
+        fx.value = HubVoiceFx.mode(); fx.onchange = () => { HubVoiceFx.set(fx.value); unlockAudio(); play('Smith online.'); };
+        if (fxs) { fxs.value = HubVoiceFx.style(); fxs.onchange = () => { HubVoiceFx.setStyle(fxs.value); unlockAudio(); play('Smith online.'); }; }
+      } else { if (fx) fx.hidden = true; if (fxs) fxs.hidden = true; }
     } catch (e) { $('v-voice').hidden = true; }
   }
   const paintToggles = () => { $('v-mute').textContent = S.mute ? 'SOUND OFF' : 'SOUND ON'; };

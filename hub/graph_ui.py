@@ -22,7 +22,6 @@ _GRAPH_HTML = """\
 <meta name="theme-color" content="#080c28">
 <title>AGENT HUB — Project Graph</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -53,6 +52,11 @@ svg#graph{position:fixed;top:calc(56px + env(safe-area-inset-top));left:0;right:
   cursor:grab;background:#000}
 svg#graph:active{cursor:grabbing}
 .ngrp{cursor:pointer}
+.ngrp .n-dot{transition:transform .15s;transform-box:fill-box;transform-origin:center}
+.ngrp:hover .n-dot{transform:scale(1.37)}
+svg#graph{touch-action:none}
+#copies-toggle{display:block;margin-top:10px;width:100%;min-height:34px;background:transparent;color:var(--text-muted);border:1px dashed rgba(176,124,214,.55);border-radius:6px;font:700 9px 'Orbitron',monospace;letter-spacing:1px;cursor:pointer}
+#copies-toggle:hover{color:var(--accent);border-color:var(--accent)}
 .ngrp text{font-family:'Outfit',sans-serif;font-weight:500;pointer-events:none;text-anchor:middle}
 .cgrp text{font-family:'Orbitron',monospace;font-size:10px;letter-spacing:1.5px;pointer-events:none;text-anchor:middle;fill:var(--cyan);fill-opacity:.75}
 .edge{fill:none}
@@ -154,6 +158,7 @@ svg#graph:active{cursor:grabbing}
   <div class="row"><span class="dot" style="background:var(--grey)"></span>read-only / local cluster</div>
   <div class="row" style="margin-top:4px"><span style="width:16px;height:0;border-top:1.5px dotted #ffffff;flex-shrink:0"></span>documented in wiki</div>
   <div class="row"><span style="width:16px;height:0;border-top:1.5px solid #6a3fd1;flex-shrink:0"></span>related project (wiki link)</div>
+  <button type="button" id="copies-toggle" hidden></button>
 </div>
 
 <div id="panel">
@@ -195,7 +200,8 @@ const CLUSTER_LABEL = {
 
 let graphData = {nodes: [], projectLinks: []};
 let currentSlug = null;
-let zoomBehavior = null;
+
+document.getElementById('copies-toggle').onclick = () => { showCopies = !showCopies; render(); };
 
 async function loadGraph() {
   const res = await fetch('/api/graph');
@@ -229,9 +235,10 @@ function bezierPath(src, tgt, curveK) {
 // center; each cluster's own members ring their cluster center, with the
 // per-cluster radius sized to the member count so labels don't collide.
 function layoutGraph(nodes) {
-  const byCat = d3.group(nodes, d => d.category || 'Other');
-  const cats = Array.from(byCat.keys()).sort(
-    (a, b) => CLUSTER_ORDER.indexOf(a) - CLUSTER_ORDER.indexOf(b));
+  const byCat = new Map();
+  nodes.forEach(n => { const c = n.category || 'Other'; if (!byCat.has(c)) byCat.set(c, []); byCat.get(c).push(n); });
+  const rank = c => { const i = CLUSTER_ORDER.indexOf(c); return i < 0 ? CLUSTER_ORDER.length : i; };
+  const cats = Array.from(byCat.keys()).sort((a, b) => rank(a) - rank(b));
 
   const clusters = cats.map(cat => {
     const members = byCat.get(cat);
@@ -264,153 +271,142 @@ function layoutGraph(nodes) {
   return clusterNodes;
 }
 
+// No library and no SVG filters: the page used to wait for d3 from a CDN and then blur every node on every
+// pan frame. Edges are three paths (not ~110 elements), the glow is a translucent circle, and pan/zoom moves one group.
+const SVGNS = 'http://www.w3.org/2000/svg';
+function mk(tag, attrs, parent) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+const view = {x: 0, y: 0, k: 1};
+let viewRoot = null, viewQueued = false, dragMoved = false;
+const copyCount = () => graphData.nodes.filter(n => n.category === 'Missions').length;
+function paintView() {
+  viewQueued = false;
+  if (viewRoot) viewRoot.setAttribute('transform', `translate(${view.x} ${view.y}) scale(${view.k})`);
+}
+function queueView() { if (!viewQueued) { viewQueued = true; requestAnimationFrame(paintView); } }
+function zoomAt(px, py, factor) {
+  const k = Math.min(3, Math.max(0.3, view.k * factor)), r = k / view.k;
+  view.x = px - (px - view.x) * r; view.y = py - (py - view.y) * r; view.k = k;
+  queueView();
+}
+function bindViewControls(svg) {
+  if (svg._bound) return;
+  svg._bound = true;
+  const ptrs = new Map();
+  let last = 0;
+  const top = () => svg.getBoundingClientRect().top;
+  svg.addEventListener('pointerdown', e => {
+    ptrs.set(e.pointerId, {x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY});
+    dragMoved = false; last = 0;
+    if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; last = Math.hypot(a.x - b.x, a.y - b.y); }
+  });
+  svg.addEventListener('pointermove', e => {
+    const p = ptrs.get(e.pointerId);
+    if (!p) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    p.x = e.clientX; p.y = e.clientY;
+    if (ptrs.size === 1) {
+      if (!dragMoved && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) < 4) return;
+      if (!dragMoved) { dragMoved = true; try { svg.setPointerCapture(e.pointerId); } catch (x) {} }
+      view.x += dx; view.y += dy; queueView();
+    } else if (ptrs.size === 2) {
+      const [a, b] = [...ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
+      dragMoved = true;
+      if (last) zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2 - top(), d / last);
+      last = d;
+    }
+  });
+  const up = e => { ptrs.delete(e.pointerId); last = 0; setTimeout(() => { if (!ptrs.size) dragMoved = false; }, 0); };
+  svg.addEventListener('pointerup', up);
+  svg.addEventListener('pointercancel', up);
+  svg.addEventListener('wheel', e => {
+    e.preventDefault();
+    zoomAt(e.clientX, e.clientY - top(), Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)));
+  }, {passive: false});
+}
+
+function paintCopiesToggle() {
+  const b = document.getElementById('copies-toggle'), n = copyCount();
+  if (!b) return;
+  b.hidden = !n;
+  b.textContent = showCopies ? `HIDE ${n} MISSION COPIES` : `SHOW ${n} MISSION COPIES`;
+}
+let showCopies = false;
+
 function render() {
-  const svg = d3.select('#graph');
-  svg.selectAll('*').remove();
+  const svg = document.getElementById('graph');
+  svg.textContent = '';
+  bindViewControls(svg);
   const width = window.innerWidth, height = window.innerHeight;
+  const nodes = graphData.nodes.filter(n => showCopies || n.category !== 'Missions');
+  paintCopiesToggle();
 
-  const defs = svg.append('defs');
-  [['glow-blue', COLORS.blue, 4], ['glow-amber', COLORS.amber, 4], ['glow-green', COLORS.green, 4],
-   ['glow-red', COLORS.red, 4], ['glow-cyan', CLUSTER_COLOR, 6], ['glow-unknown', COLORS.unknown, 4],
-   ['glow-cluster-grey', CLUSTER_COLOR_GREY, 6]]
-    .forEach(([id, , std]) => {
-      const f = defs.append('filter').attr('id', id)
-        .attr('x', '-60%').attr('y', '-60%').attr('width', '220%').attr('height', '220%');
-      f.append('feGaussianBlur').attr('stdDeviation', std).attr('result', 'b');
-      const merge = f.append('feMerge');
-      merge.append('feMergeNode').attr('in', 'b');
-      merge.append('feMergeNode').attr('in', 'SourceGraphic');
-    });
-  const glowFor = state => `url(#glow-${state in COLORS ? state : 'unknown'})`;
+  const root = mk('g', {id: 'graph-root'}, svg);
+  viewRoot = root;
+  const edgeLyr = mk('g', {}, root);
+  const nodeLyr = mk('g', {}, root);
 
-  const root = svg.append('g').attr('id', 'graph-root');
-  const edgeLyr = root.append('g');
-  const nodeLyr = root.append('g');
-  const partLyr = root.append('g'); // reserved for future pulse/activity effects
+  const clusterNodes = layoutGraph(nodes);
+  const clusterById = new Map(clusterNodes.map(c => [c.id, c]));
 
-  const clusterNodes = layoutGraph(graphData.nodes);
+  // ── Edges: each project -> its cluster centre (curved), the wiki-documented project -> LLM Wiki, and real wikilinks between projects ──
+  const edgePath = (cls, d, stroke, opacity, width, dash) => d && mk('path', {
+    class: cls, d, fill: 'none', stroke, 'stroke-opacity': opacity, 'stroke-width': width, ...(dash ? {'stroke-dasharray': dash} : {})}, edgeLyr);
+  edgePath('edge', nodes.map(m => { const t = clusterById.get(m._clusterId); return t ? bezierPath(m, t, edgeSign(m.slug, t.id) * 0.16) : ''; }).join(' '),
+    '#ffffff', 0.18, 0.75, '1,3');
 
-  // ── Edges: each project -> its cluster center, curved like agent-core's dendrites ──
-  const edgeData = graphData.nodes.map(m => ({src: m, tgt: clusterNodes.find(c => c.id === m._clusterId)}))
-    .filter(e => e.tgt);
-  edgeLyr.selectAll('path.edge').data(edgeData).enter().append('path')
-    .attr('class', 'edge')
-    .attr('d', d => bezierPath(d.src, d.tgt, edgeSign(d.src.slug, d.tgt.id) * 0.16))
-    .attr('fill', 'none')
-    .attr('stroke', '#ffffff')
-    .attr('stroke-opacity', 0.18)
-    .attr('stroke-width', 0.75)
-    .attr('stroke-dasharray', '1,3');
-
-  // ── Wiki-link edges: project -> LLM Wiki node, only when a wiki entity page
-  // declares this project via project_slug frontmatter (or a name match).
-  // Absence of this edge is the point — it's a visible "undocumented" signal,
-  // not just a missing decoration. Drawn distinctly (dashed, wiki teal) so it
-  // never reads as just another cluster-membership line.
-  const wikiNode = graphData.nodes.find(n => n.slug === 'llm-wiki');
+  // Absence of a wiki edge is the point: a visible "undocumented" signal, not a missing decoration.
+  const wikiNode = nodes.find(n => n.slug === 'llm-wiki');
   if (wikiNode) {
-    const wikiEdgeData = graphData.nodes.filter(n => n.wiki_entity && n.slug !== 'llm-wiki')
-      .map(n => ({src: n, tgt: wikiNode}));
-    edgeLyr.selectAll('path.wiki-edge').data(wikiEdgeData).enter().append('path')
-      .attr('class', 'wiki-edge')
-      .attr('d', d => bezierPath(d.src, d.tgt, edgeSign(d.src.slug, 'llm-wiki') * 0.1))
-      .attr('fill', 'none')
-      .attr('stroke', '#ffffff')
-      .attr('stroke-opacity', 0.32)
-      .attr('stroke-width', 0.9)
-      .attr('stroke-dasharray', '1,3');
+    edgePath('wiki-edge', nodes.filter(n => n.wiki_entity && n.slug !== 'llm-wiki')
+      .map(n => bezierPath(n, wikiNode, edgeSign(n.slug, 'llm-wiki') * 0.1)).join(' '), '#ffffff', 0.32, 0.9, '1,3');
   }
 
-  // ── Project-to-project edges: real [[wikilinks]] between two projects' OWN
-  // wiki pages (e.g. agent-hub.md linking to [[movie-shorts-clipper]]) — the
-  // wiki's existing prose cross-references, not a separately-invented signal.
-  // Solid and brighter than the other edge types since these are documented,
-  // real functional relationships, not just structural/organizational ones.
-  const bySlug = new Map(graphData.nodes.map(n => [n.slug, n]));
-  const projectEdgeData = graphData.projectLinks
-    .map(l => ({src: bySlug.get(l.a), tgt: bySlug.get(l.b)}))
-    .filter(e => e.src && e.tgt);
-  edgeLyr.selectAll('path.project-edge').data(projectEdgeData).enter().append('path')
-    .attr('class', 'project-edge')
-    .attr('d', d => bezierPath(d.src, d.tgt, edgeSign(d.src.slug, d.tgt.slug) * 0.13))
-    .attr('fill', 'none')
-    .attr('stroke', '#6a3fd1')
-    .attr('stroke-opacity', 0.55)
-    .attr('stroke-width', 1);
+  // Real [[wikilinks]] between two projects' own wiki pages: solid and brighter, documented relationships.
+  const bySlug = new Map(nodes.map(n => [n.slug, n]));
+  edgePath('project-edge', graphData.projectLinks.map(l => ({src: bySlug.get(l.a), tgt: bySlug.get(l.b)})).filter(e => e.src && e.tgt)
+    .map(e => bezierPath(e.src, e.tgt, edgeSign(e.src.slug, e.tgt.slug) * 0.13)).join(' '), '#6a3fd1', 0.55, 1);
 
-  // ── Cluster hub nodes ──────────────────────────────────────────────────────
-  const cGroups = nodeLyr.selectAll('.cgrp').data(clusterNodes).enter()
-    .append('g').attr('class', 'cgrp')
-    .attr('transform', d => `translate(${d.x},${d.y})`);
-  const clusterColor = d => GREY_CLUSTERS.has(d.cat) ? CLUSTER_COLOR_GREY : CLUSTER_COLOR;
-  cGroups.append('circle').attr('r', 16).attr('fill', 'none')
-    .attr('stroke', clusterColor).attr('stroke-width', 1.2).attr('opacity', 0.28);
-  cGroups.append('circle').attr('r', 13)
-    .attr('fill', clusterColor).attr('fill-opacity', 0.85)
-    .attr('stroke', clusterColor).attr('stroke-opacity', 0.6).attr('stroke-width', 1)
-    .attr('filter', d => GREY_CLUSTERS.has(d.cat) ? 'url(#glow-cluster-grey)' : 'url(#glow-cyan)');
-  cGroups.append('text').attr('dy', 30).text(d => d.label);
-
-  // ── Project nodes ────────────────────────────────────────────────────────
-  const node = nodeLyr.selectAll('.ngrp').data(graphData.nodes).enter()
-    .append('g').attr('class', 'ngrp')
-    .attr('transform', d => `translate(${d.x},${d.y})`)
-    .on('click', (event, d) => openPanel(d))
-    .on('mouseover', function (event, d) {
-      const tt = document.getElementById('tt');
-      tt.textContent = `${d.name} — ${d.category || ''}`;
-      tt.style.display = 'block';
-      d3.select(this).select('.n-dot').transition().duration(150).attr('r', 11).attr('fill-opacity', 1);
-    })
-    .on('mousemove', event => {
-      const tt = document.getElementById('tt');
-      tt.style.left = (event.clientX + 14) + 'px';
-      tt.style.top = (event.clientY - 8) + 'px';
-    })
-    .on('mouseout', function () {
-      document.getElementById('tt').style.display = 'none';
-      d3.select(this).select('.n-dot').transition().duration(200).attr('r', 8).attr('fill-opacity', 0.85);
-    });
-
-  node.append('circle').attr('class', 'n-ring')
-    .attr('r', 11).attr('fill', 'none')
-    .attr('stroke', d => COLORS[d.state] || COLORS.unknown)
-    .attr('stroke-width', 0.8)
-    .attr('opacity', 0.12);
-
-  node.append('circle').attr('class', 'n-dot')
-    .attr('r', 8)
-    .attr('fill', d => COLORS[d.state] || COLORS.unknown)
-    .attr('fill-opacity', 0.85)
-    .attr('stroke', d => d.ring ? RING_COLORS[d.ring] : (COLORS[d.state] || COLORS.unknown))
-    .attr('stroke-width', d => d.ring ? 3 : 1)
-    .attr('stroke-opacity', d => d.ring ? 1 : 0.6)
-    .attr('filter', d => glowFor(d.state));
-
-  node.append('text').attr('dy', 22)
-    .attr('font-size', 10.5)
-    .attr('fill', d => COLORS[d.state] || COLORS.unknown)
-    .attr('fill-opacity', 0.7)
-    .text(d => d.name.length > 20 ? d.name.slice(0, 18) + '…' : d.name);
-
-  // ── Pan / zoom, auto-fit to whatever the layout produced ───────────────────
-  const allX = [...clusterNodes, ...graphData.nodes].map(d => d.x);
-  const allY = [...clusterNodes, ...graphData.nodes].map(d => d.y);
-  const minX = Math.min(...allX) - 80, maxX = Math.max(...allX) + 80;
-  const minY = Math.min(...allY) - 80, maxY = Math.max(...allY) + 80;
-  const boundsW = maxX - minX, boundsH = maxY - minY;
-  const fitScale = Math.min(width / boundsW, height / boundsH, 1.1);
-  const midX = (minX + maxX) / 2, midY = (minY + maxY) / 2;
-
-  zoomBehavior = d3.zoom().scaleExtent([0.3, 3]).on('zoom', event => {
-    root.attr('transform', event.transform);
+  // ── Cluster hub nodes ──
+  clusterNodes.forEach(c => {
+    const col = GREY_CLUSTERS.has(c.cat) ? CLUSTER_COLOR_GREY : CLUSTER_COLOR;
+    const g = mk('g', {class: 'cgrp', transform: `translate(${c.x},${c.y})`}, nodeLyr);
+    mk('circle', {r: 22, fill: col, 'fill-opacity': 0.12}, g);
+    mk('circle', {r: 16, fill: 'none', stroke: col, 'stroke-width': 1.2, opacity: 0.28}, g);
+    mk('circle', {r: 13, fill: col, 'fill-opacity': 0.85, stroke: col, 'stroke-opacity': 0.6, 'stroke-width': 1}, g);
+    mk('text', {dy: 30}, g).textContent = c.label;
   });
-  svg.call(zoomBehavior);
-  const initialTransform = d3.zoomIdentity
-    .translate(width / 2, height / 2)
-    .scale(fitScale)
-    .translate(-midX, -midY);
-  svg.call(zoomBehavior.transform, initialTransform);
+
+  // ── Project nodes ──
+  const tt = document.getElementById('tt');
+  nodes.forEach(d => {
+    const col = COLORS[d.state] || COLORS.unknown;
+    const g = mk('g', {class: 'ngrp', transform: `translate(${d.x},${d.y})`}, nodeLyr);
+    mk('circle', {r: 15, fill: col, 'fill-opacity': 0.16}, g);                       // the glow: no blur filter
+    mk('circle', {class: 'n-ring', r: 11, fill: 'none', stroke: col, 'stroke-width': 0.8, opacity: 0.12}, g);
+    mk('circle', {class: 'n-dot', r: 8, fill: col, 'fill-opacity': 0.85,
+      stroke: d.ring ? RING_COLORS[d.ring] : col, 'stroke-width': d.ring ? 3 : 1, 'stroke-opacity': d.ring ? 1 : 0.6}, g);
+    mk('text', {dy: 22, 'font-size': 10.5, fill: col, 'fill-opacity': 0.7}, g).textContent = d.name.length > 20 ? d.name.slice(0, 18) + '…' : d.name;
+    g.addEventListener('click', () => { if (!dragMoved) openPanel(d); });
+    g.addEventListener('mouseover', () => { tt.textContent = `${d.name} — ${d.category || ''}`; tt.style.display = 'block'; });
+    g.addEventListener('mousemove', e => { tt.style.left = (e.clientX + 14) + 'px'; tt.style.top = (e.clientY - 8) + 'px'; });
+    g.addEventListener('mouseout', () => { tt.style.display = 'none'; });
+  });
+
+  // ── Fit whatever the layout produced into the window ──
+  const all = [...clusterNodes, ...nodes];
+  const xs = all.map(d => d.x), ys = all.map(d => d.y);
+  const minX = Math.min(...xs) - 80, maxX = Math.max(...xs) + 80, minY = Math.min(...ys) - 80, maxY = Math.max(...ys) + 80;
+  const fit = Math.min(width / (maxX - minX), (height - 56) / (maxY - minY), 1.1);
+  view.k = fit;
+  view.x = width / 2 - fit * (minX + maxX) / 2;
+  view.y = (height - 56) / 2 - fit * (minY + maxY) / 2;
+  paintView();
 }
 
 function renderConnections(d) {
