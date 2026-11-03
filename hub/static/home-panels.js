@@ -261,9 +261,9 @@
       if (!j) return; data = j; if (board) board.update(j); else paint();
     }).catch(function () {});
   }
-  // A tablet or a desktop opens the board. A phone opens the list (the old cards below it stay) unless the board was chosen.
+  // The board is the home on a desktop, a tablet and a phone (a narrow or portrait window included). The list (the old cards) is only a fallback you choose with LIST.
   var VIEW = 'agenthub:homeview';
-  function useBoard() { if (!window.__hubBoard) return false; if (!phone.matches) return true; try { return localStorage.getItem(VIEW) === 'board'; } catch (e) { return false; } }
+  function useBoard() { if (!window.__hubBoard) return false; if (!phone.matches) return true; try { return localStorage.getItem(VIEW) !== 'list'; } catch (e) { return true; } }   // the board is the home at every width; LIST is an opt-in fallback
   function remount() {
     if (board) { board.destroy(); board = null; }
     if (useBoard()) { board = window.__hubBoard.mount(root); if (data) board.update(data); } else { layout = load(); build(); paint(); }

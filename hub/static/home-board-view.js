@@ -11,7 +11,7 @@
     cad: 'Wheel zooms toward the pointer, middle-drag (or the gizmo) pans, double middle-click fits. Click for 3D.',
     '3d': 'CAD plus tilt: right-drag or Shift + middle-drag orbits, blocks sit at a depth. Click for CLASSIC.'
   };
-  var LIM = 40, PERSP = 1500;
+  var LIM = 40, PERSP = 1500, PREVIEW = [16, -20];
   var CSS = '.hb-3d{perspective:' + PERSP + 'px}.hb-3d .hb-world{transform-style:preserve-3d}.hb-3d .hk{content-visibility:visible;translate:0 0 var(--hb-dz,0px)}'
     + ".hb-3d .hk[data-id=att]{--hb-dz:70px}.hb-3d .hk[data-id=runs],.hb-3d .hk[data-id=ses]{--hb-dz:30px}.hb-3d .hk[data-id=hlt],.hb-3d .hk[data-id=use]{--hb-dz:-50px}"
     + '.hb-gizmo{position:absolute;right:12px;bottom:112px;z-index:8;width:112px;display:none;flex-direction:column;align-items:center;gap:3px;touch-action:none;user-select:none;-webkit-user-select:none}'
@@ -61,7 +61,8 @@
       if (mode !== '3d') { rx = ry = 0; }
       toolPaint(); paintGizmo(); if (!initial) c.place();
     }
-    function setMode(m) { mode = m; try { localStorage.setItem(KEY, m); } catch (e) {} tool = m === '3d' ? 'orbit' : 'pan'; apply(); }
+    // entering 3D leans the board to a preview angle at once, so the depth is seen without having to find the right button first
+    function setMode(m) { mode = m; try { localStorage.setItem(KEY, m); } catch (e) {} tool = m === '3d' ? 'orbit' : 'pan'; apply(); if (m === '3d') tiltTo(PREVIEW[0], PREVIEW[1], 450); }
     btn.onclick = function () { setMode(ORDER[(ORDER.indexOf(mode) + 1) % ORDER.length]); };
 
     function clampTilt() { rx = Math.max(-LIM, Math.min(LIM, rx)); ry = Math.max(-LIM, Math.min(LIM, ry)); }
@@ -124,7 +125,7 @@
     host.addEventListener('auxclick', function (e) { if (mode !== 'classic' && e.button === 1) e.preventDefault(); }, sig);
     host.addEventListener('contextmenu', function (e) { if (mode === '3d' && !e.target.closest('.hk,.hb-bar,.hb-tray')) e.preventDefault(); }, sig);
 
-    tool = mode === '3d' ? 'orbit' : 'pan'; apply(true);
+    tool = mode === '3d' ? 'orbit' : 'pan'; if (mode === '3d') { rx = PREVIEW[0]; ry = PREVIEW[1]; } apply(true);
     return {
       btn: btn,
       mode: function () { return mode; },

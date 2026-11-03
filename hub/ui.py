@@ -1851,6 +1851,7 @@ async function prepareDormant() {
 // Everything the live page started - timers, animation loops, sockets - must stop before the dormant page
 // takes the window over, or it keeps running behind it (it did, and a phone does not have the headroom).
 function quiesceLivePage() {
+  try { if (window.__hubReleaseMic) window.__hubReleaseMic(); } catch (e) {}      // the dormant screen must not keep the microphone the live page opened
   try {
     if(window.__hubPageTasks)window.__hubPageTasks.stop();
     (window.__socks || []).forEach((s) => { try { s.onclose = s.onerror = s.onmessage = null; s.close(); } catch (e) {} });

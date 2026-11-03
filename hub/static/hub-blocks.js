@@ -1,4 +1,13 @@
 // Shared block treatment. Decoration never changes a block's layout or runs while idle.
+// Every microphone the page opens is remembered, so the page can let go of all of them when it turns into the dormant screen (a page
+// rewritten in place keeps the old page's microphone open: an iPad showed the recording indicator on the dormant page).
+(function () {
+  var m = navigator.mediaDevices;
+  if (!m || !m.getUserMedia || m.__hubWrapped) return;
+  var open = m.getUserMedia.bind(m); window.__hubStreams = window.__hubStreams || []; m.__hubWrapped = true;
+  m.getUserMedia = function () { return open.apply(null, arguments).then(function (s) { window.__hubStreams.push(s); return s; }); };
+  window.__hubReleaseMic = function () { (window.__hubStreams || []).splice(0).forEach(function (s) { try { s.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} }); };
+})();
 (function () {
   if (window.HubBlocks) return;
   var reduce = matchMedia('(prefers-reduced-motion: reduce)'), KEY = 'agenthub:block-arrival';
