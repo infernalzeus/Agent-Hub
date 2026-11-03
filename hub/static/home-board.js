@@ -9,7 +9,7 @@
     att: { t: 'NEEDS ATTENTION', w: 380, h: 110 }, runs: { t: 'RUNS', w: 210, h: 100 }, ses: { t: 'SESSIONS', w: 320, h: 110 },
     hlt: { t: 'HEALTH', w: 280, h: 130 }, use: { t: 'CLAUDE CODE USAGE', w: 380, h: 120 }
   };
-  var ICON = { col: 'M6 15l6-6 6 6', out: 'M7 17 17 7M9 7h8v8', move: 'M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01', min: 'M6 12h12', foc: 'M5 9V5h4M19 9V5h-4M5 15v4h4M19 15v4h-4', x: 'M6 6l12 12M18 6 6 18' };
+  var ICON = { col: 'M6 15l6-6 6 6', dup: 'M9 9h10v10H9zM5 15V5h10', out: 'M7 17 17 7M9 7h8v8', move: 'M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01', min: 'M6 12h12', foc: 'M5 9V5h4M19 9V5h-4M5 15v4h4M19 15v4h-4', x: 'M6 6l12 12M18 6 6 18' };
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function svg(d, w) { var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('aria-hidden', 'true'); s.style.cssText = 'width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:' + (w || 1.8) + ';stroke-linecap:round;stroke-linejoin:round'; var p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', d); s.appendChild(p); return s; }
   var PANEL_ICON = { att: 'M12 3 2.5 20h19L12 3Zm0 6v5m0 3v.01', runs: 'M5 4l14 8-14 8V4Z', ses: 'M4 5h16v10H4zM8 19h8M12 15v4', hlt: 'M3 12h4l2-6 4 12 2-6h6', use: 'M5 20V11M12 20V4M19 20v-6' };
@@ -60,6 +60,7 @@
       '.hk-h{display:flex;align-items:center;gap:4px;padding:4px 4px 4px 9px;cursor:grab;user-select:none;flex:none}',
       '.hk-h .t{font:700 11px Orbitron,monospace;letter-spacing:1px;color:var(--text,#d9ffe9);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.hk-h .n{font:700 11px Orbitron,monospace;color:var(--text-muted,#8fcfb2)}',
+      '.hk-h button[data-a=dup]{display:none}.hk.exp.can-dup .hk-h button[data-a=dup]{display:grid}',
       '.hk-h button{width:28px;height:28px;border:0;background:none;color:var(--text-muted,#8fcfb2);opacity:.9;border-radius:5px;cursor:pointer;display:grid;place-items:center;padding:0}.hk-h button svg{width:15px!important;height:15px!important}.hk-h button:hover{color:var(--text,#d9ffe9);background:rgba(0,230,118,.12)}',
       '.hk-b{flex:1;min-height:0;display:grid;grid-template-rows:1fr;transition:opacity .3s,filter .3s;overflow:hidden}.hk-i{overflow:hidden;min-height:0}',
       // minimised: the title goes bold and bright, the content stays as a faded, softened glimpse (not removed), and cannot be pressed
@@ -90,7 +91,7 @@
     try { var saved = JSON.parse(localStorage.getItem(KEY) || 'null'); if (saved) { L = saved.L || {}; hid = saved.hid || {}; } } catch (e) {}
     function save() {
       try {
-        var out = {}; Object.keys(L).forEach(function (k) { var l = L[k]; out[k] = { x: l.x, y: l.y, w: l.exp ? l.ow : l.w, h: l.exp ? l.oh : l.h, min: l.min, z: l.z, u: l.u, rz: l.rz }; });
+        var out = {}; Object.keys(L).forEach(function (k) { if (k.indexOf('#') > 0) return; var l = L[k]; out[k] = { x: l.x, y: l.y, w: l.exp ? l.ow : l.w, h: l.exp ? l.oh : l.h, min: l.min, z: l.z, u: l.u, rz: l.rz }; });
         localStorage.setItem(KEY, JSON.stringify({ L: out, hid: hid }));
       } catch (e) {}
     }
@@ -128,7 +129,7 @@
     // then the most recently used); every other block that is in the way goes to the nearest free spot, so a shove never ping-pongs.
     var GAP = 14;
     function bh(l) { return l.min ? 32 + PEEK : l.h; }
-    function hits(x, y, w, h, S) { for (var i = 0; i < S.length; i++) { var P = S[i]; if (x < P.x + P.w + GAP && P.x < x + w + GAP && y < P.y + P.h + GAP && P.y < y + h + GAP) return true; } return false; }
+    function hits(x, y, w, h, S, g) { for (var i = 0; i < S.length; i++) { var P = S[i]; if (g && P.g === g) continue; if (x < P.x + P.w + GAP && P.x < x + w + GAP && y < P.y + P.h + GAP && P.y < y + h + GAP) return true; } return false; }
     function resolve(pin) {
       var ids = Object.keys(L).filter(function (i) { return blocks[i] && !hid[i]; }), pushed = {}, order = ids.slice();
       function rank(id) { return id === pin ? 1e9 : L[id].exp ? 1e8 : (L[id].z || 1); }
@@ -136,16 +137,17 @@
       var placed = [];
       order.forEach(function (id) {
         var l = L[id], w = l.w, h = bh(l);
-        if (hits(l.x, l.y, w, h, placed)) {
+        if (hits(l.x, l.y, w, h, placed, l.stack)) {
           var xs = [l.x], ys = [l.y], best = null, bd = 1e18;
           placed.forEach(function (P) { xs.push(P.x + P.w + GAP, P.x - w - GAP, P.x); ys.push(P.y + P.h + GAP, P.y - h - GAP, P.y); });
-          xs.forEach(function (x) { ys.forEach(function (y) { var d = (x - l.x) * (x - l.x) + (y - l.y) * (y - l.y); if (d < bd && !hits(x, y, w, h, placed)) { bd = d; best = [x, y]; } }); });
+          xs.forEach(function (x) { ys.forEach(function (y) { var d = (x - l.x) * (x - l.x) + (y - l.y) * (y - l.y); if (d < bd && !hits(x, y, w, h, placed, l.stack)) { bd = d; best = [x, y]; } }); });
           if (!best) { var far = placed.reduce(function (m, P) { return Math.max(m, P.x + P.w); }, l.x); best = [far + GAP, l.y]; }
           pushed[id] = { x: l.x, y: l.y }; l.x = best[0]; l.y = best[1];
         }
-        placed.push({ x: l.x, y: l.y, w: w, h: h });
+        placed.push({ x: l.x, y: l.y, w: w, h: h, g: l.stack });
       });
       Object.keys(pushed).forEach(function (id) { var b = blocks[id]; if (!reduce.matches) settle(b); applyBlock(id); L[id].from = L[id].from || pushed[id]; });
+      if (stackDepth) stackDepth();
       return pushed;
     }
 
@@ -197,7 +199,7 @@
       var e = el('div', 'hk hub-block' + ((d.app || d.card || d.extra || d.act) ? ' tile' : '')); e.dataset.id = id; e.tabIndex = 0; e.setAttribute('role', 'group');
       var h = el('div', 'hk-h'), glyph = el('span', 'hk-glyph'); glyph.appendChild(svg(id === 'runs' ? 'M5 4l14 8-14 8V4Z' : 'M5 5h14v14H5zM8 12h8')); glyph.firstChild.style.width = glyph.firstChild.style.height = ''; h.appendChild(glyph); if (PANEL_ICON[id]) { var pi = svg(PANEL_ICON[id], 1.8); pi.classList.add('hk-pi'); pi.style.width = pi.style.height = '15px'; h.appendChild(pi); }
       h.appendChild(el('span', 't', d.app ? (d.app.name || d.app.id) : d.card ? d.card[1] : d.extra ? d.extra[1] : d.act ? (d.act.name || 'Action') : d.t)); h.appendChild(el('span', 'n'));
-      [['col', 'Close this view'], ['out', 'Open in its own tab'], ['min', 'Minimise'], ['foc', 'Focus'], ['x', 'Hide']].forEach(function (b) { var bt = el('button'); bt.type = 'button'; bt.dataset.a = b[0]; bt.setAttribute('aria-label', b[1]); bt.title = b[1]; bt.appendChild(svg(ICON[b[0]])); h.appendChild(bt); });
+      [['col', 'Close this view'], ['dup', 'Open another window of this tool'], ['out', 'Open in its own tab'], ['min', 'Minimise'], ['foc', 'Focus'], ['x', 'Hide']].forEach(function (b) { var bt = el('button'); bt.type = 'button'; bt.dataset.a = b[0]; bt.setAttribute('aria-label', b[1]); bt.title = b[1]; bt.appendChild(svg(ICON[b[0]])); h.appendChild(bt); });
       var body = el('div', 'hk-b'), inn = el('div', 'hk-i'); body.appendChild(inn); var solid=el('div','hk-solid');solid.setAttribute('aria-hidden','true');['back','left','right','top','bottom'].forEach(function(side){solid.appendChild(el('i',side));});e.append(solid, h, body, el('div', 'hk-rz')); e._in = inn; e._n = h.querySelector('.n'); e._app = d.app || null; e._open = null; e._name = d.app ? (d.app.name || d.app.id) : d.card ? d.card[1] : d.t;
       if (d.app) {
         var a = d.app, box = el('div', 'hk-app'), gi = el('div', 'gi');
@@ -258,13 +260,43 @@
       } catch (err) { /* a page from another origin keeps its own events */ }
     }
     var stackDepth = null;
+    // Several windows of one tool: another block of the same tool, offset a little, allowed to overlap its siblings, in front of them in 3D.
+    stackDepth = function () {
+      var groups = {};
+      Object.keys(blocks).forEach(function (id) { blocks[id].style.removeProperty('--hb-dz'); var base = id.split('#')[0]; if (L[id] && L[id].exp && !hid[id]) (groups[base] = groups[base] || []).push(id); });
+      Object.keys(groups).forEach(function (base) {
+        var g = groups[base]; if (g.length < 2) return;
+        g.sort(function (a, c) { return (L[a].z || 0) - (L[c].z || 0); });
+        g.forEach(function (id, i) { blocks[id].style.setProperty('--hb-dz', (170 - (g.length - 1 - i) * 90) + 'px'); });
+      });
+    };
+    function duplicate(srcId) {
+      var base = srcId.split('#')[0], src = blocks[srcId], bd = null;
+      defs.forEach(function (d) { if (d[0] === base) bd = d; });
+      if (!bd || !src || !src._spec || !(src._spec.tabs || src._spec.app)) return;
+      var n = 2; while (blocks[base + '#' + n]) n++;
+      if (n > 5) return;                                               // five windows of a tool is plenty
+      var id = base + '#' + n; addDef([id, Object.assign({}, bd[1])]);
+      var b = blocks[id], l = L[id], s0 = L[srcId]; b._name = blocks[base]._name + ' ' + n; hid[id] = 0;
+      L[base].stack = base; l.stack = base; l.x = s0.x + 46; l.y = s0.y + 46; l.u = 1; touched = true; stopCam();
+      expand(id);
+      var want = src._url, tb = b._in.querySelectorAll('.hk-tabs button');
+      (b._spec.tabs || []).forEach(function (t, i) { if (t[1] === want && tb[i]) tb[i].click(); });
+      l.z = ++zTop; applyBlock(id); resolve(id); stackDepth(); if (nav) nav.refresh();
+    }
+    function closeWindow(id) {
+      var b = blocks[id]; if (!b) return;
+      b.remove(); delete blocks[id]; delete L[id]; delete hid[id];
+      for (var i = defs.length - 1; i >= 0; i--) if (defs[i][0] === id) defs.splice(i, 1);
+      resolve(null); trayDraw(); stackDepth(); if (nav) nav.refresh();
+    }
     function frame(url, id) { var f = el('iframe', 'hk-fr'); f.src = embedUrl(url); f.setAttribute('loading', 'lazy'); f.title = 'Embedded Hub tool'; f.addEventListener('load', function () { hookFrame(f, id); }); if (motion) motion.frame(f); return f; }
     function expand(id) {
       var b = blocks[id], l = L[id], sp = b._spec; if (!sp) return;
       if (l.exp) { collapse(id); return; }
       var before = b.getBoundingClientRect();
       l.exp = 1; l.ow = l.w; l.oh = l.h; l.min = 0; l.z = ++zTop; b._icon = Array.prototype.slice.call(b._in.childNodes); b._in.replaceChildren();
-      b.classList.add('exp'); b.querySelector('.hk-h .t').textContent = String(b._name).toUpperCase(); l.w = host.clientWidth < 900 ? Math.max(260, Math.min(sp.w, host.clientWidth - 28)) : sp.w; l.h = host.clientWidth < 900 ? Math.max(240, Math.min(sp.h, host.clientHeight - TOP() - 28)) : sp.h; applyBlock(id); resolve(id);
+      b.classList.add('exp'); if (sp.tabs || sp.app) b.classList.add('can-dup'); b.querySelector('.hk-h .t').textContent = String(b._name).toUpperCase(); l.w = host.clientWidth < 900 ? Math.max(260, Math.min(sp.w, host.clientWidth - 28)) : sp.w; l.h = host.clientWidth < 900 ? Math.max(240, Math.min(sp.h, host.clientHeight - TOP() - 28)) : sp.h; applyBlock(id); resolve(id);
       if (sp.app) {
         b._in.appendChild(motion.skeleton('Starting ' + b._name));
         fetch('/api/start/' + sp.app, { method: 'POST' }).then(function (r) { if (!r.ok) throw new Error('could not start'); return r.json(); }).then(function (j) {
@@ -288,7 +320,7 @@
       if (!faded && motion.allowed()) { l.closing = true; b.dataset.motion = 'close'; b._in.animate([{opacity:1},{opacity:0}],{duration:120}).onfinish = function () { l.closing = false; if (alive) collapse(id, true); }; return; }
       var before = b.getBoundingClientRect();
       if (b._from && b._home) { b._home.insertBefore(b._from, b._next || null); b._from = null; }
-      b._in.replaceChildren.apply(b._in, b._icon || []); l.exp = 0; b._url = null; b.classList.remove('exp'); l.w = l.ow; l.h = l.oh; b.querySelector('.hk-h .t').textContent = b._name; applyBlock(id);
+      b._in.replaceChildren.apply(b._in, b._icon || []); l.exp = 0; b._url = null; b.classList.remove('exp', 'can-dup'); l.w = l.ow; l.h = l.oh; b.querySelector('.hk-h .t').textContent = b._name; applyBlock(id);
       Object.keys(L).forEach(function (k) { var o = L[k]; if (o.from && o.u) { o.x = o.from.x; o.y = o.from.y; settle(blocks[k]); applyBlock(k); } o.from = null; }); resolve(null);
       if (motion) { motion.flip(b, before, V.k, 'close'); if (!b._flip) delete b.dataset.motion; }
       if (focusId === id) { focusId = null; undim(); fit(true); } else if (l.looked) fit(true);
@@ -434,7 +466,7 @@
       }
       if (e.target.closest('button')) return;
       var grab = e.target.closest('.hk-h') || (b._open && !l.exp ? b : null); if (!grab) return;
-      e.preventDefault(); if(b._flip)b._flip.cancel(); b.classList.remove('settle'); l.z = ++zTop; applyBlock(id); b.classList.add('pick'); host.classList.add('hb-dragging');
+      e.preventDefault(); if(b._flip)b._flip.cancel(); b.classList.remove('settle'); l.z = ++zTop; applyBlock(id); if (stackDepth) stackDepth(); b.classList.add('pick'); host.classList.add('hb-dragging');
       var sx2 = e.clientX, sy2 = e.clientY, ox = l.x, oy = l.y, moved = false, dragFrame = 0;
       function drawDrag(){dragFrame=0;b.style.transform='translate3d('+(l.x-ox)+'px,'+(l.y-oy)+'px,0)';if(nav)nav.refresh();}
       function mv2(ev) { var dx = ev.clientX - sx2, dy = ev.clientY - sy2; if (Math.abs(dx) + Math.abs(dy) > 5) moved = true; var p=point(ev); l.x = ox + p.x-press.x; l.y = oy + p.y-press.y; guides.snap(id, false); if(!dragFrame)dragFrame=requestAnimationFrame(drawDrag); }
@@ -443,6 +475,8 @@
     });
     world.addEventListener('click', function (e) {
       var bt = e.target.closest('button[data-a]'); if (!bt) return; var id = bt.closest('.hk').dataset.id, a = bt.dataset.a;
+      if (a === 'dup') { duplicate(id); return; }
+      if ((a === 'col' || a === 'x') && id.indexOf('#') > 0) { closeWindow(id); return; }
       if (a === 'col') collapse(id);
       if (a === 'out') { var bb = blocks[id]; if (bb._url) window.open(bb._url, '_blank'); else if (bb._app && typeof openApp === 'function') openApp(bb._app.id, bb._app.name); }
       if (a === 'min') { L[id].min = L[id].min ? 0 : 1; applyBlock(id); resolve(id); save(); }
@@ -514,7 +548,7 @@
         var fr = b.querySelector('iframe'), want = u.pathname.slice(1).toUpperCase();
         Array.prototype.forEach.call(b.querySelectorAll('.hk-tabs button'), function (t) { t.classList.toggle('on', t.textContent === want); });
         if (fr) { var next = embedUrl(u.pathname + u.search); if (fr.src !== next) { fr.src = next; if (motion) motion.frame(fr); } b._url = u.pathname + u.search; }
-        L[id].z = ++zTop; applyBlock(id); lookAt(id); return true;
+        L[id].z = ++zTop; applyBlock(id); if (stackDepth) stackDepth(); lookAt(id); return true;
       }
     };
     root.__hubBoardInstance = instance; window.__hubBoard.active = instance; return instance;

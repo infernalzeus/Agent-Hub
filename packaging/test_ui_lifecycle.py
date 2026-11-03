@@ -78,7 +78,7 @@ def test_rewritten_dormant_disposes_header_and_responds_to_hover(browser,hub):
 
 def test_retaining_home_releases_the_microphone(hub):
  with sync_playwright() as p:
-  b=p.chromium.launch(headless=False,channel='msedge',args=['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream'])
+  b=p.chromium.launch(headless=os.environ.get('AGENTHUB_TEST_HEADED')!='1',channel='msedge',args=['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream'])
   try:
    pg=b.new_context(service_workers='block',permissions=['microphone']).new_page();pg.goto(hub+'/?enter=1');pg.wait_for_selector('.hb .hk')
    pg.evaluate("async()=>{window.tracks=(await navigator.mediaDevices.getUserMedia({audio:true})).getTracks();}")
@@ -90,11 +90,11 @@ def test_retaining_home_releases_the_microphone(hub):
 
 def test_orbit_gizmo_never_pans_the_board(hub):
  with sync_playwright() as p:
-  b=p.chromium.launch(headless=False,channel='msedge')
+  b=p.chromium.launch(headless=os.environ.get('AGENTHUB_TEST_HEADED')!='1',channel='msedge')
   try:
    pg=b.new_context(service_workers='block',viewport={'width':1400,'height':950}).new_page();pg.goto(hub+'/?enter=1');pg.wait_for_selector('.hb .hk');pg.wait_for_timeout(1000)
-   pg.click('.hb-btn:has-text("VIEW")');pg.click('.hb-btn:has-text("VIEW")');pg.wait_for_timeout(600)
-   before=pg.evaluate('({...__hubBoard.active.state().V})');g=pg.locator('.hb-gizmo svg').bounding_box();x=g['x']+25;y=g['y']+70
+   pg.click('.hb-btn:has-text("VIEW")');pg.wait_for_timeout(600)
+   before=pg.evaluate('({...__hubBoard.active.state().V})');g=pg.locator('.hb-gizmo svg').bounding_box();x=g['x']+g['width']*.3;y=g['y']+g['height']*.7
    pg.mouse.move(x,y);pg.mouse.down();pg.mouse.move(x+40,y-20,steps=12);pg.mouse.up();pg.wait_for_timeout(600)
    after=pg.evaluate('__hubBoard.active.state().V');assert before==after
    assert pg.evaluate('__hubBoard.active.view().tilt().ry')>-20
@@ -103,7 +103,7 @@ def test_orbit_gizmo_never_pans_the_board(hub):
 
 def test_loaded_graph_has_no_pulsing_loading_sheet(hub):
  with sync_playwright() as p:
-  b=p.chromium.launch(headless=False,channel='msedge')
+  b=p.chromium.launch(headless=os.environ.get('AGENTHUB_TEST_HEADED')!='1',channel='msedge')
   try:
    pg=b.new_context(service_workers='block',viewport={'width':1400,'height':950}).new_page();pg.goto(hub+'/?enter=1');pg.wait_for_selector('.hb .hk')
    pg.evaluate("__hubBoard.open('/graph')")

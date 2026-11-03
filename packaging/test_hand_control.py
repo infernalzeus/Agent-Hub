@@ -13,7 +13,7 @@ def page(hub,tmp_path):
  clip=tmp_path/'fake.y4m';frame=bytes([16])*(320*240)+bytes([128])*(320*240//2)
  clip.write_bytes(b'YUV4MPEG2 W320 H240 F30:1 Ip A1:1 C420jpeg\n'+(b'FRAME\n'+frame)*4)
  with sync_playwright() as p:
-  b=p.chromium.launch(channel=os.environ.get('AGENTHUB_TEST_BROWSER','msedge'),headless=False,args=['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--use-file-for-fake-video-capture='+str(clip)])
+  b=p.chromium.launch(channel=os.environ.get('AGENTHUB_TEST_BROWSER','msedge'),headless=os.environ.get('AGENTHUB_TEST_HEADED')!='1',args=['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--use-file-for-fake-video-capture='+str(clip)])
   ctx=b.new_context(viewport={'width':1400,'height':950},service_workers='block',permissions=['camera'])
   ctx.add_init_script("window.__HUB_HANDS_TEST={traceStepMs:60,tracker:{manifest:{ready:true},factory:async()=>({detectForVideo:()=>({landmarks:[]}),close(){}})}}")
   pg=ctx.new_page();pg.goto(hub+'/?enter=1');pg.wait_for_function('!!window.__hubHands')
