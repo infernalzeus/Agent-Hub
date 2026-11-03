@@ -633,7 +633,10 @@ async def run_action(aid: str, args: dict) -> dict:
                 url = "https://github.com/" + url                      # "owner/repo" is easy to say; a full URL is not
             if not re.match(r"^(https?://|git@)", url):
                 return {"say": "I need a git address I can trust. Speech makes those unreliable, so please type it in the box, or say it as owner slash repo."}
-            m = await M.dispatch_ingest(url)
+            try:
+                m = await M.dispatch_ingest(url)
+            except ValueError as exc:
+                return {"ok": False, "say": f"I can't ingest that: {exc}."}
             return {"say": f"Started ingesting {m.project_name}. It will wait in your inbox for review before anything is wired in.", "url": "/missions"}
         if aid == "pause" and not args.get("mission"):
             n = 0

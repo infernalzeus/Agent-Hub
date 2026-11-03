@@ -39,7 +39,7 @@ def _read(name: str) -> str:
 
 def widget(with_orbs: bool = True) -> str:
     orbs = f"<script>{_read('thinking-orbs.min.js')}</script>\n" if with_orbs else ""
-    return f"<style>{_read('voice.css')}</style>\n{_HTML}\n{orbs}<script>{_read('voice-fx.js')}</script>\n<script>{_read('voice.js')}</script>"
+    return f"<style>{_read('voice.css')}</style>\n{_HTML}\n{orbs}<script>{_read('voice-fx.js')}</script>\n<script>{_read('voice-gate.js')}</script>\n<script>{_read('voice.js')}</script>"
 
 
 TALK_BUTTON = '<button type="button" class="talk-btn" data-talk title="Talk to the hub" aria-label="Talk to the hub"><img src="/smith-icon.png" alt=""></button>'

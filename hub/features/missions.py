@@ -33,6 +33,7 @@ from aiohttp import web
 
 from .. import agent_knowledge, app_registry, config
 from .. import decide as DEC
+from .. import netgate as NETGATE
 from ..config import logger
 from ..platform_win import _assign_to_job
 from ..runtime import STATE, python_for
@@ -893,6 +894,8 @@ async def dispatch_ingest(url: str, name: str | None = None, emoji: str | None =
         if not candidate.is_dir():
             raise ValueError("give an http(s):// or git@ URL, or a folder on this PC")
         local = candidate.resolve()
+    if local is None:
+        await NETGATE.acheck_url(url)          # a git address that points at this PC or its network is refused; clone it yourself and give the folder
     mid = _new_id()
     raw = (name or url.rstrip("/").split("/")[-1]).replace(".git", "")
     id_hint = re.sub(r"[^a-z0-9]+", "-", raw.lower()).strip("-") or "app"

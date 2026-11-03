@@ -17,6 +17,7 @@ from ..request_security import ensure_ws_origin
 
 from . import youtube_accounts as YTA
 from .. import events
+from .. import netgate as NETGATE
 from ..config import (
     MC_OUTPUT_DIR, YT_UPLOAD_SCRIPT,
     YT_DL_PYTHON, YT_DL_SCRIPT, YT_DL_AUDIO_DIR, YT_DL_VIDEO_DIR,
@@ -479,6 +480,7 @@ async def start_download(url: str, fmt: str = "video") -> dict:
     fmt = fmt or "video"
     if not url.startswith(("http://", "https://")):
         raise ValueError("That doesn't look like a URL")
+    await NETGATE.acheck_url(url)             # not this PC, its network or a metadata address: the downloader would follow it there
     if fmt not in ("audio", "video"):
         raise ValueError("format must be 'audio' or 'video'")
 

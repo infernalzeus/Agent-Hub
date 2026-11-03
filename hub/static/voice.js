@@ -145,15 +145,20 @@
     const done = new Promise((res) => { mr.onstop = res; }); mr.start();
     return { stop() { try { if (mr.state !== 'inactive') mr.stop(); } catch (e) {} return done; }, blob() { return new Blob(chunks, { type: mr.mimeType || 'audio/webm' }); } };
   }
-  // resolves when an utterance has ended (~0.9 s of quiet after speech); true if speech was heard
+  // resolves when an utterance has ended (1.4 s below the room's own level after a voice); true if speech was heard.
+  // The level a voice must clear comes from voice-gate.js, learned from the room and kept between recordings.
   function untilUtteranceEnds(alreadySpoke, noSpeechMs) {
     return new Promise((resolve) => {
+      const G = window.HubVoiceGate, gate = G ? G.make({ floor0: S.floor || G.defaults.floor0 }, alreadySpoke) : null;
       let spoke = !!alreadySpoke, quiet = 0; const t0 = performance.now(), capture = S.capture, listen = S.listen;
+      const finish = (v) => { if (gate) S.floor = gate.floor(); resolve(v); };
       const tick = () => {
-        if (!S.on || capture !== S.capture || listen !== S.listen) return resolve(false);
+        if (!S.on || capture !== S.capture || listen !== S.listen) return finish(false);
         const r = rms(), now = performance.now();
-        if (r > 0.035) { spoke = true; quiet = 0; } else if (spoke && !quiet) quiet = now;
-        if ((spoke && quiet && now - quiet > 1400) || (spoke && now - t0 > 25000) || (!spoke && now - t0 > (noSpeechMs || 15000))) return resolve(spoke);
+        let ended = false;
+        if (gate) { const g = gate.step(r, now); spoke = g.spoke; ended = g.ended; }
+        else { if (r > 0.035) { spoke = true; quiet = 0; } else if (spoke && !quiet) quiet = now; ended = spoke && quiet && now - quiet > 1400; }
+        if (ended || (spoke && now - t0 > 25000) || (!spoke && now - t0 > (noSpeechMs || 15000))) return finish(spoke);
         requestAnimationFrame(tick);
       };
       tick();
@@ -298,7 +303,11 @@
     if (turn !== S.turn) return;
     if (r.url) { navigate(r.url); return; }
     setState('working', 'Doing it…');
-    const j = await request('/api/voice/act', { id: r.action.id, args: r.action.args });
+    // A slow action says one short line after 2 s, so a long task does not read as a crash; quick ones stay silent.
+    const line = window.HubVoiceGate ? window.HubVoiceGate.workingLine(r.action.id) : '';
+    let said = null; const nudge = line && !S.mute ? setTimeout(() => { if (turn === S.turn) said = speak(line); }, 2000) : null;
+    let j; try { j = await request('/api/voice/act', { id: r.action.id, args: r.action.args }); } finally { if (nudge) clearTimeout(nudge); }
+    if (said) await said;                                 // let the line finish before the answer, rather than cutting it off
     if (turn !== S.turn) return;
     log('hub', j.say, j.routine && j.routine.tag); if (j.detail) log('hub', j.detail); recPaint();
     // The question's YES / NO appear before the sentence is spoken, not after: a long
