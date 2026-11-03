@@ -85,11 +85,11 @@ def controls(nodes: "list[dict]", app: str, goal: str = "") -> "list[dict]":
         path = container_of(nodes, i)
         key = (n["control"], n["name"], path, n["y"])
         group = (n["control"], path)
-        if key in seen or per.get(group, 0) >= _PER_GROUP:
+        hit = sum(1 for w in want if w in (n["name"] + " " + path).casefold())
+        if key in seen or (per.get(group, 0) >= _PER_GROUP and not hit):      # the cap is for alike controls the goal does not name: the one it names is always kept
             continue
         seen.add(key)
         per[group] = per.get(group, 0) + 1
-        hit = sum(1 for w in want if w in (n["name"] + " " + path).casefold())
         out.append({"hit": hit, "order": len(out), "node": n, "path": path, "row": _row_of(nodes, i, items)})
     out.sort(key=lambda c: (-min(c["hit"], 2), c["order"]))
     out = out[:_CAP]
