@@ -316,6 +316,24 @@ def _append(row: dict) -> None:
         logger.info("binning: could not log: %s", exc)
 
 
+_LAST = {"at": 0.0}
+_WRONG = re.compile(r"^\W*(?:no|nope|wrong|not that|not what i|that'?s wrong|that is wrong|i said|i meant|i did not ask|i didn'?t ask|that isn'?t)\b", re.I)
+_RIGHT = re.compile(r"^\W*(?:thanks|thank you|perfect|great|nice one|good job|that'?s right|exactly|brilliant)\b", re.I)
+
+
+def verdict_on_last(text: str, now: "float | None" = None) -> None:
+    """What the person says next is the label for the last decision: a correction is a loss, thanks is a win, anything else says nothing.
+    Only within two minutes of that decision; one line, and only when there is a verdict to give."""
+    at = _LAST["at"]
+    now = now if now is not None else time.time()
+    if not at or now - at > 120:
+        return
+    ok = False if _WRONG.search(text or "") else True if _RIGHT.search(text or "") else None
+    if ok is not None:
+        _append({"kind": "verdict", "at": round(now, 1), "of": at, "ok": ok})
+    _LAST["at"] = 0.0
+
+
 def record(text: str, decision: dict, outcome: dict) -> None:
     """One line per request: what was decided, and what actually happened.
 
@@ -323,7 +341,9 @@ def record(text: str, decision: dict, outcome: dict) -> None:
     enough is a count. `ms` and `timed_out` come from the caller when it knows them.
     """
     asked = decision.get("asked")
-    _append({"at": round(time.time(), 1), "text": (text or "")[:300], **{k: decision.get(k) for k in
+    at = round(time.time(), 3)
+    _LAST["at"] = at
+    _append({"at": at, "text": (text or "")[:300], **{k: decision.get(k) for k in
              ("bin", "confidence", "by", "why", "asked")}, "escalated": bool(asked), **outcome})
 
 

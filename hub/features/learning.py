@@ -1,0 +1,153 @@
+"""R1 of the learning plan: every choice the Hub makes, in one shape, with what happened afterwards. Nothing here learns yet.
+
+Three places in the Hub choose between options. Each already wrote something; this module reads all three as one list of events
+and adds one small log for the choice that wrote nothing (how a PC task was done). It adds NO model call, NO background thread
+and NO training: the answer path pays one appended line (`note`, measured under 1 ms) and everything else is computed when asked.
+
+    kind   who chooses                         options                          log it comes from
+    route  binning.decide / refine             the bins (launch_app, mission_ask…)  utterance_decisions.jsonl (+ outcome and verdict lines)
+    model  missions, the desktop task agent    local and cloud models              model_outcomes.json, and `note` for desktop tasks
+    rung   pc_control.after                    saved routine, local agent, cloud    `note`  (choices.jsonl)
+
+An event: {kind, context, chosen, options, by, ok, ms, at}. `ok` is True only on evidence (the project's checks passed, Windows says it
+is playing, the person said thanks), False only on evidence (a failed check, a correction), None otherwise: an unlabelled event is
+never counted as a success.
+
+What reads this later, all pure functions over `counters()`: R3 picks the model and R4 the rung (a bandit: shadow first, only
+recording what it would choose), R5 fits the router's confidence against `route` events that have an `ok`. See `status()` for how
+much data each of them has and what it still needs.
+"""
+from __future__ import annotations
+
+import json
+import os
+import time
+
+from aiohttp import web
+
+from ..config import logger
+from ..runtime import STATE
+
+routes = web.RouteTableDef()
+
+CHOICES = STATE / "choices.jsonl"
+MAX_BYTES = 5 * 1024 * 1024
+KINDS = ("route", "model", "rung")
+NEEDS = {"R3": ("model", 30, "labelled model events, across at least two models"),
+         "R4": ("rung", 30, "labelled rung events, across at least two ways"),
+         "R5": ("route", 100, "labelled route decisions")}
+_STATS = {"calls": 0, "spent_s": 0.0, "worst_s": 0.0, "since": time.time()}
+
+
+def enabled() -> bool:
+    return os.environ.get("HUB_LEARNING_LOG", "1") != "0"
+
+
+def note(kind: str, context: str, chosen: str, options: "list | None" = None, ok: "bool | None" = None,
+         ms: "float | None" = None, by: str = "rules", **extra) -> None:
+    """One line: a choice that was made and, when it is already known, how it turned out. Never raises, never waits on anything but a file append."""
+    if not enabled():
+        return
+    t0 = time.perf_counter()
+    try:
+        row = {"kind": kind, "context": str(context)[:80], "chosen": str(chosen)[:80], "options": [str(o)[:80] for o in (options or [])][:8],
+               "by": by, "ok": ok if isinstance(ok, bool) else None, "ms": None if ms is None else int(ms), "at": round(time.time(), 1), **extra}
+        CHOICES.parent.mkdir(parents=True, exist_ok=True)
+        if _STATS["calls"] % 200 == 0 and CHOICES.exists() and CHOICES.stat().st_size > MAX_BYTES:
+            os.replace(CHOICES, CHOICES.with_suffix(".jsonl.1"))          # keep one older file, never grow without bound
+        with CHOICES.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    except Exception as exc:  # noqa: BLE001 - recording a choice must never break making it
+        logger.info("learning: could not note a choice: %s", exc)
+    finally:
+        dt = time.perf_counter() - t0
+        _STATS["calls"] += 1
+        _STATS["spent_s"] += dt
+        _STATS["worst_s"] = max(_STATS["worst_s"], dt)
+
+
+def _jsonl(path) -> "list[dict]":
+    try:
+        return [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
+    except (OSError, ValueError):
+        return []
+
+
+def _route_events() -> "list[dict]":
+    """The router's decisions, each with the outcome and the person's verdict that came after it."""
+    from . import binning as BIN
+    out: "list[dict]" = []
+    last_by_action: "dict[str, dict]" = {}
+    by_at: "dict[float, dict]" = {}
+    for r in BIN._rows():
+        k = r.get("kind")
+        if k == "outcome":
+            e = last_by_action.get(str(r.get("action")))
+            if e is not None and e["ok"] is None and isinstance(r.get("ok"), bool):
+                e["ok"] = r["ok"]
+            continue
+        if k == "verdict":
+            e = by_at.get(r.get("of"))
+            if e is not None and isinstance(r.get("ok"), bool) and (e["ok"] is None or r["ok"] is False):      # a correction beats a run that finished
+                e["ok"] = r["ok"]
+            continue
+        asked = [a for a in (r.get("asked") or []) if isinstance(a, dict)]
+        e = {"kind": "route", "context": "bin", "chosen": str(r.get("bin")), "options": [str(r.get("bin"))] + [str(a.get("answer")) for a in asked if a.get("answer")],
+             "by": str(r.get("by") or "rules"), "ok": None, "ms": r.get("ms"), "at": r.get("at"), "confidence": r.get("confidence"), "escalated": bool(asked)}
+        out.append(e)
+        by_at[r.get("at")] = e
+        if r.get("action"):
+            last_by_action[str(r["action"])] = e
+    return out
+
+
+def _model_events() -> "list[dict]":
+    from ..agent_knowledge import model_stats as MS
+    from ..agent_knowledge.model_stats import SMALL_BRIEF_CHARS
+    return [{"kind": "model", "context": "mission:" + ("small" if int(r.get("chars") or 0) <= SMALL_BRIEF_CHARS else "large"), "chosen": r.get("model"), "options": [],
+             "by": "rules", "ok": r.get("ok") if isinstance(r.get("ok"), bool) else None, "ms": int(float(r.get("secs") or 0) * 1000), "at": r.get("at")}
+            for r in MS._outcomes()]
+
+
+def events(limit: int = 5000) -> "list[dict]":
+    """Every recorded choice, oldest first, from the three places that make them."""
+    rows = _route_events() + _model_events() + _jsonl(CHOICES)
+    rows.sort(key=lambda e: e.get("at") or 0)
+    return rows[-limit:]
+
+
+def counters(rows: "list[dict] | None" = None) -> dict:
+    """{kind: {context: {option: {n, ok, failed, unknown, ms}}}}: the table a bandit would read. Computed when asked, never kept."""
+    out: dict = {}
+    for e in rows if rows is not None else events():
+        c = out.setdefault(e["kind"], {}).setdefault(e["context"], {}).setdefault(str(e["chosen"]), {"n": 0, "ok": 0, "failed": 0, "unknown": 0, "ms": 0})
+        c["n"] += 1
+        c["ok" if e["ok"] is True else "failed" if e["ok"] is False else "unknown"] += 1
+        c["ms"] += int(e.get("ms") or 0)
+    for ctx in out.values():
+        for opts in ctx.values():
+            for c in opts.values():
+                c["ms"] = round(c["ms"] / c["n"]) if c["n"] else 0
+    return out
+
+
+def status() -> dict:
+    """How much the Hub has to learn from, and what each later step still needs. Read-only."""
+    rows = events()
+    per: dict = {}
+    for k in KINDS:
+        mine = [e for e in rows if e["kind"] == k]
+        per[k] = {"events": len(mine), "labelled": sum(1 for e in mine if e["ok"] is not None), "options": len({e["chosen"] for e in mine if e["ok"] is not None})}
+    needs = {}
+    for step, (kind, n, what) in NEEDS.items():
+        have = per[kind]["labelled"]
+        needs[step] = {"needs": what, "want": n, "have": have, "ready": have >= n and (per[kind]["options"] >= 2 or kind == "route")}
+    calls = _STATS["calls"]
+    return {"logging": enabled(), "per_kind": per, "needs": needs,
+            "cost": {"notes": calls, "spent_ms": round(_STATS["spent_s"] * 1000, 2), "mean_us": round(_STATS["spent_s"] / calls * 1e6) if calls else 0, "worst_us": round(_STATS["worst_s"] * 1e6)},
+            "learning": "nothing learns yet: R1 only records"}
+
+
+@routes.get("/api/learning/status")
+async def api_status(request: web.Request) -> web.Response:
+    return web.json_response(status())

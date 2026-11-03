@@ -421,9 +421,15 @@ async def run(goal: str, app: str, *, models: "list[str] | None" = None, decider
     pool = models if models is not None else ([m for m in chain if ":cloud" not in m][:1] + [m for m in chain if ":cloud" in m][:1])
     deciders = [(m, ollama_decider(m)) for m in pool] if decider is None else [("injected", decider)]
     for name, dec in deciders:
+        ta = time.time()
         got = await attempt(goal, app, dec, **fakes)
         tries.append({"model": name, "ok": got["ok"], "say": got["say"], "trace": got["trace"], "pressed": len(got["steps"])})
         _log_run(goal, app, tries[-1])
+        try:                                     # R1: which model did the task, and did the checked result agree
+            from . import learning as LRN
+            LRN.note("model", "desktop_task", name, chain, got["ok"], (time.time() - ta) * 1000)
+        except Exception:  # noqa: BLE001
+            pass
         if got["ok"]:
             saved = None
             if remember and got["steps"] and got.get("verified") is not False:

@@ -962,6 +962,7 @@ async def chat(text: str, history: "list | None" = None, mission_id: "str | None
     """One request in, one reply out - and a record of which bin it was put in and what ran."""
     from . import binning as BIN
     _settle_outcomes(text)
+    BIN.verdict_on_last(text)                  # what you say next labels the last decision (a correction is a loss, thanks a win)
     _LAST_U.clear()
     try:
         decision = BIN.decide(text)

@@ -1512,6 +1512,15 @@ async def effect_of(window: str, before: dict, settle: float = 1.2, retries: int
             "why": "" if changed else "nothing in the window changed"}
 
 
+def _learn(chosen: str, ok: bool, t0: float, app: str) -> None:
+    """R1: how this task was done (a saved routine, or the agent) and whether it worked, for the learning log. Never raises."""
+    try:
+        from . import learning as LRN
+        LRN.note("rung", canonical_app_name(app), chosen, ["replay", "agent"], ok, (time.time() - t0) * 1000)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 async def after(app: str, then: str, request: str, tree=None) -> dict:
     """Deal with the rest of the sentence, once the app is open.
 
@@ -1520,6 +1529,7 @@ async def after(app: str, then: str, request: str, tree=None) -> dict:
     here was written against an invented format and none of it worked.
     """
     name = display_app_name(app)
+    t0 = time.time()
     taught = _routine(do_intent(app, then))
     if taught and taught["tool"] == "surface" and taught["status"] != "disabled":
         from . import machine_routines as MR
@@ -1541,6 +1551,8 @@ async def after(app: str, then: str, request: str, tree=None) -> dict:
             if DA.wants_music(then) and not heard:
                 _remember_outcome(taught["id"], False)
                 got = {"ok": False, "route": "fall-through", "say": "It ran, but nothing is playing."}
+        if tree is None:
+            _learn("replay", bool(got.get("ok")), t0, app)
         if got.get("ok"):
             return {"ok": True, "say": f"Opened {name} and {then}.", "routine": got.get("routine")}
         if got.get("route") != "fall-through":
@@ -1551,7 +1563,9 @@ async def after(app: str, then: str, request: str, tree=None) -> dict:
     # checked (for music: Windows says it is playing). This used to stop at "Press X?" or "Record it?" for every ask.
     if tree is None and os.environ.get("HUB_DESKTOP_AGENT", "1") != "0":
         from . import desktop_agent as DA
+        t1 = time.time()
         got = await DA.run(then, app)
+        _learn("agent", bool(got["ok"]), t1, app)
         _record_run(request, "agent", "done" if got["ok"] else "failed",
                     f"{then}: {got['say'][:140]} [{', '.join(t['model'] for t in got['tries'])}]", level="ui-tree" if got["ok"] else "")
         if got["ok"]:
