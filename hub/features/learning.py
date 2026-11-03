@@ -37,6 +37,24 @@ NEEDS = {"R3": ("model", 30, "labelled model events, across at least two models"
          "R4": ("rung", 30, "labelled rung events, across at least two ways"),
          "R5": ("route", 100, "labelled route decisions")}
 _STATS = {"calls": 0, "spent_s": 0.0, "worst_s": 0.0, "since": time.time()}
+_FH: dict = {"f": None, "path": None}      # the log stays open: opening a file for every line cost about 0.3 ms on Windows, a write to an open one about 15 us
+
+
+def _close() -> None:
+    try:
+        if _FH["f"] is not None:
+            _FH["f"].close()
+    except OSError:
+        pass
+    _FH.update(f=None, path=None)
+
+
+def _handle():
+    if _FH["f"] is None or _FH["path"] != CHOICES or _FH["f"].closed:
+        _close()
+        CHOICES.parent.mkdir(parents=True, exist_ok=True)
+        _FH.update(f=CHOICES.open("a", encoding="utf-8", buffering=1), path=CHOICES)
+    return _FH["f"]
 
 
 def enabled() -> bool:
@@ -52,11 +70,10 @@ def note(kind: str, context: str, chosen: str, options: "list | None" = None, ok
     try:
         row = {"kind": kind, "context": str(context)[:80], "chosen": str(chosen)[:80], "options": [str(o)[:80] for o in (options or [])][:8],
                "by": by, "ok": ok if isinstance(ok, bool) else None, "ms": None if ms is None else int(ms), "at": round(time.time(), 1), **extra}
-        CHOICES.parent.mkdir(parents=True, exist_ok=True)
         if _STATS["calls"] % 200 == 0 and CHOICES.exists() and CHOICES.stat().st_size > MAX_BYTES:
+            _close()
             os.replace(CHOICES, CHOICES.with_suffix(".jsonl.1"))          # keep one older file, never grow without bound
-        with CHOICES.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        _handle().write(json.dumps(row, ensure_ascii=False) + "\n")
     except Exception as exc:  # noqa: BLE001 - recording a choice must never break making it
         logger.info("learning: could not note a choice: %s", exc)
     finally:
