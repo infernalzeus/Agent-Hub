@@ -255,4 +255,7 @@ async def api_mcp_enabled(request: web.Request) -> web.Response:
         raise web.HTTPNotFound(text="no such MCP server")
     except FileNotFoundError as exc:
         raise web.HTTPBadRequest(text=str(exc))
+    if not b.get("enabled"):
+        from . import pc_control as PCC      # switching PC control off ends whatever the hub is doing on this PC
+        PCC.stop_all()
     return web.json_response({**r, "servers": servers(), "note": "applies to the next mission step; restart the OpenCode workspace to apply it there"})

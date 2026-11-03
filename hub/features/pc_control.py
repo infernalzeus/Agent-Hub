@@ -17,6 +17,24 @@ from ..config import logger
 from ..runtime import STATE
 from . import mcp as MCP
 
+# One stop signal for everything that acts on this PC (the desktop agent, a routine being replayed, an app being opened). A task remembers the
+# number when it starts and ends itself the moment the number has moved: STOP in Talk, closing the Talk panel, and switching PC control off all move it.
+_STOP = {"gen": 0, "at": 0.0}
+
+
+def stop_all() -> int:
+    _STOP["gen"] += 1
+    _STOP["at"] = time.time()
+    logger.info("pc_control: stop requested; running PC tasks will end at their next step")
+    return _STOP["gen"]
+
+
+def stop_gen() -> int:
+    return _STOP["gen"]
+
+
+STOPPED = {"ok": False, "route": "stopped", "say": "Stopped."}
+
 routes = web.RouteTableDef()
 # Learned routines are per-machine state, not part of the program.
 DB_PATH = STATE / "data" / "pc_control.sqlite"
@@ -506,6 +524,17 @@ async def _window_for(name: str) -> bool:
     return any(all(w in _words(t) for w in want) or name.casefold() in t.casefold() for t in titles)
 
 
+def clean_then(then: str, app: str = "") -> str:
+    """The rest of the sentence after the app name, without leftover punctuation, and nothing at all when it only says open the app again.
+
+    "Open Notepad, please. Open Notepad." used to leave ". open notepad" as a task INSIDE Notepad: the agent spent 38 s clicking in a window it could not read."""
+    rest = re.sub(r"^[\s.,;:!?-]+", "", then or "").strip()
+    name = re.escape(canonical_app_name(app))
+    if re.fullmatch(r"(?:please[ ,.]*)?(?:(?:open|launch|start|run)\s+(?:up\s+)?(?:the\s+)?" + name + r"(?:\s+app)?)?[ ,.!]*(?:please)?[ .!]*", rest, re.I):
+        return ""
+    return rest
+
+
 async def launch_app(app: str, request: str, then: str = "") -> dict:
     """Open an installed application, say truthfully whether it opened, and only
     then remember it.
@@ -515,6 +544,7 @@ async def launch_app(app: str, request: str, then: str = "") -> dict:
     never silently dropped.
     """
     heard = canonical_app_name(app)
+    then = clean_then(then, heard)
     if len(heard) < 2:
         return {"ok": False, "say": "Tell me which application to open."}
 
@@ -1000,7 +1030,10 @@ async def replay_ui_routine(routine: dict, request: str = "") -> dict:
 
     window = stored.get("window", "")
     before = live                      # the signature just taken, reused as the baseline
+    g0 = stop_gen()
     for step in steps:
+        if stop_gen() != g0:
+            return dict(STOPPED)
         target = json.loads(step["target_json"] or "{}")
         args = dict(json.loads(step["args_json"] or "{}"))
         if target:

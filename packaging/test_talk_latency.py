@@ -87,3 +87,15 @@ def test_a_second_request_runs_after_the_first_finishes(talk):
                      window.__chats = 0; const f = window.fetch; window.fetch = (u, o) => { if (String(u).includes('/api/voice/chat')) window.__chats++; return f(u, o); };
                      HubVoice.ask('first'); setTimeout(() => HubVoice.ask('second'), 300); void 0""")
     talk.wait_for_function("window.__chats === 2", timeout=9000)
+
+
+def test_closing_the_talk_panel_stops_what_it_started(talk):
+    talk.evaluate("""window.__cfg.say = 'On it.'; window.__cfg.action = { id: 'desktop_task', args: {} }; window.__cfg.act = 2500; window.__cfg.speak = [50];
+                     window.__cancels = 0; const f = window.fetch; window.fetch = (u, o) => { if (String(u).includes('/api/voice/cancel')) window.__cancels++; return f(u, o); };
+                     HubVoice.ask('play the playlist'); void 0""")
+    talk.wait_for_timeout(500)
+    assert talk.evaluate("HubVoice.state().acting") is True
+    talk.click("#v-close")
+    talk.wait_for_timeout(300)
+    assert talk.evaluate("window.__cancels") == 1                                          # the server was told to stop whatever it is doing on the PC
+    assert talk.evaluate("HubVoice.state().acting") is False and talk.evaluate("HubVoice.state().busy") is False

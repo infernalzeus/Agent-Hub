@@ -35,7 +35,7 @@ SOFTWARE.
   const G=root.HubHandsGestures,ROLL_PX=320,PROFILE_VERSION=2;
   // the camera picture is about a quarter of the screen's width, so a hand that shakes by a few camera pixels moves the cursor by tens of screen pixels:
   // the distance a click may wander scales with the screen
-  const slop=()=>Math.max(24,Math.round(innerWidth*.025));
+  const slop=()=>Math.max(40,Math.round(innerWidth*.05));      // measured: a hand drifts 20 to 45 px in the first third of a second of a pinch at 1280 px wide
   const boardView=()=>{try{return root.__hubBoard.active.view();}catch(_){return null;}};
   const ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 12V5a1.5 1.5 0 0 1 3 0v6-8a1.5 1.5 0 0 1 3 0v8-6a1.5 1.5 0 0 1 3 0v7-4a1.5 1.5 0 0 1 3 0v6c0 5-3 7-7 7-3 0-5-2-6-4l-3-5a1.5 1.5 0 0 1 2.5-1.6L8 12Z"/></svg>';
   function styles(){if(document.getElementById('hands-style'))return;const s=document.createElement('style');s.id='hands-style';s.textContent='.hb-hands{display:inline-flex;align-items:center;gap:5px}.hb-hands svg{width:17px;height:17px}.hb-hands i{width:6px;height:6px;border-radius:50%;background:var(--text-faint);display:inline-block}.hb-hands.live i{background:var(--accent);box-shadow:0 0 5px var(--accent)}.hb-hands.live{border-color:var(--cyan);color:var(--cyan)}.hands-overlay{position:fixed;inset:0;pointer-events:none;z-index:54}.hands-legend,.hands-status{position:fixed;z-index:55;pointer-events:none;max-width:min(520px,calc(100vw - 32px));padding:10px 14px;border:1px solid var(--border-dim);border-radius:9px;background:rgba(8,12,40,.96);color:var(--text);font:11px/1.8 Orbitron,monospace}.hands-legend{left:16px;bottom:calc(22px + env(safe-area-inset-bottom));transition:opacity .3s}.hands-status{left:16px;top:calc(12px + env(safe-area-inset-top));color:var(--cyan);font-size:10px}.hands-setup{position:fixed;inset:auto;left:50%;top:50%;transform:translate(-50%,-50%);z-index:95;box-sizing:border-box;width:min(460px,calc(100vw - 28px));padding:20px;border:1px solid var(--accent);border-radius:12px;background:#080c28;color:var(--text);font:12px/1.8 Orbitron,monospace;box-shadow:0 14px 50px #0009}.hands-setup button{margin:8px 6px 0 0}.hands-setup p{font-family:Outfit,system-ui,sans-serif;font-size:14px}.hands-legend[hidden],.hands-status[hidden],.hands-setup[hidden]{display:none!important}@media(prefers-reduced-motion:reduce){.hands-legend{transition:none}}';document.head.appendChild(s);}
@@ -115,7 +115,9 @@ SOFTWARE.
 
     // ---- one frame in
     function feed(result,now=performance.now(),meta={}){
-      if(!enabled||!alive)return;const processingAt=performance.now();
+      if(!enabled||!alive)return;
+      if(!document.hasFocus()||document.hidden){if(presses.size)cancelAll();if(status&&!hint)status.textContent='CLICK THE HUB WINDOW ONCE SO HANDS CAN ACT ON IT';else if(status)say('CLICK THE HUB WINDOW ONCE SO HANDS CAN ACT ON IT');return;}
+      const processingAt=performance.now();
       const output=engine.update(result,now,innerWidth,innerHeight,meta.cam);if(output.stale)return;counts.frames++;paint(output.hands);
       for(const h of output.hands){const on=h.pinched||h.rpinched||h.triple;if(on&&!detected.has(h.id)){detected.add(h.id);counts.detectedPinches++;}if(!on)detected.delete(h.id);}
       for(const h of output.lost)detected.delete(h.id);
@@ -157,7 +159,7 @@ SOFTWARE.
           }
           const done=p.mode==='left'?!hand.pinched:!hand.rpinched;
           if(done){release(hand.id,false,hand);continue;}
-          const at=posOf(p,hand);p.travel=Math.max(p.travel,G.distance(p.down,at));p.last=at;emit(p,'pointermove',hand.id,at.x,at.y,true);
+          const at=posOf(p,hand);p.travel=Math.max(p.travel,G.distance(p.down,at));p.last=p.travel<slop()?p.down:at;emit(p,'pointermove',hand.id,p.last.x,p.last.y,true);
         }else if(hand.pinched)begin(hand.id,hand,'left');
         else if(hand.rpinched)begin(hand.id,hand,'right');
         else if(profile.orbit&&hand.gesture==='fist'&&hand.sincePinch>700){const v=boardView();if(v&&v.mode()==='3d')begin(hand.id,hand,'orbit');else say('FIST TILTS THE BOARD IN VIEW 3D: choose VIEW, then 3D');}

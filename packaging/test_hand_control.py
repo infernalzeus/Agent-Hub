@@ -20,8 +20,8 @@ def page(hub,tmp_path):
   pg.evaluate("""marks=>{window.recordedMarks=marks;window.handTime=performance.now();window.handFrame=(x,y,gap=1,open=false)=>{let a=recordedMarks.map(p=>({...p})),dx=1-x/innerWidth-a[8].x,dy=y/innerHeight-a[8].y;a[4].x=a[8].x+gap*.16;if(open)for(let i of [12,16,20])a[i].y=.27;return a.map(p=>({x:p.x+dx,y:p.y+dy,z:0}));};window.feedHands=(poses,n=30)=>{for(let i=0;i<n;i++){handTime+=20;__hubHands.feed({landmarks:poses.map(p=>handFrame(...p)),handedness:poses.map(()=>[{categoryName:'Right'}])},handTime)}}}""",MARKS)
   pg.evaluate("""()=>{
     window.openFrame=(x,y)=>handFrame(x,y,1,true);
-    window.midFrame=(x,y)=>{const a=handFrame(x,y,1,true);a[4]={x:a[12].x+.008,y:a[12].y,z:0};return a;};
-    window.closeFrame=(x,y,gap,shift)=>{const a=handFrame(x,y,gap,true);for(const i of [4,8])a[i]={...a[i],y:a[i].y+shift/innerHeight};return a;};
+    window.midFrame=(x,y)=>{const a=handFrame(x,y,1,true);a[4]={x:a[12].x+.008,y:a[12].y,z:0};a[8]={...a[8],x:a[8].x-.2};return a;};      // the index finger stays well away: only the middle finger is touching
+    window.closeFrame=(x,y,gap,shift)=>{const a=handFrame(x,y,gap,true);a[12]={...a[12],y:a[12].y-.2};for(const i of [4,8])a[i]={...a[i],y:a[i].y+shift/innerHeight};return a;};      // middle finger away, as measured in the real trace
     window.fistFrame=(x,y)=>{const a=handFrame(x,y,1);for(const [tip,pip] of [[8,6],[12,10],[16,14],[20,18]])a[tip]={x:a[pip].x,y:a[pip].y+.08,z:0};a[4]={x:a[5].x,y:a[5].y+.1,z:0};return a;};
     window.feedWith=(make,pts)=>{for(const p of pts){handTime+=20;__hubHands.feed({landmarks:[make(...p)],handedness:[[{categoryName:'Right'}]]},handTime)}};
     window.still=(x,y,n)=>Array.from({length:n},()=>[x,y]);

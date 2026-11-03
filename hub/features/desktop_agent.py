@@ -26,6 +26,7 @@ from . import mcp as MCP
 from . import pc_control as PC
 
 MAX_STEPS = 9
+MAX_SECONDS = 150                # a whole try, however slow the model is
 SETTLE = 1.3                     # seconds for a press to show on screen
 _CHROME = {"minimize", "maximize", "close", "restore", "system"}      # the window's own buttons, never a way to the goal
 _CAP = 70                        # controls shown to the model
@@ -287,6 +288,7 @@ async def _attempt(goal: str, app: str, decide, *, tree=None, media=None, click=
     click, type_, key = click or _click, type_ or _type, key or _key
     trace, steps, history = [], [], []
     first = None
+    g0, deadline = PC.stop_gen(), time.time() + MAX_SECONDS
     last_press, same = None, 0
     music = wants_music(goal)
     opening = bool(PC._OPEN_ONLY.match(goal or "")) and not music
@@ -294,6 +296,10 @@ async def _attempt(goal: str, app: str, decide, *, tree=None, media=None, click=
     unusable = 0                       # answers refused in a row: a model that cannot follow the format is not worth 9 steps
     before_media = now_media = await media() if music else []
     for step in range(max_steps):
+        if PC.stop_gen() != g0:
+            return {"ok": False, "say": "Stopped.", "steps": steps, "trace": trace, "stopped": True}
+        if time.time() > deadline:
+            return {"ok": False, "say": f"It ran out of time ({MAX_SECONDS} s) without reaching the goal.", "steps": steps, "trace": trace}
         nodes = await tree()
         if first is None:
             first = nodes
@@ -358,6 +364,8 @@ async def _attempt(goal: str, app: str, decide, *, tree=None, media=None, click=
         last_press = sig
         if same >= 2:
             return {"ok": False, "say": f"It kept pressing “{node['name']}” without anything changing.", "steps": steps, "trace": trace}
+        if PC.stop_gen() != g0:                                             # the model took a while to answer: nothing is pressed after a stop
+            return {"ok": False, "say": "Stopped.", "steps": steps, "trace": trace, "stopped": True}
         window_before = PC.window_state(nodes, node["window"])
         if act["do"] == "type":
             await type_(act["text"], [node["x"], node["y"]])
@@ -438,7 +446,10 @@ async def run(goal: str, app: str, *, models: "list[str] | None" = None, decider
     # One model that is quick on this PC, then the cloud one. Not every model on disk: a 24 GB one on a 12 GB card takes minutes per step.
     pool = models if models is not None else ([m for m in chain if ":cloud" not in m][:1] + [m for m in chain if ":cloud" in m][:1])
     deciders = [(m, ollama_decider(m)) for m in pool] if decider is None else [("injected", decider)]
+    g0 = PC.stop_gen()
     for name, dec in deciders:
+        if PC.stop_gen() != g0:
+            break
         ta = time.time()
         got = await attempt(goal, app, dec, **fakes)
         tries.append({"model": name, "ok": got["ok"], "say": got["say"], "trace": got["trace"], "pressed": len(got["steps"])})

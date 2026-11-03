@@ -44,7 +44,7 @@
     var readout = el('output', 'gz-readout'); readout.setAttribute('aria-label', 'Board rotation'); gz.appendChild(readout);
     var tools = el('div', 'gz-tools'), tLock = el('button', '', ''), tReset = el('button', '', 'FLAT');
     [tLock, tReset].forEach(function (b) { b.type = 'button'; tools.appendChild(b); }); gz.append(svg, tools); host.appendChild(gz);
-    tReset.title = 'Flat again, and everything in view';
+    tReset.title = 'Look straight at the board again (the view stays where it is)';
     tLock.title = 'Locked: the board tilts at most 40 degrees. Free: turn it all the way round and look at the back (see-through)';
 
     function paintGizmo() {
@@ -52,12 +52,12 @@
       host.classList.toggle('hb-back', Math.cos(rx * rad) * Math.cos(ry * rad) < 0);
       svg.textContent = '';
       var defs = sv('defs', {}, svg);
-      [['x', '#f6cdb4', '#c9784c', '#5e301a'], ['y', '#f7ecb4', '#cfa93e', '#5f4c14'], ['z', '#dbe8f5', '#7d9dbf', '#34506c']].forEach(function (m) {
+      [['x', '#ffb3b3', '#ff3030', '#7a0a0a'], ['y', '#b8ffc9', '#22e05a', '#0a6a28'], ['z', '#b8d2ff', '#2f7bff', '#0c2f7a']].forEach(function (m) {
         var g = sv('radialGradient', { id: 'gz-' + m[0], cx: '35%', cy: '30%', r: '75%' }, defs);
         [[0, m[1]], [.5, m[2]], [1, m[3]]].forEach(function (st) { sv('stop', { offset: st[0], 'stop-color': st[1] }, g); });
       });
       sv('circle', { cx: 0, cy: 0, r: 2.4, fill: 'rgba(217,255,233,.5)' }, svg);
-      var axes = [['x', [1, 0, 0], '#c9784c', 'X'], ['y', [0, -1, 0], '#cfa93e', 'Y'], ['z', [0, 0, 1], '#7d9dbf', 'Z']], pts = [];
+      var axes = [['x', [1, 0, 0], '#ff3030', 'X'], ['y', [0, -1, 0], '#22e05a', 'Y'], ['z', [0, 0, 1], '#2f7bff', 'Z']], pts = [];
       axes.forEach(function (a) { [1, -1].forEach(function (s) { var p = turn([a[1][0] * s, a[1][1] * s, a[1][2] * s], rx, ry); pts.push({ a: a, s: s, x: p[0] * 33, y: p[1] * 33, z: p[2] }); }); });
       pts.sort(function (p, q) { return p.z - q.z; });
       pts.forEach(function (p) {
@@ -122,7 +122,7 @@
 
     tLock.onclick = function () { locked = !locked; try { localStorage.setItem(LOCKKEY, locked ? '1' : '0'); } catch (e) {} if (locked) { var tx = Math.max(-LIM, Math.min(LIM, wrap180(rx))), ty = Math.max(-LIM, Math.min(LIM, wrap180(ry))); tiltTo(tx, ty, 300); } toolPaint(); paintGizmo(); };
     gzBtn.onclick = function () { gizmoOn = !gizmoOn; try { localStorage.setItem(GIZKEY, gizmoOn ? '1' : '0'); } catch (e) {} gz.classList.toggle('on', gizmoShown()); toolPaint(); };
-    tReset.onclick = function () { tiltTo(0, 0, 240); c.fit(true); };
+    tReset.onclick = function () { tiltTo(0, 0, 240); };
 
     // ---- the mouse: middle drags the board, right turns it (3D), a block pressed while tilted flattens it first
     var lastMid = 0;

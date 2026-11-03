@@ -20,6 +20,7 @@ PROFILE = tempfile.TemporaryDirectory(prefix='agenthub-release-')
 os.environ['AGENTHUB_STATE_DIR'] = str(Path(PROFILE.name) / 'state')
 os.environ['AGENTHUB_WORK_ROOT'] = str(Path(PROFILE.name) / 'data')
 os.environ['USERPROFILE'] = PROFILE.name
+os.environ['AGENTHUB_NO_LEGACY'] = '1'                         # never read this machine's real projects, OpenCode folder or work folder
 sys.path.insert(0, str(SOURCE))
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
@@ -37,6 +38,15 @@ def _payload_manifest() -> Path:
 
 class SetupTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        # Never the real machine's files. The env override above only holds when this module is the first to import hub.runtime; when pytest
+        # has already imported it (a run of several test files), O.FILE and LOC.FILE point at the real hub/ folder, and this setUp used to
+        # blank the real onboarding.json and delete the real locations.json (the FIRST-TIME SETUP card came back after every test run).
+        fence = Path(PROFILE.name) / 'state'
+        fence.mkdir(parents=True, exist_ok=True)
+        for owner, attr, name in ((O, 'FILE', 'onboarding.json'), (LOC, 'FILE', 'locations.json')):
+            patcher = patch.object(owner, attr, fence / name)
+            patcher.start()
+            self.addCleanup(patcher.stop)
         RT.write_json(O.FILE, {})
         LOC.FILE.unlink(missing_ok=True)
         LOC._CACHE['stamp'] = None

@@ -390,7 +390,7 @@
     if (!RECPOLL) RECPOLL = setInterval(recPaint, 1500);
     if (autoStart && !S.on) { S.on = true; paintOn(); startLoop(); }
   }
-  function close() { S.on = false; S.listen++; releaseStream(); fresh(); paintOn(); $('voice').hidden = true; if (RECPOLL) { clearInterval(RECPOLL); RECPOLL = null; } }
+  function close() { if (S.busy || S.acting || S.speaking || S.pending) stopNow(); S.on = false; S.listen++; releaseStream(); fresh(); paintOn(); $('voice').hidden = true; if (RECPOLL) { clearInterval(RECPOLL); RECPOLL = null; } }
   function toggle() { unlockAudio(); if (S.on) { S.on = false; S.listen++; cancelTurn(); S.pending = null; showBtns(false); saveSession(); paintOn(); ready(); } else { S.on = true; paintOn(); startLoop(); } }
 
   async function fillVoices() {
@@ -454,7 +454,7 @@
   });
 
   // the Missions input bar (and anything else) can hand a typed question to the same conversation
-  window.HubVoice = { state() { return { busy: S.busy, acting: S.acting, queued: S.queued || null, speaking: S.speaking }; }, ask(text) { unlockAudio(); open(false); return handle(String(text || '')); }, open, close,
+  window.HubVoice = { stopAll() { stopNow(); }, state() { return { busy: S.busy, acting: S.acting, queued: S.queued || null, speaking: S.speaking }; }, ask(text) { unlockAudio(); open(false); return handle(String(text || '')); }, open, close,
     contextChanged(id) { if (S.context !== id) { S.context = id; fresh(); } S.compact = true; layout(); } };
 })();
 

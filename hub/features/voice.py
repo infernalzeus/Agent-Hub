@@ -896,8 +896,10 @@ TURN_DEADLINE_S = 40          # one request, start to finish; the page's own cei
 
 @routes.post("/api/voice/cancel")
 async def api_cancel(request: web.Request) -> web.Response:
-    """STOP: end any research the hub started for a question that has not been answered."""
+    """STOP: end any research the hub started for a question that has not been answered, and any task running on this PC."""
     from . import converse as CONV
+    from . import pc_control as PCC
+    PCC.stop_all()
     n = 0
     for j in list(CONV._JOBS.values()):
         t = j.get("task")
