@@ -165,7 +165,7 @@ class Learner:
     def __init__(self, hidden: int = 0, seed: int = 0, lr: float = 0.05, lr_critic: float = 0.05, gamma: float = 0.95, entropy: float = 0.02, letters: bool = True):
         self.letters = letters
         self.actor, self.v, self.rng = Actor(hidden, seed), np.zeros(ZDIM), np.random.default_rng(seed + 1)
-        self.lr, self.lr_c, self.gamma, self.beta = lr * (0.3 if hidden else 1.0), lr_critic, gamma, entropy
+        self.lr, self.lr_c, self.gamma, self.beta = lr * (3.0 if hidden else 1.0), lr_critic, gamma, entropy
 
     def policy(self, explore: bool):
         """An async `decide(system, prompt)` for the real agent. While `explore` is on it samples from the softmax and keeps what it did."""
