@@ -120,7 +120,7 @@
     // the three built-in cards (Auto-LLM, YouTube Download, YouTube Upload) are page sections, not apps: an icon block scrolls to the card and opens it
     var CARDS = [['oc', 'Auto-LLM', 'oc-header', null], ['ytdl', 'YouTube Download', 'ytdl-header', 'ytdl-toggle-btn'], ['yt', 'YouTube Upload', 'yt-header', 'yt-toggle-btn']].filter(function (c) { return document.getElementById(c[2]); });
     CARDS.forEach(function (c) { defs.push(['card:' + c[0], { t: 'APP', w: TW, h: 64, card: c }]); });
-    var SUPPORT = { t: 'APP', w: TW, h: 64, extra: ['support', 'Support', '/support', 'M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.4 2.4-2.6-.6-.6-2.6z'] };
+    var SUPPORT = { t: 'APP', w: TW, h: 64, extra: ['support', 'Support', '/support', 'M12 4.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4zM5 21c0-3.9 3.1-7 7-7s7 3.1 7 7M9.2 14.3v2.4a2.3 2.3 0 0 0 4.6 0v-.6M16.3 17.2h2.4M17.5 16v2.4M10.2 3.6a2 2 0 0 1 3.6 0'] };
     defs.push(['extra:support', SUPPORT]);
     apps.forEach(function (a) { defs.push(['app:' + a.id, { t: 'APP', w: TW, h: 64, app: a }]); });
     // a block you have not arranged yourself takes its place and height from the layout; one you moved or resized keeps what you gave it
@@ -233,7 +233,7 @@
       if (d.card) {
         var c = d.card, bx2 = el('div', 'hk-app'), g2 = el('div', 'gi'); g2.appendChild(cardIcon(c[2])||appTile({id:c[0]}));g2.dataset.applet=c[0];
         var nm2 = el('div'); nm2.appendChild(el('b', '', c[1])); nm2.appendChild(el('small', '', 'OPEN')); bx2.append(g2, nm2); inn.appendChild(bx2);
-        e._spec = c[0] === 'oc' ? { tabs: [['MISSIONS', '/missions'], ['AGENTS', '/agents'], ['GRAPH', '/graph'], ['PRACTICE', '/yard']], w: 860, h: 600 } : { move: c[0] === 'ytdl' ? 'ytdl-app-area' : 'yt-app-area', toggle: c[3], w: 560, h: 620 };
+        e._spec = c[0] === 'oc' ? { tabs: [['MISSIONS', '/missions'], ['AGENTS', '/agents'], ['GRAPH', '/graph'], ['R LEARNING', '/yard']], w: 860, h: 600 } : { move: c[0] === 'ytdl' ? 'ytdl-app-area' : 'yt-app-area', toggle: c[3], w: 560, h: 620 };
         e._open = function () { expand(id); };
       }
       e.setAttribute('aria-label', e._name); blocks[id] = e; world.append(solid,e); applyBlock(id); return e;

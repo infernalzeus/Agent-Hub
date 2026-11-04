@@ -162,7 +162,7 @@ def test_the_practice_page_is_served_and_the_board_offers_it_as_a_tab(hub):
     html = urllib.request.urlopen(hub + "/yard").read().decode()
     assert "R LEARNING" in html and "/api/yard/practice" in html and "/api/yard/status" in html
     board = (Path(__file__).resolve().parents[1] / "hub" / "static" / "home-board.js").read_text(encoding="utf-8")
-    assert "['PRACTICE', '/yard']" in board
+    assert "['R LEARNING', '/yard']" in board
 
 
 def test_the_practice_tab_opens_the_page_inside_the_board_and_a_run_fills_its_tables(hub):
@@ -176,7 +176,7 @@ def test_the_practice_tab_opens_the_page_inside_the_board_and_a_run_fills_its_ta
         pg.wait_for_function("!!(window.__hubBoard && __hubBoard.active)")
         assert pg.evaluate("__hubBoard.open('/yard')")
         pg.wait_for_function("[...document.querySelectorAll('.hk-fr')].some(f => f.src.includes('/yard'))")
-        assert "PRACTICE" in pg.inner_text(".hk[data-id='card:oc']")
+        assert "R LEARNING" in pg.inner_text(".hk[data-id='card:oc']")
         page = b.new_context(service_workers="block").new_page()
         page.on("pageerror", lambda e: errors.append(str(e)))
         page.goto(hub + "/yard")
@@ -234,7 +234,7 @@ def test_the_r_learning_panel_has_three_tabs_and_practice_can_be_stopped(hub):
         errors = []
         pg.on("pageerror", lambda e: errors.append(str(e)))
         pg.goto(hub + "/yard")
-        assert [t.strip() for t in pg.locator(".tabs button").all_inner_texts()] == ["PRACTICE", "TEACH", "STATUS"]
+        assert [t.strip() for t in pg.locator(".tabs button").all_inner_texts()] == ["YARD", "TEACH", "STATUS"]
         assert pg.locator("#stop").is_hidden()
         pg.click("#go")
         pg.wait_for_selector("#stop", state="visible", timeout=8000)
@@ -249,3 +249,23 @@ def test_the_r_learning_panel_has_three_tabs_and_practice_can_be_stopped(hub):
         pg.wait_for_function("!!document.getElementById('teachframe').src")
         b.close()
     assert errors == []
+
+
+def test_every_tab_of_the_r_learning_panel_has_an_info_button_that_explains_it(hub):
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        b = p.chromium.launch(headless=True)
+        pg = b.new_context(service_workers="block").new_page()
+        pg.goto(hub + "/yard")
+        assert pg.locator("#info-all").is_hidden()
+        pg.click("[data-info=info-all]")
+        assert "reinforcement learning" in pg.inner_text("#info-all")
+        pg.click("[data-info=info-yard]")
+        txt = pg.inner_text("#info-yard")
+        for word in ("direct", "modal", "search", "menu", "long", "unnamed", "tabs", "confirm", "Method", "unseen", "STOP"):
+            assert word in txt, word
+        pg.click("[data-tab=teach]"); pg.click("[data-info=info-teach]")
+        assert "RIGHT" in pg.inner_text("#info-teach") and "GOOD" in pg.inner_text("#info-teach")
+        pg.click("[data-tab=status]"); pg.click("[data-info=info-status]")
+        assert "bandit" in pg.inner_text("#info-status")
+        b.close()
