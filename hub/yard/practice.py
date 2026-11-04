@@ -160,9 +160,10 @@ def _practice(episodes: int, seed: int, n_eval: int, write: bool, with_ablation:
     if with_ablation:
         rep["ablation"] = ablation(episodes, seed, n_eval)
     if write:
+        from . import store
         REPORT.parent.mkdir(parents=True, exist_ok=True)
+        rep["saved"] = store.save(REPORT.parent, POLICY, rep, {"linear": lin.actor.dump(), "hidden16": mlp.actor.dump()})
         REPORT.write_text(json.dumps(rep, indent=1), encoding="utf-8")
-        POLICY.write_text(json.dumps({"linear": lin.actor.dump(), "hidden16": mlp.actor.dump()}), encoding="utf-8")
     return rep
 
 

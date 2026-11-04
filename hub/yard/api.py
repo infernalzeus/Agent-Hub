@@ -30,7 +30,8 @@ def status() -> dict:
         ready = False
     from . import shadow
     from . import practice as _P
-    return {"progress": dict(_P.CONTROL), "ready": ready, "ran": rep is not None, "report": rep, "shadow": shadow.summary(), "max_episodes": MAX_EPISODES,
+    from . import store
+    return {"versions": store.versions(REPORT.parent), "in_use_version": store.current_version(REPORT.with_name("policy.json")), "progress": dict(_P.CONTROL), "ready": ready, "ran": rep is not None, "report": rep, "shadow": shadow.summary(), "max_episodes": MAX_EPISODES,
             "needs": None if ready else "numpy is not installed; practising needs it, nothing else does"}
 
 

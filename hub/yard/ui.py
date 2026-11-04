@@ -69,6 +69,7 @@ button.i{width:26px;height:26px;padding:0;border-radius:50%;font:700 13px Outfit
 <p class="sub">LEARNING LOG notes each choice the Hub makes (route, model, desktop step) and how it turned out. SHADOW MODE lets the trained practice policy watch each live desktop step and record what it would have pressed; it never presses anything. Switch either off and new notes stop at once; what is already recorded stays.</p>
 <h2>HOW MUCH THERE IS TO LEARN FROM</h2><p class="sub" id="statsub"></p><div class="wrap"><table id="kinds"></table></div>
 <h2>WHAT EACH LATER STEP STILL NEEDS</h2><div class="wrap"><table id="needs"></table></div>
+<h2>SAVED LEARNERS</h2><p class="sub" id="versionsub">Each finished session saves its learner. The one the shadow mode watches with is replaced only by a learner at least as good on unseen words; older ones are kept so any can be restored.</p><div class="wrap"><table id="versions"></table></div>
 <h2>THE BANDITS, REPLAYED AGAINST THE LOG</h2><p class="sub">A bandit is a tally of how often each option worked. It has no opinion until two options have three exact results each.</p><div class="wrap"><table id="bandits"></table></div>
 </section>
 </main>
@@ -110,6 +111,9 @@ button.i{width:26px;height:26px;padding:0;border-radius:50%;font:700 13px Outfit
     $('statsub').textContent='Nothing learns from this live yet: it is recorded, and used to decide when a learner is ready.';
     const nd=$('needs');head(nd,['Step','Needs','Have','Want','Ready?']);
     for(const [n,v] of Object.entries(j.needs||{})){const r=el('tr');r.append(el('td',null,n),el('td','mute',v.needs),el('td',null,v.have),el('td',null,v.want),el('td',v.ready?'yes':'mute',v.ready?'yes':'not yet'));nd.append(r);}
+    try{const y=await (await fetch('/api/yard/status',{cache:'no-store'})).json();const vt=$('versions');head(vt,['Version','When','Episodes','Known words','Unseen words','Used by shadow?']);
+      (y.versions||[]).slice().reverse().forEach(v=>{const r=el('tr');r.append(el('td',null,'v'+v.n),el('td',null,new Date(v.at*1000).toLocaleString()),el('td',null,v.episodes),el('td',null,pct(v.known)),el('td',null,pct(v.held)),el('td',y.in_use_version===v.n?'yes':'mute',y.in_use_version===v.n?'in use':(v.in_use_ever?'was':'kept, not better')));vt.append(r);});
+      if(!(y.versions||[]).length){const r=el('tr'),d=el('td','mute','No session finished yet.');d.colSpan=6;r.append(d);vt.append(r);}}catch(e){}
     const b=$('bandits');head(b,['Choice','Decisions','Had an opinion','Agreed with what was chosen','Differed']);
     for(const [n,v] of Object.entries(j.bandits||{})){const r=el('tr');r.append(el('td',null,n),el('td',null,v.decided),el('td',null,v.had_an_opinion),el('td',null,v.agreed),el('td',null,v.differed));b.append(r);}
   }catch(e){}}
