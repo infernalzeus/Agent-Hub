@@ -65,7 +65,7 @@ def test_stale_code_chip_delegates_to_existing_restart(page):
 @pytest.mark.parametrize('size',[(1280,667),(1920,1080),(2560,1440),(834,1112),(390,844),(320,568)])
 def test_hands_is_primary_and_on_screen(page,size):
  page.set_viewport_size({'width':size[0],'height':size[1]});page.wait_for_timeout(500)
- h=page.locator('.hb-bar>.hb-hands');assert h.is_visible();r=h.bounding_box();assert 0<=r['x'] and r['x']+r['width']<=size[0]
+ h=page.locator('.hb-ingest-dock .hb-hands');assert h.is_visible();r=h.bounding_box();assert 0<=r['x'] and r['x']+r['width']<=size[0]
  assert page.locator('.hb-more-menu').get_by_text('HAND SETUP',exact=True).count()==1
 
 @pytest.mark.parametrize('surface',['slab','glass'])

@@ -60,7 +60,7 @@ def test_pc_hands_and_ingest_use_original_actions_without_side_effects(page):
  posts=[];page.route('**/api/mcp/windows/enabled',lambda r:(posts.append(r.request.post_data_json),r.fulfill(json={'installed':True,'enabled':True})))
  press(page,'[aria-label="PC control"]');assert posts==[{'enabled':True}]
  page.evaluate("()=>{window.handStarts=0;__hubHands.tracker.start=async()=>{handStarts++}}");press(page,'[aria-label="Hand control"]');assert page.evaluate('handStarts')==1
- page.evaluate("window.ingestClicks=0;document.querySelector('.ingest-card').addEventListener('click',e=>{ingestClicks++;e.stopImmediatePropagation()},true)");press(page,page.locator('.hb-ingest-dock button'));assert page.evaluate('ingestClicks')==1
+ page.evaluate("window.ingestClicks=0;document.querySelector('.ingest-card').addEventListener('click',e=>{ingestClicks++;e.stopImmediatePropagation()},true)");press(page,page.locator('.hb-ingest-dock button',has_text='INGEST'));assert page.evaluate('ingestClicks')==1
  assert page.locator('.hb-bar [aria-label="Talk to the Hub"] img').get_attribute('src')=='/smith-icon.png'
 
 

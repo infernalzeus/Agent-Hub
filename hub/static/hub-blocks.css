@@ -160,3 +160,33 @@ html.hub-modal-open .hb-right-panel,html.hub-modal-open .hb-panel-show,html.hub-
 .hb .hb-right-panel .hb-gizmo .gz-tools{justify-content:center}.hb .hb-right-panel .hb-gizmo .gz-tools button{border-radius:50%;flex:0 0 28px;width:28px;height:28px;min-height:28px;padding:0!important;display:flex;align-items:center;justify-content:center;font-size:6px}
 
 @media(prefers-reduced-motion:reduce){.power-menu{transition:none!important}}
+
+/* ===== Round 7b (Claude Code): the dashboard's own buttons are the ORIGINAL standard buttons; the blue metal squares belong to the app tiles ===== */
+/* standard dashboard button */
+.hb .hb-bar>.hb-btn,.hb-right-panel button,.hb-tray-count,.hb-right-panel .hb-btn{background:rgba(6,10,36,.78);border:1px solid var(--border-dim,rgba(0,230,118,.28));box-shadow:none;border-radius:7px;color:var(--accent,#00e676)}
+.hb .hb-bar>.hb-btn:hover,.hb-right-panel .hb-btn:hover,.hb-tray-count:hover{box-shadow:0 0 10px rgba(0,230,118,.35);border-color:var(--accent,#00e676)}
+/* top left: four standard icon buttons, centred content */
+.hb .hb-bar>.hb-btn{width:40px;height:40px;min-height:40px;padding:0;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;line-height:1}
+.hb .hb-bar>.hb-learning{font:900 21px/1 Orbitron,monospace;padding:0 0 1px 1px;text-shadow:0 0 8px #41ebff66}
+.hb .hb-bar .talk-btn img{display:block;margin:0}.hb .hb-bar .hb-btn>svg{display:block;margin:0}
+.hb .talk-btn::before,.hb .talk-btn::after{border-radius:8px}
+/* right panel: standard text buttons, one per row */
+.hb-right-panel{width:104px;align-items:stretch}
+.hb-right-panel .hb-viewbar{flex-direction:column;align-items:stretch}
+.hb-right-panel .hb-viewbar>.hb-btn,.hb-ingest-dock>.hb-btn{width:100%!important;height:auto;min-height:32px;border-radius:7px;padding:7px 4px!important;font:700 9px Orbitron,monospace;letter-spacing:1.2px;white-space:normal;text-align:center}
+.hb-ingest-dock{flex-direction:column;align-items:stretch;gap:6px}
+.hb-ingest-dock .hb-hands{font-size:9px;gap:5px}.hb-ingest-dock .hb-hands svg{width:17px!important;height:17px!important}
+.hb-ingest-dock .hb-hands-menu-button{width:100%!important;min-height:22px!important;height:22px;padding:0!important;display:flex;align-items:center;justify-content:center}.hb-ingest-dock .hb-hands-menu-button svg{width:12px!important;height:12px!important}
+.hb .hb-viewbar .hb-zoomrow{width:100%;gap:6px}.hb .hb-zoomrow .hb-btn{flex:1 1 0;width:auto;height:30px;min-height:30px;border-radius:7px;font-size:14px}
+.hb-right-panel .gz-tools button{border-radius:6px;font-size:7px}
+/* hands menu opens beside the right panel, not in the middle of the screen */
+.hb-more-menu{left:auto;right:128px;transform:none;top:calc(var(--hub-chrome-bottom,70px) + 8px);max-width:260px}
+/* HIDE and SHOW: glowing text just above the minimap */
+.hb-panel-hide,.hb-panel-show{position:absolute;right:14px;bottom:calc(max(12px,env(safe-area-inset-bottom)) + 84px);top:auto;z-index:9}
+.hb-right-panel{bottom:calc(max(12px,env(safe-area-inset-bottom)) + 120px)}
+/* tray counts: standard small buttons */
+.hb-tray-count{width:auto;height:auto;min-height:30px;min-width:46px;padding:5px 9px;border-radius:7px;font:700 10px Orbitron,monospace}
+/* the blue metal square belongs to the app tiles (Auto-LLM, YouTube, File Browser, Support ...): restore it, and centre what is drawn on it */
+.hb .hk-app .gi{background:conic-gradient(from 218deg at 50% 50%,rgba(150,175,255,.12),rgba(0,0,0,.1) 25%,rgba(140,165,255,.09) 50%,rgba(0,0,0,.1) 75%,rgba(150,175,255,.12)),linear-gradient(180deg,#1a2170,#0d1050 46%,#0a0c3e 54%,#160b54)!important;border:1px solid rgba(110,140,235,.32)!important;box-shadow:inset 0 1px 0 rgba(140,165,255,.4),inset 0 -1px 2px #0006,0 2px 6px #0008;display:flex!important;align-items:center;justify-content:center;padding:0!important;line-height:0}
+.hb .hk-app .gi>*{display:block!important;margin:0!important;flex:none}.hb .hk-app .gi svg,.hb .hk-app .gi img{width:24px!important;height:24px!important;object-fit:contain}
+
