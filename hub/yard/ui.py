@@ -40,6 +40,8 @@ code{background:rgba(0,230,118,.08);border-radius:4px;padding:0 4px}
 <h1>PRACTICE YARD</h1>
 <p class="sub">Pretend apps where the Hub's own desktop agent can fail safely. A small learner practises there, and is measured on apps and words it has never seen. Nothing here touches your PC, and nothing it learns is used by the live agent yet.</p>
 <div class="row"><button id="go" type="button">PRACTICE</button><span id="chips"></span></div>
+<div class="row" id="switches"><button id="sw-learning" type="button"></button><button id="sw-shadow" type="button"></button></div>
+<p class="sub">LEARNING LOG notes each choice the Hub makes (route, model, desktop step) and how it turned out. SHADOW MODE lets the trained practice policy watch each live desktop step and record what it would have pressed; it never presses anything. Switch either off and new notes stop at once; what is already recorded stays.</p>
 <div id="msg" role="status"></div>
 <h2>HOW EACH POLICY DOES</h2><div class="wrap"><table id="means"></table></div>
 <h2>BY LAYOUT (learned vs rule of thumb)</h2><div class="wrap"><table id="layouts"></table></div>
@@ -70,7 +72,10 @@ code{background:rgba(0,230,118,.08);border-radius:4px;padding:0 4px}
     head(sh,['Goal','Step','Live agent pressed','It would have pressed','Same?']);
     (s.last||[]).slice().reverse().forEach(x=>{const r=el('tr');r.append(el('td',null,x.goal),el('td',null,x.step+1),el('td',null,(x.live.name||x.live.do)),el('td',null,(x.would.name||x.would.do)),el('td',x.agree?'yes':'no',x.agree?'yes':'no'));sh.append(r);});
   }
-  async function load(){try{const r=await fetch('/api/yard/status',{cache:'no-store'});paint(await r.json());}catch(e){$('msg').textContent='Could not read the yard: '+e.message;}}
+  async function switches(){try{const j=await (await fetch('/api/yard/settings',{cache:'no-store'})).json();
+    [['learning','LEARNING LOG'],['shadow','SHADOW MODE']].forEach(([k,t])=>{const b=$('sw-'+k),s=j[k]||{};b.textContent=t+': '+(s.on?'ON':'OFF');b.title=s.forced_off_by_environment?'Held off by an environment variable on this PC':'Click to switch';b.disabled=!!s.forced_off_by_environment;
+      b.onclick=async()=>{b.disabled=true;try{await fetch('/api/yard/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[k]:!s.on})});}finally{await switches();}};});}catch(e){}}
+  async function load(){switches();try{const r=await fetch('/api/yard/status',{cache:'no-store'});paint(await r.json());}catch(e){$('msg').textContent='Could not read the yard: '+e.message;}}
   $('go').onclick=async()=>{const b=$('go');b.disabled=true;$('msg').textContent='Practising... this takes about half a minute and uses one processor core.';
     try{const r=await fetch('/api/yard/practice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true,episodes:1500})});
       if(!r.ok)throw Error(await r.text()||('error '+r.status));$('msg').textContent='Done.';await load();}

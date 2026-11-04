@@ -58,7 +58,10 @@ def _handle():
 
 
 def enabled() -> bool:
-    return os.environ.get("HUB_LEARNING_LOG", "1") != "0"
+    if os.environ.get("HUB_LEARNING_LOG", "1") == "0":
+        return False
+    from ..yard import settings as YS            # the switch on the practice page
+    return YS.flag("learning")
 
 
 def note(kind: str, context: str, chosen: str, options: "list | None" = None, ok: "bool | None" = None,

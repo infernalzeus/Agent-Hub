@@ -25,7 +25,10 @@ _CACHE: dict = {"mtime": None, "learner": None}
 
 
 def enabled() -> bool:
-    return os.environ.get("HUB_YARD_SHADOW", "1") != "0"
+    if os.environ.get("HUB_YARD_SHADOW", "1") == "0":
+        return False
+    from . import settings as YS
+    return YS.flag("shadow")
 
 
 def _learner():

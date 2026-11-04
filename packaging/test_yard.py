@@ -187,3 +187,40 @@ def test_the_practice_tab_opens_the_page_inside_the_board_and_a_run_fills_its_ta
         assert page.inner_text("#shadowsub")
         b.close()
     assert errors == []
+
+
+def test_the_two_switches_stop_notes_at_once_and_environment_still_wins(tmp_path, monkeypatch):
+    from hub.features import learning
+    from hub.yard import settings as S, shadow
+    monkeypatch.setattr(S, "FILE", tmp_path / "settings.json")
+    monkeypatch.delenv("HUB_LEARNING_LOG", raising=False)
+    monkeypatch.delenv("HUB_YARD_SHADOW", raising=False)
+    S._CACHE["at"] = 0.0
+    assert learning.enabled() and shadow.enabled()                                   # on by default
+    S.update({"learning": False, "junk": True, "shadow": "no"})                      # a non-boolean is ignored
+    assert not learning.enabled() and shadow.enabled()
+    S.update({"shadow": False})
+    assert not learning.enabled() and not shadow.enabled()
+    S.update({"learning": True, "shadow": True})
+    assert learning.enabled() and shadow.enabled()
+    monkeypatch.setenv("HUB_YARD_SHADOW", "0")
+    assert not shadow.enabled() and S.current()["shadow"]["forced_off_by_environment"]
+
+
+def test_the_settings_endpoint_flips_a_switch_and_refuses_nonsense(tmp_path, monkeypatch):
+    from aiohttp import web
+    from aiohttp.test_utils import TestClient, TestServer
+    from hub.yard import settings as S
+    monkeypatch.setattr(S, "FILE", tmp_path / "settings.json")
+    monkeypatch.delenv("HUB_LEARNING_LOG", raising=False)
+    monkeypatch.delenv("HUB_YARD_SHADOW", raising=False)           # tools/conftest.py pins shadow off for the whole run
+    S._CACHE["at"] = 0.0
+
+    async def go():
+        app = web.Application(); app.add_routes(api.routes)
+        async with TestClient(TestServer(app)) as c:
+            assert (await (await c.get("/api/yard/settings")).json())["learning"]["on"] is True
+            j = await (await c.post("/api/yard/settings", json={"learning": False})).json()
+            assert j["learning"]["on"] is False and j["shadow"]["on"] is True
+            assert (await c.post("/api/yard/settings", json={"learning": "off"})).status == 400
+    asyncio.run(go())

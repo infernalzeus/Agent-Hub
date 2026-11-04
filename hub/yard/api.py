@@ -48,6 +48,22 @@ async def api_status(request: web.Request) -> web.Response:
     return web.json_response(status())
 
 
+@routes.get("/api/yard/settings")
+async def api_settings(request: web.Request) -> web.Response:
+    from . import settings
+    return web.json_response(settings.current())
+
+
+@routes.post("/api/yard/settings")
+async def api_settings_set(request: web.Request) -> web.Response:
+    """{"learning": false} and/or {"shadow": true}. Switching either off stops new notes at once; nothing already recorded is deleted."""
+    from . import settings
+    body = await request.json()
+    if not any(isinstance(body.get(k), bool) for k in settings.KEYS):
+        raise web.HTTPBadRequest(text='Send {"learning": true|false} and/or {"shadow": true|false}')
+    return web.json_response(settings.update(body))
+
+
 @routes.post("/api/yard/practice")
 async def api_practice(request: web.Request) -> web.Response:
     body = await request.json()
