@@ -80,3 +80,16 @@ def test_tidy_and_fit_glide_instead_of_jumping(page):
     page.wait_for_timeout(900)
     k2 = page.evaluate("__hubBoard.active.state().V.k")
     assert k0 == k2 or k1 != k2                                                         # FIT is mid-glide at 100 ms unless it was already fitted
+
+
+def test_an_app_can_be_moved_to_another_layer_from_the_layers_list(page):
+    page.evaluate("__hubBoard.active.view().setMode('3d')"); page.wait_for_timeout(900)
+    page.locator(".hb-btn[data-layers]").click()
+    assert page.locator(".hb-layer-block").count() > 3
+    before = page.evaluate("getComputedStyle(document.querySelector(\".hk[data-id='card:oc'],.hk[data-id='card:movie']\")||document.body).getPropertyValue('--hb-dz')")
+    row = page.locator(".hb-layer-block", has_text="Auto-LLM").first
+    assert row.count() == 1
+    row.locator(".hb-btn", has_text="TO APPS").click(); page.wait_for_timeout(500)
+    assert page.locator(".hb-layer-block", has_text="Auto-LLM").locator("..").count() >= 1
+    saved = page.evaluate("JSON.parse(localStorage.getItem('agenthub:board:layers')).members")
+    assert any(v == "apps" for v in saved.values()), saved                                # the move is remembered

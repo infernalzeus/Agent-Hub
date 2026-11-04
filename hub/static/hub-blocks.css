@@ -120,3 +120,4 @@ html.hub-hide-hand-legend .hands-legend{display:none!important}
 .hb-layer-row button[aria-pressed=false]{opacity:.45}
 
 @media(prefers-reduced-motion:reduce){.hb-layer-moving .hk,.hb-layer-moving .hk-volume{transition:none}}
+.hb-layer-block{display:flex;gap:4px;align-items:center;flex-wrap:wrap;padding:2px 0 2px 10px;font-size:11px;color:var(--text-muted,#8fcfb2)}.hb-layer-block>span{flex:1 1 90px;min-width:70px}.hb-layer-block .hb-btn{padding:3px 6px;font-size:8px;min-height:22px}
