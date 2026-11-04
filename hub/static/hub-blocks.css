@@ -200,3 +200,5 @@ html.hub-modal-open .hb-right-panel,html.hub-modal-open .hb-panel-show,html.hub-
 html.hub-modal-open .hb-batch-controls{display:none!important}
 html.hub-board-on:has(#voice:not([hidden])) .hb-batch-controls{visibility:hidden}
 @media(max-width:720px){.hb-batch-controls{right:104px;width:100px}.hb-batch-controls .hb-btn{font-size:7px;letter-spacing:.3px}}
+/* the Doctor's picture */
+img.hub-doctor{width:26px!important;height:26px!important;object-fit:contain;flex:none;display:block;filter:drop-shadow(0 0 3px #41ebff55)}.hk-h img.hub-doctor{width:20px!important;height:20px!important}.hb-session>img.hub-doctor{width:22px!important;height:22px!important;align-self:center}.hb .hk-app .gi img.hub-doctor{width:32px!important;height:32px!important}

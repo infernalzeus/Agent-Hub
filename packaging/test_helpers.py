@@ -41,3 +41,15 @@ def test_agent_pictures_are_served_by_id_and_nothing_else_is(hub, tmp_path, monk
         except urllib.error.HTTPError as e:
             served = e.code != 404 and e.code != 400
         assert not served or bad == "doctor.png", bad               # until Codex adds the pictures, a missing one is a 404; a path trick never works
+
+
+def test_every_helper_on_the_agents_page_shows_its_picture_not_the_fallback_glyph(hub):
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        b = p.chromium.launch(headless=True)
+        pg = b.new_context(service_workers="block").new_page()
+        pg.goto(hub + "/agents#helpers")
+        pg.wait_for_function("document.querySelectorAll('#list .persona').length>=8", timeout=15000)
+        pg.wait_for_function("[...document.querySelectorAll('#list .hic img')].every(i=>i.complete&&i.naturalWidth>0)&&document.querySelectorAll('#list .hic img').length>=6", timeout=8000)
+        assert pg.locator("#list .hic svg:visible").count() == 0                       # no helper is left on the drawn glyph
+        b.close()

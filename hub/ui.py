@@ -2665,6 +2665,6 @@ def setup(app: web.Application) -> None:
     async def support_presentation(request, handler):
         response = await handler(request)
         if request.path == "/support" and isinstance(response, web.Response) and response.content_type == "text/html" and response.text:
-            response.text = response.text.replace('<h1>', '<h1 style="display:flex;align-items:center;gap:10px">' + _DOCTOR_SVG, 1)
+            response.text = response.text.replace('<h1>', '<h1 style="display:flex;align-items:center;gap:10px"><img src="/static/agent-icons/doctor.png" alt="The Doctor" width="36" height="36" style="object-fit:contain;filter:drop-shadow(0 0 4px #41ebff55)" onerror="this.outerHTML=window.__doctorGlyph||''">' + '<script>window.__doctorGlyph=' + json.dumps(_DOCTOR_SVG) + ';</script>', 1)
         return response
     app.middlewares.append(support_presentation)

@@ -77,13 +77,13 @@ def test_fades_ignore_software_flag_but_respect_reduced_motion(page):
  page.wait_for_timeout(220);press(page,'[aria-label="Close R LEARNING"]');page.emulate_media(reduced_motion='reduce');press(page,e);assert page.locator('.hb-glass-panel').evaluate('e=>e.getAnimations().length')==0
 
 
-def test_doctor_resource_tile_title_session_row_and_support_header(page,hub):
- path=page.locator('.hk[data-id="extra:support"] .gi path').get_attribute('d');assert path
- assert page.locator('.hk[data-id="extra:support"] .hk-h .hub-doctor').is_visible()
- page.evaluate("async()=>{let d=await(await fetch('/api/home/state')).json();d.sessions={needs_you:[],working:[],idle:[{id:'doctor-test',brief:'Doctor session',status:'idle'}]};__hubBoard.active.update(d)}");assert page.locator('.hb-session .hub-doctor').is_visible()
- press(page,'.hb-session');assert page.locator('.hb-session-head .hub-doctor').is_visible();page.keyboard.press('Escape');page.wait_for_timeout(220)
- resource=page.request.get(hub+'/doctor-icon.svg');assert resource.ok and path in resource.text()
- page.goto(hub+'/support');assert page.locator('h1 .hub-doctor').is_visible();assert page.locator('h1 .hub-doctor path').get_attribute('d')==path
+def test_the_doctor_picture_is_on_the_tile_title_session_row_and_support_header(page,hub):
+ page.wait_for_function("document.querySelector('.hk[data-id=\"extra:support\"] .gi img.hub-doctor')&&document.querySelector('.hk[data-id=\"extra:support\"] .gi img.hub-doctor').naturalWidth>0")
+ assert page.locator('.hk[data-id="extra:support"] .hk-h img.hub-doctor').is_visible()
+ page.evaluate("async()=>{let d=await(await fetch('/api/home/state')).json();d.sessions={needs_you:[],working:[],idle:[{id:'doctor-test',brief:'Doctor session',status:'idle'}]};__hubBoard.active.update(d)}");assert page.locator('.hb-session img.hub-doctor').is_visible()
+ press(page,'.hb-session');assert page.locator('.hb-session-head img.hub-doctor').is_visible();page.keyboard.press('Escape');page.wait_for_timeout(220)
+ resource=page.request.get(hub+'/doctor-icon.svg');assert resource.ok                                   # the drawn glyph stays as the fallback resource
+ page.goto(hub+'/support');page.wait_for_function("document.querySelector('h1 img')&&document.querySelector('h1 img').naturalWidth>0");assert page.locator('h1 img').is_visible()
 
 def test_remount_preserves_panel_fades_and_releases_effects(page):
  press(page,'[aria-label="Talk to the Hub"]');press(page,'#v-close')

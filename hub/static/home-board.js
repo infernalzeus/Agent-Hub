@@ -142,6 +142,8 @@
     // the three built-in cards (Auto-LLM, YouTube Download, YouTube Upload) are page sections, not apps: an icon block scrolls to the card and opens it
     var CARDS = [['oc', 'Auto-LLM', 'oc-header', null], ['ytdl', 'YouTube Download', 'ytdl-header', 'ytdl-toggle-btn'], ['yt', 'YouTube Upload', 'yt-header', 'yt-toggle-btn']].filter(function (c) { return document.getElementById(c[2]); });
     CARDS.forEach(function (c) { defs.push(['card:' + c[0], { t: 'APP', w: TW, h: 64, card: c }]); });
+    // the Doctor's picture (Agent Smith's cyan line-art style); the drawn glyph is only the fallback if the file is missing
+    function doctorPicture(){var img=document.createElement('img');img.className='hub-doctor';img.alt='The Doctor';img.src='/static/agent-icons/doctor.png';img.onerror=function(){var g=svg(SUPPORT.extra[3],2);g.classList.add('hub-doctor');if(img.parentNode)img.parentNode.replaceChild(g,img);};return img;}
     var SUPPORT = { t: 'APP', w: TW, h: 64, extra: ['support', 'Support', '/support', 'M12 4.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4zM5 21c0-3.9 3.1-7 7-7s7 3.1 7 7M9.2 14.3v2.4a2.3 2.3 0 0 0 4.6 0v-.6M16.3 17.2h2.4M17.5 16v2.4M10.2 3.6a2 2 0 0 1 3.6 0'] };
     defs.push(['extra:support', SUPPORT]);
     apps.forEach(function (a) { defs.push(['app:' + a.id, { t: 'APP', w: TW, h: 64, app: a }]); });
@@ -230,7 +232,7 @@
     function mk(id, d) {
       var e = el('div', 'hk hub-block' + ((d.app || d.card || d.extra || d.act) ? ' tile' : '')); e.dataset.id = id; e.tabIndex = 0; e.setAttribute('role', 'group');
       var h = el('div', 'hk-h'), glyph = el('span', 'hk-glyph'); glyph.appendChild(svg(id === 'runs' ? 'M5 4l14 8-14 8V4Z' : 'M5 5h14v14H5zM8 12h8')); glyph.firstChild.style.width = glyph.firstChild.style.height = ''; h.appendChild(glyph); if (PANEL_ICON[id]) { var pi = svg(PANEL_ICON[id], 1.8); pi.classList.add('hk-pi'); pi.style.width = pi.style.height = '15px'; h.appendChild(pi); }
-      if(id.split('#')[0]==='extra:support'){var doctor=svg(SUPPORT.extra[3],2);doctor.classList.add('hub-doctor');h.appendChild(doctor);}
+      if(id.split('#')[0]==='extra:support'){var doctor=doctorPicture();h.appendChild(doctor);}
       h.appendChild(el('span', 't', d.app ? (d.app.name || d.app.id) : d.card ? d.card[1] : d.extra ? d.extra[1] : d.act ? (d.act.name || 'Action') : d.t)); h.appendChild(el('span', 'n'));
       [['stop', 'Stop this app'], ['col', 'Close this view'], ['dup', 'Open another window of this tool'], ['out', 'Open in its own tab'], ['min', 'Minimise'], ['foc', 'Focus'], ['x', 'Hide in tray; click its chip to restore']].forEach(function (b) { var bt = el('button'); bt.type = 'button'; bt.dataset.a = b[0]; bt.setAttribute('aria-label', b[1]); bt.title = b[1]; bt.appendChild(svg(ICON[b[0]]));if(b[0]==='stop'){bt.hidden=true;bt.appendChild(el('span','','STOP'));}h.appendChild(bt); });
       var body = el('div', 'hk-b'), inn = el('div', 'hk-i'); body.appendChild(inn); var solid=el('div','hk-solid');solid.setAttribute('aria-hidden','true');['back','left','right','top','bottom'].forEach(function(side){solid.appendChild(el('i',side));});solid.classList.add('hk-volume');solid.dataset.id=id;if(d.app||d.card||d.extra||d.act)solid.classList.add('tile');e._solid=solid;e.append(h,body,el('div','hk-rz')); e._in = inn; e._n = h.querySelector('.n'); e._app = d.app || null; e._open = null; e._name = d.app ? (d.app.name || d.app.id) : d.card ? d.card[1] : d.t;
@@ -244,7 +246,7 @@
         }
       }
       if (d.extra) {
-        var ex = d.extra, xb = el('div', 'hk-app'), xg = el('div', 'gi'); xg.dataset.applet=ex[0];xg.appendChild(svg(ex[3], 1.8)); xg.firstChild.style.cssText = 'width:26px;height:26px;fill:none;stroke:var(--accent,#00e676);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round';
+        var ex = d.extra, xb = el('div', 'hk-app'), xg = el('div', 'gi'); xg.dataset.applet=ex[0];if(ex[0]==='support'){xg.appendChild(doctorPicture());}else{xg.appendChild(svg(ex[3], 1.8)); xg.firstChild.style.cssText = 'width:26px;height:26px;fill:none;stroke:var(--accent,#00e676);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round';}
         var xn = el('div'); xn.appendChild(el('b', '', ex[1])); xn.appendChild(el('small', '', 'FIX THE HUB')); xb.append(xg, xn); inn.appendChild(xb);
         e._name = ex[1]; e._spec = { tabs: [['SUPPORT', ex[2]]], w: 780, h: 640 }; e._open = function () { expand(id); };
       }
@@ -366,7 +368,7 @@
       var old=host.querySelector('.hb-session-detail');if(old)old.remove();
       var dlg=el('section','hb-session-detail');dlg.setAttribute('role','dialog');dlg.setAttribute('aria-modal','true');dlg.setAttribute('aria-label','Session details');
       var head=el('div','hb-session-head'),title=el('h2','',m.brief||'Session'),close=el('button','hb-btn','CLOSE');close.type='button';close.onclick=function(){dlg.remove();};head.append(title,close);dlg.appendChild(head);
-      if(/^Doctor[: ]/.test(m.brief)){var doctor=svg(SUPPORT.extra[3],2);doctor.classList.add('hub-doctor');head.prepend(doctor);}
+      if(/^Doctor[: ]/.test(m.brief)){var doctor=doctorPicture();head.prepend(doctor);}
       var meta=el('div','hb-session-meta');if(m.status)meta.appendChild(el('span','hb-status-chip',m.status.replace(/_/g,' ')));if(m.kind)meta.appendChild(el('span','hb-session-kind',m.kind));dlg.appendChild(meta);
       if(m.last){dlg.append(el('h3','','LAST MESSAGE'),el('p','hb-session-last',m.last));}
       if(m.cwd){dlg.append(el('h3','','FOLDER'),el('p','hb-session-folder',m.cwd));var folder=el('button','hb-btn','OPEN FOLDER');folder.type='button';folder.onclick=function(){folder.disabled=true;fetch('/api/sessions/open-folder',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:m.id})}).then(function(r){if(!r.ok)throw Error('Could not open folder');folder.textContent='FOLDER OPENED';}).catch(function(e){folder.textContent=e.message;}).finally(function(){folder.disabled=false;});};dlg.appendChild(folder);}
@@ -397,7 +399,7 @@
       a.classList.toggle('amber', nA > 0); a.classList.toggle('red', data.attention.some(function (x) { return x.level === 'red'; }));
       var r = blocks.runs; r._n.textContent = String(data.runs.length); r._in.replaceChildren(); var st = el('div', 'hb-stat'); var runNumber = el('b'); st.appendChild(runNumber); motion.number(runNumber, r._count, data.runs.length); r._count = data.runs.length; st.appendChild(el('span', '', data.runs.length ? data.runs.map(function (m) { return m.brief; }).slice(0, 2).join(' · ') : 'missions running')); r._in.appendChild(st);
       var s = blocks.ses; s._in.replaceChildren(); var ss = data.sessions, any = false; s._n.textContent = String(ss.needs_you.length + ss.working.length + ss.idle.length);
-      [['needs_you', 'a'], ['working', ''], ['idle', 'o']].forEach(function (g) { if(ss[g[0]].length)s._in.appendChild(el('div','hb-session-group',g[0].replace('_',' ').toUpperCase()));ss[g[0]].forEach(function (m) { any = true; var row=li(g[1],m.brief,(m.ask||m.project||'')+' · '+g[0].replace('_',' '),'button');row.type='button';if(/^Doctor[: ]/.test(m.brief)){var doctor=svg(SUPPORT.extra[3],2);doctor.classList.add('hub-doctor');row.prepend(doctor);}row.classList.add('hb-session');row.tabIndex=0;row.setAttribute('role','button');row.title=/^Doctor[: ]/.test(m.brief)?'Open this Doctor session in Support':'Show session status and details';row.onclick=function(){sessionOpen(m);};row.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();row.click();}};s._in.appendChild(row); }); });
+      [['needs_you', 'a'], ['working', ''], ['idle', 'o']].forEach(function (g) { if(ss[g[0]].length)s._in.appendChild(el('div','hb-session-group',g[0].replace('_',' ').toUpperCase()));ss[g[0]].forEach(function (m) { any = true; var row=li(g[1],m.brief,(m.ask||m.project||'')+' · '+g[0].replace('_',' '),'button');row.type='button';if(/^Doctor[: ]/.test(m.brief)){var doctor=doctorPicture();row.prepend(doctor);}row.classList.add('hb-session');row.tabIndex=0;row.setAttribute('role','button');row.title=/^Doctor[: ]/.test(m.brief)?'Open this Doctor session in Support':'Show session status and details';row.onclick=function(){sessionOpen(m);};row.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();row.click();}};s._in.appendChild(row); }); });
       if (!any) s._in.appendChild(el('div', 'hb-note', 'No agent session is waiting, working or recently finished.'));
       var u = blocks.use; u._in.replaceChildren(); var cu = data.usage && data.usage.claude;
       if (!cu) u._in.appendChild(el('div', 'hb-note', 'Counting Claude Code’s logs…'));
