@@ -120,6 +120,7 @@ SOFTWARE.
     const LEGEND='POINT: the ring is your cursor; hold it still on a button: click · THUMB + INDEX: a quick pinch taps, a pinch that moves scrolls a panel or drags a block · THUMB + MIDDLE (index away): right click menu · THUMB + INDEX + MIDDLE together, hand up or down: zoom · FIST in VIEW 3D: tilt and turn · OPEN HAND 1 s: fit · ESC: camera off. (Flat-palm pan and zoom: switch on in HAND SETUP.)';
     function ensureLog(){
       if(logBox)return;
+      document.querySelectorAll('.hands-log').forEach(n=>n.remove());                          // one only, even when the board is mounted again
       logBox=document.createElement('div');logBox.className='hands-log';
       const head=document.createElement('button');head.type='button';head.className='hl-head';head.setAttribute('aria-expanded','false');
       const lab=document.createElement('span');lab.textContent='HAND LOG';status=document.createElement('span');status.className='hl-status';status.setAttribute('role','status');status.textContent='OFF: press HANDS to start';
@@ -333,7 +334,7 @@ SOFTWARE.
     const api={button:btn,tracker,feed,
       startTrace,stats(){const l=counts.latencies;return {...counts,latencies:l.slice(),cameraLatencies:counts.cameraLatencies.slice(),tracker:{...tracker.stats},presses:presses.size};},
       measure(on,label){diagnostic=!!on;measurementLabel=label||'MEASURING';counts=fresh();cancelAll();},
-      destroy(){alive=false;tracker.destroy();cancelAll();clearOverlay();hideTarget();document.documentElement.classList.remove('hands-live');removeEventListener('mousemove',mouseSeen,true);setup.remove();btn.remove();configure.remove();saveBtn.remove();document.removeEventListener('pointerdown',physical,true);document.removeEventListener('wheel',physical,true);document.removeEventListener('keydown',escape,true);document.removeEventListener('keydown',typing,true);if(root.__hubHands===api)root.__hubHands=null;}};
+      destroy(){alive=false;tracker.destroy();cancelAll();clearOverlay();if(logBox){logBox.remove();logBox=null;}hideTarget();document.documentElement.classList.remove('hands-live');removeEventListener('mousemove',mouseSeen,true);setup.remove();btn.remove();configure.remove();saveBtn.remove();document.removeEventListener('pointerdown',physical,true);document.removeEventListener('wheel',physical,true);document.removeEventListener('keydown',escape,true);document.removeEventListener('keydown',typing,true);if(root.__hubHands===api)root.__hubHands=null;}};
     ensureLog();
     if(root.__HUB_HANDS_TEST)api.testEnable=()=>{enabled=true;engine.reset();showOverlay();};
     if(root.__HUB_HANDS_TEST)api.testOption=(k,v)=>{profile[k]=v;};
