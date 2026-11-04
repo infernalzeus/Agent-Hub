@@ -13,6 +13,8 @@ Families are the layouts where a real agent goes wrong, each with its own failur
     menu     the playlist page has no Play button: it is behind "More options"
     long     a 30-entry list with the target far down (the real agent shows only ten alike controls; the goal's own words rank it up)
     unnamed  the Play button is an icon with no name (the real agent never lists controls without a name)
+    tabs     the home screen lists no playlists: they are under the Library tab (the nav button that did nothing in every other layout)
+    confirm  pressing Play opens a "Resume or start over?" dialog; the music only starts when one of its two answers is pressed (Cancel does not)
 
 Labels come in two vocabularies: "train" (Play, Play all, Play playlist) and "held" (Start, Listen now, Resume), so the yard can
 measure what a policy learned about layouts against what it merely memorised about words. The player bar always has a Play that
@@ -32,7 +34,7 @@ NAMES = ["ADHD Focus", "Deep Work", "Gym Mix", "Morning Run", "Late Night Jazz",
 PLAY = {"train": ["Play", "Play all", "Play playlist"], "held": ["Start", "Listen now", "Resume"],
         "wide": ["Play", "Play all", "Play playlist", "Go", "Begin", "Launch", "Spin it", "Hear it", "Start playing", "Enjoy", "Run it", "Kick off"]}
 DECOYS = ["Add to queue", "Share", "Follow", "Radio", "Save to library"]
-FAMILIES = ("direct", "modal", "search", "menu", "long", "unnamed")
+FAMILIES = ("direct", "modal", "search", "menu", "long", "unnamed", "tabs", "confirm")
 
 
 class World:
@@ -47,6 +49,7 @@ class World:
         self.decoys = r.sample(DECOYS, 3)
         self.goal = f"play the {self.target} playlist"
         self.screen, self.modal, self.query, self.selected, self.playing = "home", family == "modal", "", None, None
+        self.confirm = False
         self._nodes: "list[dict]" = []
 
     # ---- what the real agent reads
@@ -72,11 +75,22 @@ class World:
             self._add("button", "Sign in", d, 300)
             self._add("button", "Not now", d, 300)
             return self._nodes
+        if self.confirm:
+            d = self._add("group", "Resume or start over?", w)
+            for label in ("Start over", "Resume", "Cancel"):
+                self._add("button", label, d, 300)
+            return self._nodes
         nav = self._add("group", "Navigation", w)
         for label in ("Home", "Library"):
             self._add("button", label, nav, 40)
-        if self.screen == "home":
-            if self.family == "search":
+        if self.screen == "library":
+            g = self._add("group", "Your playlists", w)
+            for name in self.items:
+                self._add("list item", name, g, 300)
+        elif self.screen == "home":
+            if self.family == "tabs":
+                self._add("group", "Welcome", w)           # nothing to press here: the playlists are under Library
+            elif self.family == "search":
                 self._add("edit", "Search", w, 300)
                 if self.results():
                     g = self._add("group", "Search results", w)
@@ -119,17 +133,27 @@ class World:
         if self.modal:
             self.modal = name != "Not now"
             return
+        if self.confirm:
+            if name in ("Start over", "Resume"):
+                self.playing = self.selected
+            self.confirm = False
+            return
         if name == "Home":
             self.screen, self.selected = "home", None
+        elif name == "Library" and self.family == "tabs":
+            self.screen, self.selected = "library", None
         elif role == "list item":
             self.screen, self.selected = "playlist", name
         elif name == "Back":
-            self.screen, self.selected = "home", None
+            self.screen, self.selected = ("library" if self.family == "tabs" else "home"), None
         elif name == "More options":
             self.screen = "menu"
         elif self.screen in ("playlist", "menu") and name == (self.play_label if self.family != "unnamed" else ""):
             if n["parent"] is not None and self._nodes[n["parent"]]["name"] != "Player bar":
-                self.playing = self.selected
+                if self.family == "confirm":
+                    self.confirm = True
+                else:
+                    self.playing = self.selected
         elif self.screen == "menu" and name == "Start":
             self.playing = self.selected
         # every other button (the player bar's Play, Share, Follow ...) does nothing, like a real app with an empty queue
@@ -152,6 +176,12 @@ class World:
         want = None
         if self.modal:
             want = lambda n: n["name"] == "Not now"
+        elif self.confirm:
+            want = lambda n: n["name"] in ("Start over", "Resume")
+        elif self.screen == "library":
+            want = lambda n: n["name"] == self.target
+        elif self.screen == "home" and self.family == "tabs":
+            want = lambda n: n["name"] == "Library"
         elif self.screen == "home":
             want = (lambda n: n["control"] == "edit") if self.family == "search" and not self.results() else (lambda n: n["name"] == self.target)
         elif self.screen == "playlist":

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 
 from aiohttp import web
@@ -93,10 +94,37 @@ def _jsonl(path) -> "list[dict]":
         return []
 
 
+_CORRECTION = re.compile(r"^\s*(?:no\b|nope\b|not that\b|that'?s (?:not|wrong)\b|i meant\b|i said\b|wrong\b|cancel\b|undo\b)", re.I)
+WEAK_WINDOW_S = 90
+
+
+def _words(t: str) -> "set[str]":
+    return set(re.findall(r"[a-z0-9']+", (t or "").lower()))
+
+
+def weak_labels(rows: "list[tuple[dict, str, float]]") -> None:
+    """WEAK evidence from what the person did next, for choices that have no exact label. Written to e["weak"] as False (it probably did not work) or True
+    (they carried on to something else), and counted apart from exact labels: a repeat or a correction within 90 s is a likely failure, a different
+    request soon after is only a hint of success. Weak evidence never fills e["ok"], so nothing that needs exact labels is fooled by it."""
+    rows = sorted(rows, key=lambda r: r[2] or 0)
+    for i, (e, text, at) in enumerate(rows):
+        if e.get("ok") is not None or not at or i + 1 >= len(rows):
+            continue
+        n_e, n_text, n_at = rows[i + 1]
+        if not n_at or n_at - at > WEAK_WINDOW_S:
+            continue
+        a, b = _words(text), _words(n_text)
+        if _CORRECTION.match(n_text or "") or (a and b and len(a & b) / len(a | b) >= 0.7):
+            e["weak"] = False
+        else:
+            e["weak"] = True
+
+
 def _route_events() -> "list[dict]":
     """The router's decisions, each with the outcome and the person's verdict that came after it."""
     from . import binning as BIN
     out: "list[dict]" = []
+    texts: "list[tuple[dict, str, float]]" = []
     last_by_action: "dict[str, dict]" = {}
     by_at: "dict[float, dict]" = {}
     for r in BIN._rows():
@@ -115,9 +143,11 @@ def _route_events() -> "list[dict]":
         e = {"kind": "route", "context": "bin", "chosen": str(r.get("bin")), "options": [str(r.get("bin"))] + [str(a.get("answer")) for a in asked if a.get("answer")],
              "by": str(r.get("by") or "rules"), "ok": None, "ms": r.get("ms"), "at": r.get("at"), "confidence": r.get("confidence"), "escalated": bool(asked)}
         out.append(e)
+        texts.append((e, str(r.get("text") or ""), r.get("at")))
         by_at[r.get("at")] = e
         if r.get("action"):
             last_by_action[str(r["action"])] = e
+    weak_labels(texts)
     return out
 
 
@@ -140,9 +170,11 @@ def counters(rows: "list[dict] | None" = None) -> dict:
     """{kind: {context: {option: {n, ok, failed, unknown, ms}}}}: the table a bandit would read. Computed when asked, never kept."""
     out: dict = {}
     for e in rows if rows is not None else events():
-        c = out.setdefault(e["kind"], {}).setdefault(e["context"], {}).setdefault(str(e["chosen"]), {"n": 0, "ok": 0, "failed": 0, "unknown": 0, "ms": 0})
+        c = out.setdefault(e["kind"], {}).setdefault(e["context"], {}).setdefault(str(e["chosen"]), {"n": 0, "ok": 0, "failed": 0, "unknown": 0, "weak_ok": 0, "weak_failed": 0, "ms": 0})
         c["n"] += 1
         c["ok" if e["ok"] is True else "failed" if e["ok"] is False else "unknown"] += 1
+        if e["ok"] is None and e.get("weak") is not None:
+            c["weak_ok" if e["weak"] else "weak_failed"] += 1                 # a hint, counted apart from exact labels
         c["ms"] += int(e.get("ms") or 0)
     for ctx in out.values():
         for opts in ctx.values():
@@ -157,7 +189,8 @@ def status() -> dict:
     per: dict = {}
     for k in KINDS:
         mine = [e for e in rows if e["kind"] == k]
-        per[k] = {"events": len(mine), "labelled": sum(1 for e in mine if e["ok"] is not None), "options": len({e["chosen"] for e in mine if e["ok"] is not None})}
+        per[k] = {"events": len(mine), "labelled": sum(1 for e in mine if e["ok"] is not None),
+                  "weak": sum(1 for e in mine if e["ok"] is None and e.get("weak") is not None), "options": len({e["chosen"] for e in mine if e["ok"] is not None})}
     needs = {}
     for step, (kind, n, what) in NEEDS.items():
         have = per[kind]["labelled"]
