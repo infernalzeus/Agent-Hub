@@ -7,6 +7,7 @@
 // RESET to come back flat and fit. The choice is kept in localStorage 'agenthub:board:nav'. This is a prototype: CLASSIC stays the default.
 (function () {
   var KEY = 'agenthub:board:nav', ORDER = ['cad', '3d'], NAME = { cad: 'VIEW: 2D', '3d': 'VIEW: 3D' };      // 'cad' is the flat view; an older saved 'classic' means it too
+  var SURFACEKEY='agenthub:board:surface';
   var LOCKKEY = 'agenthub:board:lock', GIZKEY = 'agenthub:board:gizmo';
   var TITLE = {
     cad: '2D, flat: the wheel zooms toward the pointer, middle-drag pans, double middle-click fits everything. Click for 3D.',
@@ -38,12 +39,15 @@
   function mount(c) {
     if (!document.getElementById('hb-view-css')) { var st = el('style'); st.id = 'hb-view-css'; st.textContent = CSS; document.head.appendChild(st); }
     var host = c.host, mode = load(), rx = 0, ry = 0, tool = 'orbit', flat = 0, locked = flag(LOCKKEY, true), gizmoOn = flag(GIZKEY, true), ac = new AbortController(), sig = { signal: ac.signal };
+    var slab=true;try{slab=localStorage.getItem(SURFACEKEY)!=='glass';}catch(e){}
     var btn = el('button', 'hb-btn', NAME[mode]); btn.type = 'button';
     var gzBtn = el('button', 'hb-btn', 'AXIS'); gzBtn.type = 'button'; gzBtn.title = 'Show or hide the axis button';
     var gz = el('div', 'hb-gizmo'), svg = sv('svg', { viewBox: '-52 -52 104 104', role: 'img', 'aria-label': 'Axis button: drag to turn the board, tap an axis to look along it' }, gz);
     var readout = el('output', 'gz-readout'); readout.setAttribute('aria-label', 'Board rotation'); gz.appendChild(readout);
     var tools = el('div', 'gz-tools'), tLock = el('button', '', ''), tReset = el('button', '', 'FLAT');
-    [tLock, tReset].forEach(function (b) { b.type = 'button'; tools.appendChild(b); }); gz.append(svg, tools); host.appendChild(gz);
+    var tSurface=el('button','','');tSurface.dataset.surface='1';tSurface.title='Toggle translucent SLAB or flat GLASS; remembered on this browser';tSurface.onclick=function(){slab=!slab;try{localStorage.setItem(SURFACEKEY,slab?'slab':'glass');}catch(e){}surfacePaint();};
+    function surfacePaint(){host.classList.toggle('hb-slab',slab);host.classList.toggle('hb-glass',!slab);tSurface.textContent=slab?'SLAB':'GLASS';tSurface.setAttribute('aria-label','Block surface: '+tSurface.textContent);tSurface.setAttribute('aria-pressed',String(slab));}surfacePaint();
+    [tLock, tReset, tSurface].forEach(function (b) { b.type = 'button'; tools.appendChild(b); }); gz.append(svg, tools); host.appendChild(gz);
     tReset.title = 'Look straight at the board again (the view stays where it is)';
     tLock.title = 'Locked: the board tilts at most 40 degrees. Free: turn it all the way round and look at the back (see-through)';
 
@@ -185,7 +189,7 @@
         return {x:(ux+host.clientWidth/2-V.x)/V.k,y:(uy+host.clientHeight/2-V.y)/V.k};
       },
       flatten: flatten,
-      destroy: function () { ac.abort(); gz.remove(); host.classList.remove('hb-3d', 'hb-cad'); }
+      destroy: function () { ac.abort(); gz.remove(); host.classList.remove('hb-3d', 'hb-cad','hb-slab','hb-glass'); }
     };
   }
   window.__hubBoardView = { mount: mount };

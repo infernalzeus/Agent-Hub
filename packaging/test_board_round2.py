@@ -5,6 +5,7 @@ from io import BytesIO
 import pytest
 from PIL import Image
 from test_ui_lifecycle import hub
+from test_board_round3 import press
 from playwright.sync_api import sync_playwright
 
 @pytest.fixture
@@ -20,7 +21,7 @@ def page(hub):
   b.close()
 
 def more(page):
- if not page.locator('.hb-more-menu').is_visible():page.get_by_role('button',name='MORE',exact=True).click()
+ if not page.locator('.hb-more-menu').is_visible():press(page,'.hb-bar>button:last-child')
 
 @pytest.mark.parametrize('size',[(1280,667),(1920,1080),(2560,1440),(834,1112),(390,844),(320,568)])
 def test_chrome_controls_have_separate_lanes(page,size):
@@ -37,7 +38,7 @@ def test_chrome_controls_have_separate_lanes(page,size):
 
 def test_setup_dismiss_survives_reload(page):
  page.locator('#setup-card').evaluate('(e)=>e.hidden=false')
- page.locator('.sc-dismiss').dispatch_event('click');assert page.locator('#setup-card').is_hidden()
+ press(page,'.sc-dismiss');assert page.locator('#setup-card').is_hidden()
  page.reload();page.wait_for_selector('.hk');page.wait_for_timeout(500)
  assert page.locator('#setup-card').is_hidden()
 
@@ -56,8 +57,8 @@ def test_bin_drop_hides_and_tray_restores(page):
 
 
 def test_sessions_are_keyboard_actions(page):
- page.evaluate("async()=>{let d=await(await fetch('/api/home/state')).json();d.sessions={needs_you:[],working:[{id:'sample',brief:'Code session',project:'Example',status:'working',ask:'Review progress'}],idle:[]};__hubBoard.active.update(d)}")
- page.locator('.hb-session').focus();page.keyboard.press('Enter')
+ page.evaluate("async()=>{let d=await(await fetch('/api/home/state')).json();d.sessions={needs_you:[],working:[{id:'sample',brief:'Code session',project:'Example',status:'working',last:'Review progress'}],idle:[]};__hubBoard.active.update(d)}")
+ press(page,'.hb-session')
  assert 'Review progress' in page.locator('.hb-session-detail').inner_text()
  page.keyboard.press('Escape');assert page.locator('.hb-session-detail').count()==0
 
@@ -68,6 +69,7 @@ def test_duplicate_graphics_chip_is_deduplicated(page):
 
 
 def test_back_pane_keeps_iframe_pixels(page):
+ page.evaluate("__hubBoard.applyUi({blocks:[{id:'extra:support'},{id:'hlt'}]})");page.wait_for_timeout(650)
  page.locator('.hk[data-id="extra:support"] .hk-app').click();page.wait_for_timeout(900)
  block=page.locator('.hk[data-id="extra:support"]')
  block.locator('iframe').evaluate("f=>{f.removeAttribute('src');f.srcdoc='<body style=\"margin:0;background:#ee22cc;color:#41ebff;font-size:48px\">LIVE EMBEDDED PANE</body>';f.style.opacity=1}")
@@ -108,7 +110,7 @@ def test_applet_icons_use_theme_while_title_controls_keep_original_style(page):
 
 def test_doctor_selection_is_shown_in_support_block(page):
  page.evaluate("async()=>{let d=await(await fetch('/api/home/state')).json();d.sessions={needs_you:[],working:[],idle:[{id:'doctor-sample',brief:'Doctor session',status:'idle',project:'Example'}]};__hubBoard.active.update(d)}")
- page.locator('.hb-session').focus();page.keyboard.press('Enter');page.wait_for_timeout(500)
+ press(page,'.hb-session');press(page,'.hb-session-detail>button');page.wait_for_timeout(500)
  assert 'doctor-sample' in page.locator('.hb-session-context').inner_text()
  assert 'session=doctor-sample' in page.locator('.hk[data-id=\"extra:support\"] iframe').get_attribute('src')
 

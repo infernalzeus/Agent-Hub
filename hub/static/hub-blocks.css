@@ -18,7 +18,7 @@
 
 .hub-notice-dock{position:fixed;right:12px;top:max(10px,env(safe-area-inset-top));z-index:8;pointer-events:none}.hub-notice-chip{font:700 9px/1.4 Orbitron,monospace;color:var(--amber,#e0a53c);border:1px solid rgba(224,165,60,.45);border-radius:6px;background:var(--bg,#080c28);padding:3px 5px 3px 9px;max-width:220px;white-space:nowrap}
 
-.hub-block::before,.hub-block::after{content:"";position:absolute;width:9px;height:9px;pointer-events:none}.hub-block::before{left:-2px;top:-2px;border-left:2px solid var(--accent,#00e676);border-top:2px solid var(--accent,#00e676)}.hub-block::after{right:-2px;bottom:-2px;border-right:2px solid var(--accent,#00e676);border-bottom:2px solid var(--accent,#00e676)}
+.hub-block::before,.hub-block::after{display:none;content:"";position:absolute;width:9px;height:9px;pointer-events:none}.hub-block::before{left:-2px;top:-2px;border-left:2px solid var(--accent,#00e676);border-top:2px solid var(--accent,#00e676)}.hub-block::after{right:-2px;bottom:-2px;border-right:2px solid var(--accent,#00e676);border-bottom:2px solid var(--accent,#00e676)}
 /* Board chrome has reserved lanes; secondary controls share one menu. */
 html.hub-board-on body>header{max-width:calc(100vw - 76px);box-sizing:border-box}
 html.hub-board-on .power-wrap{top:max(8px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));left:auto;bottom:auto;transform:none;z-index:32}
@@ -45,7 +45,7 @@ html.hub-board-on .power-wrap{width:44px;height:44px;display:block}html.hub-boar
 
 /* Applet symbols follow the header's spun-blue metal theme; title-bar controls keep their original styling. */
 .hb .hk-app .gi{width:38px;height:38px;box-sizing:border-box;padding:7px;border-radius:11px;border:1px solid rgba(110,140,235,.32);color:var(--accent,#00e676);background:conic-gradient(from 218deg at 50% 50%,rgba(150,175,255,.12),rgba(0,0,0,.1) 25%,rgba(140,165,255,.09) 50%,rgba(0,0,0,.1) 75%,rgba(150,175,255,.12)),linear-gradient(180deg,#1a2170,#0d1050 46%,#0a0c3e 54%,#160b54);box-shadow:inset 0 1px 0 rgba(140,165,255,.4),inset 0 -1px 2px #0006,0 2px 6px #0008;transition:box-shadow .2s}
-.hb .hk-app .gi svg{width:24px!important;height:24px!important;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}.hb .hk-app:hover .gi{box-shadow:inset 0 1px 0 #d2e1ff80,0 0 14px #00e67660}.hb .hk-app:hover .gi svg{filter:drop-shadow(0 0 4px #00e67690)}
+.hb .hk-app .gi svg{width:24px!important;height:24px!important;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}.hb .hk-app:hover .gi{box-shadow:inset 0 1px 0 #d2e1ff80,0 0 14px var(--applet-glow,#00e67660)}.hb .hk-app:hover .gi svg{filter:drop-shadow(0 0 4px var(--applet-glow,#00e67690))}
 
 .hb-session-context{padding:8px 12px;border-bottom:1px solid var(--cyan);background:rgba(65,235,255,.06);color:var(--text);font-size:12px;overflow-wrap:anywhere;flex:none}
 @media(max-width:720px){html.hub-board-on .header-controls{gap:4px}}@media(max-width:360px){html.hub-board-on header .brand{font-size:8px;letter-spacing:.5px}html.hub-board-on header .orb-home,html.hub-board-on header .orb-host{width:26px;height:26px}html.hub-board-on header .restart-btn,html.hub-board-on header .shutdown-btn{width:26px;height:28px}html.hub-board-on .header-controls{gap:3px}}
@@ -55,3 +55,33 @@ html.hub-board-on:has(#voice:not([hidden])) .hands-legend{display:none}html.hub-
 .hb .hk-app .gi svg{stroke-width:2.2!important}.hk-h button[data-a=stop]{width:auto;min-width:44px;gap:3px;padding:0 4px;color:#ff6b6b;display:flex;align-items:center;justify-content:center}.hk-h button[data-a=stop] span{font:700 8px Orbitron,monospace}
 
 .hk-app small.on::before{content:'';display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);margin-right:5px;vertical-align:1px}
+
+/* Surface preference: individual faces may blur, but the cuboid's preserve-3d parent must not flatten. */
+.hb.hb-3d.hb-slab .hk{transform-style:flat;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);background:rgba(8,12,40,.48)}
+.hb.hb-3d.hb-slab .hk-solid{display:block!important}.hb.hb-3d.hb-slab .hk-solid i{border:1px solid rgba(65,235,255,.15);background:rgba(30,125,155,.1);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
+.hb.hb-3d.hb-slab .hk-solid .back{background:rgba(15,65,90,.12)}.hb.hb-3d.hb-slab .hk-solid .left,.hb.hb-3d.hb-slab .hk-solid .right,.hb.hb-3d.hb-slab .hk-solid .top,.hb.hb-3d.hb-slab .hk-solid .bottom{background:linear-gradient(135deg,rgba(65,235,255,.13),rgba(0,230,118,.05))}
+.hb .hk{--soft-edge:rgba(0,230,118,.23);border:1px solid transparent;box-shadow:0 0 0 1px var(--soft-edge),0 0 5px 2px var(--soft-edge),inset 0 0 5px 2px var(--soft-edge)}
+.hb .hk.amber{--soft-edge:rgba(224,165,60,.3);border-color:transparent}.hb .hk.red{--soft-edge:rgba(255,92,92,.3);border-color:transparent}
+.hb .hk.is-hover,.hb .hk:focus-visible,.hb .hk.pick,.hb .hk.exp{--soft-edge:rgba(65,235,255,.38);border-color:transparent;box-shadow:0 0 0 1px var(--soft-edge),0 0 6px 2px var(--soft-edge),inset 0 0 5px 2px var(--soft-edge)}
+html.hub-board-on #setup-card{border:1px solid transparent;background:rgba(100,67,15,.1);box-shadow:0 0 0 1px rgba(224,165,60,.23),0 0 5px 2px rgba(224,165,60,.18),inset 0 0 5px 2px rgba(224,165,60,.13)}
+.hb .gi[data-applet=oc]{--applet-glow:#e4bc5866;color:#ffcf47}.hb .gi[data-applet=ytdl]{--applet-glow:#3ba7ff66;color:#3ba7ff}.hb .gi[data-applet=yt]{--applet-glow:#ff525266;color:#ff5252}.hb .gi[data-applet=file-browser]{--applet-glow:#d4a01766;color:#e6bd4c}.hb .gi[data-applet=movie-clipper]{--applet-glow:#af90ee66;color:#b99be9}.hb .gi[data-applet=support]{--applet-glow:#00e67666;color:#00e676}
+.hb .hk-app .gi{background:conic-gradient(from 218deg,rgba(210,220,240,.13),transparent 25%,rgba(210,220,240,.08) 50%,transparent 75%,rgba(210,220,240,.13)),linear-gradient(180deg,rgba(25,28,55,.7),rgba(8,12,28,.9));border-color:var(--applet-glow,rgba(110,140,235,.32))}
+.hb-session-detail{border:1px solid rgba(65,235,255,.23);box-shadow:0 18px 50px #0009,inset 0 1px 0 #a6c9ff22;background:linear-gradient(145deg,#111737,#080c28);font-family:Outfit,system-ui,sans-serif;padding:22px}
+.hb-session-head{display:flex;gap:14px;align-items:flex-start;justify-content:space-between}.hb-session-head h2{font:700 15px/1.5 Orbitron,monospace;margin:0;overflow-wrap:anywhere}.hb-session-detail h3{font:700 9px Orbitron,monospace;letter-spacing:1px;color:var(--text-muted);margin:20px 0 8px}.hb-session-meta{display:flex;gap:10px;align-items:center;margin-top:14px}.hb-status-chip{border:1px solid #00e67655;border-radius:20px;padding:4px 9px;color:var(--accent);font:700 10px Orbitron,monospace}.hb-session-kind{font-size:12px;color:var(--text-muted)}.hb-session-last{white-space:pre-wrap;line-height:1.6;padding:12px;border-radius:8px;background:#0003}.hb-session-folder{font:12px/1.7 monospace;overflow-wrap:anywhere}.hb-session-detail>.hb-btn{margin:8px 8px 0 0}
+.hb-restart-needed{position:absolute;top:calc(var(--hb-top,80px) + 42px);left:12px;z-index:7;color:var(--amber);max-width:calc(100vw - 24px);font-size:8px}.hb-restart-needed[hidden]{display:none}.hb-health-restart{color:var(--amber);margin:4px 10px 8px}
+.hb .hb-bar{flex-wrap:wrap}.hb .hb-bar>.hb-hands{display:inline-flex}.hb .hb-gizmo .gz-tools [data-surface]{flex-basis:100%}
+@media(max-width:420px){.hb .hb-bar>.hb-btn{padding:6px;font-size:7px}.hb .hb-bar{gap:3px}.hb .hb-hands svg{width:13px;height:13px}.hb .hb-bar>.hb-hands{letter-spacing:0}}
+
+.hb-more-menu{top:calc(var(--hub-chrome-bottom,116px) + var(--hb-notice-height,0px) + 10px)}.hb-restart-needed{top:calc(var(--hub-chrome-bottom,116px) + 6px)}
+
+/* A hover must not move the compositor hit plane out from under a native 3D press. */
+.hb-3d .hub-block.is-hover:not(.exp)>.hk-b{transform:none}
+
+.hk-face{display:flex;flex-direction:column;flex:1;min-height:0;min-width:0}.hb-3d.hb-slab .hk-face{transform-style:flat;transform:translateZ(.1px);backface-visibility:visible;-webkit-backface-visibility:visible}
+
+button.hb-session{width:100%;text-align:left;background:transparent;border:0;border-top:1px solid rgba(255,255,255,.05);font-family:inherit;line-height:inherit}
+
+/* Geometry is a sibling of the interactive flat pane: no preserve-3d ancestor can cull its content. */
+.hk-volume{position:absolute;pointer-events:none;display:none}.hk-volume[hidden]{display:none!important}.hb.hb-3d.hb-slab .hk-volume{display:block!important;translate:0 0 var(--hb-dz,0px);transform-style:preserve-3d}.hb.hb-3d.hb-glass .hk-volume{display:none!important}
+.hb-3d .hk-volume[data-id=att]{--hb-dz:150px}.hb-3d .hk-volume[data-id=runs],.hb-3d .hk-volume[data-id=ses]{--hb-dz:65px}.hb-3d .hk-volume[data-id=hlt],.hb-3d .hk-volume[data-id=use]{--hb-dz:-100px}.hb-3d .hk-volume.tile{--hb-dz:20px}.hb-3d .hk-volume.exp{--hb-dz:170px}
+.hb .hk.is-hover:not(.exp)>.hk-b{transform:none!important}.hb-3d .hk.is-hover{background-image:none!important}
