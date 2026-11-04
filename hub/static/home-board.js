@@ -258,7 +258,7 @@
       if (d.card) {
         var c = d.card, bx2 = el('div', 'hk-app'), g2 = el('div', 'gi'); g2.appendChild(cardIcon(c[2])||appTile({id:c[0]}));g2.dataset.applet=c[0];
         var nm2 = el('div'); nm2.appendChild(el('b', '', c[1])); nm2.appendChild(el('small', '', 'OPEN')); bx2.append(g2, nm2); inn.appendChild(bx2);
-        e._spec = c[0] === 'oc' ? { tabs: [['MISSIONS', '/missions'], ['AGENTS', '/agents'], ['GRAPH', '/graph'], ['R LEARNING', '/yard']], w: 860, h: 600 } : { move: c[0] === 'ytdl' ? 'ytdl-app-area' : 'yt-app-area', toggle: c[3], w: 560, h: 620 };
+        e._spec = c[0] === 'oc' ? { tabs: [['MISSIONS', '/missions'], ['GRAPH', '/graph'], ['R LEARNING', '/yard'], ['AGENCY', '/agents'], ['CHATS', '/chats']], w: 860, h: 600 } : { move: c[0] === 'ytdl' ? 'ytdl-app-area' : 'yt-app-area', toggle: c[3], w: 560, h: 620 };
         e._open = function () { expand(id); };
       }
       e.setAttribute('aria-label', e._name); blocks[id] = e; world.append(solid,e); applyBlock(id); return e;
@@ -277,7 +277,7 @@
 
     // Click an app and it opens here, inside the board, at a readable size; the cross-arrow button opens it in its own tab instead.
     function settle(b) { if (!motion.allowed()) return; b.classList.add('settle'); setTimeout(function () { b.classList.remove('settle'); }, 450); }
-    function embedUrl(url) { var u = new URL(url, location.href); if (['/missions', '/agents', '/graph', '/yard', '/support'].indexOf(u.pathname) >= 0) u.searchParams.set('embed', '1'); return u.href; }
+    function embedUrl(url) { var u = new URL(url, location.href); if (['/missions', '/agents', '/graph', '/yard', '/chats', '/support'].indexOf(u.pathname) >= 0) u.searchParams.set('embed', '1'); return u.href; }
     // A block's own page is a separate document: events inside it never reach the board. These hooks hand the few that matter across: the pressed wheel (orbit or pan,
     // even when the pointer is over a window), Alt or Ctrl with the wheel (tilt, zoom), and a press anywhere in a window brings that window to the front.
     function hookFrame(f, id) {
@@ -335,7 +335,6 @@
       } else if (sp.tabs) {
         var tabs = el('div', 'hk-tabs'), fr = frame(sp.tabs[0][1], id); b._url = sp.tabs[0][1];
         sp.tabs.forEach(function (t, i) { var tb = el('button', i ? '' : 'on', t[0]); tb.type = 'button'; tb.onclick = function () { Array.prototype.forEach.call(tabs.children, function (x) { x.classList.remove('on'); }); tb.classList.add('on'); fr.src = embedUrl(t[1]); if (motion) motion.frame(fr); b._url = t[1]; }; tabs.appendChild(tb); });
-        if (id === 'card:oc') { var qc = el('button', '', 'QUICK CHAT'); qc.type = 'button'; qc.title = 'A project-less OpenCode chat (opens in a new tab)'; qc.onclick = function () { var sb = document.getElementById('oc-scratch-btn'); if (sb) sb.click(); }; tabs.appendChild(qc); }
         b._in.append(tabs, fr);
       } else if (sp.move) {
         var src = document.getElementById(sp.move), wrap = el('div', 'hk-mv'); b._from = src; b._home = src && src.parentNode; b._next = src && src.nextSibling;
@@ -723,7 +722,7 @@
       },
       // Talk asked for a Hub page ("open missions"): it opens inside the board, on the right tab, never as a separate page.
       openTool: function (url) {
-        var u = new URL(url, location.href), id = u.pathname === '/support' ? 'extra:support' : (['/missions', '/agents', '/graph', '/yard'].indexOf(u.pathname) >= 0 ? 'card:oc' : null);
+        var u = new URL(url, location.href), id = u.pathname === '/support' ? 'extra:support' : (['/missions', '/agents', '/graph', '/yard', '/chats'].indexOf(u.pathname) >= 0 ? 'card:oc' : null);
         if (!alive || !id || !blocks[id] || !L[id]) return false;
         touched = true; stopCam();
         if (hid[id]) { hid[id] = 0; applyBlock(id); resolve(id); trayDraw(); save(); }
