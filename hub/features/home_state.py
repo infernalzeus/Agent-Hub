@@ -168,6 +168,13 @@ def state() -> dict:
                               "title": f'{"Claude Code" if a["agent"] == "claude" else "Codex"} is waiting: {a["project"]}',
                               "detail": a["ask"] or a["title"]})
 
+    try:                                   # the doctor cannot reach Claude Code: that is why its fixes have not been running
+        from . import support as SUP
+        ch = SUP.claude_health()
+        if ch.get("ok") is False:
+            attention.append({"level": "amber", "kind": "doctor", "id": "claude-signin", "go": "/support", "title": "The Doctor cannot reach Claude Code", "detail": ch["why"]})
+    except Exception:  # noqa: BLE001
+        pass
     try:
         from . import acp_client as ACP
         for q in ACP.pending():

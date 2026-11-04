@@ -103,6 +103,33 @@ async def _dispatch(brief: str, runtime: str, model: "str | None") -> dict:
             return await r.json()
 
 
+SIGN_IN = "Claude Code is signed out (its sign-in has expired). To reconnect: open a terminal, run claude, then type /login."
+_AUTH_WORDS = ("failed to authenticate", "401", "oauth", "not logged in", "please run /login")
+
+
+def claude_health() -> dict:
+    """Is Claude Code, the doctor's default way of working, signed in? Judged from what actually happened: the newest Claude Code doctor mission, and the
+    newest Claude Code sessions in its logs. {"ok": False, "why": ...} when the last attempt died on a sign-in error, else ok (or unknown)."""
+    from . import missions as M
+    for mid in reversed(_ids()):
+        m = M.S.m.get(mid)
+        if m and m.runtime == "claude-code":
+            text = f"{m.error or ''} {getattr(m, 'answer', '') or ''}".lower()
+            if any(w in text for w in _AUTH_WORDS):
+                return {"ok": False, "why": SIGN_IN, "seen": "the doctor's last Claude Code mission"}
+            if m.status in ("applied", "awaiting_review"):
+                return {"ok": True, "why": ""}
+            break
+    try:
+        from . import agent_sessions as AS
+        rows = [r for r in AS.scan(limit=40) if r["agent"] == "claude" and r["title"] == "Doctor session"]
+        if rows and any(w in (rows[0].get("last") or "").lower() for w in _AUTH_WORDS):
+            return {"ok": False, "why": SIGN_IN, "seen": "the newest Doctor session in Claude Code's logs"}
+    except Exception:  # noqa: BLE001
+        pass
+    return {"ok": None, "why": ""}
+
+
 def last_asked() -> float:
     """When the doctor was last asked (a mission's creation time), 0 if never."""
     from . import missions as M
@@ -127,7 +154,11 @@ def latest() -> "dict | None":
 
 async def start(text: str, runtime: "str | None" = None, model: "str | None" = None) -> dict:
     runtime = runtime if runtime in RUNTIMES else default_runtime()
+    note = ""
+    if runtime == "claude-code" and claude_health().get("ok") is False:
+        runtime, note = "opencode", "Claude Code is signed out, so the doctor used the local team this time. " + SIGN_IN
     m = await _dispatch(brief_for(text), runtime, model)
+    m["note"] = note
     write_json(FILE, (_ids() + [m["id"]])[-30:])
     logger.info("support: doctor started as mission %s (%s)", m["id"], runtime)
     return m
@@ -141,7 +172,7 @@ async def api_ask(request: web.Request) -> web.Response:
         b = {}
     runtime = b.get("runtime") if b.get("runtime") in RUNTIMES else default_runtime()
     m = await start(str(b.get("text") or ""), runtime, str(b.get("model") or "") or None)
-    return web.json_response({"ok": True, "mission": m["id"], "runtime": runtime})
+    return web.json_response({"ok": True, "mission": m["id"], "runtime": "opencode" if m.get("note") else runtime, "note": m.get("note", "")})
 
 
 @routes.post("/api/support/runtime")
@@ -167,7 +198,7 @@ async def api_state(request: web.Request) -> web.Response:
             s = m.summary()
             rows.append({k: s.get(k) for k in ("id", "status", "model", "runtime", "changed", "answer", "error", "created", "verify", "work_secs")})
     b = D.bundle(lines=10)
-    return web.json_response({"runtime": default_runtime(), "problems": b["problems"][-12:], "hub": b["hub"], "apps": b["apps"], "disk_free_gb": b["disk_free_gb"], "missions": rows})
+    return web.json_response({"runtime": default_runtime(), "claude": claude_health(), "problems": b["problems"][-12:], "hub": b["hub"], "apps": b["apps"], "disk_free_gb": b["disk_free_gb"], "missions": rows})
 
 
 _PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Agent Hub support</title>
@@ -196,7 +227,8 @@ async function api(u,b){const r=await fetch(u,{method:b===undefined?'GET':'POST'
 function draw(s){
  if(s.runtime&&document.activeElement!==$('rt'))$('rt').value=s.runtime;
  const bad=s.problems.length, apps=Object.entries(s.apps||{}).filter(([k,v])=>v&&v.last_error).map(([k,v])=>k+': '+v.last_error);
- $('facts').innerHTML='<span class="'+(bad||apps.length?'warn':'ok')+'">'+(bad||apps.length?bad+' recent warning(s)':'No recent warnings')+'</span>  ·  Hub v'+esc(s.hub.version)+' up '+Math.round(s.hub.uptime_s/60)+' min  ·  disk free '+esc(JSON.stringify(s.disk_free_gb))+(apps.length?'\\n'+esc(apps.join('\\n')):'')+(bad?'\\n\\n'+esc(s.problems.join('\\n')):'');
+ const cl=(s.claude&&s.claude.ok===false)?'<div class="warn" style="margin-bottom:6px">'+esc(s.claude.why)+' Until then the doctor works with the local team.</div>':'';
+ $('facts').innerHTML=cl+'<span class="'+(bad||apps.length?'warn':'ok')+'">'+(bad||apps.length?bad+' recent warning(s)':'No recent warnings')+'</span>  ·  Hub v'+esc(s.hub.version)+' up '+Math.round(s.hub.uptime_s/60)+' min  ·  disk free '+esc(JSON.stringify(s.disk_free_gb))+(apps.length?'\\n'+esc(apps.join('\\n')):'')+(bad?'\\n\\n'+esc(s.problems.join('\\n')):'');
  $('ms').innerHTML=s.missions.length?s.missions.map(m=>{const done=m.status==='awaiting_review',live=m.status==='running'||m.status==='queued';
   return '<div class="m"><b>'+esc(m.id)+' · '+esc(m.status.toUpperCase())+'</b> <span class="warn">'+esc((m.model||'').replace('ollama/',''))+' '+(m.runtime==='claude-code'?'· Claude Code':'')+'</span>'
   +(live?'<div class="ans">Working in a private copy of the Hub…</div>':'')
