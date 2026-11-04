@@ -52,8 +52,8 @@ def test_missing_session_fields_are_omitted(page):
 
 def test_native_dismiss_and_more_clicks(page):
  page.locator('#setup-card').evaluate('e=>e.hidden=false');press(page,'.sc-dismiss');assert page.locator('#setup-card').is_hidden()
- press(page,'.hb-hands-menu-button');assert page.locator('.hb-more-menu').is_visible()
- page.keyboard.press('Escape');page.wait_for_timeout(220);assert page.locator('.hb-more-menu').is_hidden()
+ press(page,'.hands-log .hl-head');assert page.locator('.hands-log.open').count()==1       # the hand tools live in the LOG now
+ press(page,'.hands-log .hl-head');assert page.locator('.hands-log.open').count()==0
 
 
 def test_stale_code_chip_delegates_to_existing_restart(page):
@@ -66,7 +66,7 @@ def test_stale_code_chip_delegates_to_existing_restart(page):
 def test_hands_is_primary_and_on_screen(page,size):
  page.set_viewport_size({'width':size[0],'height':size[1]});page.wait_for_timeout(500)
  h=page.locator('.hb-ingest-dock .hb-hands');assert h.is_visible();r=h.bounding_box();assert 0<=r['x'] and r['x']+r['width']<=size[0]
- assert page.locator('.hb-more-menu').get_by_text('HAND SETUP',exact=True).count()==1
+ assert page.locator('.hands-log .hl-tools').get_by_text('HAND SETUP',exact=True).count()==1
 
 @pytest.mark.parametrize('surface',['slab','glass'])
 def test_rear_surface_pixels_and_preference(page,surface):

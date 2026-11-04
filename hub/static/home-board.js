@@ -111,20 +111,51 @@
     var graphicsNotice=null,graphicsDismissed=false;
     var view = null, L = {}, hid = {}, touched = false, data = null, V = { x: 0, y: 0, k: 1 }, focusId = null, zTop = 2, blocks = {}, nav = null, alive = true, dragCleanups = [];
     try { var saved = JSON.parse(localStorage.getItem(KEY) || 'null'); if (saved) { L = saved.L || {}; hid = saved.hid || {}; } } catch (e) {}
-    function save() {
+    function save(quiet) {
+      if (quiet !== true && typeof markBoard === 'function') markBoard();
       try {
         var out = {}; Object.keys(L).forEach(function (k) { if (k.indexOf('#') > 0) return; var l = L[k]; out[k] = { x: l.x, y: l.y, w: l.exp ? l.ow : l.w, h: l.exp ? l.oh : l.h, min: l.min, z: l.z, u: l.u, rz: l.rz }; });
         localStorage.setItem(KEY, JSON.stringify({ L: out, hid: hid }));
       } catch (e) {}
     }
 
+    // The layout (positions, sizes, minimised, hidden blocks, layers) is also kept on the Hub, so the app, the browser and the iPad leave the board where it was left.
+    // The newest copy wins; the local copy stays the fast one. Nothing is sent until the Hub's own copy has been read (so a failed read never wipes it).
+    var prefsCache = null, prefsTimer = 0, boardAt = 0;
+    try { boardAt = +localStorage.getItem('agenthub:board:at') || 0; } catch (e) {}
+    function boardPayload() {
+      var out = {}; Object.keys(L).forEach(function (k) { if (k.indexOf('#') > 0) return; var l = L[k]; out[k] = { x: l.x, y: l.y, w: l.exp ? l.ow : l.w, h: l.exp ? l.oh : l.h, min: l.min, z: l.z, u: l.u, rz: l.rz }; });
+      return { at: boardAt, L: out, hid: hid, layers: layerState };
+    }
+    function markBoard() {
+      boardAt = Date.now(); try { localStorage.setItem('agenthub:board:at', String(boardAt)); } catch (e) {}
+      clearTimeout(prefsTimer); prefsTimer = setTimeout(function () {
+        if (!alive || !prefsCache) return;
+        fetch('/api/board/prefs', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({}, prefsCache, { board: boardPayload() })) }).catch(function () {});
+      }, 900);
+    }
+    function adoptBoard(sb) {
+      Object.keys(sb.L || {}).forEach(function (k) { var s = sb.L[k], l = L[k]; if (!s || typeof s.x !== 'number') return;
+        if (!l) { L[k] = { x: s.x, y: s.y, w: s.w, h: s.h, min: s.min, z: s.z, u: s.u, rz: s.rz }; return; }
+        if (l.exp) { l.ow = s.w; l.oh = s.h; } else { l.w = s.w; l.h = s.h; } l.x = s.x; l.y = s.y; l.min = s.min; l.z = s.z; l.u = s.u; l.rz = s.rz; });
+      hid = sb.hid || {};
+      var ls = sb.layers; if (ls && Array.isArray(ls.order) && ls.order.length === 3 && ['system', 'tools', 'apps'].every(function (k) { return ls.order.indexOf(k) >= 0; })) layerState = { order: ls.order, hidden: ls.hidden || {}, members: ls.members || {} };
+      boardAt = sb.at; try { localStorage.setItem('agenthub:board:at', String(boardAt)); localStorage.setItem('agenthub:board:layers', JSON.stringify(layerState)); } catch (e) {}
+      save(true); Object.keys(blocks).forEach(function (id) { if (L[id]) applyBlock(id); }); try { relayout(); refreshLayers(); trayDraw(); } catch (e) {}
+    }
+    function readBoardPrefs() {
+      fetch('/api/board/prefs', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (p) {
+        if (!p || !alive) return; prefsCache = p; var sb = p.board;
+        if (sb && sb.L && sb.at > boardAt) adoptBoard(sb); else if (boardAt && (!sb || sb.at < boardAt)) markBoard();
+      }).catch(function () {});
+    }
     root.replaceChildren(); // Home is a 520 px column; the board breaks out of it to the width of the window.
     root.style.width = 'min(96vw,1500px)'; root.style.maxWidth = 'none'; root.style.marginLeft = 'calc((100% - min(96vw,1500px)) / 2)'; root.style.boxSizing = 'border-box';
     var recoveryTimer=0;var setupCard = document.getElementById('setup-card'), setupText = setupCard && setupCard.querySelector('.sc-text'); if (setupText) setupCard.title = setupText.textContent;   // the first-time notice is a small chip over the board; the sentence is its tooltip
     var host = el('div', 'hb'), stageClip=el('div','hb-stage'), world = el('div', 'hb-world'), bar = el('div', 'hb-bar'), zh = el('div', 'hb-z', '100%'), tray = el('div', 'hb-tray');
     var restartChip=el('button','hb-btn hb-restart-needed','HUB IS OLDER THAN ITS FILES: RESTART');restartChip.type='button';restartChip.hidden=true;restartChip.onclick=function(){document.getElementById('restart-btn').click();};host.appendChild(restartChip);
     var fitBtn = el('button', 'hb-btn', 'FIT'), tidyBtn = el('button', 'hb-btn', 'TIDY'), zin = el('button', 'hb-btn', '+'), zout = el('button', 'hb-btn', '−');
-    fitBtn.type = tidyBtn.type = zin.type = zout.type = 'button'; tidyBtn.title = 'Organise current blocks; keep hidden, minimised and resized blocks as they are'; tidyBtn.setAttribute('aria-label', 'Organise the board'); fitBtn.title = 'Fit every block in view'; zin.title = 'Zoom in (Ctrl + wheel)'; zout.title = 'Zoom out (Ctrl + wheel)';
+    fitBtn.type = tidyBtn.type = zin.type = zout.type = 'button'; tidyBtn.title = 'Neaten the blocks where they are: line them up and clear overlaps. Nothing else moves'; tidyBtn.setAttribute('aria-label', 'Organise the board'); fitBtn.title = 'Fit every block in view'; zin.title = 'Zoom in (Ctrl + wheel)'; zout.title = 'Zoom out (Ctrl + wheel)';
     var hint = el('span', 'hb-z hint', ''); hint.style.cssText = 'margin-right:8px;opacity:.7'; hint.style.transition = 'opacity .7s'; hint.textContent = matchMedia('(pointer:coarse)').matches ? 'DRAG TO MOVE · PINCH TO ZOOM · DRAG A TITLE TO MOVE A BLOCK · TAP AN APP TO OPEN IT HERE' : 'WHEEL MOVES · CTRL + WHEEL ZOOMS · DRAG A BLOCK TO MOVE IT · CLICK AN APP TO OPEN IT HERE';
     var blocksBtn = el('button', 'hb-btn', 'BLOCKS'), ingestBtn = el('button', 'hb-btn', '+ INGEST APP'), talkBtn = el('button', 'hb-btn', 'TALK'), pcBtn = el('button', 'hb-btn off', 'PC CONTROL');
     blocksBtn.type = ingestBtn.type = talkBtn.type = pcBtn.type = 'button'; blocksBtn.title = 'Every block, shown or hidden (Ctrl + K)'; ingestBtn.title = 'Teach the Hub another app'; talkBtn.title = 'Talk to the Hub'; pcBtn.title = 'PC control';
@@ -158,7 +189,7 @@
     function layerOf(id){var base=id.split('#')[0];return layerState.members[base]||(P[base]?'system':base.indexOf('act:')===0?'apps':base.indexOf('app:')===0&&!['app:movie-clipper','app:file-browser'].includes(base)?'apps':'tools');}
     function isHidden(id){return !!hid[id]||!!layerState.hidden[layerOf(id)];}
     function revealLayer(id){var key=layerOf(id);if(layerState.hidden[key]){delete layerState.hidden[key];saveLayers();refreshLayers();}}
-    function saveLayers(){try{localStorage.setItem('agenthub:board:layers',JSON.stringify(layerState));}catch(e){}}
+    function saveLayers(){try{localStorage.setItem('agenthub:board:layers',JSON.stringify(layerState));}catch(e){}if(typeof markBoard==='function')markBoard();}
     function changeLayer(id,key){layerState.members[id.split('#')[0]]=key;saveLayers();refreshLayers();}
     function refreshLayers(){Object.keys(blocks).forEach(applyBlock);if(stackDepth)stackDepth();if(layerMenu&&!layerMenu.hidden)drawLayers();trayDraw();}
 
@@ -477,7 +508,7 @@
         if(!trayButtons[kind]){var bt=el('button','hb-btn hb-tray-count'),icon=svg(kind==='hidden'?'M12 5v14M5 12h14':'M8.5 9a3.5 3.5 0 1 1 5.3 3c-1.1.7-1.8 1.3-1.8 2.6M12 19h.01',2.2),count=el('span','',0),list=fadePanel(el('div','hb-tray-list'));bt.type='button';bt.dataset.tray=kind;bt.append(icon,count);list.hidden=true;list.setAttribute('role','dialog');list.setAttribute('aria-label',kind==='hidden'?'Hidden blocks':'Out of view blocks');var title=el('div','hb-list-title',kind==='hidden'?'HIDDEN BLOCKS':'OUT OF VIEW');list.appendChild(title);bt.onclick=function(){list.hidden=!list.hidden;bt.setAttribute('aria-expanded',String(!list.hidden));};tray.appendChild(bt);host.appendChild(list);trayButtons[kind]=bt;trayLists[kind]=list;}
         var bt=trayButtons[kind],list=trayLists[kind],ids=groups[kind],cache=trayRows[kind];bt.querySelector('span').textContent=ids.length;bt.setAttribute('aria-label',(kind==='hidden'?'Hidden':'Out of view')+' blocks, '+ids.length);bt.title=kind==='hidden'?'Hidden blocks':'Blocks out of view';
         Object.keys(cache).forEach(function(id){if(ids.indexOf(id)<0){var row=cache[id];delete cache[id];if(reduce.matches)row.remove();else{row.classList.add('hub-panel-closing');row.style.overflow='hidden';var a=row.animate([{opacity:1,height:row.offsetHeight+'px',minHeight:'0px'},{opacity:0,height:'0px',minHeight:'0px',paddingTop:'0px',paddingBottom:'0px'}],{duration:180,fill:'forwards'});a.onfinish=function(){row.remove();};}}});
-        ids.forEach(function(id){if(cache[id])return;var row=el('button','hb-btn',blocks[id]._name||id);row.type='button';row.dataset.restore=id;row.onclick=function(){revealLayer(id);hid[id]=0;applyBlock(id);resolve(id);save();lookAt(id);trayDraw();list.hidden=true;};cache[id]=row;list.appendChild(row);if(!reduce.matches)row.animate([{opacity:0,height:'0px',minHeight:'0px',paddingTop:'0px',paddingBottom:'0px'},{opacity:1,height:row.offsetHeight+'px',minHeight:'0px'}],{duration:180});});
+        ids.forEach(function(id){if(cache[id])return;var row=el('button','hb-btn',window.__hubNice(blocks[id]._name||id));row.type='button';row.dataset.restore=id;row.onclick=function(){revealLayer(id);hid[id]=0;applyBlock(id);resolve(id);save();lookAt(id);trayDraw();list.hidden=true;};cache[id]=row;list.appendChild(row);if(!reduce.matches)row.animate([{opacity:0,height:'0px',minHeight:'0px',paddingTop:'0px',paddingBottom:'0px'},{opacity:1,height:row.offsetHeight+'px',minHeight:'0px'}],{duration:180});});
         var empty=list.querySelector('.hb-tray-empty');if(!ids.length&&!empty)list.appendChild(el('p','hb-tray-empty','No blocks here.'));else if(ids.length&&empty)empty.remove();if(!list.hidden)positionPopup(list);
       });
     }
@@ -538,7 +569,7 @@
       var sx2 = e.clientX, sy2 = e.clientY, ox = l.x, oy = l.y, moved = false, dragFrame = 0;
       function drawDrag(){dragFrame=0;if(b._solid)b._solid.style.transform='translate3d('+(l.x-ox)+'px,'+(l.y-oy)+'px,0)';b.style.transform='translate3d('+(l.x-ox)+'px,'+(l.y-oy)+'px,0)';if(nav)nav.refresh();updateTrayLive();}
       function mv2(ev) { if(bin)bin.classList.toggle('drop-target',overBin(ev));var dx = ev.clientX - sx2, dy = ev.clientY - sy2; if (Math.abs(dx) + Math.abs(dy) > 5) moved = true; var p=point(ev); l.x = ox + p.x-press.x; l.y = oy + p.y-press.y; guides.snap(id, false); if(!dragFrame)dragFrame=requestAnimationFrame(drawDrag); }
-      function up2(event) { removeEventListener('pointermove', mv2); removeEventListener('pointerup', up2); removeEventListener('pointercancel', up2); if(dragFrame)cancelAnimationFrame(dragFrame);b.style.transform='';if(b._solid)b._solid.style.transform=''; b.classList.remove('pick'); applyBlock(id); host.classList.remove('hb-dragging'); if(moved&&event&&event.type!=='pointercancel'&&overBin(event)){hideBlock(id);bin.classList.remove('drop-target');guides.clear();dragCleanups=[];return;}if(bin)bin.classList.remove('drop-target');if (moved) { var before = b.getBoundingClientRect(); guides.snap(id, true); l.u = 1; applyBlock(id); resolve(id); if (motion) motion.flip(b, before, V.k, 'drop'); } guides.clear();save();trayDraw();dragCleanups = []; if ((!event || event.type !== 'pointercancel') && !moved && b._open && !l.exp) b._open(); }
+      function up2(event) { removeEventListener('pointermove', mv2); removeEventListener('pointerup', up2); removeEventListener('pointercancel', up2); if(dragFrame)cancelAnimationFrame(dragFrame);b.style.transform='';if(b._solid)b._solid.style.transform=''; b.classList.remove('pick'); applyBlock(id); host.classList.remove('hb-dragging'); if(moved&&event&&event.type!=='pointercancel'&&overBin(event)){hideBlock(id);bin.classList.remove('drop-target');guides.clear();dragCleanups=[];return;}if(bin)bin.classList.remove('drop-target');if (moved) { var before = b.getBoundingClientRect(); guides.snap(id, true); l.u = 1; applyBlock(id); resolve(id); if (motion) motion.flip(b, before, V.k, 'drop'); } guides.clear();save();trayDraw();dragCleanups = []; if ((!event || event.type !== 'pointercancel') && !moved && !l.exp) { if (l.min) { l.min = 0; applyBlock(id); resolve(id); save(); } else if (b._open) b._open(); } }
       addEventListener('pointermove', mv2); addEventListener('pointerup', up2); addEventListener('pointercancel', up2); dragCleanups.push(function () { removeEventListener('pointermove', mv2); removeEventListener('pointerup', up2); removeEventListener('pointercancel', up2); });
     });
     world.addEventListener('click', function (e) {
@@ -637,7 +668,45 @@
         if(cto){V={x:cf.x+(cto.x-cf.x)*e,y:cf.y+(cto.y-cf.y)*e,k:cf.k+(cto.k-cf.k)*e};place();}
         if(u<1)requestAnimationFrame(s);else{finishPack();}})(t0);
     }
-    tidyBtn.onclick=function(){arrangeLayerBands(null);};
+    // TIDY only neatens what you left: every block snaps to the grid, tops and left edges that were nearly level are made level, and a block that
+    // overlaps another one in the SAME layer steps to the nearest free place. Nothing changes layer, size, minimised or hidden state, and the camera stays.
+    // (MINIMISE ALL / MAXIMISE ALL are the ones that deal everything out again, one band per layer.)
+    function tidyInPlace(){
+      if(settlePack)settlePack();
+      stopCam();touched=true;focusId=null;undim();
+      var U=16,G=GAP,ids=Object.keys(blocks).filter(function(id){return !isHidden(id)&&L[id]&&!L[id].exp;});
+      ids.sort(function(a,b){return L[a].y-L[b].y||L[a].x-L[b].x;});
+      var from={},to={},placed={};
+      function snap(v){return Math.round(v/U)*U;}
+      function free(list,x,y,w,h){return !list.some(function(m){return x<m.x+m.w+G&&m.x<x+w+G&&y<m.y+m.h+G&&m.y<y+h+G;});}
+      ids.forEach(function(id){
+        var l=L[id],w=l.w,h=bh(l),x=snap(l.x),y=snap(l.y),key=(view&&view.mode()==='3d')?layerOf(id):'all',list=placed[key]||(placed[key]=[]);   // in 3D the layers are apart in depth; flat, everything shares one plane
+        from[id]={x:l.x,y:l.y};
+        list.forEach(function(m){                                                          // nearly level with a neighbour: make it level
+          if(m.y!==y&&Math.abs(m.y-y)<=24&&free(list,x,m.y,w,h))y=m.y;
+          if(m.x!==x&&Math.abs(m.x-x)<=24&&free(list,m.x,y,w,h))x=m.x;
+        });
+        for(var n=0;n<120&&!free(list,x,y,w,h);n++){                                       // overlapping: the nearest free place around the block in the way
+          var m=list.filter(function(k){return x<k.x+k.w+G&&k.x<x+w+G&&y<k.y+k.h+G&&k.y<y+h+G;})[0];if(!m)break;
+          var cands=[[x,snap(m.y+m.h+G+U-1)],[snap(m.x+m.w+G+U-1),y],[snap(m.x-w-G),y],[x,snap(m.y-h-G)]];
+          cands=cands.filter(function(c){return free(list,c[0],c[1],w,h);}).sort(function(a,b){return Math.abs(a[0]-x)+Math.abs(a[1]-y)-Math.abs(b[0]-x)-Math.abs(b[1]-y);});
+          if(cands.length){x=cands[0][0];y=cands[0][1];}else y=snap(m.y+m.h+G+U-1);
+        }
+        if(!free(list,x,y,w,h))y=snap(list.reduce(function(a,m){return Math.max(a,m.y+m.h);},0)+G+U-1);
+        list.push({x:x,y:y,w:w,h:h});to[id]={x:x,y:y};
+      });
+      ids.forEach(function(id){L[id].u=1;});
+      if(reducedMotion.matches){ids.forEach(function(id){L[id].x=to[id].x;L[id].y=to[id].y;applyBlock(id);});save();trayDraw();return;}
+      var tok=++camTok,t0=performance.now(),finished=false;
+      function finishPack(){if(finished)return;finished=true;settlePack=null;ids.forEach(function(id){if(L[id]){L[id].x=to[id].x;L[id].y=to[id].y;applyBlock(id);}});if(alive){save();trayDraw();}}
+      settlePack=finishPack;
+      (function step(n){if(finished)return;if(!alive||tok!==camTok){finishPack();return;}
+        var u=Math.min(1,(n-t0)/420),e=1-Math.pow(1-u,3.4);
+        ids.forEach(function(id){var l=L[id];if(!l)return;l.x=from[id].x+(to[id].x-from[id].x)*e;l.y=from[id].y+(to[id].y-from[id].y)*e;applyBlock(id);});
+        if(u<1)requestAnimationFrame(step);else finishPack();})(t0);
+    }
+    tidyBtn.onclick=tidyInPlace;
+    readBoardPrefs();
     var batchControls=el('div','hb-batch-controls'),minAll=el('button','hb-btn','MINIMISE ALL'),maxAll=el('button','hb-btn','MAXIMISE ALL');
     batchControls.setAttribute('role','group');batchControls.setAttribute('aria-label','Arrange all shown blocks');
     minAll.type=maxAll.type='button';minAll.dataset.batch='minimise';maxAll.dataset.batch='maximise';
@@ -664,7 +733,7 @@
     Array.from(bar.children).forEach(function(b){if(b.textContent==='HAND SETUP')controls.handSetup=b;if(b.textContent==='SAVE TRACE')controls.saveTrace=b;});
     var legend=el('button','hb-btn','GESTURE LEGEND');legend.type='button';controls.legend=legend;var legendOn=true;try{legendOn=localStorage.getItem('agenthub:hands:legend')!=='0';}catch(e){}
     function legendPaint(){document.documentElement.classList.toggle('hub-hide-hand-legend',!legendOn);legend.setAttribute('aria-pressed',String(legendOn));}legend.onclick=function(){legendOn=!legendOn;try{localStorage.setItem('agenthub:hands:legend',legendOn?'1':'0');}catch(e){}legendPaint();};legendPaint();
-    var logPending=[];function toLog(node){var t=document.querySelector('.hands-log .hl-tools');if(t){if(node.parentNode!==t)t.appendChild(node);}else if(logPending.indexOf(node)<0)logPending.push(node);}window.addEventListener('hub-log-ready',function(){var all=logPending.slice();[controls.handSetup,controls.saveTrace,controls.legend].forEach(function(n){if(n&&all.indexOf(n)<0)all.push(n);});all.forEach(toLog);logPending=[];});
+    var logPending=[];function toLog(node){var t=document.querySelector('.hands-log .hl-tools');if(t){if(node.parentNode!==t)t.appendChild(node);}else if(logPending.indexOf(node)<0)logPending.push(node);}function onLogReady(){var all=logPending.slice();[controls.handSetup,controls.saveTrace,controls.legend].forEach(function(n){if(n&&all.indexOf(n)<0)all.push(n);});all.forEach(toLog);logPending=[];}window.addEventListener('hub-log-ready',onLogReady);
     function placeControl(key,node){if(!node)return;var home=CONTROL_HOME[key];if(home==='hands')toLog(node);else if(home==='health'){if(node.parentNode!==blocks.hlt._in)blocks.hlt._in.appendChild(node);}else if(home==='ingest')ingestDock.appendChild(node);else if(home==='view')viewBar.appendChild(node);else bar.appendChild(node);}
     Object.keys(controls).forEach(function(k){placeControl(k,controls[k]);});if(view)viewBar.append(view.btn);viewBar.append(fitBtn,tidyBtn,blocksBtn);if(view)viewBar.append(view.gizmoBtn);viewBar.append(zoomRow);zoomRow.dataset.only3d='1';zh.dataset.only3d='1';hint.hidden=true;menu.appendChild(hint);more.hidden=true;
     var layerButton=el('button','hb-btn','LAYERS'),layerMenu=el('div','hb-layer-menu');layerButton.type='button';layerButton.dataset.layers='1';layerButton.setAttribute('aria-expanded','false');layerMenu.hidden=true;layerMenu.setAttribute('aria-label','3D layers');host.appendChild(layerMenu);placeControl('layers',layerButton);
@@ -697,7 +766,7 @@
     stackDepth();
     var instance = {
       update: function (d) { data = d; paint(); HubBlocks.graphics(); if (!arrived) { arrived = true; HubBlocks.arrive(blocks, function () { return V.k; }, releaseArrival); } },
-      destroy: function () { if (!alive) return; alive = false; closeCtx(); document.removeEventListener('keydown', ctxKey, true); removeEventListener('blur', closeCtx); if(hands)hands.destroy();document.removeEventListener('pointerdown',holdPaint,true);window.removeEventListener('pointerup',releasePaint,true);window.removeEventListener('pointercancel',releasePaint,true);window.removeEventListener('blur',releasePaint);clearTimeout(paintReleaseTimer);noticeWatch.disconnect();stageWatch.disconnect();if(panelObserver)panelObserver.disconnect();panelNodes.forEach(function(n){if(n._hubResetFade)n._hubResetFade();});panelNodes.clear();document.documentElement.classList.remove('hub-modal-open');document.removeEventListener('pointerdown',outsideMore,true);document.removeEventListener('keydown',moreKey,true);if(bin)bin.classList.remove('drop-target'); if (view) view.destroy(); if (setupHome && setupHome.parent) setupHome.parent.insertBefore(setupCard, setupHome.next); if (wireWatch) wireWatch.disconnect(); if (bannerWatch) bannerWatch.disconnect(); if (window.__hubBoard.active === instance) window.__hubBoard.active = null; releaseArrival(); clearTimeout(hintTimer);clearTimeout(recoveryTimer);clearTimeout(rasterTimer); dragCleanups.forEach(function (fn) { fn(); }); stopCam(); stopEdge(); guides.destroy(); if (nav) nav.destroy(); document.removeEventListener('keydown', onKey); removeEventListener('resize', onResize);if(window.visualViewport)visualViewport.removeEventListener('resize',onResize); if(resizeFrame)cancelAnimationFrame(resizeFrame); tray.remove(); root.replaceChildren(); root.style.width = root.style.maxWidth = root.style.marginLeft = ''; root.__hubBoardInstance = null; },
+      destroy: function () { if (!alive) return; alive = false; window.removeEventListener('hub-log-ready', onLogReady); closeCtx(); document.removeEventListener('keydown', ctxKey, true); removeEventListener('blur', closeCtx); if(hands)hands.destroy();document.removeEventListener('pointerdown',holdPaint,true);window.removeEventListener('pointerup',releasePaint,true);window.removeEventListener('pointercancel',releasePaint,true);window.removeEventListener('blur',releasePaint);clearTimeout(paintReleaseTimer);noticeWatch.disconnect();stageWatch.disconnect();if(panelObserver)panelObserver.disconnect();panelNodes.forEach(function(n){if(n._hubResetFade)n._hubResetFade();});panelNodes.clear();document.documentElement.classList.remove('hub-modal-open');document.removeEventListener('pointerdown',outsideMore,true);document.removeEventListener('keydown',moreKey,true);if(bin)bin.classList.remove('drop-target'); if (view) view.destroy(); if (setupHome && setupHome.parent) setupHome.parent.insertBefore(setupCard, setupHome.next); if (wireWatch) wireWatch.disconnect(); if (bannerWatch) bannerWatch.disconnect(); if (window.__hubBoard.active === instance) window.__hubBoard.active = null; releaseArrival(); clearTimeout(hintTimer);clearTimeout(recoveryTimer);clearTimeout(rasterTimer); dragCleanups.forEach(function (fn) { fn(); }); stopCam(); stopEdge(); guides.destroy(); if (nav) nav.destroy(); document.removeEventListener('keydown', onKey); removeEventListener('resize', onResize);if(window.visualViewport)visualViewport.removeEventListener('resize',onResize); if(resizeFrame)cancelAnimationFrame(resizeFrame); tray.remove(); root.replaceChildren(); root.style.width = root.style.maxWidth = root.style.marginLeft = ''; root.__hubBoardInstance = null; },
       state: function () { return { V: V, L: L, hid: hid }; },
       stage:stageRect,layers:function(){return layerState;},
       view: function () { return view; },

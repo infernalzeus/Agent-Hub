@@ -118,7 +118,8 @@ SOFTWARE.
     // ---- LOG: one small tab at the bottom, always there. Everything that happens lands here, newest first: your chat with Smith (also what was said on
     // the landing page), hand gestures and their errors, and the Hub's own messages. Pull it up to read, filter, open the chat, or set up the hands.
     const LOGKEY='agenthub:log',KINDS=[['all','ALL'],['chat','CHAT'],['hands','HANDS'],['hub','HUB']];
-    let logBox=null,rowsEl=null,toolsEl=null,headEl=null,logFilter='all';
+    let logBox=null,rowsEl=null,toolsEl=null,headEl=null,logFilter='all',logUnhook=null;
+    function logOff(){if(logUnhook){logUnhook();logUnhook=null;}}
     const loadLog=()=>{try{const a=JSON.parse(sessionStorage.getItem(LOGKEY)||'[]');return Array.isArray(a)?a:[];}catch(_){return [];}};
     let logRows=loadLog();
     const LEGEND='POINT: the ring is your cursor; hold it still on a button: click · THUMB + INDEX: a quick pinch taps, a pinch that moves scrolls a panel or drags a block · THUMB + MIDDLE (index away): right click menu · THUMB + INDEX + MIDDLE together, hand up or down: zoom · FIST in VIEW 3D: tilt and turn · OPEN HAND 1 s: fit · ESC: camera off. (Flat-palm pan and zoom: switch on in HAND SETUP.)';
@@ -141,8 +142,9 @@ SOFTWARE.
       body.append(top,rowsEl,legend);logBox.append(body,headEl);document.body.appendChild(logBox);
       const toggle=(open)=>{logBox.classList.toggle('open',open);headEl.setAttribute('aria-expanded',String(open));try{localStorage.setItem('agenthub:hands:log',open?'1':'0');}catch(_){}if(open)paintLog();};
       headEl.onclick=()=>toggle(!logBox.classList.contains('open'));
-      window.addEventListener('hub-hands-log-open',()=>toggle(true));window.addEventListener('hub-log-open',()=>toggle(true));
-      window.addEventListener('hub-log',(e)=>{const d=e.detail||{};if(d.kind&&d.text)logAdd(d.kind,String(d.text),!!d.err);});
+      logOff();const open1=()=>toggle(true),onLog=(e)=>{const d=e.detail||{};if(d.kind&&d.text)logAdd(d.kind,String(d.text),!!d.err);};
+      window.addEventListener('hub-hands-log-open',open1);window.addEventListener('hub-log-open',open1);window.addEventListener('hub-log',onLog);
+      logUnhook=()=>{window.removeEventListener('hub-hands-log-open',open1);window.removeEventListener('hub-log-open',open1);window.removeEventListener('hub-log',onLog);if(window.__hubLogAdd===logAdd)window.__hubLogAdd=null;};
       window.__hubLogAdd=logAdd;                                                              // voice.js and other pages write through this when it exists
       try{if(localStorage.getItem('agenthub:hands:log')==='1')toggle(true);}catch(_){}
       updateHead();paintLog();
@@ -352,7 +354,7 @@ SOFTWARE.
     const api={button:btn,tracker,feed,
       startTrace,stats(){const l=counts.latencies;return {...counts,latencies:l.slice(),cameraLatencies:counts.cameraLatencies.slice(),tracker:{...tracker.stats},presses:presses.size};},
       measure(on,label){diagnostic=!!on;measurementLabel=label||'MEASURING';counts=fresh();cancelAll();},
-      destroy(){alive=false;tracker.destroy();cancelAll();clearOverlay();if(logBox){logBox.remove();logBox=null;}hideTarget();document.documentElement.classList.remove('hands-live');removeEventListener('mousemove',mouseSeen,true);setup.remove();btn.remove();configure.remove();saveBtn.remove();document.removeEventListener('pointerdown',physical,true);document.removeEventListener('wheel',physical,true);document.removeEventListener('keydown',escape,true);document.removeEventListener('keydown',typing,true);if(root.__hubHands===api)root.__hubHands=null;}};
+      destroy(){alive=false;tracker.destroy();cancelAll();clearOverlay();logOff();if(logBox){logBox.remove();logBox=null;}hideTarget();document.documentElement.classList.remove('hands-live');removeEventListener('mousemove',mouseSeen,true);setup.remove();btn.remove();configure.remove();saveBtn.remove();document.removeEventListener('pointerdown',physical,true);document.removeEventListener('wheel',physical,true);document.removeEventListener('keydown',escape,true);document.removeEventListener('keydown',typing,true);if(root.__hubHands===api)root.__hubHands=null;}};
     ensureLog();
     if(root.__HUB_HANDS_TEST)api.testEnable=()=>{enabled=true;engine.reset();showOverlay();};
     if(root.__HUB_HANDS_TEST)api.testOption=(k,v)=>{profile[k]=v;};

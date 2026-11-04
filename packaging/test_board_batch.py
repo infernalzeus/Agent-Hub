@@ -11,6 +11,7 @@ def page(hub):
         ctx=b.new_context(service_workers='block',viewport={'width':1280,'height':800})
         ctx.add_init_script("""navigator.mediaDevices.getUserMedia=async()=>{throw Error('Sensors blocked')};
           localStorage.setItem('agenthub:board:layers',JSON.stringify({order:['system','tools','apps'],hidden:{},members:{'card:oc':'apps'}}));""")
+        ctx.request.put(hub+'/api/board/prefs',data='{}',headers={'Content-Type':'application/json'})                 # every test starts from a Hub with no saved board
         pg=ctx.new_page();errors=[];pg.on('pageerror',lambda e:errors.append(str(e)))
         pg.goto(hub+'/?enter=1');pg.wait_for_function('!!window.__hubBoard?.active');pg.wait_for_timeout(900)
         yield pg
@@ -55,7 +56,7 @@ def test_native_batch_restore_tidy_and_persistence(page,mode):
     after=state(page)
     for id,l in before['L'].items():assert (after['L'][id]['w'],after['L'][id]['h'])==(l['w'],l['h'])
     assert page.evaluate('JSON.stringify(__hubBoard.active.layers())')==layers
-    scatter(page);press(page,'.hb-btn:text-is("TIDY")');assert bands(page)['fail']==[]
+    scatter(page);press(page,'.hb-btn:text-is("TIDY")');assert [x for x in bands(page)['fail'] if 'band' not in x]==[]       # TIDY neatens in place: grid, no overlaps; it does not deal the layers into bands
     press(page,'[data-batch=minimise]');saved=page.evaluate("JSON.parse(localStorage.getItem('agenthub:board:v2'))")
     page.reload();page.wait_for_function('!!window.__hubBoard?.active');page.wait_for_timeout(900)
     assert bands(page,True)['fail']==[]
@@ -105,3 +106,39 @@ def test_empty_board_batch_commands_do_not_reveal_hidden_layers(page):
     before=state(page)
     press(page,'[data-batch=minimise]');press(page,'[data-batch=maximise]')
     assert state(page)==before
+
+
+def test_tidy_keeps_things_where_they_were_left(page):
+    page.evaluate("""()=>{let s=__hubBoard.active.state();Object.entries(s.L).forEach(([id,l],i)=>{l.x=(i%5)*480+48;l.y=Math.floor(i/5)*720+64;l.u=1;let e=document.querySelector('.hk[data-id="'+id+'"]');if(e){e.style.left=l.x+'px';e.style.top=l.y+'px'}})}""")
+    before={k:(v['x'],v['y'],v['w'],v['h']) for k,v in state(page)['L'].items()}
+    layers=page.evaluate('JSON.stringify(__hubBoard.active.layers())')
+    press(page,'.hb-btn:text-is("TIDY")')
+    after=state(page)['L']
+    moved=[k for k,v in before.items() if (after[k]['x'],after[k]['y'])!=(v[0],v[1])]
+    assert len(moved)<=2,moved                                              # already grid-aligned and apart: nothing needs to move
+    assert all((after[k]['w'],after[k]['h'])==(v[2],v[3]) for k,v in before.items())
+    assert page.evaluate('JSON.stringify(__hubBoard.active.layers())')==layers
+    xs={round(after[k]['x']) for k in after if not state(page)['hid'].get(k)}
+    assert len(xs)>3                                                       # not squeezed into three columns
+
+def test_layout_is_kept_on_the_hub_and_comes_back_without_local_storage(page,hub):
+    page.evaluate("""()=>{let s=__hubBoard.active.state();s.L.hlt.x=1232;s.L.hlt.y=640;s.L.hlt.u=1;let e=document.querySelector('.hk[data-id=hlt]');e.style.left='1232px';e.style.top='640px'}""")
+    press(page,'.hb-btn:text-is("TIDY")',wait=1800)                           # any save pushes the layout to the Hub after a short pause
+    want=state(page)['L']['hlt']
+    got=page.evaluate("fetch('/api/board/prefs').then(r=>r.json())")
+    assert got['board']['L']['hlt']['x']==want['x'] and got['board']['L']['hlt']['y']==want['y']
+    page.evaluate("()=>{localStorage.removeItem('agenthub:board:v2');localStorage.removeItem('agenthub:board:at')}")
+    page.reload();page.wait_for_function('!!window.__hubBoard?.active');page.wait_for_timeout(1500)
+    now=state(page)['L']['hlt'];assert (now['x'],now['y'])==(want['x'],want['y'])
+
+
+def test_blocks_menu_names_are_plain_sentences_and_a_minimised_block_opens_when_clicked(page):
+    press(page,'.hb-btn:text-is("BLOCKS")')
+    names=page.evaluate("[...document.querySelectorAll('.hb-jump button')].map(b=>b.textContent)")
+    assert 'Needs attention' in names and 'Claude Code usage' in names and 'Runs' in names, names
+    assert not [n for n in names if n==n.upper() and len(n)>3 and n not in ('Auto-LLM',)], names
+    page.keyboard.press('Escape');page.wait_for_timeout(300)
+    page.evaluate("()=>{let s=__hubBoard.active.state();s.L.hlt.min=1;let e=document.querySelector('.hk[data-id=hlt]');e.classList.add('min');e.style.height='32px'}")
+    t=page.locator('.hk[data-id=hlt] .hk-h .t');r=t.bounding_box()
+    page.mouse.move(r['x']+r['width']/2,r['y']+r['height']/2);page.mouse.down();page.wait_for_timeout(80);page.mouse.up();page.wait_for_timeout(500)
+    assert not state(page)['L']['hlt'].get('min')                           # a click on a minimised block opens it again, even with nothing inside to open

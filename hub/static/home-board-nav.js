@@ -1,5 +1,11 @@
 // Keyboard navigation and a lightweight SVG overview; no polling or permanent animation.
 (function () {
+  // Block names are stored in capitals for the title bars; in lists they read as plain sentences ("Needs attention", "Claude Code usage").
+  var KEEP = { CLAUDE: 'Claude', CODE: 'Code', LLM: 'LLM', MCP: 'MCP', PC: 'PC', AI: 'AI', R: 'R', 'AUTO-LLM': 'Auto-LLM', YOUTUBE: 'YouTube' };
+  window.__hubNice = function (name) {
+    name = String(name == null ? '' : name); if (name !== name.toUpperCase() || !/[A-Z]/.test(name)) return name;
+    return name.split(' ').map(function (w, i) { return KEEP[w] || (i ? w.toLowerCase() : w.charAt(0) + w.slice(1).toLowerCase()); }).join(' ');
+  };
   function mount(host, blocks, layout, hidden, read, visit, open, close) {
     var map = document.createElement('button'); map.className = 'hb-map'; map.type = 'button'; map.setAttribute('aria-label', 'Board overview. Click to centre the camera');
     var ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg'); svg.setAttribute('viewBox', '0 0 150 90'); svg.setAttribute('aria-hidden', 'true'); map.appendChild(svg); host.appendChild(map);
@@ -20,7 +26,7 @@
     var input=document.createElement('input');input.placeholder='Jump to a block';input.setAttribute('aria-label','Find a block');var list=document.createElement('div');var head=document.createElement('div');head.className='hb-jump-h';var title=document.createElement('span');title.textContent='BLOCKS';var closeBtn=document.createElement('button');closeBtn.type='button';closeBtn.className='hb-jump-x';closeBtn.setAttribute('aria-label','Close the block list');closeBtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';head.append(title,closeBtn);dialog.append(head,input,list);host.appendChild(dialog);var origin=null, closing=null;
     function dismiss(){if(window.HubBlocks&&HubBlocks.allowed()){closing=dialog.animate([{opacity:1},{opacity:0}],{duration:140});closing.onfinish=function(){dialog.hidden=true;closing=null;};}else dialog.hidden=true;if(origin&&origin.isConnected)origin.focus({preventScroll:true});}
     function choose(id){dismiss();visit(id);blocks[id].focus({preventScroll:true});if(blocks[id]._open)open(id);}
-    function search(){list.replaceChildren();Object.keys(blocks).filter(function(id){return blocks[id]._name.toLowerCase().includes(input.value.toLowerCase());}).forEach(function(id){var b=document.createElement('button');b.type='button';b.textContent=blocks[id]._name;b.onclick=function(){choose(id);};list.appendChild(b);});}
+    function search(){list.replaceChildren();Object.keys(blocks).filter(function(id){return blocks[id]._name.toLowerCase().includes(input.value.toLowerCase());}).forEach(function(id){var b=document.createElement('button');b.type='button';b.textContent=window.__hubNice(blocks[id]._name);b.onclick=function(){choose(id);};list.appendChild(b);});}
     input.oninput=search;input.onkeydown=function(e){if(e.key==='Enter'&&list.firstChild){e.preventDefault();list.firstChild.click();}if(e.key==='ArrowDown'&&list.firstChild){e.preventDefault();list.firstChild.focus();}};
     dialog.addEventListener('keydown',function(e){if(e.key!=='Tab')return;var all=[input].concat(Array.from(list.children)),at=all.indexOf(document.activeElement);if(e.shiftKey&&at===0){e.preventDefault();all[all.length-1].focus();}else if(!e.shiftKey&&at===all.length-1){e.preventDefault();input.focus();}});
     closeBtn.onclick=function(){dismiss();};
