@@ -687,6 +687,7 @@ async function load(){
   DATA = await jget('/api/agents');
   try { RECS = await jget('/api/model-recommendations'); } catch(e){ RECS = {}; }
   try { PROFILES = (await jget('/api/profiles')).profiles || {}; } catch(e){ PROFILES = {}; }
+  try { HELPERS = (await jget('/api/hub/helpers')).helpers || []; } catch(e){ HELPERS = []; }
   try {
     const mp = await jget('/api/model-policy');
     $('mpol').innerHTML = `<b>Model:</b> policy <code>${esc(mp.policy)}</code> → runs use `
@@ -758,7 +759,7 @@ async function load(){
   const loose = subs.filter(p => !inFam.has(p.name));
   if(loose.length) fams.push({key:'other', label:'Other', hint:'not offered by any work type', members:loose});
 
-  const TABS = [{key:'run', label:'Runs the hub', n:RUNS.length}]
+  const TABS = [{key:'run', label:'Runs the hub', n:RUNS.length}, {key:'helpers', label:'Hub helpers', n:HELPERS.length}]
     .concat(fams.map(f => ({key:f.key, label:f.label, n:f.members.length})));
   if(!TABS.some(t => t.key === FAM)) FAM = TABS[0].key;
 
@@ -769,7 +770,9 @@ async function load(){
     // honest way to redraw without splitting a 900-line page in half today.
     FAM = b.dataset.fam; location.hash = FAM; load(); window.scrollTo({top:0}); });
 
-  if(FAM === 'run'){
+  if(FAM === 'helpers'){
+    $('list').innerHTML = `<div class="secthead">THE HUB'S OWN HELPERS<span>the voice, the Doctor, the desktop agent and the small learners: who they are, what they do, and where each stands now</span></div>` + HELPERS.map(helperCard).join('');
+  } else if(FAM === 'run'){
     $('list').innerHTML =
         sec('ORCHESTRATOR', 'takes your ask, asks what it needs, plans the steps — writes no project code', orch)
       + sec('AGENT SMITH', 'designs new agents from a plain description', smith)
@@ -786,6 +789,14 @@ let SKILLS = null;
 // Which family of work is showing. In the hash so it survives a reload and can be
 // linked; a hash change never reloads, so it is also listened for.
 let FAM = (location.hash||'').replace('#','') || 'run';
+let HELPERS = [];          // the Hub's own helpers (voice, doctor, learners), from /api/hub/helpers
+const HELPER_ICON = {
+  doctor:'M12 4.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4zM5 21c0-3.9 3.1-7 7-7s7 3.1 7 7M9.2 14.3v2.4a2.3 2.3 0 0 0 4.6 0v-.6M16.3 17.2h2.4M17.5 16v2.4M10.2 3.6a2 2 0 0 1 3.6 0',
+  desktop:'M4 5h16v11H4zM9 20h6M12 16v4',router:'M4 12h6M14 6h6M14 18h6M10 12l4-6M10 12l4 6',
+  learner:'M12 5v4M12 15v4M5 12h4M15 12h4M8 8l2 2M14 14l2 2M16 8l-2 2M10 14l-2 2M12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z',
+  bandit:'M6 18V10M12 18V6M18 18v-5M4 18h16',log:'M7 4h10v16H7zM9.5 8h5M9.5 12h5M9.5 16h3'};
+const helperIcon = (id) => id==='smith' ? '__SMITH_ICON__' : `<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="#41ebff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 0 4px rgba(65,235,255,.5))"><path d="${HELPER_ICON[id]||HELPER_ICON.log}"/></svg>`;
+const helperCard = (h) => `<div class="persona"><div class="pn"><span style="display:inline-flex;width:38px;justify-content:center">${helperIcon(h.icon)}</span>${esc(h.name)} <span class="tag">${esc(h.kind)}</span> <span class="tag ${h.state==='live'||h.state==='shadow'?'primary':''}">${esc(h.state)}</span></div><div class="pd">${esc(h.does)}</div>${h.learning?`<div class="note-block"><span class="note-label">NOW</span>${esc(h.learning)}</div>`:''}<div class="note" style="margin-top:6px">Where: ${esc(h.where||'')}</div></div>`;
 let SKTOPIC = '';          // which skill topic the library is showing
 let SKDRAFT = null;        // the skill being written, if any
 
