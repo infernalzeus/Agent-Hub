@@ -72,7 +72,7 @@ html.hub-board-on #setup-card{border:1px solid transparent;background:rgba(100,6
 .hb .hb-bar{flex-wrap:wrap}.hb .hb-bar>.hb-hands{display:inline-flex}.hb .hb-gizmo .gz-tools [data-surface]{flex-basis:100%}
 @media(max-width:420px){.hb .hb-bar>.hb-btn{padding:6px;font-size:7px}.hb .hb-bar{gap:3px}.hb .hb-hands svg{width:13px;height:13px}.hb .hb-bar>.hb-hands{letter-spacing:0}}
 
-.hb-more-menu{top:calc(var(--hub-chrome-bottom,116px) + var(--hb-notice-height,0px) + 10px)}.hb-restart-needed{top:calc(var(--hub-chrome-bottom,116px) + 6px)}
+.hb-more-menu{top:calc(var(--hub-chrome-bottom,116px) + var(--hb-notice-height,0px) + 10px);right:auto;left:50%;transform:translateX(-50%);max-width:calc(100vw - 24px)}.hb-restart-needed{top:calc(var(--hub-chrome-bottom,116px) + 6px)}
 
 /* A hover must not move the compositor hit plane out from under a native 3D press. */
 .hb-3d .hub-block.is-hover:not(.exp)>.hk-b{transform:none}
@@ -85,3 +85,11 @@ button.hb-session{width:100%;text-align:left;background:transparent;border:0;bor
 .hk-volume{position:absolute;pointer-events:none;display:none}.hk-volume[hidden]{display:none!important}.hb.hb-3d.hb-slab .hk-volume{display:block!important;translate:0 0 var(--hb-dz,0px);transform-style:preserve-3d}.hb.hb-3d.hb-glass .hk-volume{display:none!important}
 .hb-3d .hk-volume[data-id=att]{--hb-dz:150px}.hb-3d .hk-volume[data-id=runs],.hb-3d .hk-volume[data-id=ses]{--hb-dz:65px}.hb-3d .hk-volume[data-id=hlt],.hb-3d .hk-volume[data-id=use]{--hb-dz:-100px}.hb-3d .hk-volume.tile{--hb-dz:20px}.hb-3d .hk-volume.exp{--hb-dz:170px}
 .hb .hk.is-hover:not(.exp)>.hk-b{transform:none!important}.hb-3d .hk.is-hover{background-image:none!important}
+/* The slab belongs to its block: a hidden or closed block takes its volume with it (the display rule above would otherwise override the hidden attribute) */
+.hb .hk-solid[hidden],.hb.hb-3d.hb-slab .hk-solid[hidden]{display:none!important}
+/* View controls (VIEW, AXIS, zoom, FIT, BLOCKS, TIDY) are one group at the right; actions (TALK, PC CONTROL, INGEST, HANDS, MORE) stay in the top bar */
+.hb-viewbar{position:absolute;right:12px;top:calc(var(--hub-chrome-bottom,116px) + var(--hb-notice-height,0px) + 8px);z-index:6;display:flex;flex-direction:column;align-items:stretch;gap:6px;width:92px;pointer-events:none}
+.hb-viewbar>*{pointer-events:auto}.hb-viewbar .hb-btn{width:100%;justify-content:center;text-align:center;padding:7px 4px}.hb-viewbar .hb-btn[hidden]{display:none!important}
+.hb-viewbar .hb-z{text-align:center;margin:0}.hb-zoomrow{display:flex;gap:6px}.hb-zoomrow .hb-btn{flex:1 1 0;min-width:0}
+@media(max-width:420px){.hb-viewbar{width:70px;gap:4px}.hb-viewbar .hb-btn{font-size:7px;padding:6px 2px}}
+.hb-ctx{position:absolute;z-index:45;display:flex;flex-direction:column;gap:4px;padding:6px;min-width:150px;background:rgba(6,10,36,.94);border:1px solid var(--border-dim,rgba(0,230,118,.28));border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.5)}.hb-ctx .hb-btn{text-align:left;justify-content:flex-start;width:100%}

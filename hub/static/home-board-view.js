@@ -13,7 +13,7 @@
     cad: '2D, flat: the wheel zooms toward the pointer, middle-drag pans, double middle-click fits everything. Click for 3D.',
     '3d': '3D: middle-drag or right-drag orbits, Shift + middle-drag pans, Alt + wheel tilts, blocks sit at a depth. Click for 2D.'
   };
-  var LIM = 40, PERSP = 1500, PREVIEW = [16, -20];
+  var LIM = 40, PERSP = 1500, PREVIEW = [4, -5];
   var CSS = '.hb-3d .hk-fr,.hb-3d .hk-b,.hb-3d .hk-i,.hb-3d .hk-tabs{backface-visibility:visible!important;-webkit-backface-visibility:visible!important}.hb-bar .hb-btn[hidden],.hb-gizmo [hidden]{display:none!important}.hb-turning .hk-fr{pointer-events:none!important}.hb-back .hk{opacity:.5}.hb-back .hk-fr{pointer-events:none}.hb-3d{perspective:' + PERSP + 'px}.hb-3d .hb-world{transform-style:preserve-3d}.hb-3d .hk{content-visibility:visible;translate:0 0 var(--hb-dz,0px)}'
     + ".hb-3d .hk[data-id=att]{--hb-dz:150px}.hb-3d .hk[data-id=runs],.hb-3d .hk[data-id=ses]{--hb-dz:65px}.hb-3d .hk[data-id=hlt],.hb-3d .hk[data-id=use]{--hb-dz:-100px}"
     + '.hb-gizmo{position:absolute;right:12px;bottom:112px;z-index:8;width:96px;display:none;flex-direction:column;align-items:center;gap:3px;touch-action:none;user-select:none;-webkit-user-select:none}'
@@ -83,7 +83,7 @@
       if (mode !== '3d') { rx = ry = 0; }
       toolPaint(); paintGizmo(); if (!initial) c.place();
     }
-    // entering 3D leans the board to a preview angle at once, so the depth is seen without having to find the right button first
+    // entering 3D leans the board a few degrees at once (flat to the eye, with the edge of each slab just showing), so the depth is seen without having to find the right button first
     function setMode(m) { m = m === '3d' ? '3d' : 'cad'; mode = m; try { localStorage.setItem(KEY, m); } catch (e) {} apply(); if (m === '3d') tiltTo(PREVIEW[0], PREVIEW[1], 450); }
     btn.onclick = function () { setMode(ORDER[(ORDER.indexOf(mode) + 1) % ORDER.length]); };
 

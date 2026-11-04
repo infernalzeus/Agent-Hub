@@ -3,7 +3,7 @@
 // its body), double-click a title to focus one block, the corner resizes, the cross hides it into the tray.
 // Every width uses the board; hidden legacy cards still host the borrowed app controls.
 (function () {
-  var TW = 224, PEEK = 52, EASE = 'cubic-bezier(.2,.8,.2,1)', SPRING = 'cubic-bezier(.34,1.45,.64,1)', KEY = 'agenthub:board:v2';
+  var TW = 224, PEEK = 0, EASE = 'cubic-bezier(.2,.8,.2,1)', SPRING = 'cubic-bezier(.34,1.45,.64,1)', KEY = 'agenthub:board:v2';
   var reduce = matchMedia('(prefers-reduced-motion: reduce)'), motion = window.__hubBoardMotion;
   var P = { // default sizes; positions come from grid(), heights grow to fit what is inside
     att: { t: 'NEEDS ATTENTION', w: 380, h: 110 }, runs: { t: 'RUNS', w: 210, h: 100 }, ses: { t: 'SESSIONS', w: 320, h: 110 },
@@ -63,7 +63,7 @@
       '.hk-h button{width:28px;height:28px;border:0;background:none;color:var(--text-muted,#8fcfb2);opacity:.9;border-radius:5px;cursor:pointer;display:grid;place-items:center;padding:0}.hk-h button svg{width:15px!important;height:15px!important}.hk-h button:hover{color:var(--text,#d9ffe9);background:rgba(0,230,118,.12)}',
       '.hk-b{flex:1;min-height:0;display:grid;grid-template-rows:1fr;transition:opacity .3s,filter .3s;overflow:hidden}.hk-i{overflow:hidden;min-height:0}',
       // minimised: the title goes bold and bright, the content stays as a faded, softened glimpse (not removed), and cannot be pressed
-      '.hk.min{overflow:hidden}.hk.min .hk-h .t{font-weight:900;color:var(--accent,#00e676);text-shadow:0 0 10px rgba(0,230,118,.45)}.hk.min .hk-b{max-height:' + PEEK + 'px;opacity:.5;filter:blur(1.3px) saturate(.75);pointer-events:none;-webkit-mask-image:linear-gradient(#000 25%,transparent);mask-image:linear-gradient(#000 25%,transparent)}',
+      '.hk.min{overflow:hidden}.hk.min .hk-h .t{font-weight:900;color:var(--accent,#00e676);text-shadow:0 0 10px rgba(0,230,118,.45)}.hk.min .hk-b{display:none}',
       '.hk-rz{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;touch-action:none}.hk.min .hk-rz{display:none}',
       '.hb-li{display:flex;gap:8px;align-items:baseline;padding:5px 10px;border-top:1px solid rgba(255,255,255,.05);font-size:12.5px;color:var(--text,#d9ffe9)}.hb-li i{width:6px;height:6px;border-radius:50%;background:var(--accent,#00e676);flex:none}.hb-li i.a{background:#e0a53c}.hb-li i.r{background:#ff5c5c}.hb-li i.o{background:var(--text-faint,#6fae92)}.hb-li span{color:var(--text-muted,#8fcfb2);font-size:11.5px;overflow-wrap:anywhere}',
       '.hb-stat{padding:2px 10px 8px}.hb-stat b{display:block;font:900 32px Orbitron,monospace;color:var(--accent,#00e676);line-height:1.1}.hb-stat span{color:var(--text-muted,#8fcfb2);font-size:12px}',
@@ -311,7 +311,7 @@
         b._in.appendChild(wrap);
       }
       if (motion) motion.flip(b, before, V.k, 'open');
-      setTimeout(function () { if (alive && l.exp) { l.looked = 1; lookAt(id); } }, 420);
+      setTimeout(function () { if (alive && l.exp && L[id] === l && blocks[id]) { l.looked = 1; lookAt(id); } }, 420);        // a window closed within 420 ms is gone
     }
     function collapse(id, faded) {
       var b = blocks[id], l = L[id]; if (!l.exp || l.closing) return;
@@ -431,7 +431,8 @@
       tray.replaceChildren();
       Object.keys(blocks).forEach(function(id){if(blocks[id].hidden&&!hid[id])hid[id]=1;});
       Object.keys(blocks).filter(function(i){if(hid[i])return true;var r=blocks[i].getBoundingClientRect();var iw=Math.min(innerWidth-12,r.right)-Math.max(12,r.left),ih=Math.min(innerHeight-90,r.bottom)-Math.max(TOP(),r.top);return iw<Math.min(80,r.width*.5)||ih<Math.min(32,r.height*.5);}).forEach(function (id) {
-        var b = el('button', 'hb-btn', (hid[id]?'+ ':'FIND ') + (blocks[id]._name || id));b.dataset.restore=id;b.title=hid[id]?'Restore this hidden block':'Bring this offscreen block into view'; b.type = 'button';
+        var b = el('button', 'hb-btn', (hid[id]?'+ ':'') + (blocks[id]._name || id));b.dataset.restore=id;b.title=hid[id]?'Restore this hidden block':'Out of view: bring it back';b.setAttribute('aria-label',(hid[id]?'Restore ':'Find ')+(blocks[id]._name||id)); b.type = 'button';
+        if(!hid[id]){var NS='http://www.w3.org/2000/svg',q=document.createElementNS(NS,'svg'),qp=document.createElementNS(NS,'path');q.setAttribute('viewBox','0 0 24 24');q.setAttribute('width','12');q.setAttribute('height','12');q.setAttribute('aria-hidden','true');q.setAttribute('fill','none');q.setAttribute('stroke','currentColor');q.setAttribute('stroke-width','2.6');q.setAttribute('stroke-linecap','round');q.style.cssText='margin-right:6px;vertical-align:-2px';qp.setAttribute('d','M8.5 9a3.5 3.5 0 1 1 5.3 3c-1.1.7-1.8 1.3-1.8 2.6M12 19h.01');q.appendChild(qp);b.insertBefore(q,b.firstChild);}
         b.onclick = function () { hid[id] = 0; applyBlock(id); resolve(id);save();lookAt(id); if (!reduce.matches) blocks[id].animate([{ opacity: 0, transform: 'scale(.8)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: SPRING }); trayDraw(); };
         tray.appendChild(b);
       });
@@ -508,6 +509,38 @@
       if (a === 'foc') focusBlock(id);
       if (a === 'x') hideBlock(id);
     });
+    // RIGHT CLICK (mouse, or the thumb-to-middle-finger press of HANDS): a small menu of what can be done to the thing under the pointer.
+    // On a block it lists that block's own title-bar actions (so it can never offer something the buttons do not), on the empty board the board's actions.
+    var ctxMenu = null, ctxDown = null;
+    function closeCtx() { if (ctxMenu) { ctxMenu.remove(); ctxMenu = null; } }
+    function openCtx(x, y, items, label) {
+      closeCtx(); if (!items.length) return;
+      var m = el('div', 'hb-ctx'); m.setAttribute('role', 'menu'); m.setAttribute('aria-label', label);
+      items.forEach(function (it) { var b = el('button', 'hb-btn', it[0]); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.onclick = function () { closeCtx(); it[1](); }; m.appendChild(b); });
+      host.appendChild(m); ctxMenu = m;
+      var hr = host.getBoundingClientRect(), w = m.offsetWidth, h = m.offsetHeight;
+      m.style.left = Math.max(6, Math.min(x - hr.left, hr.width - w - 6)) + 'px'; m.style.top = Math.max(6, Math.min(y - hr.top, hr.height - h - 6)) + 'px';
+      var first = m.querySelector('button'); if (first) first.focus({ preventScroll: true });
+    }
+    host.addEventListener('pointerdown', function (e) { if (e.button === 2) ctxDown = [e.clientX, e.clientY]; if (ctxMenu && !ctxMenu.contains(e.target)) closeCtx(); }, true);
+    host.addEventListener('contextmenu', function (e) {
+      if (e.defaultPrevented || e.target.closest('.hb-bar,.hb-viewbar,.hb-tray,.hb-more-menu,.hb-ctx,.hb-session-detail,.hb-gizmo,.hb-map,.hb-jump')) return;
+      e.preventDefault();
+      if (ctxDown && Math.abs(e.clientX - ctxDown[0]) + Math.abs(e.clientY - ctxDown[1]) > 8) return;        // the end of a right-drag turn is not a request for a menu
+      var blk = e.target.closest('.hk');
+      if (blk) {
+        var id = blk.dataset.id, items = [];
+        Array.prototype.forEach.call(blk.querySelectorAll('.hk-h button[data-a]'), function (b) { if (!b.hidden && b.title) items.push([b.title.toUpperCase(), function () { b.click(); }]); });
+        openCtx(e.clientX, e.clientY, items, (blocks[id]._name || id) + ' actions');
+      } else {
+        var items2 = [['TIDY', function () { tidyBtn.click(); }], ['FIT EVERYTHING', function () { fitBtn.click(); }]];
+        if (view) items2.push([view.btn.textContent === 'VIEW: 3D' ? 'SWITCH TO 2D' : 'SWITCH TO 3D', function () { view.btn.click(); }]);
+        items2.push(['BLOCKS LIST', function () { blocksBtn.click(); }], ['TALK', function () { talkBtn.click(); }]);
+        openCtx(e.clientX, e.clientY, items2, 'Board actions');
+      }
+    });
+    function ctxKey(e) { if (e.key === 'Escape') closeCtx(); }
+    document.addEventListener('keydown', ctxKey, true); addEventListener('blur', closeCtx);
     world.addEventListener('dblclick', function (e) { var h = e.target.closest('.hk-h'); if (h && !e.target.closest('button')) focusBlock(h.closest('.hk').dataset.id); });
     // the old cards' controls, reached from the bar: they stay in the page (hidden) and the bar buttons press them
     ingestBtn.onclick = function () { var c = document.querySelector('.ingest-card'); if (c) c.click(); };
@@ -542,7 +575,10 @@
     var more=el('button','hb-btn','MORE'),menu=el('div','hb-more-menu');more.type='button';more.setAttribute('aria-expanded','false');menu.hidden=true;menu.setAttribute('role','group');menu.setAttribute('aria-label','More dashboard controls');bar.appendChild(more);host.appendChild(menu);
     function closeMore(){menu.hidden=true;more.setAttribute('aria-expanded','false');}
     more.onclick=function(){var jump=host.querySelector('.hb-jump');if(jump&&!jump.hidden&&nav)nav.toggle();menu.hidden=!menu.hidden;more.setAttribute('aria-expanded',String(!menu.hidden));};
-    Array.from(bar.children).forEach(function(b){if(b===more||b===talkBtn||b===pcBtn||b===fitBtn||(view&&b===view.btn)||b===zh||(hands&&b===hands.button))return;if(b===hint){b.hidden=true;return;}menu.appendChild(b);});
+    var viewBar=el('div','hb-viewbar'),zoomRow=el('div','hb-zoomrow');viewBar.setAttribute('role','group');viewBar.setAttribute('aria-label','View controls');zoomRow.append(zout,zin);
+    viewBar.append(zh);if(view)viewBar.append(view.btn,view.gizmoBtn);viewBar.append(zoomRow,fitBtn,blocksBtn,tidyBtn);host.appendChild(viewBar);
+    Array.from(bar.children).forEach(function(b){if(b===more||b===talkBtn||b===pcBtn||b===ingestBtn||b===setupBtn||(hands&&b===hands.button))return;if(b===hint){b.hidden=true;return;}menu.appendChild(b);});
+    bar.insertBefore(ingestBtn,pcBtn.nextSibling);
     function outsideMore(e){if(!menu.hidden&&!menu.contains(e.target)&&e.target!==more)closeMore();var jump=host.querySelector('.hb-jump');if(jump&&!jump.hidden&&!jump.contains(e.target)&&!menu.contains(e.target)&&e.target!==more&&nav)nav.toggle();}
     function moreKey(e){if(e.key==='Escape'){closeMore();var d=host.querySelector('.hb-session-detail');if(d)d.remove();}}
     document.addEventListener('pointerdown',outsideMore,true);document.addEventListener('keydown',moreKey,true);
@@ -550,7 +586,7 @@
     var noticeWatch=new MutationObserver(notices);noticeWatch.observe(document.body,{childList:true});noticeWatch.observe(bar,{childList:true});notices();
     var instance = {
       update: function (d) { data = d; paint(); HubBlocks.graphics(); if (!arrived) { arrived = true; HubBlocks.arrive(blocks, function () { return V.k; }, releaseArrival); } },
-      destroy: function () { if (!alive) return; alive = false; if(hands)hands.destroy();document.removeEventListener('pointerdown',holdPaint,true);window.removeEventListener('pointerup',releasePaint,true);window.removeEventListener('pointercancel',releasePaint,true);window.removeEventListener('blur',releasePaint);clearTimeout(paintReleaseTimer);noticeWatch.disconnect();document.removeEventListener('pointerdown',outsideMore,true);document.removeEventListener('keydown',moreKey,true);if(bin)bin.classList.remove('drop-target'); if (view) view.destroy(); if (setupHome && setupHome.parent) setupHome.parent.insertBefore(setupCard, setupHome.next); if (wireWatch) wireWatch.disconnect(); if (bannerWatch) bannerWatch.disconnect(); if (window.__hubBoard.active === instance) window.__hubBoard.active = null; releaseArrival(); clearTimeout(hintTimer);clearTimeout(recoveryTimer); dragCleanups.forEach(function (fn) { fn(); }); stopCam(); stopEdge(); guides.destroy(); if (nav) nav.destroy(); document.removeEventListener('keydown', onKey); removeEventListener('resize', onResize);if(window.visualViewport)visualViewport.removeEventListener('resize',onResize); if(resizeFrame)cancelAnimationFrame(resizeFrame); tray.remove(); root.replaceChildren(); root.style.width = root.style.maxWidth = root.style.marginLeft = ''; root.__hubBoardInstance = null; },
+      destroy: function () { if (!alive) return; alive = false; closeCtx(); document.removeEventListener('keydown', ctxKey, true); removeEventListener('blur', closeCtx); if(hands)hands.destroy();document.removeEventListener('pointerdown',holdPaint,true);window.removeEventListener('pointerup',releasePaint,true);window.removeEventListener('pointercancel',releasePaint,true);window.removeEventListener('blur',releasePaint);clearTimeout(paintReleaseTimer);noticeWatch.disconnect();document.removeEventListener('pointerdown',outsideMore,true);document.removeEventListener('keydown',moreKey,true);if(bin)bin.classList.remove('drop-target'); if (view) view.destroy(); if (setupHome && setupHome.parent) setupHome.parent.insertBefore(setupCard, setupHome.next); if (wireWatch) wireWatch.disconnect(); if (bannerWatch) bannerWatch.disconnect(); if (window.__hubBoard.active === instance) window.__hubBoard.active = null; releaseArrival(); clearTimeout(hintTimer);clearTimeout(recoveryTimer); dragCleanups.forEach(function (fn) { fn(); }); stopCam(); stopEdge(); guides.destroy(); if (nav) nav.destroy(); document.removeEventListener('keydown', onKey); removeEventListener('resize', onResize);if(window.visualViewport)visualViewport.removeEventListener('resize',onResize); if(resizeFrame)cancelAnimationFrame(resizeFrame); tray.remove(); root.replaceChildren(); root.style.width = root.style.maxWidth = root.style.marginLeft = ''; root.__hubBoardInstance = null; },
       state: function () { return { V: V, L: L, hid: hid }; },
       view: function () { return view; },
       // what Talk can see of the board, and what it may do to it (the answer's `ui`: a panel to bring up, tidy, fit, zoom, the mouse scheme)

@@ -237,3 +237,13 @@ def test_the_last_minute_can_be_saved_from_setup(page):
  more(page);page.get_by_role('button',name='HAND SETUP',exact=True).click()
  page.get_by_role('button',name='SAVE LAST MINUTE',exact=True).click()
  page.wait_for_function("document.querySelector('.hands-setup').innerText.includes('Saved trace-')",timeout=6000)
+
+
+def test_thumb_to_middle_on_a_block_opens_its_menu_and_on_the_empty_board_the_board_menu(page):
+ page.wait_for_timeout(700);page.evaluate('__hubHands.testEnable()')
+ r=page.locator('.hk[data-id=runs] .hk-h').bounding_box();x=r['x']+40;y=r['y']+12
+ page.evaluate('p=>feedWith(openFrame,still(p.x,p.y,20))',{'x':x,'y':y})
+ page.evaluate('p=>feedWith(midFrame,still(p.x,p.y,10))',{'x':x,'y':y})
+ page.evaluate('p=>feedWith(openFrame,still(p.x,p.y,8))',{'x':x,'y':y})
+ labels=page.locator('.hb-ctx button').all_inner_texts()
+ assert any('MINIMISE' in l for l in labels),labels                       # the right press now DOES something
