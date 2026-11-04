@@ -68,11 +68,27 @@ def cause(world: World) -> str:
     return "listed, but the policy did not choose it"
 
 
+class Stopped(Exception):
+    """The person pressed STOP."""
+
+
+CONTROL = {"running": False, "stop": False, "phase": "", "done": 0, "total": 0}      # read by the page every second or two; written only here
+
+
+def _tick(phase: "str | None" = None) -> None:
+    if phase:
+        CONTROL["phase"] = phase
+    if CONTROL["stop"]:
+        raise Stopped()
+    CONTROL["done"] += 1
+
+
 def train(episodes: int, hidden: int = 0, seed: int = 0, families=FAMILIES, every: int = 200, vocab: str = "wide", letters: bool = True) -> "tuple[L.Learner, list]":
     lr = L.Learner(hidden=hidden, seed=seed, letters=letters)
     rng = np.random.default_rng(seed + 7)
     curve, recent = [], []
     for k in range(episodes):
+        _tick()
         w = World(rng.choice(list(families)), int(rng.integers(0, 10_000)), vocab)
         pol = lr.policy(True)
         ep = run_episode(w, pol)
@@ -91,6 +107,7 @@ def evaluate(make, n: int = 30, families=FAMILIES) -> dict:
         for vocab in ("train", "held"):
             eps, causes = [], {}
             for s in range(n):
+                _tick()
                 w = World(fam, 100_000 + s, vocab)
                 ep = run_episode(w, make())
                 eps.append(ep)
@@ -117,8 +134,20 @@ def ablation(episodes: int = 3000, seed: int = 0, n_eval: int = 30) -> list:
 
 def practice(episodes: int = 3000, seed: int = 0, n_eval: int = 30, write: bool = True, with_ablation: bool = False) -> dict:
     t0 = time.time()
+    CONTROL.update(running=True, stop=False, phase="training the plain learner", done=0, total=2 * episodes + 4 * len(FAMILIES) * 2 * n_eval)
+    try:
+        return _practice(episodes, seed, n_eval, write, with_ablation, t0)
+    except Stopped:
+        return {"stopped": True, "done": CONTROL["done"], "total": CONTROL["total"]}
+    finally:
+        CONTROL.update(running=False, stop=False)
+
+
+def _practice(episodes: int, seed: int, n_eval: int, write: bool, with_ablation: bool, t0: float) -> dict:
     lin, c_lin = train(episodes, 0, seed)
+    CONTROL["phase"] = "training the one-hidden-layer learner"
     mlp, c_mlp = train(episodes, 16, seed)
+    CONTROL["phase"] = "measuring on layouts and words it has not seen"
     t_train = time.time() - t0
     table = {"random": evaluate(lambda: L.random_policy(5), n_eval),
              "rule of thumb": evaluate(lambda: L.greedy_policy, n_eval),

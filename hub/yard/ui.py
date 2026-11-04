@@ -13,7 +13,7 @@ routes = web.RouteTableDef()
 
 _HTML = """<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><meta name="color-scheme" content="dark">
-<title>AGENT HUB - Practice yard</title>
+<title>AGENT HUB - R learning</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--accent:#00e676;--text:rgba(214,245,230,.92);--mute:rgba(214,245,230,.58);--amber:#e0a53c;--red:#ff5c5c;--blue:#3ba7ff;--border:rgba(0,230,118,.22);--panel:rgba(8,12,40,.88)}
@@ -36,18 +36,35 @@ td{padding:6px 10px;border-bottom:1px solid rgba(0,230,118,.08);vertical-align:t
 .mute{color:var(--mute)}.no{color:var(--red)}.yes{color:var(--accent)}
 code{background:rgba(0,230,118,.08);border-radius:4px;padding:0 4px}
 #msg{color:var(--amber);min-height:20px}
+.tabs{display:flex;gap:8px;margin:12px 0 4px;flex-wrap:wrap}.tabs button{padding:8px 14px}.tabs button.on{background:var(--accent);color:#04120a}
+.prog{display:none;margin:6px 0}.prog.on{display:block}.prog .track{height:8px;border-radius:4px;background:rgba(0,230,118,.12);overflow:hidden}.prog .fill{height:100%;background:var(--accent);width:0}
+.stop{border-color:var(--red);color:var(--red)}iframe.teach{width:100%;height:68vh;min-height:420px;border:1px solid var(--border);border-radius:10px;background:#080c28}
 </style></head><body><main>
-<h1>PRACTICE YARD</h1>
-<p class="sub">Pretend apps where the Hub's own desktop agent can fail safely. A small learner practises there, and is measured on apps and words it has never seen. Nothing here touches your PC, and nothing it learns is used by the live agent yet.</p>
-<div class="row"><button id="go" type="button">PRACTICE</button><span id="chips"></span></div>
-<p class="sub">Quickest way to help the learner: <a href="/teach" style="color:var(--accent)">TEACH</a>. Tap RIGHT or WRONG on things you already asked; each tap is one exact label.</p>
-<div class="row" id="switches"><button id="sw-learning" type="button"></button><button id="sw-shadow" type="button"></button></div>
-<p class="sub">LEARNING LOG notes each choice the Hub makes (route, model, desktop step) and how it turned out. SHADOW MODE lets the trained practice policy watch each live desktop step and record what it would have pressed; it never presses anything. Switch either off and new notes stop at once; what is already recorded stays.</p>
+<h1>R LEARNING</h1>
+<p class="sub">How the Hub learns to choose better. It learns in a practice yard of pretend apps, and from your taps; nothing it learns is used by the live Hub until you say so.</p>
+<div class="tabs" role="tablist"><button type="button" data-tab="practice" class="on">PRACTICE</button><button type="button" data-tab="teach">TEACH</button><button type="button" data-tab="status">STATUS</button></div>
+<section id="tab-practice">
+<p class="sub">Pretend apps where the Hub's own desktop agent can fail safely. A small learner practises there, and is measured on apps and words it has never seen. Nothing here touches your PC.</p>
+<div class="row"><button id="go" type="button">PRACTICE</button><button id="stop" type="button" class="stop" hidden>STOP</button><span id="chips"></span></div>
+<div class="prog" id="prog"><div class="mute" id="phase"></div><div class="track"><div class="fill" id="fill"></div></div></div>
 <div id="msg" role="status"></div>
 <h2>HOW EACH POLICY DOES</h2><div class="wrap"><table id="means"></table></div>
 <h2>BY LAYOUT (learned vs rule of thumb)</h2><div class="wrap"><table id="layouts"></table></div>
 <h2>WHAT IT WOULD HAVE PRESSED, BESIDE THE LIVE AGENT (SHADOW)</h2>
 <p class="sub" id="shadowsub"></p><div class="wrap"><table id="shadow"></table></div>
+</section>
+<section id="tab-teach" hidden>
+<p class="sub">Tap RIGHT or WRONG on things you already asked (REQUESTS), and GOOD or BAD on your latest missions (MISSIONS). Each tap is one exact label.</p>
+<iframe class="teach" id="teachframe" title="Teach" data-src="/teach"></iframe>
+</section>
+<section id="tab-status" hidden>
+<h2>SWITCHES</h2>
+<div class="row" id="switches"><button id="sw-learning" type="button"></button><button id="sw-shadow" type="button"></button></div>
+<p class="sub">LEARNING LOG notes each choice the Hub makes (route, model, desktop step) and how it turned out. SHADOW MODE lets the trained practice policy watch each live desktop step and record what it would have pressed; it never presses anything. Switch either off and new notes stop at once; what is already recorded stays.</p>
+<h2>HOW MUCH THERE IS TO LEARN FROM</h2><p class="sub" id="statsub"></p><div class="wrap"><table id="kinds"></table></div>
+<h2>WHAT EACH LATER STEP STILL NEEDS</h2><div class="wrap"><table id="needs"></table></div>
+<h2>THE BANDITS, REPLAYED AGAINST THE LOG</h2><p class="sub">A bandit is a tally of how often each option worked. It has no opinion until two options have three exact results each.</p><div class="wrap"><table id="bandits"></table></div>
+</section>
 </main>
 <script>
 (function(){
@@ -76,12 +93,32 @@ code{background:rgba(0,230,118,.08);border-radius:4px;padding:0 4px}
   async function switches(){try{const j=await (await fetch('/api/yard/settings',{cache:'no-store'})).json();
     [['learning','LEARNING LOG'],['shadow','SHADOW MODE']].forEach(([k,t])=>{const b=$('sw-'+k),s=j[k]||{};b.textContent=t+': '+(s.on?'ON':'OFF');b.title=s.forced_off_by_environment?'Held off by an environment variable on this PC':'Click to switch';b.disabled=!!s.forced_off_by_environment;
       b.onclick=async()=>{b.disabled=true;try{await fetch('/api/yard/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[k]:!s.on})});}finally{await switches();}};});}catch(e){}}
-  async function load(){switches();try{const r=await fetch('/api/yard/status',{cache:'no-store'});paint(await r.json());}catch(e){$('msg').textContent='Could not read the yard: '+e.message;}}
-  $('go').onclick=async()=>{const b=$('go');b.disabled=true;$('msg').textContent='Practising... this takes about half a minute and uses one processor core.';
+  let timer=0;
+  function progress(p){const on=!!(p&&p.running);$('prog').classList.toggle('on',on);$('stop').hidden=!on;$('go').disabled=on;
+    if(on){$('phase').textContent=p.phase+' ('+Math.round(100*p.done/Math.max(1,p.total))+' %)';$('fill').style.width=(100*p.done/Math.max(1,p.total))+'%';}return on;}
+  async function load(){switches();try{const r=await fetch('/api/yard/status',{cache:'no-store'});const j=await r.json();paint(j);if(progress(j.progress)&&!timer)timer=setInterval(poll,1200);}catch(e){$('msg').textContent='Could not read the yard: '+e.message;}}
+  async function poll(){try{const j=await (await fetch('/api/yard/status',{cache:'no-store'})).json();if(!progress(j.progress)){clearInterval(timer);timer=0;paint(j);}}catch(e){}}
+  async function status(){try{const j=await (await fetch('/api/learning/status',{cache:'no-store'})).json();
+    const k=$('kinds');head(k,['Kind of choice','Recorded','With an exact label','Only a hint']);
+    for(const [n,v] of Object.entries(j.per_kind||{})){const r=el('tr');r.append(el('td',null,({route:'what you asked for (routing)',model:'which model did a mission',rung:'how a PC task was done'})[n]||n),el('td',null,v.events),el('td',null,v.labelled),el('td',null,v.weak||0));k.append(r);}
+    $('statsub').textContent='Nothing learns from this live yet: it is recorded, and used to decide when a learner is ready.';
+    const nd=$('needs');head(nd,['Step','Needs','Have','Want','Ready?']);
+    for(const [n,v] of Object.entries(j.needs||{})){const r=el('tr');r.append(el('td',null,n),el('td','mute',v.needs),el('td',null,v.have),el('td',null,v.want),el('td',v.ready?'yes':'mute',v.ready?'yes':'not yet'));nd.append(r);}
+    const b=$('bandits');head(b,['Choice','Decisions','Had an opinion','Agreed with what was chosen','Differed']);
+    for(const [n,v] of Object.entries(j.bandits||{})){const r=el('tr');r.append(el('td',null,n),el('td',null,v.decided),el('td',null,v.had_an_opinion),el('td',null,v.agreed),el('td',null,v.differed));b.append(r);}
+  }catch(e){}}
+  function tab(name){document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===name));
+    for(const n of ['practice','teach','status'])$('tab-'+n).hidden=n!==name;
+    if(name==='teach'){const f=$('teachframe');if(!f.src)f.src=f.dataset.src;}if(name==='status')status();try{localStorage.setItem('hub-rl-tab',name);}catch(e){}}
+  document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>tab(b.dataset.tab));
+  $('stop').onclick=async()=>{$('stop').disabled=true;$('msg').textContent='Stopping...';try{await fetch('/api/yard/practice/stop',{method:'POST'});}catch(e){}};
+  $('go').onclick=async()=>{const b=$('go');b.disabled=true;$('msg').textContent='Practising: about a minute of one processor core. STOP ends it at once.';$('stop').hidden=false;$('stop').disabled=false;
+    if(!timer)timer=setInterval(poll,1200);
     try{const r=await fetch('/api/yard/practice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true,episodes:1500})});
-      if(!r.ok)throw Error(await r.text()||('error '+r.status));$('msg').textContent='Done.';await load();}
-    catch(e){$('msg').textContent=String(e.message||e);}finally{b.disabled=false;}};
-  load();
+      if(!r.ok)throw Error(await r.text()||('error '+r.status));const j=await r.json();$('msg').textContent=j.stopped?'Stopped. Nothing was saved; the last finished report is still shown.':'Done.';await load();}
+    catch(e){$('msg').textContent=String(e.message||e);}finally{b.disabled=false;$('stop').hidden=true;$('prog').classList.remove('on');}};
+  let first='practice';try{first=localStorage.getItem('hub-rl-tab')||'practice';}catch(e){}
+  load();tab(first);
 })();
 </script></body></html>
 """

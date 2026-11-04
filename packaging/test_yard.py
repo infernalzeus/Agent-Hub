@@ -160,7 +160,7 @@ def test_shadow_costs_the_agent_under_five_milliseconds_a_step(shadowed):
 def test_the_practice_page_is_served_and_the_board_offers_it_as_a_tab(hub):
     import urllib.request
     html = urllib.request.urlopen(hub + "/yard").read().decode()
-    assert "PRACTICE YARD" in html and "/api/yard/practice" in html and "/api/yard/status" in html
+    assert "R LEARNING" in html and "/api/yard/practice" in html and "/api/yard/status" in html
     board = (Path(__file__).resolve().parents[1] / "hub" / "static" / "home-board.js").read_text(encoding="utf-8")
     assert "['PRACTICE', '/yard']" in board
 
@@ -224,3 +224,28 @@ def test_the_settings_endpoint_flips_a_switch_and_refuses_nonsense(tmp_path, mon
             assert j["learning"]["on"] is False and j["shadow"]["on"] is True
             assert (await c.post("/api/yard/settings", json={"learning": "off"})).status == 400
     asyncio.run(go())
+
+
+def test_the_r_learning_panel_has_three_tabs_and_practice_can_be_stopped(hub):
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        b = p.chromium.launch(headless=True)
+        pg = b.new_context(service_workers="block").new_page()
+        errors = []
+        pg.on("pageerror", lambda e: errors.append(str(e)))
+        pg.goto(hub + "/yard")
+        assert [t.strip() for t in pg.locator(".tabs button").all_inner_texts()] == ["PRACTICE", "TEACH", "STATUS"]
+        assert pg.locator("#stop").is_hidden()
+        pg.click("#go")
+        pg.wait_for_selector("#stop", state="visible", timeout=8000)
+        pg.wait_for_function("document.querySelector('#phase').textContent.length>0", timeout=8000)      # a phase and a percentage while it runs
+        pg.click("#stop")
+        pg.wait_for_function("/Stopped/.test(document.querySelector('#msg').textContent)", timeout=15000)
+        assert pg.locator("#stop").is_hidden() and pg.locator("#go").is_enabled()
+        pg.click("[data-tab=status]")
+        pg.wait_for_function("document.querySelectorAll('#kinds tr').length>3 && document.querySelectorAll('#bandits tr').length>2")
+        assert "R3" in pg.inner_text("#needs") and "bandit" in pg.inner_text("#tab-status").lower()
+        pg.click("[data-tab=teach]")
+        pg.wait_for_function("!!document.getElementById('teachframe').src")
+        b.close()
+    assert errors == []

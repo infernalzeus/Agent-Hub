@@ -8,6 +8,7 @@ Reads the decision log (hub/utterance_decisions.jsonl). Shows only decisions tha
 """
 from __future__ import annotations
 
+import asyncio
 import time
 
 from aiohttp import web
@@ -60,6 +61,48 @@ async def api_tap(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
+def _missions(limit: int = 12) -> "list[dict]":
+    """The most recent missions, newest first, with what is already known about each: did the project's own checks pass, and what did you decide."""
+    from ..features import learning as LRN
+    try:
+        from ..features import missions as M
+        rows = sorted(M.S.m.values(), key=lambda m: m.created or 0, reverse=True)
+    except Exception:  # noqa: BLE001
+        return []
+    human = LRN.mission_verdicts()
+    out = []
+    for m in rows[:limit]:
+        v = m.verify if isinstance(getattr(m, "verify", None), dict) else {}
+        out.append({"id": m.id, "brief": str(m.brief or "").strip().splitlines()[0][:140] if m.brief else "", "project": m.project_name, "status": m.status,
+                    "model": m.model or m.agent or "", "checks": v.get("ok") if isinstance(v.get("ok"), bool) else None,
+                    "verdict": human.get(m.id), "decided_by": ("you tapped" if m.id in LRN._jsonl_dict(LRN.MISSION_LABELS) else "you " + m.status) if m.id in human else ""})
+    return out
+
+
+@routes.get("/api/learning/teach/missions")
+async def api_missions(request: web.Request) -> web.Response:
+    return web.json_response({"missions": await asyncio.get_running_loop().run_in_executor(None, _missions)})
+
+
+@routes.post("/api/learning/teach/mission")
+async def api_mission_tap(request: web.Request) -> web.Response:
+    from ..features import learning as LRN
+    from ..runtime import write_json
+    try:
+        b = await request.json()
+        mid, ok = str(b["id"])[:40], b["ok"]
+    except Exception:  # noqa: BLE001
+        raise web.HTTPBadRequest(text='send {"id": mission id, "ok": true|false}')
+    if not isinstance(ok, bool):
+        raise web.HTTPBadRequest(text="ok must be true or false")
+    if mid not in {m["id"] for m in _missions(200)}:
+        raise web.HTTPNotFound(text="no such mission")
+    labels = LRN._jsonl_dict(LRN.MISSION_LABELS)
+    labels[mid] = {"ok": ok, "at": time.time()}
+    write_json(LRN.MISSION_LABELS, labels)
+    return web.json_response({"ok": True})
+
+
 _HTML = """<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>AGENT HUB - Teach</title>
@@ -77,9 +120,12 @@ button,select{font:700 13px Orbitron,system-ui,sans-serif;letter-spacing:.06em;b
 button.no{border-color:var(--red);color:var(--red)}button.skip{border-color:var(--border);color:var(--mute)}
 select{font-weight:400;letter-spacing:0;max-width:100%}
 .count{color:var(--amber);font-size:13px}
+.seg{display:flex;gap:8px;margin:6px 0 10px}.seg button.on{background:var(--accent);color:#04120a}
+.chip{border:1px solid var(--border);border-radius:99px;padding:2px 10px;font-size:12px;color:var(--mute);margin-right:6px;display:inline-block}.chip.ok{color:var(--accent);border-color:var(--accent)}.chip.no{color:var(--red);border-color:var(--red)}
 </style></head><body><main>
 <h1>TEACH</h1>
 <p class="sub">Things you already asked, and what the Hub thought you wanted. Tap RIGHT or WRONG. Each tap is one exact label for the learner; nothing else changes.</p>
+<div class="seg"><button type="button" id="s-req" class="on">REQUESTS</button><button type="button" id="s-mis">MISSIONS</button></div>
 <div class="count" id="count"></div>
 <div id="card"></div>
 </main>
@@ -104,6 +150,19 @@ select{font-weight:400;letter-spacing:0;max-width:100%}
       const done=el('button','no','SAVE WRONG');done.onclick=()=>tap(false,sel.value);row.append(sel,done);};
     row.append(yes,no,skip);card.appendChild(row);c.appendChild(card);
   }
+  async function missions(){const c=$('card');c.replaceChildren();$('count').textContent='Newest first. APPLY already counts as a yes and DISCARD as a no; tap for the rest.';
+    let j;try{j=await (await fetch('/api/learning/teach/missions',{cache:'no-store'})).json();}catch(e){c.textContent='Could not read the missions: '+e.message;return;}
+    if(!j.missions.length){c.appendChild(el('div','card','No missions yet.'));return;}
+    j.missions.forEach(m=>{const card=el('div','card');card.appendChild(el('div','said',m.brief||'(no brief)'));
+      const meta=el('div','mute');meta.append(el('span','chip',m.project||''),el('span','chip',m.model||''),el('span','chip',m.status));
+      if(m.checks!==null)meta.append(el('span','chip '+(m.checks?'ok':'no'),m.checks?'its checks passed':'its checks failed'));
+      if(m.verdict!==null&&m.verdict!==undefined)meta.append(el('span','chip '+(m.verdict?'ok':'no'),(m.verdict?'good':'bad')+' ('+m.decided_by+')'));
+      card.appendChild(meta);
+      const row=el('div','row'),g=el('button',null,'GOOD'),b=el('button','no','BAD');
+      const tap=async ok=>{try{await fetch('/api/learning/teach/mission',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:m.id,ok:ok})});}catch(e){}missions();};
+      g.onclick=()=>tap(true);b.onclick=()=>tap(false);row.append(g,b);card.appendChild(row);c.appendChild(card);});}
+  $('s-req').onclick=()=>{$('s-req').classList.add('on');$('s-mis').classList.remove('on');show();};
+  $('s-mis').onclick=()=>{$('s-mis').classList.add('on');$('s-req').classList.remove('on');missions();};
   load().catch(e=>{$('card').textContent='Could not read the decision log: '+e.message;});
 })();
 </script></body></html>

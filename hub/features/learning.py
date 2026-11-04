@@ -151,12 +151,47 @@ def _route_events() -> "list[dict]":
     return out
 
 
+def mission_verdicts() -> "dict[str, bool]":
+    """What the person decided about a mission, by id: APPLY is a yes, DISCARD is a no, and a tap on the TEACH page says it directly (the tap wins).
+    This beats the project's own checks, which only say whether the tests passed."""
+    out: "dict[str, bool]" = {}
+    try:
+        from . import missions as M
+        for m in M.S.m.values():
+            if m.status == "applied":
+                out[m.id] = True
+            elif m.status == "discarded":
+                out[m.id] = False
+    except Exception:  # noqa: BLE001
+        pass
+    out.update({k: v["ok"] for k, v in _jsonl_dict(MISSION_LABELS).items() if isinstance(v, dict) and isinstance(v.get("ok"), bool)})
+    return out
+
+
+MISSION_LABELS = STATE / "mission_labels.json"
+
+
+def _jsonl_dict(path) -> dict:
+    try:
+        d = json.loads(path.read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
 def _model_events() -> "list[dict]":
     from ..agent_knowledge import model_stats as MS
     from ..agent_knowledge.model_stats import SMALL_BRIEF_CHARS
-    return [{"kind": "model", "context": "mission:" + ("small" if int(r.get("chars") or 0) <= SMALL_BRIEF_CHARS else "large"), "chosen": r.get("model"), "options": [],
-             "by": "rules", "ok": r.get("ok") if isinstance(r.get("ok"), bool) else None, "ms": int(float(r.get("secs") or 0) * 1000), "at": r.get("at")}
-            for r in MS._outcomes()]
+    human = mission_verdicts()
+    out = []
+    for r in MS._outcomes():
+        ok = r.get("ok") if isinstance(r.get("ok"), bool) else None
+        mid = str(r.get("mission") or "")
+        if mid in human:
+            ok = human[mid]                                  # your decision beats the project's checks
+        out.append({"kind": "model", "context": "mission:" + ("small" if int(r.get("chars") or 0) <= SMALL_BRIEF_CHARS else "large"), "chosen": r.get("model"), "options": [],
+                    "by": "rules", "ok": ok, "ms": int(float(r.get("secs") or 0) * 1000), "at": r.get("at"), "mission": mid})
+    return out
 
 
 def events(limit: int = 5000) -> "list[dict]":

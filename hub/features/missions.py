@@ -1822,7 +1822,7 @@ async def _check_and_fix(m: Mission, wt: Path, data_dir: Path, *, tries: int = 2
     try:                                    # the project's own tests are the judge: this is what lets a poor local record change the next choice
         from ..agent_knowledge import model_stats as _MS
         secs, used = _tm(m)
-        _MS.record(used, bool((res or {}).get("ok")), secs, len(m.brief))
+        _MS.record(used, bool((res or {}).get("ok")), secs, len(m.brief), m.id)
     except Exception:
         pass
     S.save(m)
