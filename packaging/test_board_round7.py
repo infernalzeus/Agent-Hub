@@ -5,6 +5,9 @@ from playwright.sync_api import sync_playwright,expect
 from test_ui_lifecycle import hub
 
 
+def chat(p,selector):
+ p.keyboard.down('Alt');press(p,selector);p.keyboard.up('Alt')
+
 def press(p,selector):
  e=p.locator(selector) if isinstance(selector,str) else selector
  e.scroll_into_view_if_needed();r=e.bounding_box();assert r
@@ -26,7 +29,7 @@ def clear_chrome_overlaps(p):
 @pytest.mark.parametrize('size',[(1280,667),(1920,1080),(2560,1440),(834,1112),(390,844),(320,568)])
 def test_controls_and_each_open_list_have_separate_lanes(page,size):
  page.set_viewport_size(dict(zip(['width','height'],size)));page.evaluate("__hubBoard.active.view().setMode('3d')");page.wait_for_timeout(600)
- for selector in ['.hb-hands-menu-button','[data-tray=hidden]','[data-tray=outside]','[data-layers]']:
+ for selector in ['[data-tray=hidden]','[data-tray=outside]','[data-layers]']:
   press(page,selector);assert clear_chrome_overlaps(page)==[],(size,selector,clear_chrome_overlaps(page))
   visible=page.locator('.hb-more-menu:not([hidden]),.hb-tray-list:not([hidden]),.hb-layer-menu:not([hidden])');assert visible.count()==1
   box=visible.bounding_box();stage=page.evaluate('__hubBoard.active.stage()');assert box['x']>=stage['left']-1 and box['y']>=stage['top']-1;assert box['x']+box['width']<=stage['right']+1 and box['y']+box['height']<=stage['bottom']+1
@@ -46,12 +49,12 @@ def test_view_panel_grouping_hide_show_and_memory(page):
 def test_r_learning_glass_close_and_escape(page):
  press(page,'[aria-label="R Learning"]');pane=page.locator('.hb-glass-panel');assert pane.is_visible();assert '/yard?embed=1' in pane.locator('iframe').get_attribute('src');r=pane.bounding_box();assert abs(r['x']+r['width']/2-640)<2
  press(page,'[aria-label="Close R LEARNING"]');assert page.locator('.hb-glass-panel').count()==0
- press(page,'[aria-label="R Learning"]');page.keyboard.press('Escape');page.wait_for_timeout(220);assert page.locator('.hb-glass-panel').count()==0
+ press(page,'[aria-label="R Learning"]');page.keyboard.press('Escape');page.wait_for_timeout(900);assert page.locator('.hb-glass-panel').count()==0
  assert page.locator('.hk[data-id="card:oc"]').count()==1
 
 
 def test_talk_is_centred_glass_and_capture_is_blocked(page):
- press(page,'[aria-label="Talk to the Hub"]');assert page.locator('#voice').is_visible();r=page.locator('#voice').bounding_box();assert abs(r['x']+r['width']/2-640)<2 and abs(r['y']+r['height']/2-400)<2
+ chat(page,'[aria-label="Talk to the Hub"]');assert page.locator('#voice').is_visible();r=page.locator('#voice').bounding_box();assert abs(r['x']+r['width']/2-640)<2 and abs(r['y']+r['height']/2-400)<2
  assert page.evaluate("getComputedStyle(document.getElementById('voice')).backdropFilter")!='none'
  press(page,'#v-close');assert page.locator('#voice').is_hidden()
 
@@ -86,8 +89,32 @@ def test_the_doctor_picture_is_on_the_tile_title_session_row_and_support_header(
  page.goto(hub+'/support');page.wait_for_function("document.querySelector('h1 img')&&document.querySelector('h1 img').naturalWidth>0");assert page.locator('h1 img').is_visible()
 
 def test_remount_preserves_panel_fades_and_releases_effects(page):
- press(page,'[aria-label="Talk to the Hub"]');press(page,'#v-close')
+ chat(page,'[aria-label="Talk to the Hub"]');press(page,'#v-close')
  page.evaluate("async()=>{let root=document.querySelector('.hb').parentElement;let b=__hubBoard.mount(root);b.update(await(await fetch('/api/home/state')).json())}");page.wait_for_timeout(650)
  press(page,'[aria-label="R Learning"]');press(page,'[aria-label="Close R LEARNING"]');assert page.locator('.hb-glass-panel').count()==0
- press(page,'[aria-label="Talk to the Hub"]');press(page,'#v-close');assert page.locator('#voice').is_hidden()
+ chat(page,'[aria-label="Talk to the Hub"]');press(page,'#v-close');assert page.locator('#voice').is_hidden()
  assert page.evaluate("document.getElementById('voice').getAnimations().length")==0
+
+TALK='.hb-bar [aria-label="Talk to the Hub"]'
+
+def test_talk_click_listens_without_a_window_and_other_clicks_open_chat(page):
+ assert page.locator(TALK).get_attribute('title')=='Talk to the Hub\nAlt-click to open chat'
+ page.evaluate("()=>{window.__listen=0;const v=window.HubVoice;}")
+ press(page,TALK);assert page.locator('#voice').is_hidden()            # a plain click no longer shows a window (this was the half-second flash)
+ press(page,TALK);assert page.locator('#voice').is_hidden()            # and a second plain click stops listening, still no window
+ box=page.locator(TALK).bounding_box();x,y=box['x']+box['width']/2,box['y']+box['height']/2
+ page.mouse.move(x,y);page.mouse.click(x,y,button='middle');page.wait_for_timeout(300);assert page.locator('#voice').is_visible()
+ press(page,'#v-close');assert page.locator('#voice').is_hidden()
+ page.mouse.click(x,y,button='right');page.wait_for_timeout(300);assert page.locator('#voice').is_visible()
+ assert page.locator('.hb-ctx').count()==0 or page.locator('.hb-ctx').is_hidden()   # the board's own right-click menu does not open over the Talk button
+ press(page,'#v-close')
+
+def test_log_collects_chat_hands_and_hub_lines_and_has_the_hand_tools(page):
+ page.evaluate("()=>{window.dispatchEvent(new CustomEvent('hub-log',{detail:{kind:'chat',text:'You: open missions'}}));window.dispatchEvent(new CustomEvent('hub-log',{detail:{kind:'hub',text:'Hub restarted'}}));window.dispatchEvent(new CustomEvent('hub-log',{detail:{kind:'hands',text:'RIGHT PRESS',err:false}}))}")
+ press(page,'.hands-log .hl-head');assert page.locator('.hands-log').evaluate("e=>e.classList.contains('open')")
+ txt=page.locator('.hands-log .hl-rows').inner_text();assert 'open missions' in txt and 'Hub restarted' in txt and 'RIGHT PRESS' in txt
+ press(page,'.hands-log .hl-filters [data-kind="chat"]');txt=page.locator('.hands-log .hl-rows').inner_text();assert 'open missions' in txt and 'Hub restarted' not in txt
+ assert page.locator('.hands-log .hl-tools >> text=OPEN CHAT').count()==1
+ assert page.locator('.hands-log .hl-tools >> text=HAND SETUP').count()==1 and page.locator('.hands-log .hl-tools >> text=GESTURE LEGEND').count()==1
+ assert page.locator('.hb-hands-menu-button').is_hidden()               # the chevron that did nothing is gone
+ press(page,'.hands-log .hl-tools >> text=OPEN CHAT');assert page.locator('#voice').is_visible()

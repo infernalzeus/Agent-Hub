@@ -54,9 +54,20 @@
   const talkBtns = () => document.querySelectorAll('[data-talk]');
   function paintOn() { talkBtns().forEach((b) => b.classList.toggle('on', S.on)); $('v-mic').textContent = S.on ? 'STOP LISTENING' : 'START LISTENING'; $('v-mic').classList.toggle('stop', S.on); $('v-mic').classList.toggle('go', !S.on); }
   function showBtns(confirm) { $('v-yes').hidden = !confirm; $('v-no').hidden = !confirm; }
-  function hint(t) { $('v-hint').textContent = t || ''; $('v-hint').hidden = !t; }
+  // everything said or noticed goes to the one LOG at the bottom of the dashboard (kept per tab in sessionStorage, so the landing page and every page share it)
+  function hubLog(kind, text, err) {
+    text = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 400); if (!text) return;
+    try {
+      if (window.__hubLogAdd) { window.__hubLogAdd(kind, text, err); return; }
+      const k = 'agenthub:log', a = JSON.parse(sessionStorage.getItem(k) || '[]');
+      if (!(a[0] && a[0].t === text && a[0].kind === kind)) a.unshift({ at: Date.now(), kind, t: text, err: !!err });
+      sessionStorage.setItem(k, JSON.stringify(a.slice(0, 80)));
+    } catch (e) {}
+  }
+  function hint(t) { $('v-hint').textContent = t || ''; $('v-hint').hidden = !t; if (t) hubLog('hub', t); }
   function log(role, text, tag) {
     const d = document.createElement('div'); d.className = 'v-msg ' + role; d.append(document.createTextNode(text)); if (tag) { const b = document.createElement('span'); b.className = 'v-tag'; b.textContent = tag; d.appendChild(b); } $('v-log').appendChild(d); $('v-log').scrollTop = $('v-log').scrollHeight;
+    hubLog('chat', (role === 'you' ? 'You: ' : 'Smith: ') + text);
     if (role === 'you' || role === 'hub') { S.history.push({ role: role === 'you' ? 'user' : 'assistant', text }); if (S.history.length > 20) S.history.shift(); }
     layout();
   }
@@ -410,7 +421,14 @@
   const paintToggles = () => { $('v-mute').textContent = S.mute ? 'SOUND OFF' : 'SOUND ON'; };
 
   document.addEventListener('DOMContentLoaded', () => {
-    talkBtns().forEach((b) => { b.onclick = (e) => { e.stopPropagation(); unlockAudio(); $('voice').hidden ? open(true) : close(); }; });
+    // TALK: a plain click turns listening on or off without putting a window up; Alt-click, the wheel button or a right click opens or closes the chat window.
+    const talkTarget = (e) => (e.target && e.target.closest ? e.target.closest('[data-talk]') : null);
+    const chatToggle = () => { unlockAudio(); $('voice').hidden ? open(false) : close(); };
+    document.addEventListener('click', (e) => { if (!talkTarget(e)) return; e.preventDefault(); e.stopPropagation(); if (e.altKey) chatToggle(); else { unlockAudio(); toggle(); } }, true);
+    document.addEventListener('auxclick', (e) => { if (!talkTarget(e) || e.button !== 1) return; e.preventDefault(); e.stopPropagation(); chatToggle(); }, true);
+    document.addEventListener('mousedown', (e) => { if (talkTarget(e) && e.button === 1) e.preventDefault(); }, true);
+    document.addEventListener('contextmenu', (e) => { if (!talkTarget(e)) return; e.preventDefault(); e.stopPropagation(); chatToggle(); }, true);
+    talkBtns().forEach((b) => { b.title = 'Talk to the Hub\nAlt-click to open chat'; });
     $('v-close').onclick = close; $('v-mic').onclick = toggle;
     $('v-size').onclick = () => { S.compact = !S.compact; layout(); };
     $('v-history').onclick = () => { S.expanded = !S.expanded; layout(); };
@@ -454,7 +472,7 @@
   });
 
   // the Missions input bar (and anything else) can hand a typed question to the same conversation
-  window.HubVoice = { stopAll() { stopNow(); }, state() { return { busy: S.busy, acting: S.acting, queued: S.queued || null, speaking: S.speaking }; }, ask(text) { unlockAudio(); open(false); return handle(String(text || '')); }, open, close,
+  window.HubVoice = { stopAll() { stopNow(); }, openChat() { open(false); }, toggleListening() { unlockAudio(); toggle(); }, listening() { return !!S.on; }, state() { return { busy: S.busy, acting: S.acting, queued: S.queued || null, speaking: S.speaking }; }, ask(text) { unlockAudio(); open(false); return handle(String(text || '')); }, open, close,
     contextChanged(id) { if (S.context !== id) { S.context = id; fresh(); } S.compact = true; layout(); } };
 })();
 

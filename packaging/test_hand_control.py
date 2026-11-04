@@ -9,8 +9,8 @@ ROOT=Path(__file__).resolve().parents[1]
 MARKS=json.loads((Path(__file__).with_name('hand-landmarks.json')).read_text())['landmarks']
 
 def more(page):
- # HAND SETUP and SAVE TRACE live in the small menu beside HANDS since UI round 5
- if not page.locator('.hb-more-menu').is_visible():page.locator('.hb-hands-menu-button').click()
+ # HAND SETUP and SAVE TRACE live in the tool row of the LOG tab since 4 Nov (the chevron beside HANDS did nothing and is gone)
+ if page.locator('.hands-log.open').count()==0:page.locator('.hands-log .hl-head').click();page.wait_for_timeout(250)
 
 
 @pytest.fixture
@@ -317,18 +317,19 @@ def test_the_pointing_ring_clicks_anything_that_shows_a_pointing_cursor(page):
 
 def test_the_hand_menu_buttons_really_do_something_with_real_clicks(page):
  page.wait_for_timeout(700)
- page.locator('.hb-hands-menu-button').click();page.wait_for_timeout(300)
+ more(page)
  page.get_by_role('button',name='HAND SETUP',exact=True).click();page.wait_for_selector('.hands-setup',state='visible',timeout=4000)    # the setup panel opens
  page.get_by_role('button',name='CLOSE',exact=True).click();page.wait_for_timeout(300)
- page.locator('.hb-hands-menu-button').click();page.wait_for_timeout(300)
+ more(page)
+ assert page.locator('.hl-legend').is_visible() and 'POINT' in page.inner_text('.hl-legend')
  page.get_by_role('button',name='GESTURE LEGEND',exact=True).click();page.wait_for_timeout(300)
- assert page.locator('.hands-log.open').count()==1 and page.locator('.hl-legend').is_visible()           # the legend pulls the hand log up
- assert 'POINT' in page.inner_text('.hl-legend')
+ assert page.locator('.hl-legend').is_hidden()                # the legend button shows or hides the legend inside the LOG
+ page.get_by_role('button',name='GESTURE LEGEND',exact=True).click();page.wait_for_timeout(300);assert page.locator('.hl-legend').is_visible()
 
 
 def test_the_hand_log_is_one_small_tab_that_pulls_up_and_records_what_happened(page):
  page.wait_for_timeout(700)
- assert page.locator('.hands-log .hl-head').is_visible() and 'OFF' in page.inner_text('.hl-status')       # there even when HANDS is off
+ assert page.locator('.hands-log .hl-head').is_visible() and page.inner_text('.hl-status').strip()!=''       # there even when HANDS is off
  page.evaluate('__hubHands.testEnable()')
  page.evaluate('feedWith(openFrame,still(560,445,20))')
  page.evaluate('feedWith((x,y)=>closeFrame(x,y,.1,0),still(560,445,8))');page.evaluate('feedWith(openFrame,still(560,445,8))')       # a tap

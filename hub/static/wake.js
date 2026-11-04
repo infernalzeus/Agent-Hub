@@ -85,6 +85,7 @@
   }
   var lineT = null;
   function say(text, who) {
+    try { var LK = 'agenthub:log', la = JSON.parse(sessionStorage.getItem(LK) || '[]'), lt = (who === 'you' ? 'You: ' : 'Smith: ') + String(text).slice(0, 400); if (!(la[0] && la[0].t === lt)) la.unshift({ at: Date.now(), kind: 'chat', t: lt, err: false }); sessionStorage.setItem(LK, JSON.stringify(la.slice(0, 80))); } catch (e) {}
     var l = document.createElement('div'); l.className = 'wl ' + who; l.textContent = (who === 'you' ? 'You: ' : 'Smith: ') + text; lines.appendChild(l); fadeIn(l, 300);
     var live = Array.prototype.slice.call(lines.children).filter(function (c) { return !c._fading; });
     while (live.length > 3) fadeOut(live.shift());

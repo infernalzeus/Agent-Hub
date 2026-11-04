@@ -118,7 +118,7 @@ def test_doctor_selection_is_shown_in_support_block(page):
 @pytest.mark.parametrize('size',[(1280,667),(390,844)])
 def test_typed_talk_keeps_header_clear_and_docks_secondary_overlays(page,size):
  page.set_viewport_size({'width':size[0],'height':size[1]});page.wait_for_timeout(500)
- page.get_by_role('button',name='Talk to the Hub',exact=True).click();page.wait_for_timeout(300)
+ page.get_by_role('button',name='Talk to the Hub',exact=True).click(modifiers=['Alt']);page.wait_for_timeout(300)
  assert page.locator('#voice').is_visible()
  assert page.locator('.hb-map').is_hidden()
  assert page.evaluate("()=>{let a=document.querySelector('.hb-bar').getBoundingClientRect(),b=document.querySelector('#voice').getBoundingClientRect();return b.top>=a.bottom&&b.left>=0&&b.right<=innerWidth&&b.bottom<=innerHeight}")
