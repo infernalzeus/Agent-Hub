@@ -38,11 +38,11 @@ SOFTWARE.
   const slop=()=>Math.max(40,Math.round(innerWidth*.05));      // measured: a hand drifts 20 to 45 px in the first third of a second of a pinch at 1280 px wide
   const boardView=()=>{try{return root.__hubBoard.active.view();}catch(_){return null;}};
   const ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 12V5a1.5 1.5 0 0 1 3 0v6-8a1.5 1.5 0 0 1 3 0v8-6a1.5 1.5 0 0 1 3 0v7-4a1.5 1.5 0 0 1 3 0v6c0 5-3 7-7 7-3 0-5-2-6-4l-3-5a1.5 1.5 0 0 1 2.5-1.6L8 12Z"/></svg>';
-  function styles(){if(document.getElementById('hands-style'))return;const s=document.createElement('style');s.id='hands-style';s.textContent='.hands-target{position:fixed;z-index:2147483000;pointer-events:none;border:2px solid #00e676;border-radius:8px;box-shadow:0 0 14px rgba(0,230,118,.55);transition:left .06s,top .06s,width .06s,height .06s}html.hands-live,html.hands-live *{cursor:none!important}.hb-hands{display:inline-flex;align-items:center;gap:5px}.hb-hands svg{width:17px;height:17px}.hb-hands i{width:6px;height:6px;border-radius:50%;background:var(--text-faint);display:inline-block}.hb-hands.live i{background:var(--accent);box-shadow:0 0 5px var(--accent)}.hb-hands.live{border-color:var(--cyan);color:var(--cyan)}.hands-overlay{position:fixed;inset:0;pointer-events:none;z-index:54}.hands-legend,.hands-status{position:fixed;z-index:55;pointer-events:none;max-width:min(520px,calc(100vw - 32px));padding:10px 14px;border:1px solid var(--border-dim);border-radius:9px;background:rgba(8,12,40,.96);color:var(--text);font:11px/1.8 Orbitron,monospace}.hands-legend{left:16px;bottom:calc(22px + env(safe-area-inset-bottom));transition:opacity .3s}.hands-status{left:16px;top:calc(12px + env(safe-area-inset-top));color:var(--cyan);font-size:10px}.hands-setup{position:fixed;inset:auto;left:50%;top:50%;transform:translate(-50%,-50%);z-index:95;box-sizing:border-box;width:min(460px,calc(100vw - 28px));padding:20px;border:1px solid var(--accent);border-radius:12px;background:#080c28;color:var(--text);font:12px/1.8 Orbitron,monospace;box-shadow:0 14px 50px #0009}.hands-setup button{margin:8px 6px 0 0}.hands-setup p{font-family:Outfit,system-ui,sans-serif;font-size:14px}.hands-legend[hidden],.hands-status[hidden],.hands-setup[hidden]{display:none!important}@media(prefers-reduced-motion:reduce){.hands-legend{transition:none}}';document.head.appendChild(s);}
+  function styles(){if(document.getElementById('hands-style'))return;const s=document.createElement('style');s.id='hands-style';s.textContent='.hands-target{position:fixed;z-index:2147483000;pointer-events:none;border:2px solid #00e676;border-radius:8px;box-shadow:0 0 14px rgba(0,230,118,.55)}html.hands-live,html.hands-live *{cursor:none!important}.hb-hands{display:inline-flex;align-items:center;gap:5px}.hb-hands svg{width:17px;height:17px}.hb-hands i{width:6px;height:6px;border-radius:50%;background:var(--text-faint);display:inline-block}.hb-hands.live i{background:var(--accent);box-shadow:0 0 5px var(--accent)}.hb-hands.live{border-color:var(--cyan);color:var(--cyan)}.hands-overlay{position:fixed;inset:0;pointer-events:none;z-index:54}.hands-legend,.hands-status{position:fixed;z-index:55;pointer-events:none;max-width:min(520px,calc(100vw - 32px));padding:10px 14px;border:1px solid var(--border-dim);border-radius:9px;background:rgba(8,12,40,.96);color:var(--text);font:11px/1.8 Orbitron,monospace}.hands-legend{left:16px;bottom:calc(22px + env(safe-area-inset-bottom));transition:opacity .3s}.hands-status{left:16px;top:calc(12px + env(safe-area-inset-top));color:var(--cyan);font-size:10px}.hands-setup{position:fixed;inset:auto;left:50%;top:50%;transform:translate(-50%,-50%);z-index:95;box-sizing:border-box;width:min(460px,calc(100vw - 28px));padding:20px;border:1px solid var(--accent);border-radius:12px;background:#080c28;color:var(--text);font:12px/1.8 Orbitron,monospace;box-shadow:0 14px 50px #0009}.hands-setup button{margin:8px 6px 0 0}.hands-setup p{font-family:Outfit,system-ui,sans-serif;font-size:14px}.hands-legend[hidden],.hands-status[hidden],.hands-setup[hidden]{display:none!important}@media(prefers-reduced-motion:reduce){.hands-legend{transition:none}}';document.head.appendChild(s);}
   function mount({host,bar,fitButton}){
     styles();
     let typedAt=-Infinity,lastAction=-Infinity,alive=true,enabled=false,canvas=null,ctx=null,legend=null,status=null,legendTimer=0,used=false,zooming=false,interlock=false,cooldown=0,diagnostic=false,measurementLabel='MEASURING',hint='',hintAt=0,calibration=null;
-    let profile={v:PROFILE_VERSION,fist:false,orbit:true};
+    let profile={v:PROFILE_VERSION,fist:false,orbit:true,palm:false};
     try{const saved=JSON.parse(localStorage.getItem('hub-hands-profile')||'null');if(saved&&saved.v===PROFILE_VERSION)profile={...profile,...saved};}catch(_){}      // an older profile was measured in other units: start again
     const engine=new G.Engine({}),detected=new Set(),presses=new Map(),btn=document.createElement('button');
     btn.type='button';btn.className='hb-btn hb-hands';btn.innerHTML=ICON+'<span>HANDS</span><i aria-hidden="true"></i>';btn.title='Optional local webcam hand control';btn.setAttribute('aria-pressed','false');bar.appendChild(btn);
@@ -74,7 +74,7 @@ SOFTWARE.
       presses.set(id,p);emit(p,'pointerdown',id,from.x,from.y,true);counts.pinches++;mark('begin-'+mode,{x:Math.round(from.x),y:Math.round(from.y),target:String(r.el.className||r.el.tagName).slice(0,30)});lastAction=performance.now();firstPinch();return true;
     }
     function beginPan(id,hand){
-      const from={x:hand.palm.x,y:hand.palm.y},p={target:host,k:1,ox:0,oy:0,mode:'pan',button:0,down:{...from},last:{...from},palm0:{...hand.palm},roll0:hand.roll,travel:0,size:hand.hsize};
+      const from={x:hand.palm.x,y:hand.palm.y},p={target:host,k:1,ox:0,oy:0,mode:'pan',button:0,down:{...from},last:{...from},palm0:{...hand.palm},roll0:hand.roll,travel:0,size:hand.hsize,sm:hand.hsize,moved:false};
       presses.set(id,p);emit(p,'pointerdown',id,from.x,from.y,true);counts.pans++;mark('begin-pan');firstPinch();
     }
     function release(id,cancel=true,hand){
@@ -102,20 +102,22 @@ SOFTWARE.
     function clearOverlay(){clearTimeout(legendTimer);legendTimer=0;canvas?.remove();legend?.remove();status?.remove();canvas=ctx=legend=status=null;}
     // ---- POINT: a ring that follows the index fingertip (it is the cursor), the control under it outlined, and a click when it is held still on one
     const DWELL_MS=800,RING_FROM_MS=250,CLICKABLE='button,a[href],[role=button],[role=menuitem],[role=tab],input:not([type=hidden]),select,textarea,summary,label,[data-a],[data-restore],[onclick]';
-    let cursorInfo=null,dw={x:0,y:0,since:0,fired:false},targetBox=null,realMouseAt=-Infinity;
-    function hideTarget(){if(targetBox){targetBox.remove();targetBox=null;}}
+    let cursorInfo=null,dw={x:0,y:0,since:0,fired:false},targetBox=null,realMouseAt=-Infinity,handsLive=false,lastEl=null,lastRes=null,lastAt=-Infinity,lastX=-1e9,lastY=-1e9,lastRect='';
+    function hideTarget(){if(targetBox){targetBox.remove();targetBox=null;lastRect='';}}
     function pointerUi(hands,now){
       const h=hands[0],pointing=h&&h.gesture==='point'&&!h.pinched&&!h.rpinched&&!h.triple&&!diagnostic&&!interlock&&!presses.size;
-      if(!pointing){cursorInfo=null;dw.since=0;hideTarget();document.documentElement.classList.remove('hands-live');return;}
+      if(!pointing){cursorInfo=null;dw.since=0;hideTarget();if(handsLive){handsLive=false;document.documentElement.classList.remove('hands-live');}return;}
       const x=h.x,y=h.y;
       if(!dw.since||Math.hypot(x-dw.x,y-dw.y)>Math.max(22,innerWidth*.017)){dw={x,y,since:now,fired:false};}
-      const r=resolve(x,y),el=r&&r.el&&r.el.closest?r.el.closest(CLICKABLE):null,usable=!!el&&!el.disabled&&!el.closest('.hk-h:not(button)');
-      document.documentElement.classList.toggle('hands-live',now-realMouseAt>2500);
+      if(Math.hypot(x-lastX,y-lastY)>4||now-lastAt>150){lastRes=resolve(x,y);lastX=x;lastY=y;lastAt=now;}         // the element under the pointer is looked up when the pointer moved, not every frame
+      const r=lastRes,el=r&&r.el&&r.el.closest?r.el.closest(CLICKABLE):null,usable=!!el&&!el.disabled&&!el.closest('.hk-h:not(button)');
+      const live=now-realMouseAt>2500;if(live!==handsLive){handsLive=live;document.documentElement.classList.toggle('hands-live',live);}
       const held=now-dw.since;
       cursorInfo={x,y,progress:usable&&!dw.fired?Math.max(0,Math.min(1,(held-RING_FROM_MS)/(DWELL_MS-RING_FROM_MS))):0,usable};
       if(usable){
         const b=el.getBoundingClientRect(),k=r.k||1;if(!targetBox){targetBox=document.createElement('div');targetBox.className='hands-target';targetBox.setAttribute('aria-hidden','true');document.body.appendChild(targetBox);}
-        Object.assign(targetBox.style,{left:(r.ox+b.left*k-3)+'px',top:(r.oy+b.top*k-3)+'px',width:(b.width*k+6)+'px',height:(b.height*k+6)+'px'});
+        const key=Math.round(r.ox+b.left*k)+','+Math.round(r.oy+b.top*k)+','+Math.round(b.width*k)+','+Math.round(b.height*k);
+        if(key!==lastRect){lastRect=key;Object.assign(targetBox.style,{left:(r.ox+b.left*k-3)+'px',top:(r.oy+b.top*k-3)+'px',width:(b.width*k+6)+'px',height:(b.height*k+6)+'px'});}
       }else hideTarget();
       if(usable&&!dw.fired&&held>=DWELL_MS&&h.sincePinch>600&&now-typedAt>1500){
         dw.fired=true;const q={target:r.el,k:r.k,ox:r.ox,oy:r.oy,button:0},w=r.el.ownerDocument.defaultView||window,o={bubbles:true,cancelable:true,composed:true,clientX:(x-r.ox)/r.k,clientY:(y-r.oy)/r.k};
@@ -190,14 +192,16 @@ SOFTWARE.
           }
           if(p.mode==='pan'){
             if(!hand.flat||hand.pinched||hand.rpinched||hand.triple){release(hand.id,false,hand);continue;}
-            const at=posOf(p,hand);p.travel=Math.max(p.travel,G.distance(p.down,at));p.last=at;emit(p,'pointermove',hand.id,at.x,at.y,true);
-            if(p.size&&hand.hsize){const r=Math.log(hand.hsize/p.size);p.size=hand.hsize;if(Math.abs(r)>.004)host.dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,ctrlKey:true,deltaY:-r*700,deltaMode:0,clientX:at.x,clientY:at.y}));}      // toward the camera = bigger hand = zoom in
+            const at=posOf(p,hand);p.travel=Math.max(p.travel,G.distance(p.down,at));
+            if(!p.moved&&p.travel<Math.max(24,innerWidth*.02)){p.last=p.down;}else{p.moved=true;p.last=at;}                 // a dead band: tremor and a still hand move nothing
+            emit(p,'pointermove',hand.id,p.last.x,p.last.y,true);
+            if(p.size&&hand.hsize){p.sm=p.sm*.85+hand.hsize*.15;const r=Math.log(p.sm/p.size);if(Math.abs(r)>.08){p.size=p.sm;host.dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,ctrlKey:true,deltaY:-r*500,deltaMode:0,clientX:p.last.x,clientY:p.last.y}));}}      // toward the camera = bigger hand = zoom in; only a real change of 8 % or more counts
             continue;
           }
           const done=p.mode==='left'?!hand.pinched:!hand.rpinched;
           if(done){release(hand.id,false,hand);continue;}
           const at=posOf(p,hand);p.travel=Math.max(p.travel,G.distance(p.down,at));p.last=p.travel<(p.mode==='left'?dead():slop())?p.down:at;emit(p,'pointermove',hand.id,p.last.x,p.last.y,true);
-        }else if(hand.flat&&!hand.pinched&&!hand.rpinched&&!hand.triple&&hand.sincePinch>500){beginPan(hand.id,hand);}
+        }else if(profile.palm&&hand.flat&&!hand.pinched&&!hand.rpinched&&!hand.triple&&hand.sincePinch>500){beginPan(hand.id,hand);}
         else if(hand.pinched)begin(hand.id,hand,'left');
         else if(hand.rpinched)begin(hand.id,hand,'right');
         else if(profile.orbit&&hand.gesture==='fist'&&hand.sincePinch>700){const v=boardView();if(v&&v.mode()==='3d')begin(hand.id,hand,'orbit');else say('FIST TILTS THE BOARD IN VIEW 3D: choose VIEW, then 3D');}
@@ -245,9 +249,10 @@ SOFTWARE.
       p.textContent='Thumb + index: left click, drag. Thumb + middle: right click. Thumb + index + middle together, hand up or down: zoom. Fist in VIEW 3D: tilt and turn. Choices save here at once; the defaults need no calibration.';setup.append(title,p);
       const mk=(text,fn)=>{const b=document.createElement('button');b.className='hb-btn';b.type='button';b.textContent=text;b.onclick=fn;setup.append(b);return b;};
       mk('FIST TILTS 3D: '+(profile.orbit?'ON':'OFF'),()=>{profile.orbit=!profile.orbit;saveProfile();calibrationPanel();});
+      mk('FLAT PALM PAN AND ZOOM: '+(profile.palm?'ON':'OFF'),()=>{profile.palm=!profile.palm;saveProfile();calibrationPanel();});
       mk('SAVE LAST MINUTE',()=>{if(!enabled){p.textContent='Turn HANDS on, use your hands for a minute, then come back here (or press SAVE TRACE in the bar).';return;}saveTrace('free',p);});
       mk('RECORD HAND TRACE',()=>{if(!enabled){p.textContent='Close setup, turn HANDS on explicitly, then return here to record.';return;}p.textContent='Recording about 32 seconds. Follow the prompts at the top left; this panel closes so you can see them.';setup.hidden=true;startTrace(p);});
-      mk('RESET TO DEFAULTS',()=>{profile={v:PROFILE_VERSION,fist:false,orbit:true};saveProfile();calibrationPanel();});
+      mk('RESET TO DEFAULTS',()=>{profile={v:PROFILE_VERSION,fist:false,orbit:true,palm:false};saveProfile();calibrationPanel();});
       mk('CLOSE',()=>{calibration=null;diagnostic=false;engine.reset();interlock=true;setup.hidden=true;});
     }
     function setupPanel(manifest){
@@ -273,6 +278,7 @@ SOFTWARE.
       measure(on,label){diagnostic=!!on;measurementLabel=label||'MEASURING';counts=fresh();cancelAll();},
       destroy(){alive=false;tracker.destroy();cancelAll();clearOverlay();hideTarget();document.documentElement.classList.remove('hands-live');removeEventListener('mousemove',mouseSeen,true);setup.remove();btn.remove();configure.remove();saveBtn.remove();document.removeEventListener('pointerdown',physical,true);document.removeEventListener('wheel',physical,true);document.removeEventListener('keydown',escape,true);document.removeEventListener('keydown',typing,true);if(root.__hubHands===api)root.__hubHands=null;}};
     if(root.__HUB_HANDS_TEST)api.testEnable=()=>{enabled=true;engine.reset();showOverlay();};
+    if(root.__HUB_HANDS_TEST)api.testOption=(k,v)=>{profile[k]=v;};
     root.__hubHands=api;return api;
   }
   root.HubHandsBoard={mount};

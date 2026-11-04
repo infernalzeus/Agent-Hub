@@ -9,8 +9,8 @@ ROOT=Path(__file__).resolve().parents[1]
 MARKS=json.loads((Path(__file__).with_name('hand-landmarks.json')).read_text())['landmarks']
 
 def more(page):
- # HANDS, HAND SETUP and SAVE TRACE live in the MORE menu since UI round 2
- if not page.locator('.hb-more-menu').is_visible():page.get_by_role('button',name='MORE',exact=True).click()
+ # HAND SETUP and SAVE TRACE live in the small menu beside HANDS since UI round 5
+ if not page.locator('.hb-more-menu').is_visible():page.locator('.hb-hands-menu-button').click()
 
 
 @pytest.fixture
@@ -125,7 +125,7 @@ def test_setup_choices_are_kept_at_once_and_do_not_start_the_camera(page):
  page.get_by_role('button',name='SAVE LAST MINUTE',exact=True).click()
  assert 'Turn HANDS on' in page.locator('.hands-setup').inner_text()
  assert page.evaluate('__hubHands.tracker.stats.enabled') is False
- assert page.locator('.hands-setup button').count()==5                               # few choices
+ assert page.locator('.hands-setup button').count()==6                               # few choices
  page.get_by_role('button',name='RESET TO DEFAULTS',exact=True).click()
  assert 'FIST TILTS 3D: ON' in page.locator('.hands-setup').inner_text()
  page.get_by_role('button',name='CLOSE',exact=True).click()
@@ -266,8 +266,8 @@ def test_pointing_with_the_middle_finger_curled_on_the_thumb_is_not_a_right_pres
  assert page.locator('.hb-ctx').count()==0
 
 
-def test_a_flat_palm_moves_the_board_and_pushing_it_toward_the_camera_zooms(page):
- page.wait_for_timeout(700);page.evaluate('__hubHands.testEnable()')
+def test_a_flat_palm_moves_the_board_and_pushing_it_toward_the_camera_zooms_when_it_is_switched_on(page):
+ page.wait_for_timeout(700);page.evaluate('__hubHands.testEnable()');page.evaluate("__hubHands.testOption('palm',true)")
  page.evaluate("window.flatFrame=(x,y,scale=1)=>{const a=handFrame(x,y,1,true);const c=a[9];return a.map(p=>({x:c.x+(p.x-c.x)*scale,y:c.y+(p.y-c.y)*scale,z:0}));}")
  before=page.evaluate('({...__hubBoard.active.state().V})')
  page.evaluate('feedWith((x,y)=>flatFrame(x,y),still(700,450,30))')                       # engage
@@ -297,3 +297,14 @@ def test_a_pinch_presses_and_drags_but_never_clicks(page):
  page.evaluate('feedWith(openFrame,still(560,445,8))')
  assert page.evaluate('counters')=={'click':0,'ctx':0}                                     # but a pinch alone is not a click
  assert page.evaluate('__hubHands.stats().clicks')==0
+
+def test_a_flat_palm_does_nothing_by_default_and_a_noisy_hand_never_moves_the_board(page):
+ page.wait_for_timeout(700);page.evaluate('__hubHands.testEnable()')
+ page.evaluate("window.flatFrame=(x,y,scale=1)=>{const a=handFrame(x,y,1,true);const c=a[9];return a.map(p=>({x:c.x+(p.x-c.x)*scale,y:c.y+(p.y-c.y)*scale,z:0}));}")
+ before=page.evaluate('({...__hubBoard.active.state().V})')
+ page.evaluate('feedWith((x,y)=>flatFrame(x,y,1+((x*7)%3)*.01),Array.from({length:60},(_,i)=>[700+(i%3),450+(i%2)]))')      # off: a hand held up with the size and position wobbling
+ assert page.evaluate('({...__hubBoard.active.state().V})')==before
+ page.evaluate("__hubHands.testOption('palm',true)")
+ page.evaluate('feedWith((x,y)=>flatFrame(x,y,1+((x*7)%3)*.01),Array.from({length:80},(_,i)=>[700+(i%3),450+(i%2)]))')      # on: tremor of a few pixels and a few per cent of size is inside the dead band
+ after=page.evaluate('({...__hubBoard.active.state().V})')
+ assert abs(after['x']-before['x'])<4 and abs(after['y']-before['y'])<4 and abs(after['k']/before['k']-1)<.02,(before,after)
