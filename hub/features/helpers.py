@@ -62,3 +62,16 @@ def build() -> "list[dict]":
 @routes.get("/api/hub/helpers")
 async def api_helpers(request: web.Request) -> web.Response:
     return web.json_response({"helpers": build()})
+
+
+ICON_DIR = __import__("pathlib").Path(__file__).resolve().parent.parent / "static" / "agent-icons"
+
+
+@routes.get("/static/agent-icons/{name}")
+async def agent_icon(request: web.Request) -> web.StreamResponse:
+    """One picture per agent or helper, by id (`doctor.png`, `coder.png`...). A missing file is a plain 404; the page falls back to a drawn glyph."""
+    import re
+    name = request.match_info["name"]
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,40}\.png", name) or not (ICON_DIR / name).is_file():
+        raise web.HTTPNotFound()
+    return web.FileResponse(ICON_DIR / name, headers={"Cache-Control": "public, max-age=300"})

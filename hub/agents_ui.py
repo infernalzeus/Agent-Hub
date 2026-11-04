@@ -516,6 +516,7 @@ button,input,select,textarea{font-family:'Outfit',inherit}
 .btn:disabled{opacity:.35;cursor:not-allowed}
 .btn.stop{border-color:rgba(255,92,92,.5);color:var(--red)}
 .btn.go{border-color:var(--accent);background:rgba(0,230,118,.12)}
+.hic img{width:38px;height:38px;object-fit:contain;display:block}.hic img + svg{display:none}.aicon{width:30px;height:30px;object-fit:contain;flex:none}
 .persona{background:var(--panel);border:1px solid var(--border-dim);border-radius:10px;padding:14px;margin:12px 0}
 .pn{font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px}
 .pd{font-size:12px;color:var(--text-muted);margin-top:4px}
@@ -707,7 +708,7 @@ async function load(){
       <div class="v">${esc(wsm || (o.value!=null?o.value:(o.note||'default')))}</div>
       <div class="src ${o.source==='override'?'override':''}">${esc(wsm ? 'workspace default' : (o.source||''))}</div></div>`; };
     return `<div class="persona">
-      <div class="pn">${esc(p.name)}
+      <div class="pn">${p.name==='agent-smith'?'':`<img class="aicon" src="/static/agent-icons/${esc(p.name)}.png" alt="" onerror="this.remove()">`}${esc(p.name)}
         <span class="tag ${isP?'primary':''}">${esc(p.mode)}</span>
         ${p.origin==='user'?'<span class="tag user">yours</span>':''}
         <span style="flex:1"></span>
@@ -795,7 +796,9 @@ const HELPER_ICON = {
   desktop:'M4 5h16v11H4zM9 20h6M12 16v4',router:'M4 12h6M14 6h6M14 18h6M10 12l4-6M10 12l4 6',
   learner:'M12 5v4M12 15v4M5 12h4M15 12h4M8 8l2 2M14 14l2 2M16 8l-2 2M10 14l-2 2M12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z',
   bandit:'M6 18V10M12 18V6M18 18v-5M4 18h16',log:'M7 4h10v16H7zM9.5 8h5M9.5 12h5M9.5 16h3'};
-const helperIcon = (id) => id==='smith' ? '__SMITH_ICON__' : `<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="#41ebff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 0 4px rgba(65,235,255,.5))"><path d="${HELPER_ICON[id]||HELPER_ICON.log}"/></svg>`;
+const ICON_FILE = {smith:'', doctor:'doctor', desktop:'desktop-agent', router:'router', yard:'yard-learner', 'bandit-model':'bandit', 'bandit-rung':'bandit', recorder:'learning-log'};
+// a picture from /static/agent-icons/<id>.png when it exists; the drawn glyph is the fallback, so a missing picture is never a broken image
+const helperIcon = (id) => id==='smith' ? '__SMITH_ICON__' : `<span class="hic">${ICON_FILE[id]?`<img src="/static/agent-icons/${ICON_FILE[id]}.png" alt="" onerror="this.remove()">`:''}<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="#41ebff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 0 4px rgba(65,235,255,.5))"><path d="${HELPER_ICON[id]||HELPER_ICON.log}"/></svg></span>`;
 const helperCard = (h) => `<div class="persona"><div class="pn"><span style="display:inline-flex;width:38px;justify-content:center">${helperIcon(h.icon)}</span>${esc(h.name)} <span class="tag">${esc(h.kind)}</span> <span class="tag ${h.state==='live'||h.state==='shadow'?'primary':''}">${esc(h.state)}</span></div><div class="pd">${esc(h.does)}</div>${h.learning?`<div class="note-block"><span class="note-label">NOW</span>${esc(h.learning)}</div>`:''}<div class="note" style="margin-top:6px">Where: ${esc(h.where||'')}</div></div>`;
 let SKTOPIC = '';          // which skill topic the library is showing
 let SKDRAFT = null;        // the skill being written, if any

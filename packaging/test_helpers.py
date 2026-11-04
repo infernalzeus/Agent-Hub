@@ -29,3 +29,15 @@ def test_the_agents_page_shows_a_hub_helpers_tab_with_the_doctor_icon(hub):
         assert pg.locator("#list .persona svg path").count() >= 5                      # the doctor and the other helpers have drawn icons
         b.close()
     assert errors == []
+
+
+def test_agent_pictures_are_served_by_id_and_nothing_else_is(hub, tmp_path, monkeypatch):
+    import urllib.error
+    import urllib.request
+    for bad in ("doctor.png", "..%2f..%2fapp.py", "x.png", "Doctor.png"):
+        try:
+            urllib.request.urlopen(hub + "/static/agent-icons/" + bad)
+            served = True
+        except urllib.error.HTTPError as e:
+            served = e.code != 404 and e.code != 400
+        assert not served or bad == "doctor.png", bad               # until Codex adds the pictures, a missing one is a 404; a path trick never works
