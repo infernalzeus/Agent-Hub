@@ -167,6 +167,18 @@ class Learner:
         self.actor, self.v, self.rng = Actor(hidden, seed), np.zeros(ZDIM), np.random.default_rng(seed + 1)
         self.lr, self.lr_c, self.gamma, self.beta = lr * (3.0 if hidden else 1.0), lr_critic, gamma, entropy
 
+    def dump(self) -> dict:
+        """Everything that is learned: the actor's numbers and the critic's. A few kilobytes."""
+        return {"actor": self.actor.dump(), "critic": self.v.tolist()}
+
+    def restore(self, d: dict) -> "Learner":
+        """Continue from saved numbers instead of from nothing: the next session starts where the last one ended."""
+        a = Actor.load(d["actor"])
+        if a.h == self.actor.h:
+            self.actor = a
+            self.v = np.array(d["critic"], dtype=float)
+        return self
+
     def policy(self, explore: bool):
         """An async `decide(system, prompt)` for the real agent. While `explore` is on it samples from the softmax and keeps what it did."""
         records: list = []

@@ -30,3 +30,24 @@ def test_only_the_newest_twelve_versions_are_kept(tmp_path):
     for i in range(15):
         store.save(tmp_path, pol, rep(0.5 + i * .01, at=float(i)), {"linear": {}})
     assert [v["n"] for v in store.versions(tmp_path)] == list(range(4, 16))
+
+
+def test_the_next_session_continues_from_the_saved_learner_and_the_history_stays_small(tmp_path, monkeypatch):
+    import pytest
+    pytest.importorskip("numpy")
+    from hub.yard import practice as P
+    monkeypatch.setattr(P, "REPORT", tmp_path / "report.json")
+    monkeypatch.setattr(P, "POLICY", tmp_path / "policy.json")
+    first = P.practice(episodes=120, n_eval=2)
+    assert first["warm_from"] is None
+    saved = json.loads((tmp_path / "policy.json").read_text())
+    assert saved["linear_state"]["critic"] and saved["hidden_state"]["actor"]["hidden"] == 16      # the critic is saved with the actor, so it can be continued
+    second = P.practice(episodes=120, n_eval=2)
+    assert second["warm_from"] == saved["version"]                                                   # it started from the saved learner
+    metas = store.versions(tmp_path)
+    assert metas[-1]["total_episodes"] == 240 and metas[-1]["warm_from"] == 1
+    cold = P.practice(episodes=120, n_eval=2, warm=False)
+    assert cold["warm_from"] is None
+    for i in range(210):                                                                              # the history is capped
+        store.save(tmp_path, tmp_path / "x.json", rep(0.5, at=float(i)), {"linear": {}})
+    assert len((tmp_path / "sessions.jsonl").read_text().splitlines()) == 200

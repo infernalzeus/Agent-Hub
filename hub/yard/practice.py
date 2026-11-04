@@ -83,8 +83,10 @@ def _tick(phase: "str | None" = None) -> None:
     CONTROL["done"] += 1
 
 
-def train(episodes: int, hidden: int = 0, seed: int = 0, families=FAMILIES, every: int = 200, vocab: str = "wide", letters: bool = True) -> "tuple[L.Learner, list]":
+def train(episodes: int, hidden: int = 0, seed: int = 0, families=FAMILIES, every: int = 200, vocab: str = "wide", letters: bool = True, start: "dict | None" = None) -> "tuple[L.Learner, list]":
     lr = L.Learner(hidden=hidden, seed=seed, letters=letters)
+    if start:
+        lr.restore(start)                                       # a warm start: continue from the saved learner
     rng = np.random.default_rng(seed + 7)
     curve, recent = [], []
     for k in range(episodes):
@@ -132,21 +134,33 @@ def ablation(episodes: int = 3000, seed: int = 0, n_eval: int = 30) -> list:
     return rows
 
 
-def practice(episodes: int = 3000, seed: int = 0, n_eval: int = 30, write: bool = True, with_ablation: bool = False) -> dict:
+def _saved_start() -> "dict | None":
+    """The learner that is in use, if one was saved with its critic (older saves had only the actor and cannot be continued)."""
+    try:
+        d = json.loads(POLICY.read_text(encoding="utf-8"))
+        return d if d.get("linear_state") and d.get("hidden_state") else None
+    except (OSError, ValueError):
+        return None
+
+
+def practice(episodes: int = 3000, seed: int = 0, n_eval: int = 30, write: bool = True, with_ablation: bool = False, warm: bool = True) -> dict:
     t0 = time.time()
+    start = _saved_start() if warm else None
+    if start:
+        seed = int(start.get("version") or 0) + 1                  # a new run of pretend apps each session, not the same ones again
     CONTROL.update(running=True, stop=False, phase="training the plain learner", done=0, total=2 * episodes + 4 * len(FAMILIES) * 2 * n_eval)
     try:
-        return _practice(episodes, seed, n_eval, write, with_ablation, t0)
+        return _practice(episodes, seed, n_eval, write, with_ablation, t0, start)
     except Stopped:
         return {"stopped": True, "done": CONTROL["done"], "total": CONTROL["total"]}
     finally:
         CONTROL.update(running=False, stop=False)
 
 
-def _practice(episodes: int, seed: int, n_eval: int, write: bool, with_ablation: bool, t0: float) -> dict:
-    lin, c_lin = train(episodes, 0, seed)
+def _practice(episodes: int, seed: int, n_eval: int, write: bool, with_ablation: bool, t0: float, start: "dict | None" = None) -> dict:
+    lin, c_lin = train(episodes, 0, seed, start=(start or {}).get("linear_state"))
     CONTROL["phase"] = "training the one-hidden-layer learner"
-    mlp, c_mlp = train(episodes, 16, seed)
+    mlp, c_mlp = train(episodes, 16, seed, start=(start or {}).get("hidden_state"))
     CONTROL["phase"] = "measuring on layouts and words it has not seen"
     t_train = time.time() - t0
     table = {"random": evaluate(lambda: L.random_policy(5), n_eval),
@@ -155,6 +169,7 @@ def _practice(episodes: int, seed: int, n_eval: int, write: bool, with_ablation:
              "learned, one hidden layer": evaluate(lambda: mlp.policy(False), n_eval)}
     rep = {"at": time.time(), "episodes": episodes, "seed": seed, "eval_per_cell": n_eval, "train_seconds": round(t_train, 1),
            "curve": {"linear": c_lin, "hidden16": c_mlp}, "table": table,
+           "warm_from": (start or {}).get("version"),
            "means": {p: {v: round(float(np.mean([t[f][v]["success"] for f in FAMILIES])), 3) for v in ("train", "held")} for p, t in table.items()},
            "caveat": "pretend apps written by the same hand that wrote the features; numbers show what the method can and cannot learn, not how it will do on a real app"}
     if with_ablation:
@@ -162,7 +177,7 @@ def _practice(episodes: int, seed: int, n_eval: int, write: bool, with_ablation:
     if write:
         from . import store
         REPORT.parent.mkdir(parents=True, exist_ok=True)
-        rep["saved"] = store.save(REPORT.parent, POLICY, rep, {"linear": lin.actor.dump(), "hidden16": mlp.actor.dump()})
+        rep["saved"] = store.save(REPORT.parent, POLICY, rep, {"linear": lin.actor.dump(), "hidden16": mlp.actor.dump(), "linear_state": lin.dump(), "hidden_state": mlp.dump()})
         REPORT.write_text(json.dumps(rep, indent=1), encoding="utf-8")
     return rep
 

@@ -48,11 +48,16 @@ def save(base: Path, policy_file: Path, rep: dict, weights: dict) -> dict:
     adopted = best_before is None or held >= best_before - TOLERANCE
     meta = {"n": n, "at": rep["at"], "episodes": rep["episodes"], "seed": rep["seed"], "known": rep["means"]["learned, linear"]["train"], "held": held,
             "hidden_known": rep["means"]["learned, one hidden layer"]["train"], "hidden_held": rep["means"]["learned, one hidden layer"]["held"],
-            "layouts": len(rep["table"]["learned, linear"]), "in_use_ever": bool(adopted)}
+            "layouts": len(rep["table"]["learned, linear"]), "in_use_ever": bool(adopted), "warm_from": rep.get("warm_from"),
+            "total_episodes": (prior[-1].get("total_episodes", prior[-1]["episodes"]) if prior else 0) + rep["episodes"]}
     (_dir(base) / f"v{n}.json").write_text(json.dumps({"meta": meta, "weights": weights}), encoding="utf-8")
     base.mkdir(parents=True, exist_ok=True)
-    with (base / "sessions.jsonl").open("a", encoding="utf-8") as f:
+    log = base / "sessions.jsonl"
+    with log.open("a", encoding="utf-8") as f:
         f.write(json.dumps({**meta, "adopted": bool(adopted), "means": rep["means"]}) + "\n")
+    lines = log.read_text(encoding="utf-8").splitlines()
+    if len(lines) > 200:                                           # the history is a small table, not a growing archive
+        log.write_text("\n".join(lines[-200:]) + "\n", encoding="utf-8")
     if adopted:
         policy_file.write_text(json.dumps({**weights, "version": n}), encoding="utf-8")
     for old in sorted(_dir(base).glob("v*.json"), key=lambda p: int(p.stem[1:]))[:-KEEP]:

@@ -242,7 +242,7 @@ def test_the_r_learning_panel_has_three_tabs_and_practice_can_be_stopped(hub):
         pg.wait_for_function("document.querySelector('#phase').textContent.length>0", timeout=8000)      # a phase and a percentage while it runs
         pg.click("#stop")
         pg.wait_for_function("/Stopped/.test(document.querySelector('#msg').textContent)", timeout=15000)
-        assert pg.locator("#stop").is_hidden() and pg.locator("#go").is_enabled()
+        pg.wait_for_function("document.getElementById('stop').hidden && !document.getElementById('go').disabled", timeout=8000)
         pg.click("[data-tab=status]")
         pg.wait_for_function("document.querySelectorAll('#kinds tr').length>3 && document.querySelectorAll('#bandits tr').length>2")
         assert "R3" in pg.inner_text("#needs") and "bandit" in pg.inner_text("#tab-status").lower()
