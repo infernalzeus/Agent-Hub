@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import re
 from pathlib import Path
 
 from aiohttp import web
@@ -2648,3 +2649,22 @@ async def service_worker(request: web.Request) -> web.Response:
 
 
 
+
+
+# Shared presentation resource: the board remains the source of the doctor path.
+_DOCTOR_MATCH = re.search(r"extra:\s*\['support',\s*'Support',\s*'/support',\s*'([^']+)'\]", _HOME_BOARD_JS)
+_DOCTOR_PATH = _DOCTOR_MATCH.group(1) if _DOCTOR_MATCH else ""
+_DOCTOR_SVG = ('<svg class="hub-doctor" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#41ebff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + _DOCTOR_PATH + '"/></svg>')
+
+@routes.get("/doctor-icon.svg")
+async def doctor_icon(request: web.Request) -> web.Response:
+    return web.Response(text=_DOCTOR_SVG.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" id="doctor" ', 1), content_type="image/svg+xml")
+
+def setup(app: web.Application) -> None:
+    @web.middleware
+    async def support_presentation(request, handler):
+        response = await handler(request)
+        if request.path == "/support" and isinstance(response, web.Response) and response.content_type == "text/html" and response.text:
+            response.text = response.text.replace('<h1>', '<h1 style="display:flex;align-items:center;gap:10px">' + _DOCTOR_SVG, 1)
+        return response
+    app.middlewares.append(support_presentation)

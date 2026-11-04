@@ -7,13 +7,13 @@ from playwright.sync_api import sync_playwright
 from test_ui_lifecycle import hub
 
 def press(page,selector,during=None):
- e=page.locator(selector);r=e.bounding_box();assert r,selector
+ e=page.locator(selector);e.scroll_into_view_if_needed();r=e.bounding_box();assert r,selector
  x,y=r['x']+r['width']/2,r['y']+r['height']/2
  hit=page.evaluate("p=>{let e=document.elementFromPoint(p.x,p.y);return e?.outerHTML.slice(0,250)}",{'x':x,'y':y})
  assert page.evaluate("p=>{let e=document.querySelector(p.s),h=document.elementFromPoint(p.x,p.y);return e===h||e.contains(h)}",{'x':x,'y':y,'s':selector}),(selector,hit)
  page.mouse.move(x,y);page.mouse.down();page.wait_for_timeout(60)
  if during:during()
- page.wait_for_timeout(60);page.mouse.up();page.wait_for_timeout(150)
+ page.wait_for_timeout(60);page.mouse.up();page.wait_for_timeout(230)
 
 @pytest.fixture
 def page(hub):
@@ -53,7 +53,7 @@ def test_missing_session_fields_are_omitted(page):
 def test_native_dismiss_and_more_clicks(page):
  page.locator('#setup-card').evaluate('e=>e.hidden=false');press(page,'.sc-dismiss');assert page.locator('#setup-card').is_hidden()
  press(page,'.hb-hands-menu-button');assert page.locator('.hb-more-menu').is_visible()
- page.keyboard.press('Escape');assert page.locator('.hb-more-menu').is_hidden()
+ page.keyboard.press('Escape');page.wait_for_timeout(220);assert page.locator('.hb-more-menu').is_hidden()
 
 
 def test_stale_code_chip_delegates_to_existing_restart(page):

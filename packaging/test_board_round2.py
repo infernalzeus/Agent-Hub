@@ -26,7 +26,7 @@ def more(page):
 @pytest.mark.parametrize('size',[(1280,667),(1920,1080),(2560,1440),(834,1112),(390,844),(320,568)])
 def test_chrome_controls_have_separate_lanes(page,size):
  page.set_viewport_size({'width':size[0],'height':size[1]});page.wait_for_timeout(700)
- rows=page.evaluate("""()=>{let sels=['body>header','#power-btn','.hb-bar','.hb-map','.hb-gizmo.on','.hb-tray'];return sels.flatMap(s=>{let e=document.querySelector(s);if(!e||!e.getClientRects().length||!e.children.length&&s==='.hb-tray')return [];let r=e.getBoundingClientRect();if(!r.width||!r.height)return [];return [{s,x:r.x,y:r.y,w:r.width,h:r.height}]})}""")
+ rows=page.evaluate("""()=>{let sels=['body>header','#power-btn','.hb-bar','.hb-map','.hb-right-panel','.hb-tray'];return sels.flatMap(s=>{let e=document.querySelector(s);if(!e||!e.getClientRects().length||!e.children.length&&s==='.hb-tray')return [];let r=e.getBoundingClientRect();if(!r.width||!r.height)return [];return [{s,x:r.x,y:r.y,w:r.width,h:r.height}]})}""")
  for r in rows:
   assert r['x']>=-1 and r['y']>=-1 and r['x']+r['w']<=size[0]+1 and r['y']+r['h']<=size[1]+1,(size,r)
  for i,a in enumerate(rows):
@@ -44,8 +44,8 @@ def test_setup_dismiss_survives_reload(page):
 
 
 def test_more_closes_outside_and_escape(page):
- more(page);page.keyboard.press('Escape');assert page.locator('.hb-more-menu').is_hidden()
- more(page);page.mouse.click(15,300);assert page.locator('.hb-more-menu').is_hidden()
+ more(page);page.keyboard.press('Escape');page.wait_for_timeout(220);assert page.locator('.hb-more-menu').is_hidden()
+ more(page);page.mouse.click(15,300);page.wait_for_timeout(220);assert page.locator('.hb-more-menu').is_hidden()
 
 
 def test_bin_drop_hides_and_tray_restores(page):
@@ -53,14 +53,14 @@ def test_bin_drop_hides_and_tray_restores(page):
  page.mouse.move(a['x']+12,a['y']+12);page.mouse.down();page.mouse.move(b['x']+b['width']/2,b['y']+b['height']/2,steps=15)
  assert page.locator('#edit-toggle').evaluate("e=>e.classList.contains('drop-target')")
  page.mouse.up();assert page.locator('.hk[data-id=runs]').is_hidden()
- page.locator('[data-restore=runs]').click();assert page.locator('.hk[data-id=runs]').is_visible()
+ press(page,'[data-tray=hidden]');page.locator('[data-restore=runs]').click();assert page.locator('.hk[data-id=runs]').is_visible()
 
 
 def test_sessions_are_keyboard_actions(page):
  page.evaluate("async()=>{let d=await(await fetch('/api/home/state')).json();d.sessions={needs_you:[],working:[{id:'sample',brief:'Code session',project:'Example',status:'working',last:'Review progress'}],idle:[]};__hubBoard.active.update(d)}")
  press(page,'.hb-session')
  assert 'Review progress' in page.locator('.hb-session-detail').inner_text()
- page.keyboard.press('Escape');assert page.locator('.hb-session-detail').count()==0
+ page.keyboard.press('Escape');page.wait_for_timeout(220);assert page.locator('.hb-session-detail').count()==0
 
 
 def test_duplicate_graphics_chip_is_deduplicated(page):
@@ -118,7 +118,7 @@ def test_doctor_selection_is_shown_in_support_block(page):
 @pytest.mark.parametrize('size',[(1280,667),(390,844)])
 def test_typed_talk_keeps_header_clear_and_docks_secondary_overlays(page,size):
  page.set_viewport_size({'width':size[0],'height':size[1]});page.wait_for_timeout(500)
- page.get_by_role('button',name='TALK',exact=True).click();page.wait_for_timeout(300)
+ page.get_by_role('button',name='Talk to the Hub',exact=True).click();page.wait_for_timeout(300)
  assert page.locator('#voice').is_visible()
  assert page.locator('.hb-map').is_hidden()
  assert page.evaluate("()=>{let a=document.querySelector('.hb-bar').getBoundingClientRect(),b=document.querySelector('#voice').getBoundingClientRect();return b.top>=a.bottom&&b.left>=0&&b.right<=innerWidth&&b.bottom<=innerHeight}")

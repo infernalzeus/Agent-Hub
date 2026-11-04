@@ -21,7 +21,7 @@ def test_right_click_on_the_empty_board_offers_board_actions(page):
     page.mouse.click(r[0], r[1], button="right"); page.wait_for_timeout(300)
     labels = page.locator(".hb-ctx button").all_inner_texts()
     assert "TIDY" in labels and "FIT EVERYTHING" in labels, labels
-    page.keyboard.press("Escape"); assert page.locator(".hb-ctx").count() == 0
+    page.keyboard.press("Escape"); page.wait_for_timeout(220); assert page.locator(".hb-ctx").count() == 0
 
 
 def test_a_right_drag_orbit_does_not_end_in_a_menu(page):
@@ -43,14 +43,14 @@ def test_hiding_a_block_takes_its_slab_with_it_and_3d_opens_nearly_flat(page):
     assert abs(t["rx"]) <= 6 and abs(t["ry"]) <= 6, t                                  # flat to the eye, the slab edge just showing
     page.evaluate("document.querySelector('.hk[data-id=runs] button[data-a=x]').click()"); page.wait_for_timeout(500)
     assert page.evaluate("[...document.querySelectorAll('.hk-solid')].filter(s=>getComputedStyle(s).display!=='none'&&s.hidden).length") == 0
-    assert any(t.startswith("+ ") for t in page.locator(".hb-tray .hb-btn").all_inner_texts())
+    assert page.locator("[data-tray=hidden] span").inner_text() == "1"
 
 
 def test_view_controls_are_one_group_on_the_right_and_actions_stay_on_top(page):
     r = page.evaluate("""()=>{const vb=document.querySelector('.hb-viewbar').getBoundingClientRect(),bar=document.querySelector('.hb-bar').getBoundingClientRect();
       const inside=t=>[...document.querySelectorAll('.hb-viewbar .hb-btn')].some(b=>b.textContent.trim().startsWith(t));
       const top=t=>[...document.querySelectorAll('.hb-bar > .hb-btn')].some(b=>b.textContent.trim().includes(t));
-      return {right:vb.right>innerWidth-20,below:vb.top>=bar.bottom-1,view:inside('VIEW'),fit:inside('FIT'),blocks:inside('BLOCKS'),tidy:inside('TIDY'),talk:top('TALK'),ingest:top('INGEST'),pc:top('PC CONTROL')}}""")
+      return {right:vb.right>innerWidth-20,below:vb.top>=bar.bottom-1,view:inside('VIEW'),fit:inside('FIT'),blocks:inside('BLOCKS'),tidy:inside('TIDY'),talk:!!document.querySelector('.hb-bar [aria-label=\"Talk to the Hub\"]'),ingest:!!document.querySelector('.hb-ingest-dock button'),pc:!!document.querySelector('.hb-bar [aria-label=\"PC control\"]')}}""")
     assert all(r.values()), r
 
 
