@@ -3247,7 +3247,7 @@ async def api_model_recs(request: web.Request) -> web.Response:
 
 @routes.post("/api/agents/draft")
 async def api_agent_draft(request: web.Request) -> web.Response:
-    """Run `agent-smith` one-shot to draft a persona .md from a description."""
+    """Run `neo` one-shot to draft a persona .md from a description."""
     b = await _body(request)
     desc = (b.get("description") or "").strip()
     base = (b.get("base") or "").strip()
@@ -3258,7 +3258,7 @@ async def api_agent_draft(request: web.Request) -> web.Response:
            if base else f"I want an agent that: {desc}")
     # Smith answers in ONE model call (was an agent loop that took minutes); it is told the roster + work types so a new
     # agent does not duplicate an existing one and lands in the right work type.
-    smith = (agent_knowledge._load_persona("agent-smith") or {}).get("body", "")
+    smith = (agent_knowledge._load_persona("neo") or {}).get("body", "")
     if smith:
         names = [a["name"] for a in agent_knowledge.list_agents() if a["name"] not in agent_knowledge.UTILITY_AGENTS]
         ctx = ("\n\n---\nEXISTING AGENTS (do not duplicate one):\n" + agent_knowledge.agent_menu(names)
@@ -3271,7 +3271,7 @@ async def api_agent_draft(request: web.Request) -> web.Response:
                 text = await _direct_chat(mdl, smith, ask + ctx, temperature=0.5, timeout=150 if mdl.endswith(":cloud") else 400)
                 break
             except Exception as exc:
-                logger.info("agent-smith direct draft on %s failed: %s", mdl, exc)
+                logger.info("neo direct draft on %s failed: %s", mdl, exc)
         if text:
             mm = re.search(r"```(?:markdown)?\s*(---[\s\S]*?)```", text)
             md = mm.group(1).strip() if mm else (text.strip() if text.strip().startswith("---") else "")
@@ -3289,7 +3289,7 @@ async def api_agent_draft(request: web.Request) -> web.Response:
     LLMK.inject(env)
     _path_with_python(env)
     proc = await asyncio.create_subprocess_exec(
-        OCM.OPENCODE_EXE, "run", "--dir", str(wt), "--agent", "agent-smith",
+        OCM.OPENCODE_EXE, "run", "--dir", str(wt), "--agent", "neo",
         "--format", "json", ask,
         cwd=str(wt), env=env, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
     _assign_to_job(proc.pid)
@@ -3297,7 +3297,7 @@ async def api_agent_draft(request: web.Request) -> web.Response:
         out, _ = await asyncio.wait_for(proc.communicate(), timeout=180)
     except asyncio.TimeoutError:
         proc.kill()
-        raise web.HTTPGatewayTimeout(text="agent-smith timed out")
+        raise web.HTTPGatewayTimeout(text="neo timed out")
     text = "\n".join(
         (json.loads(l).get("part") or {}).get("text", "")
         for l in out.decode("utf-8", "replace").splitlines() if l.strip())
@@ -3311,7 +3311,7 @@ async def ask_scratch(agent: str, brief: str, timeout: float = 120.0) -> str:
 
     The answer rung of the router. A question is not an ask about a project: it
     should not create a worktree on one, wait for review, or leave anything to
-    APPLY. Same mechanism as the agent-smith draft above, which already runs a
+    APPLY. Same mechanism as the neo draft above, which already runs a
     single agent here; this just returns the text instead of parsing a skill.
     """
     # Every default model goes through Ollama, so an agent started with it down

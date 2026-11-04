@@ -2,7 +2,7 @@
 
 Lists the baseline + user personas with their **effective** LLM settings (never
 blank), lets you edit those, and has a dedicated Create-Agent flow where
-`agent-smith` drafts the persona prompt from a plain-language description.
+`neo` drafts the persona prompt from a plain-language description (it was called agent-smith; Agent Smith is now only the voice you talk to).
 
 Reads:
   GET    /api/agents                       personas (+ settings) + models
@@ -300,7 +300,7 @@ _SMITH_B64 = (
     "cxtKLqJBINLjl3SV1D6/O9Ezm8/0/wFZChJjG4qZQAAAAABJRU5ErkJggg=="
 )
 # The button icon (option D: square face + collar, on a dark tile via CSS). _SMITH_B64 above is the full bust (option A),
-# used as the avatar in Agent Smith's own description.
+# used as the avatar of the Smith helper card (the voice).
 _SMITH_D_B64 = (
     "iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAA1EklEQVR42u19eZhcVZn++91bvS9V55zq7BA2AVlkVVEUE0BZFFFE"
     "dHQUFRfcnXHEEdQEl5kfiuOCK4rigmgQhQFERpywOCCKIBC2BAgJ2bqr6t5bW29V976/P+651dWd7pBgN3QS7/PUE+i6VXXu+b7z"
@@ -516,7 +516,7 @@ button,input,select,textarea{font-family:'Outfit',inherit}
 .btn:disabled{opacity:.35;cursor:not-allowed}
 .btn.stop{border-color:rgba(255,92,92,.5);color:var(--red)}
 .btn.go{border-color:var(--accent);background:rgba(0,230,118,.12)}
-.hic img{width:38px;height:38px;object-fit:contain;display:block}.hic img + svg{display:none}.aicon{width:30px;height:30px;object-fit:contain;flex:none}
+.hic img{width:76px;height:76px;object-fit:contain;display:block;border-radius:12px;background:rgba(0,0,0,.35);border:1px solid var(--border-dim)}.hic svg{width:76px;height:76px;padding:18px}.hic img + svg{display:none}.aicon{width:30px;height:30px;object-fit:contain;flex:none}.smith-a{object-fit:contain}
 .persona{background:var(--panel);border:1px solid var(--border-dim);border-radius:10px;padding:14px;margin:12px 0}
 .pn{font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px}
 .pd{font-size:12px;color:var(--text-muted);margin-top:4px}
@@ -624,8 +624,8 @@ textarea{min-height:200px;resize:vertical;font-family:ui-monospace,Consolas,mono
 <body>
 <div class="bar">
   <a class="btn" href="/"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>HUB</a>
-  <span class="brand">AGENTS</span>
-  <button class="btn-icon" id="btn-create" title="Create agent" aria-label="Create agent">__SMITH_ICON_BIG__<span class="plus-badge">+</span></button>
+  <span class="brand">AGENCY</span>
+  <button class="btn-icon" id="btn-create" title="Create an agent with Neo" aria-label="Create an agent with Neo">__NEO_ICON_BIG__<span class="plus-badge">+</span></button>
   <span class="spacer"></span>
   <button class="btn" id="btn-skills" title="The skill library every agent can reach">SKILLS</button>
   <a class="btn" href="/missions">MISSIONS</a>
@@ -668,7 +668,7 @@ textarea{min-height:200px;resize:vertical;font-family:ui-monospace,Consolas,mono
   </div>
   <label>Prompt body</label>
   <textarea id="c-body" placeholder="Who this agent is, its method step by step, what &quot;done&quot; looks like, hard rules…"></textarea>
-  <div class="row"><button class="btn" id="c-draft">__SMITH_ICON__DRAFT</button><span class="note" id="c-drafting" style="display:none">Agent Smith is drafting… (a few seconds on cloud Nemotron)</span></div>
+  <div class="row"><button class="btn" id="c-draft">__NEO_ICON__DRAFT</button><span class="note" id="c-drafting" style="display:none">Neo is drafting… (a few seconds on cloud Nemotron)</span></div>
   <div class="row" style="margin-top:14px;display:flex;gap:8px">
     <button class="btn go" id="c-save">SAVE</button>
     <button class="btn" id="c-cancel">cancel</button>
@@ -708,16 +708,16 @@ async function load(){
       <div class="v">${esc(wsm || (o.value!=null?o.value:(o.note||'default')))}</div>
       <div class="src ${o.source==='override'?'override':''}">${esc(wsm ? 'workspace default' : (o.source||''))}</div></div>`; };
     return `<div class="persona">
-      <div class="pn">${p.name==='agent-smith'?'':`<img class="aicon" src="/static/agent-icons/${esc(p.name)}.png" alt="" onerror="this.remove()">`}${esc(p.name)}
+      <div class="pn">${esc(p.name==='agent-smith'?'neo':p.name)}
         <span class="tag ${isP?'primary':''}">${esc(p.mode)}</span>
         ${p.origin==='user'?'<span class="tag user">yours</span>':''}
         <span style="flex:1"></span>
         <button class="btn" onclick="editAgent('${esc(p.name)}')">SETTINGS</button>
-        <button class="btn" onclick="editWithAI('${esc(p.name)}')">__SMITH_ICON__EDIT</button>
+        <button class="btn" onclick="editWithAI('${esc(p.name)}')">__NEO_ICON__EDIT WITH NEO</button>
         <button class="btn" onclick="toggleDef('${esc(p.name)}')">DEFINITION</button>
         ${p.origin==='user'?`<button class="btn stop" onclick="delAgent('${esc(p.name)}')">DELETE</button>`:''}
       </div>
-      <div class="pd" style="display:flex;gap:12px;align-items:flex-start">${p.name==='agent-smith'?`<img class="smith-a" src="${SMITH_A}" alt="Agent Smith">`:''}<div title="what the orchestrator reads to pick this agent: ${esc(p.description||'')}">${esc((p.frontmatter||{}).about||p.description||'')}</div></div>
+      <div class="pd" style="display:flex;gap:12px;align-items:flex-start"><img class="smith-a" src="/static/agent-icons/${esc(p.name==='agent-smith'?'neo':p.name)}.png" alt="" onerror="this.remove()"><div title="what the orchestrator reads to pick this agent: ${esc(p.description||'')}">${esc((p.frontmatter||{}).about||p.description||'')}</div></div>
       <div class="settings">
         ${cell('model','MODEL')}${cell('temperature','TEMPERATURE')}${cell('top_p','TOP_P')}${cell('steps','MAX STEPS')}${cell('variant','REASONING')}
       </div>
@@ -740,7 +740,7 @@ async function load(){
     </div>`;
   };
   const P = DATA.personas||[];
-  const smith = P.filter(p=>p.name==='agent-smith');
+  const smith = P.filter(p=>p.name==='neo'||p.name==='agent-smith');
   const orch = P.filter(p=>!p.utility && (p.name===prim || p.mode==='primary'));      // Smith is mode:primary too — he must not be listed twice
   const other = P.filter(p=>p.name==='scout');
   const subs = P.filter(p=>![...smith,...orch,...other].includes(p));
@@ -776,7 +776,7 @@ async function load(){
   } else if(FAM === 'run'){
     $('list').innerHTML =
         sec('ORCHESTRATOR', 'takes your ask, asks what it needs, plans the steps — writes no project code', orch)
-      + sec('AGENT SMITH', 'designs new agents from a plain description', smith)
+      + sec('NEO', 'designs and edits agents from a plain description. Smith is the voice you talk to; Neo is the one that writes agents', smith)
       + sec('BRINGS IN NEW APPS', 'reads an unfamiliar repo and writes the manifest that lets the Hub front it — the orchestrator can call it, or you can run it directly', other);
   } else {
     const f = fams.find(x => x.key === FAM);
@@ -796,10 +796,10 @@ const HELPER_ICON = {
   desktop:'M4 5h16v11H4zM9 20h6M12 16v4',router:'M4 12h6M14 6h6M14 18h6M10 12l4-6M10 12l4 6',
   learner:'M12 5v4M12 15v4M5 12h4M15 12h4M8 8l2 2M14 14l2 2M16 8l-2 2M10 14l-2 2M12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z',
   bandit:'M6 18V10M12 18V6M18 18v-5M4 18h16',log:'M7 4h10v16H7zM9.5 8h5M9.5 12h5M9.5 16h3'};
-const ICON_FILE = {smith:'', doctor:'doctor', desktop:'desktop-agent', router:'router', learner:'yard-learner', bandit:'bandit', log:'learning-log'};      // keyed by the helper's icon name
+const ICON_FILE = {smith:'', neo:'neo', doctor:'doctor', desktop:'desktop-agent', router:'router', learner:'yard-learner', bandit:'bandit', log:'learning-log'};      // keyed by the helper's icon name
 // a picture from /static/agent-icons/<id>.png when it exists; the drawn glyph is the fallback, so a missing picture is never a broken image
-const helperIcon = (id) => id==='smith' ? '__SMITH_ICON__' : `<span class="hic">${ICON_FILE[id]?`<img src="/static/agent-icons/${ICON_FILE[id]}.png" alt="" onerror="this.remove()">`:''}<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="#41ebff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 0 4px rgba(65,235,255,.5))"><path d="${HELPER_ICON[id]||HELPER_ICON.log}"/></svg></span>`;
-const helperCard = (h) => `<div class="persona"><div class="pn"><span style="display:inline-flex;width:38px;justify-content:center">${helperIcon(h.icon)}</span>${esc(h.name)} <span class="tag">${esc(h.kind)}</span> <span class="tag ${h.state==='live'||h.state==='shadow'?'primary':''}">${esc(h.state)}</span></div><div class="pd">${esc(h.does)}</div>${h.learning?`<div class="note-block"><span class="note-label">NOW</span>${esc(h.learning)}</div>`:''}<div class="note" style="margin-top:6px">Where: ${esc(h.where||'')}</div></div>`;
+const helperIcon = (id) => id==='smith' ? `<img class="smith-a" src="${SMITH_A}" alt="">` : `<span class="hic">${ICON_FILE[id]?`<img src="/static/agent-icons/${ICON_FILE[id]}.png" alt="" onerror="this.remove()">`:''}<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="#41ebff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 0 4px rgba(65,235,255,.5))"><path d="${HELPER_ICON[id]||HELPER_ICON.log}"/></svg></span>`;
+const helperCard = (h) => `<div class="persona"><div class="pn">${esc(h.name)} <span class="tag">${esc(h.kind)}</span> <span class="tag ${h.state==='live'||h.state==='shadow'?'primary':''}">${esc(h.state)}</span></div><div class="pd" style="display:flex;gap:12px;align-items:flex-start">${helperIcon(h.icon)}<div>${esc(h.does)}${h.calls&&h.calls.length?`<div class="note" style="margin-top:6px">Calls: ${h.calls.map(esc).join(', ')}</div>`:''}${h.learning?`<div class="note-block"><span class="note-label">NOW</span>${esc(h.learning)}</div>`:''}<div class="note" style="margin-top:6px">Where: ${esc(h.where||'')}</div></div></div></div>`;
 let SKTOPIC = '';          // which skill topic the library is showing
 let SKDRAFT = null;        // the skill being written, if any
 
@@ -808,7 +808,7 @@ let SKDRAFT = null;        // the skill being written, if any
 // vendored and wiki-compiled ones we do not edit), so a skill added later sorts
 // itself without this page being touched.
 // The file a skill has to be, shown from the start so writing one by hand needs
-// no documentation hunt. Agent Smith replaces it; nobody has to use him.
+// no documentation hunt. Neo replaces it; nobody has to use him.
 function skillTemplate(){
   const topics = [...new Set(((SKILLS||{}).library||[]).map(s=>s.topic).filter(t=>t&&t!=='Other'))].sort();
   return ['---',
@@ -829,7 +829,7 @@ function skillDraftBox(){
   const d = SKDRAFT;
   if(!d.md && !d.busy) d.md = skillTemplate();
   return `<div class="skl add"><div class="body">
-    <div class="row"><input id="sk-desc" placeholder="Describe it and let Agent Smith write it"
+    <div class="row"><input id="sk-desc" placeholder="Describe it and let Neo write it"
         value="${esc(d.desc||'')}" style="flex:1 1 240px">
       <button class="btn go" onclick="skillDraft()" ${d.busy?'disabled':''}>
         ${d.busy?'DRAFTING…':'DRAFT IT'}</button></div>
@@ -1000,7 +1000,7 @@ window.saveAgent = async (n) => {
   await load();
 };
 
-// ── create / edit with agent-smith ───────────────────────────────────────
+// ── create / edit with neo ───────────────────────────────────────
 let EDIT_BASE = null;   // when editing an existing persona: its current .md text
 function openModal(title){ $('modal-title').textContent = title || 'CREATE AGENT';
   $('scrim').classList.add('open'); $('modal').classList.add('open'); }
@@ -1027,7 +1027,7 @@ $('c-draft').onclick = async () => {
   try {
     const r = await jpost('/api/agents/draft', {description: desc, base: EDIT_BASE || undefined});
     if (r.markdown) $('c-body').value = r.markdown;
-    else alert('Agent Smith did not produce a clean draft:\n\n'+(r.raw||'').slice(0,600));
+    else alert('Neo did not produce a clean draft:\n\n'+(r.raw||'').slice(0,600));
   } catch(e){ alert('Draft failed: '+e.message); }
   $('c-draft').disabled = false; $('c-drafting').style.display='none';
 };
@@ -1036,7 +1036,7 @@ $('c-save').onclick = async () => {
   if(!name){ $('c-name').focus(); return; }
   let body = $('c-body').value.trim();
   let text;
-  if (body.startsWith('---')) {           // agent-smith gave a full file
+  if (body.startsWith('---')) {           // neo gave a full file
     text = body;
   } else {
     const fm = ['---',
@@ -1066,6 +1066,8 @@ load();
 """
 
 _HTML = (_HTML
+    .replace("__NEO_ICON_BIG__", '<img class="smith-lg" src="/static/agent-icons/neo.png" alt="">')
+    .replace("__NEO_ICON__", '<img class="smith" src="/static/agent-icons/neo.png" alt="" style="object-fit:contain">')
     .replace("__SMITH_ICON__", f'<img class="smith" src="data:image/png;base64,{_SMITH_D_B64}" alt="">')
     .replace("__SMITH_A_B64__", _SMITH_B64)
     .replace("__SMITH_ICON_BIG__", f'<img class="smith-lg" src="data:image/png;base64,{_SMITH_D_B64}" alt="">')

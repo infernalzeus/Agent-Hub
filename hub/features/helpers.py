@@ -35,7 +35,10 @@ def build() -> "list[dict]":
     shadow = (yd.get("shadow") or {})
     rows = [
         {"id": "smith", "name": "Agent Smith", "kind": "voice agent", "icon": "smith", "state": "live",
-         "does": "The voice. Wake word, Talk, speaks answers. Also drafts new agents from a plain description.", "where": "TALK (top left)"},
+         "does": "The voice you talk to: wake word, Talk, speaks the answers, and calls the Hub's own commands (open a page, run a PC task). Smith does not design agents; Neo does.", "where": "TALK (top left)",
+         "calls": ["router", "desktop", "doctor", "neo"]},
+        {"id": "neo", "name": "Neo", "kind": "agent", "icon": "neo", "state": "live",
+         "does": "Designs and edits other agents from a plain description and hands back one ready-to-save agent file. Called from the Agents page, by Smith when you ask for a new agent, and by the Doctor when a fix needs an agent changed.", "where": "Agents page", "calls": []},
         {"id": "doctor", "name": "The Doctor", "kind": "agent", "icon": "doctor", "state": "live",
          "does": "Diagnoses the Hub when something is wrong and proposes a fix as a diff in Missions. Never restarts anything and never applies a fix without you.", "where": "Support block"},
         {"id": "desktop", "name": "Desktop agent", "kind": "agent", "icon": "desktop", "state": "live",

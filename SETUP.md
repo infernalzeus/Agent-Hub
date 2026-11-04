@@ -108,7 +108,7 @@ brief handed to one agent, run headless to completion. `/missions` is the board:
 ### Agents
 
 Baseline personas ship in `hub/agent_knowledge/agents/` (orchestrator + coder /
-reviewer / researcher / tester / doc-writer; `agent-smith` is the persona-writer,
+reviewer / researcher / tester / doc-writer; `neo` is the persona-writer,
 not a team member). They're copied into every mission's worktree. `/agents` is
 management:
 
@@ -117,7 +117,7 @@ management:
   **EDIT SETTINGS** overrides them (→ `agent_overrides.json`, gitignored, applied
   on the next dispatch).
 - **CREATE AGENT** / **EDIT WITH AI** → describe what you want (or what to
-  change); **agent-smith** drafts/revises the persona `.md`; you review and save.
+  change); **neo** drafts/revises the persona `.md`; you review and save.
   New/edited personas land in `hub/agent_knowledge/agents_user/` (gitignored —
   yours, survive repo pulls; a user file shadows a baseline one of the same name).
 

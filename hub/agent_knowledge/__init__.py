@@ -415,7 +415,7 @@ AGENTS_DIR = Path(__file__).parent / "agents"                # baseline, in the 
 USER_AGENTS_DIR = Path(__file__).parent / "agents_user"      # yours, gitignored
 OVERRIDES_FILE = Path(__file__).parent / "agent_overrides.json"   # LLM-settings, gitignored
 # always materialised + always available as a chat target, but not "on the team"
-UTILITY_AGENTS = ("agent-smith", "scout")
+UTILITY_AGENTS = ("neo", "scout")           # Neo designs agents (it was called agent-smith until 4 Nov; Smith is now only the voice)
 RENDER_TOOL = Path(__file__).resolve().parents[2] / "tools" / "render_png.py"   # HTML/SVG -> PNG via headless Edge/Chrome
 
 
