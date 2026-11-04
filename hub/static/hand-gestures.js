@@ -29,7 +29,7 @@ SOFTWARE.
   // pinchOn / pinchOff are fractions of the hand's own size (wrist to the middle finger's knuckle), measured in the camera's own space and
   // including depth, so two fingertips that merely overlap in the picture but sit at different depths are not a pinch. 0.22 is about 2 cm on an
   // adult hand and 0.34 about 3.5 cm: a pinch starts below the first and ends above the second.
-  const TUNING=Object.freeze({pinchOn:.22,pinchOff:.34,pinchOnM:.26,pinchOffM:.38,tripleOn:.28,tripleOff:.40,tripleHoldMs:260,confirmMs:70,settleMs:220,poseHoldMs:200,aimLagMs:190,trailMs:500,clickSlop:20,fitHoldMs:1000,maxJump:.28,idleMs:60000});
+  const TUNING=Object.freeze({pinchOn:.22,pinchOff:.34,pinchOnM:.26,pinchOffM:.38,tripleOn:.28,tripleOff:.40,tripleHoldMs:260,tripleTips:.30,rightIndexAway:.30,tapPointMs:200,tapMinMs:60,tapMaxMs:550,confirmMs:70,settleMs:220,poseHoldMs:200,aimLagMs:190,trailMs:500,clickSlop:20,fitHoldMs:1000,maxJump:.28,idleMs:60000});
   const CAMERA={w:640,h:480};
   const PALM=[0,5,9,13,17];
   class LowPass{constructor(){this.last=null;}filter(x,a){this.last=this.last===null?x:a*x+(1-a)*this.last;return this.last;}}
@@ -62,15 +62,15 @@ SOFTWARE.
         s.wrist=wrist;const points=raw.map((p,j)=>s.joints[j].filter((1-p.x)*width,p.y*height,now/1000));
         // true distances: the camera's own pixels plus its depth estimate (same scale as x), so the picture's shape and overlap cannot fake a pinch
         const P=raw.map(p=>[p.x*cw,p.y*ch,(p.z||0)*cw]),d3=(a,b)=>Math.hypot(P[a][0]-P[b][0],P[a][1]-P[b][1],P[a][2]-P[b][2]);
-        const size=Math.max(1e-6,d3(0,9)),gap=d3(4,8)/size,gapM=d3(4,12)/size,span=Math.max(1,distance(points[0],points[9]));
+        const size=Math.max(1e-6,d3(0,9)),gap=d3(4,8)/size,gapM=d3(4,12)/size,tips=d3(8,12)/size,span=Math.max(1,distance(points[0],points[9]));
         // a fist is four fingertips pulled in to the palm; a pinch with the other fingers curled is NOT one (the index fingertip stays about a hand-size from the palm)
         const pc=[0,1,2].map(k=>PALM.reduce((a,j)=>a+P[j][k],0)/PALM.length),dp=i=>Math.hypot(P[i][0]-pc[0],P[i][1]-pc[1],P[i][2]-pc[2]);
         const fistShape=[8,12,16,20].every(i=>dp(i)<.75*size);
         const fist=this.options.fistGrab&&s.pinched&&[[8,6],[12,10],[16,14],[20,18]].every(([a,b])=>d3(a,0)<d3(b,0)*1.05);
-        let wantsI=fist||(s.pinched?gap<t.pinchOff:gap<t.pinchOn),wantsM=s.rpinched?gapM<t.pinchOffM:gapM<t.pinchOnM;
+        let wantsI=fist||(s.pinched?gap<t.pinchOff:gap<t.pinchOn),wantsM=(s.rpinched?gapM<t.pinchOffM:gapM<t.pinchOnM)&&(s.rpinched||gap>=t.rightIndexAway);      // a right press is the thumb on the middle fingertip with the index finger away; with the index finger touching too it is the zoom hold
         // thumb, index and middle fingertips all together is a third thing, the zoom hold: it is neither of the two single pinches
         // (stricter than a single pinch: with the index finger resting beside the middle one, a thumb-to-middle pinch is also fairly close to the index tip)
-        let wantsT=s.triple?(gap<t.tripleOff&&gapM<t.tripleOff):(gap<t.tripleOn&&gapM<t.tripleOn);
+        let wantsT=(s.triple?(gap<t.tripleOff&&gapM<t.tripleOff):(gap<t.tripleOn&&gapM<t.tripleOn))&&(s.triple||tips<t.tripleTips);
         // the zoom hold takes over only after it has been held a moment: a quick left pinch made with the middle finger resting beside the index finger must stay a click
         if(wantsT&&!s.triple){if(s.tSince==null)s.tSince=now;}else if(!wantsT)s.tSince=null;
         if(s.triple?wantsT:wantsT&&now-s.tSince>=t.tripleHoldMs){wantsI=false;wantsM=false;}
@@ -88,7 +88,7 @@ SOFTWARE.
         if(fist&&!s.grabOffset)s.grabOffset={x:(s.out?.x??tip.x)-wrist.x,y:(s.out?.y??tip.y)-wrist.y};if(!fist)s.grabOffset=null;
         const pos=s.cursor.filter(fist?wrist.x+s.grabOffset.x:tip.x,fist?wrist.y+s.grabOffset.y:tip.y,now/1000);
         s.trail.push({...pos,at:now});while(s.trail.length>1&&now-s.trail[0].at>t.trailMs)s.trail.shift();
-        if(!s.pinched&&!s.rpinched){let aim=s.trail[0];for(const p of s.trail)if(p.at<=now-t.aimLagMs)aim=p;s.aim={x:aim.x,y:aim.y};}
+        if(!s.pinched&&!s.rpinched&&s.tapStart==null){let aim=s.trail[0];for(const p of s.trail)if(p.at<=now-t.aimLagMs)aim=p;s.aim={x:aim.x,y:aim.y};}
         // the palm does not move when fingers close, so a press that drags follows the palm: a cursor riding a fingertip jumps a few
         // centimetres while pinching, which made every click look like a drag
         const palm=s.palmF.filter(PALM.reduce((a,j)=>a+points[j].x,0)/PALM.length,PALM.reduce((a,j)=>a+points[j].y,0)/PALM.length,now/1000);
@@ -101,8 +101,22 @@ SOFTWARE.
         const up=Object.values(fingers).filter(Boolean).length;
         const pose=pinched||rpinched||triple?'pinch':up>=4?'open':fingers.index&&!fingers.middle&&!fingers.ring&&!fingers.pinky?'point':fistShape?'fist':'none';
         if(pinched||rpinched||triple){s.held='pinch';s.pose='pinch';s.poseAt=now;}else if(s.pose!==pose){s.pose=pose;s.poseAt=now;if(s.held==='pinch')s.held='none';}else if(now-s.poseAt>=t.poseHoldMs){if(s.held!==pose&&s.held!=='pinch')s.changedAt=now;s.held=pose;}
+        // LEFT CLICK = a tap of the pointing index finger: point (the other fingers curled) for a moment, curl the index finger and straighten it again within half a second.
+        // The pointer stays where it was before the finger moved, and a pinch never clicks (it only presses and drags).
+        const isPoint=fingers.index&&!fingers.middle&&!fingers.ring&&!fingers.pinky,othersCurled=!fingers.middle&&!fingers.ring&&!fingers.pinky,anyPinch=pinched||rpinched||triple;
+        let tapNow=false;
+        if(isPoint){
+          if(s.pointSince==null)s.pointSince=now;
+          if(s.tapStart!=null){const dur=now-s.tapStart;if(s.tapDeep&&dur>=t.tapMinMs&&dur<=t.tapMaxMs&&!anyPinch)tapNow=true;s.tapStart=null;s.tapDeep=false;}
+        }else{
+          if(s.tapStart==null){if(s.pointSince!=null&&now-s.pointSince>=t.tapPointMs&&!fingers.index&&othersCurled&&!anyPinch){s.tapStart=now;s.tapDeep=false;s.tapAim={x:s.aim.x,y:s.aim.y};}}
+          else if(!othersCurled||now-s.tapStart>t.tapMaxMs||anyPinch){s.tapStart=null;s.tapDeep=false;}
+          s.pointSince=null;
+        }
+        if(s.tapStart!=null){if(dp(8)<.75*size)s.tapDeep=true;s.lastPinchAt=now;}          // a finger curling to a tap must not start a fist tilt
+        const tapAt=tapNow?s.tapAim:null;if(tapNow)s.tapAim=null;
         s.pinched=pinched;s.rpinched=rpinched;s.triple=triple;
-        s.out={id,...pos,aimX:s.aim.x,aimY:s.aim.y,pinched,rpinched,triple,sincePinch:s.lastPinchAt==null?1e9:now-s.lastPinchAt,gesture:s.held,points,span,fingers,pointerFinger:'index',handedness:label,palm,roll,
+        s.out={id,...pos,...(s.tapStart!=null&&s.tapAim?{x:s.tapAim.x,y:s.tapAim.y}:{}),aimX:s.aim.x,aimY:s.aim.y,pinched,rpinched,triple,tap:!!tapAt,tapX:tapAt?tapAt.x:0,tapY:tapAt?tapAt.y:0,sincePinch:s.lastPinchAt==null?1e9:now-s.lastPinchAt,gesture:s.held,points,span,fingers,pointerFinger:'index',handedness:label,palm,roll,
                closeness:clamp(1-(gap-t.pinchOn)/(t.pinchOff-t.pinchOn),0,1),closenessM:clamp(1-(gapM-t.pinchOnM)/(t.pinchOffM-t.pinchOnM),0,1),gap,gapM};
         out.push(s.out);
       }

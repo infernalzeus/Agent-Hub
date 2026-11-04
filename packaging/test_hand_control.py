@@ -28,6 +28,8 @@ def page(hub,tmp_path):
     window.midFrame=(x,y)=>{const a=handFrame(x,y,1,true);a[4]={x:a[12].x+.008,y:a[12].y,z:0};a[8]={...a[8],x:a[8].x-.2};return a;};      // the index finger stays well away: only the middle finger is touching
     window.closeFrame=(x,y,gap,shift)=>{const a=handFrame(x,y,gap,true);a[12]={...a[12],y:a[12].y-.2};for(const i of [4,8])a[i]={...a[i],y:a[i].y+shift/innerHeight};return a;};      // middle finger away, as measured in the real trace
     window.fistFrame=(x,y)=>{const a=handFrame(x,y,1);for(const [tip,pip] of [[8,6],[12,10],[16,14],[20,18]])a[tip]={x:a[pip].x,y:a[pip].y+.08,z:0};a[4]={x:a[5].x,y:a[5].y+.1,z:0};return a;};
+    window.pointFrame=(x,y)=>{const a=fistFrame(x,y).map(p=>({...p}));a[8]={x:a[6].x,y:a[6].y-.12,z:0};const dx=(1-x/innerWidth)-a[8].x,dy=y/innerHeight-a[8].y;return a.map(p=>({x:p.x+dx,y:p.y+dy,z:0}));};
+    window.flexFrame=(x,y)=>{const a=pointFrame(x,y).map(p=>({...p}));a[8]={x:a[6].x,y:a[6].y+.08,z:0};return a;};
     window.feedWith=(make,pts)=>{for(const p of pts){handTime+=20;__hubHands.feed({landmarks:[make(...p)],handedness:[[{categoryName:'Right'}]]},handTime)}};
     window.still=(x,y,n)=>Array.from({length:n},()=>[x,y]);
     window.counters={click:0,ctx:0};
@@ -129,16 +131,6 @@ def test_setup_choices_are_kept_at_once_and_do_not_start_the_camera(page):
  page.get_by_role('button',name='CLOSE',exact=True).click()
 
 
-def test_a_pinch_whose_fingertips_move_is_still_a_click(page):
- page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
- page.evaluate('feedWith(openFrame,still(560,445,20))')
- page.evaluate('feedWith((x,y)=>closeFrame(x,y,.1,60),still(560,445,8))')       # the two fingertips slide 60 px as they meet; the palm does not
- assert page.evaluate('__hubHands.stats().presses')==1
- page.evaluate('feedWith(openFrame,still(560,445,8))')
- assert page.evaluate('counters')=={'click':1,'ctx':0}
- assert page.evaluate('__hubHands.stats().clicks')==1
-
-
 def test_thumb_to_middle_finger_is_a_right_click_and_not_a_left_one(page):
  page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
  page.evaluate('feedWith(openFrame,still(560,445,20))')
@@ -151,17 +143,6 @@ def test_a_relaxed_hand_near_the_thumb_never_presses(page):
  page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
  page.evaluate('feedWith((x,y)=>handFrame(x,y,.45,true),still(560,445,90))')
  assert page.evaluate('__hubHands.stats().pinches')==0
-
-
-def test_a_pinch_clicks_a_button_inside_a_blocks_own_page(page):
- page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
- page.evaluate("""()=>{const f=document.createElement('iframe');f.id='tframe';f.style.cssText='position:fixed;left:300px;top:300px;width:300px;height:200px;z-index:60;border:0';
-   f.srcdoc='<body style="margin:0"><button style="position:absolute;left:20px;top:20px;width:100px;height:40px" onclick="window.n=(window.n||0)+1">inside</button></body>';document.querySelector('.hb').appendChild(f);}""")
- page.wait_for_function("document.getElementById('tframe').contentDocument&&document.getElementById('tframe').contentDocument.querySelector('button')")
- page.evaluate('feedWith(openFrame,still(370,340,20))')
- page.evaluate('feedWith((x,y)=>closeFrame(x,y,.1,40),still(370,340,8))')
- page.evaluate('feedWith(openFrame,still(370,340,8))')
- assert page.evaluate("document.getElementById('tframe').contentWindow.n")==1
 
 
 def test_a_closed_fist_tilts_the_board_in_view_3d_and_does_nothing_in_classic(page):
@@ -223,14 +204,6 @@ def test_three_fingertips_together_zoom_with_one_hand_up_in_and_down_out(page):
  assert page.evaluate('__hubHands.stats().clicks')==0
 
 
-def test_a_click_survives_the_hand_wandering_a_little(page):
- page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
- page.evaluate('feedWith(openFrame,still(560,445,20))')
- page.evaluate('feedWith((x,y)=>closeFrame(x,y,.1,0),Array.from({length:10},(_,i)=>[560+i*3,445+(i%2)*4]))')    # 27 px of drift while pinched, well inside a screen-sized tolerance
- page.evaluate('feedWith(openFrame,still(587,445,8))')
- assert page.evaluate('counters')=={'click':1,'ctx':0}
-
-
 def test_the_last_minute_can_be_saved_from_setup(page):
  page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
  page.evaluate('feedWith(openFrame,still(560,445,30))')
@@ -247,3 +220,41 @@ def test_thumb_to_middle_on_a_block_opens_its_menu_and_on_the_empty_board_the_bo
  page.evaluate('p=>feedWith(openFrame,still(p.x,p.y,8))',{'x':x,'y':y})
  labels=page.locator('.hb-ctx button').all_inner_texts()
  assert any('MINIMISE' in l for l in labels),labels                       # the right press now DOES something
+
+
+def test_a_pinch_presses_and_drags_but_never_clicks(page):
+ page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
+ page.evaluate('feedWith(openFrame,still(560,445,20))')
+ page.evaluate('feedWith((x,y)=>closeFrame(x,y,.1,0),still(560,445,8))')
+ assert page.evaluate('__hubHands.stats().presses')==1                                   # it pressed (and would drag)
+ page.evaluate('feedWith(openFrame,still(560,445,8))')
+ assert page.evaluate('counters')=={'click':0,'ctx':0}                                     # but a pinch alone is not a click
+ assert page.evaluate('__hubHands.stats().clicks')==0
+
+
+def test_pointing_and_tapping_the_index_finger_is_a_left_click_where_the_pointer_was(page):
+ page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
+ page.evaluate('feedWith(pointFrame,still(560,445,16))')
+ page.evaluate('feedWith(flexFrame,still(760,445,6))')                                     # the finger curls and the hand drifts 200 px sideways while it does
+ page.evaluate('feedWith(pointFrame,still(760,445,8))')
+ assert page.evaluate('counters')=={'click':1,'ctx':0}                                     # the click landed on the button the pointer was on before the finger moved
+ assert page.evaluate('__hubHands.stats().taps')==1
+
+
+def test_a_tap_clicks_a_button_inside_a_blocks_own_page(page):
+ page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
+ page.evaluate("""()=>{const f=document.createElement('iframe');f.id='tframe';f.style.cssText='position:fixed;left:300px;top:300px;width:300px;height:200px;z-index:60;border:0';
+   f.srcdoc='<body style="margin:0"><button style="position:absolute;left:20px;top:20px;width:100px;height:40px" onclick="window.n=(window.n||0)+1">inside</button></body>';document.querySelector('.hb').appendChild(f);}""")
+ page.wait_for_function("document.getElementById('tframe').contentDocument&&document.getElementById('tframe').contentDocument.querySelector('button')")
+ page.evaluate('feedWith(pointFrame,still(370,340,16))')
+ page.evaluate('feedWith(flexFrame,still(370,340,6))')
+ page.evaluate('feedWith(pointFrame,still(370,340,8))')
+ assert page.evaluate("document.getElementById('tframe').contentWindow.n")==1
+
+
+def test_a_finger_that_stays_curled_and_a_pointing_hand_at_rest_never_click(page):
+ page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
+ page.evaluate('feedWith(pointFrame,still(560,445,120))')
+ page.evaluate('feedWith(flexFrame,still(560,445,60))')                                    # 1.2 s curled: a fist, not a tap
+ page.evaluate('feedWith(pointFrame,still(560,445,10))')
+ assert page.evaluate('counters')=={'click':0,'ctx':0}

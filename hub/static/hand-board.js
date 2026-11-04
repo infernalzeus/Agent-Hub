@@ -49,10 +49,18 @@ SOFTWARE.
     const setup=document.createElement('section');setup.className='hands-setup';setup.hidden=true;setup.setAttribute('role','dialog');setup.setAttribute('aria-label','Set up hand control');document.body.appendChild(setup);
     const configure=document.createElement('button');configure.type='button';configure.className='hb-btn';configure.textContent='HAND SETUP';configure.onclick=()=>calibrationPanel();bar.appendChild(configure);
     const saveBtn=document.createElement('button');saveBtn.type='button';saveBtn.className='hb-btn';saveBtn.textContent='SAVE TRACE';saveBtn.hidden=true;saveBtn.title='Save the last minute of hand numbers (no pictures) so Claude can look at what happened';saveBtn.onclick=()=>saveTrace('free',null);bar.appendChild(saveBtn);
-    const fresh=()=>({frames:0,handFrames:0,pinches:0,detectedPinches:0,clicks:0,rclicks:0,orbits:0,zooms:0,zoom1:0,fits:0,latencies:[],cameraLatencies:[]});
+    const fresh=()=>({frames:0,handFrames:0,pinches:0,detectedPinches:0,clicks:0,rclicks:0,orbits:0,zooms:0,zoom1:0,fits:0,taps:0,latencies:[],cameraLatencies:[]});
     let counts=fresh();
 
     // ---- what a hand is over: the board's own elements, and inside a block's frame when it is one of our own pages
+    const dead=()=>Math.max(10,Math.round(innerWidth*.012));      // a drag ignores the first few pixels of hand tremor
+    function tapClick(hand){
+      const x=hand.tapX,y=hand.tapY,r=resolve(x,y);if(!r){mark('tap-no-target');return;}
+      const p={target:r.el,k:r.k,ox:r.ox,oy:r.oy,button:0},w=r.el.ownerDocument.defaultView||window,o={bubbles:true,cancelable:true,composed:true,clientX:(x-r.ox)/r.k,clientY:(y-r.oy)/r.k};
+      emit(p,'pointermove',hand.id,x,y,false);emit(p,'pointerdown',hand.id,x,y,true);emit(p,'pointerup',hand.id,x,y,false);
+      r.el.dispatchEvent(new w.MouseEvent('click',{...o,detail:1}));counts.clicks++;counts.taps++;counts.pinches++;
+      mark('tap',{x:Math.round(x),y:Math.round(y),target:String(r.el.className||r.el.tagName).slice(0,30)});lastAction=performance.now();firstPinch();
+    }
     function resolve(x,y){
       const e=document.elementFromPoint(x,y);if(!e||!host.contains(e))return null;
       const fr=e.tagName==='IFRAME'?e:e.closest('iframe');
@@ -78,7 +86,7 @@ SOFTWARE.
       const at=hand?posOf(p,hand):p.last;
       emit(p,cancel?'pointercancel':'pointerup',id,at.x,at.y,false);
       let how=cancel?'cancelled':'drag';
-      if(!cancel&&(p.mode==='left'||p.mode==='right')&&G.isClick(p.down,at,p.travel,slop())){
+      if(!cancel&&p.mode==='right'&&G.isClick(p.down,at,p.travel,slop())){
         const now=resolve(at.x,at.y);how='click-missed';
         if(now&&now.el===p.target){const w=p.target.ownerDocument.defaultView||window,o={bubbles:true,cancelable:true,composed:true,clientX:(at.x-p.ox)/p.k,clientY:(at.y-p.oy)/p.k};
           if(p.mode==='left'){p.target.dispatchEvent(new w.MouseEvent('click',{...o,detail:1}));counts.clicks++;how='click';}
@@ -91,7 +99,7 @@ SOFTWARE.
 
     // ---- what is drawn: the skeleton, the three working fingertips, and a line from the thumb that fills as a pinch closes
     function showOverlay(){if(canvas)return;canvas=document.createElement('canvas');canvas.className='hands-overlay';canvas.setAttribute('aria-hidden','true');document.body.appendChild(canvas);ctx=canvas.getContext('2d');
-      legend=document.createElement('div');legend.className='hands-legend';legend.textContent='THUMB + INDEX: left click, drag · THUMB + MIDDLE: right click · THUMB + INDEX + MIDDLE together, hand up or down: zoom · FIST in VIEW 3D: tilt and turn · OPEN HAND 1s: fit · ESC: camera off';document.body.appendChild(legend);
+      legend=document.createElement('div');legend.className='hands-legend';legend.textContent='POINT, then flick the index finger down and up: left click · THUMB + INDEX held: drag · THUMB + MIDDLE (index away): right click menu · THUMB + INDEX + MIDDLE together, hand up or down: zoom · FIST in VIEW 3D: tilt and turn · OPEN HAND 1s: fit · ESC: camera off';document.body.appendChild(legend);
       status=document.createElement('div');status.className='hands-status';status.setAttribute('role','status');status.textContent='CAMERA ON · LOCAL HAND CONTROL';document.body.appendChild(status);}
     function clearOverlay(){clearTimeout(legendTimer);legendTimer=0;canvas?.remove();legend?.remove();status?.remove();canvas=ctx=legend=status=null;}
     function paint(hands){
@@ -144,6 +152,7 @@ SOFTWARE.
       if(output.fit&&!presses.size&&now-typedAt>3000&&performance.now()-lastAction>2500){fitButton.click();counts.fits++;}
       for(const hand of output.hands){
         let p=presses.get(hand.id);
+        if(hand.tap&&!p){tapClick(hand);continue;}
         // thumb, index and middle together: one-hand zoom. A press that began on the way there is cancelled, never completed as a click.
         if(hand.triple&&(!p||p.mode!=='zoom1')){if(p)release(hand.id,true);begin(hand.id,hand,'zoom1');continue;}
         if(p){
@@ -159,7 +168,7 @@ SOFTWARE.
           }
           const done=p.mode==='left'?!hand.pinched:!hand.rpinched;
           if(done){release(hand.id,false,hand);continue;}
-          const at=posOf(p,hand);p.travel=Math.max(p.travel,G.distance(p.down,at));p.last=p.travel<slop()?p.down:at;emit(p,'pointermove',hand.id,p.last.x,p.last.y,true);
+          const at=posOf(p,hand);p.travel=Math.max(p.travel,G.distance(p.down,at));p.last=p.travel<(p.mode==='left'?dead():slop())?p.down:at;emit(p,'pointermove',hand.id,p.last.x,p.last.y,true);
         }else if(hand.pinched)begin(hand.id,hand,'left');
         else if(hand.rpinched)begin(hand.id,hand,'right');
         else if(profile.orbit&&hand.gesture==='fist'&&hand.sincePinch>700){const v=boardView();if(v&&v.mode()==='3d')begin(hand.id,hand,'orbit');else say('FIST TILTS THE BOARD IN VIEW 3D: choose VIEW, then 3D');}
@@ -177,7 +186,7 @@ SOFTWARE.
     function mark(ev,extra){events.push({t:Math.round(performance.now()),ev,...(extra||{})});if(events.length>500)events.shift();}
     function ringFrame(output,result,now){
       if(now-lastRingAt<66)return;lastRingAt=now;
-      ring.push({t:Math.round(performance.now()),step:guided?guided.step():'',hands:output.hands.map((h,k)=>({gesture:h.gesture,pinched:h.pinched,rpinched:h.rpinched,triple:h.triple,gap:rd(h.gap),gapM:rd(h.gapM),roll:rd(h.roll),
+      ring.push({t:Math.round(performance.now()),step:guided?guided.step():'',hands:output.hands.map((h,k)=>({gesture:h.gesture,pinched:h.pinched,rpinched:h.rpinched,triple:h.triple,tap:h.tap?1:0,gap:rd(h.gap),gapM:rd(h.gapM),roll:rd(h.roll),
         sincePinch:Math.min(99999,Math.round(h.sincePinch)),lm:(result.landmarks[k]||[]).map(q=>[rd(q.x),rd(q.y),rd(q.z||0)])}))});
       if(ring.length>900)ring.shift();
     }
