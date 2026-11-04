@@ -36,8 +36,8 @@ def test_hand_menu_replaces_more_without_starting_capture(page):
  assert page.get_by_role('button',name='MORE',exact=True).count()==0
  page.get_by_role('button',name='Hand control options',exact=True).click()
  assert page.get_by_role('button',name='HAND SETUP',exact=True).is_visible()
- page.get_by_role('button',name='GESTURE LEGEND',exact=True).click();page.reload();page.wait_for_selector('.hb')
- assert page.evaluate("document.documentElement.classList.contains('hub-hide-hand-legend')")
+ page.get_by_role('button',name='GESTURE LEGEND',exact=True).click();page.wait_for_timeout(300)
+ assert page.locator('.hands-log.open').count()==1 and page.locator('.hl-legend').is_visible()      # the legend button pulls the hand log up
 
 @pytest.mark.parametrize('surface',['slab','glass'])
 def test_layer_order_hide_and_persistence(page,surface):
