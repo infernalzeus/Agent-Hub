@@ -40,7 +40,7 @@ def build() -> "list[dict]":
         {"id": "neo", "name": "Neo", "kind": "agent", "icon": "neo", "state": "live",
          "does": "Designs and edits other agents from a plain description and hands back one ready-to-save agent file. Called from the Agents page, by Smith when you ask for a new agent, and by the Doctor when a fix needs an agent changed.", "where": "Agents page", "calls": []},
         {"id": "doctor", "name": "The Doctor", "kind": "agent", "icon": "doctor", "state": "live",
-         "does": "Diagnoses the Hub when something is wrong and proposes a fix as a diff in Missions. Never restarts anything and never applies a fix without you.", "where": "Support block"},
+         "does": "Diagnoses the Hub when something is wrong and proposes a fix as a diff in Missions. Never restarts anything and never applies a fix without you.", "where": "Support block", "calls": ["neo"]},
         {"id": "desktop", "name": "Desktop agent", "kind": "agent", "icon": "desktop", "state": "live",
          "does": "Presses and types in apps on this PC for a goal, one step at a time, checking the screen after each. Replays a saved routine first when there is one.", "where": "PC CONTROL"},
         {"id": "router", "name": "Router", "kind": "rules", "icon": "router", "state": "live",

@@ -36,3 +36,10 @@ def test_the_agents_page_shows_neo_with_his_picture_and_every_picture_is_big(hub
         assert "Neo" in pg.inner_text("#list")
         b.close()
     assert errors == []
+
+
+def test_the_doctor_is_told_how_to_call_neo_and_where_the_hub_is():
+    from hub.features import support
+    b = support.brief_for("the Agents page is empty")
+    assert "Neo" in b and "/api/agents/draft" in b and "THE RUNNING HUB: http://127.0.0.1:" in b
+    assert "nothing is saved" in b.lower() or "Nothing is saved" in b

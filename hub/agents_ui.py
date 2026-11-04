@@ -689,6 +689,7 @@ async function load(){
   try { RECS = await jget('/api/model-recommendations'); } catch(e){ RECS = {}; }
   try { PROFILES = (await jget('/api/profiles')).profiles || {}; } catch(e){ PROFILES = {}; }
   try { HELPERS = (await jget('/api/hub/helpers')).helpers || []; } catch(e){ HELPERS = []; }
+  try { AGENTMAP = await jget('/api/hub/agent-map'); } catch(e){ AGENTMAP = null; }
   try {
     const mp = await jget('/api/model-policy');
     $('mpol').innerHTML = `<b>Model:</b> policy <code>${esc(mp.policy)}</code> → runs use `
@@ -760,7 +761,7 @@ async function load(){
   const loose = subs.filter(p => !inFam.has(p.name));
   if(loose.length) fams.push({key:'other', label:'Other', hint:'not offered by any work type', members:loose});
 
-  const TABS = [{key:'run', label:'Runs the hub', n:RUNS.length}, {key:'helpers', label:'Hub helpers', n:HELPERS.length}]
+  const TABS = [{key:'run', label:'Runs the hub', n:RUNS.length}, {key:'helpers', label:'Hub helpers', n:HELPERS.length}, {key:'map', label:'How they work together', n:AGENTMAP?AGENTMAP.nodes.length:0}]
     .concat(fams.map(f => ({key:f.key, label:f.label, n:f.members.length})));
   if(!TABS.some(t => t.key === FAM)) FAM = TABS[0].key;
 
@@ -771,7 +772,20 @@ async function load(){
     // honest way to redraw without splitting a 900-line page in half today.
     FAM = b.dataset.fam; location.hash = FAM; load(); window.scrollTo({top:0}); });
 
-  if(FAM === 'helpers'){
+  if(FAM === 'map'){
+    const M = AGENTMAP;
+    if(!M){ $('list').innerHTML = '<div class="note">Could not read the agent map.</div>'; }
+    else {
+      const name = (id) => (M.nodes.find(n => n.id===id)||{name:id}).name;
+      const by = {}; M.edges.forEach(e => (by[e.from] = by[e.from] || []).push(e));
+      const callRows = Object.keys(by).map(k => `<tr><td><b>${esc(name(k))}</b></td><td>${by[k].map(e => esc(name(e.to)) + ' <span class="note">(' + esc(e.why) + ')</span>').join('<br>')}</td></tr>`).join('');
+      const covRows = M.nodes.map(n => { const c = M.coverage[n.id]; return c ? `<tr><td><b>${esc(n.name)}</b></td><td>${esc(c.decides)}</td><td><span class="tag ${c.state==='gap'?'':'primary'}">${esc(c.state)}</span></td><td>${esc(c.note)}</td></tr>` : `<tr><td><b>${esc(n.name)}</b></td><td colspan="3">NOT DECIDED YET</td></tr>`; }).join('');
+      $('list').innerHTML = `<div class="secthead">WHO CALLS WHOM<span>read from the helpers' own lists and the team rosters, not typed into this page</span></div>
+        <div class="persona"><table style="width:100%;border-collapse:collapse"><tr><th align="left">Agent</th><th align="left">Hands work or questions to</th></tr>${callRows}</table></div>
+        <div class="secthead">WHAT THE LEARNERS CAN SEE<span>${M.complete?'every agent has been decided on':'an agent has no decision yet'}; gaps: ${M.gaps.map(g=>esc(name(g.id))).join(', ')||'none'}</span></div>
+        <div class="persona"><table style="width:100%;border-collapse:collapse"><tr><th align="left">Agent</th><th align="left">What it decides</th><th align="left">State</th><th align="left">Why</th></tr>${covRows}</table></div>`;
+    }
+  } else if(FAM === 'helpers'){
     $('list').innerHTML = `<div class="secthead">THE HUB'S OWN HELPERS<span>the voice, the Doctor, the desktop agent and the small learners: who they are, what they do, and where each stands now</span></div>` + HELPERS.map(helperCard).join('');
   } else if(FAM === 'run'){
     $('list').innerHTML =
@@ -790,6 +804,7 @@ let SKILLS = null;
 // Which family of work is showing. In the hash so it survives a reload and can be
 // linked; a hash change never reloads, so it is also listened for.
 let FAM = (location.hash||'').replace('#','') || 'run';
+let AGENTMAP = null;      // who calls whom and what the learners can see, from /api/hub/agent-map
 let HELPERS = [];          // the Hub's own helpers (voice, doctor, learners), from /api/hub/helpers
 const HELPER_ICON = {
   doctor:'M12 4.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4zM5 21c0-3.9 3.1-7 7-7s7 3.1 7 7M9.2 14.3v2.4a2.3 2.3 0 0 0 4.6 0v-.6M16.3 17.2h2.4M17.5 16v2.4M10.2 3.6a2 2 0 0 1 3.6 0',

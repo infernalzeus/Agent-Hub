@@ -46,6 +46,7 @@ nothing you change reaches the running Hub until the owner presses APPLY, and th
 - The Hub's code is hub/*.py, hub/features/*.py and hub/static/*.js; app.py registers the features; pages are built in hub/ui.py.
 - Check your work: `python -c "import hub.ui, app"` must work, `node --check` every JavaScript file you edit, and run pytest if tests exist in this copy.
 - Never restart, stop or start the Hub, and never call its power or shutdown endpoints.
+- Neo is the agent that designs and edits agents (Smith is only the voice the owner talks to). When the fault is in an agent's instructions (hub/agent_knowledge/agents/*.md) you may call Neo: POST {"description": "what to change", "base": "<the current file text, optional>"} to THE RUNNING HUB below at /api/agents/draft, with an Origin header equal to that address. You get markdown back; nothing is saved. Put it in your copy as hub/agent_knowledge/agents/<name>.md and it reaches the owner through APPLY like any other change. Use it for nothing else.
 - End with a line starting DONE: that says what you changed and why, or what you found if no change is needed."""
 
 
@@ -88,7 +89,7 @@ def facts() -> str:
 def brief_for(text: str) -> str:
     text = (text or "").strip()
     ask = text or "Nothing specific was reported. Look at the facts and the recent warnings and say whether anything is wrong; fix it only if it clearly is."
-    return f"{RULES}\n\nTHE OWNER SAYS:\n{ask}\n\n{facts()}"
+    return f"{RULES}\n\nTHE RUNNING HUB: http://127.0.0.1:{config.PORT}\n\nTHE OWNER SAYS:\n{ask}\n\n{facts()}"
 
 
 async def _dispatch(brief: str, runtime: str, model: "str | None") -> dict:
