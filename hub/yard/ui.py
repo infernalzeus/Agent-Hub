@@ -36,18 +36,38 @@ td{padding:6px 10px;border-bottom:1px solid rgba(0,230,118,.08);vertical-align:t
 .mute{color:var(--mute)}.no{color:var(--red)}.yes{color:var(--accent)}
 code{background:rgba(0,230,118,.08);border-radius:4px;padding:0 4px}
 #msg{color:var(--amber);min-height:20px}
+header.top{margin-bottom:4px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+.flow{display:flex;gap:6px;align-items:stretch;flex-wrap:wrap;margin:14px 0 6px}
+.step{flex:1 1 130px;min-width:120px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 12px;position:relative}
+.step .n{font:700 10px Orbitron,system-ui,sans-serif;letter-spacing:.1em;color:var(--mute)}.step .t{font:700 13px Orbitron,system-ui,sans-serif;letter-spacing:.06em;color:var(--accent);margin:2px 0}
+.step .d{font-size:12px;color:var(--mute);line-height:1.4}.step .v{margin-top:6px;font-size:13px;color:var(--text)}.step .v b{color:var(--accent)}
+.step.now{border-color:var(--accent);box-shadow:0 0 14px rgba(0,230,118,.18)}.step.wait{opacity:.7}
+.words{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px}.words div{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px 12px;font-size:12.5px}.words b{display:block;color:var(--accent);font:700 11px Orbitron,system-ui,sans-serif;letter-spacing:.06em;margin-bottom:2px}.words span{color:var(--mute)}
+#next .a{display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(0,230,118,.08)}#next .a:last-child{border:0}#next .a span{flex:1}
+section{animation:fadein .18s ease}@keyframes fadein{from{opacity:0}to{opacity:1}}@media (prefers-reduced-motion:reduce){section{animation:none}}
 button.i{width:26px;height:26px;padding:0;border-radius:50%;font:700 13px Outfit,system-ui,sans-serif;letter-spacing:0;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;margin-left:8px}
 .infobox{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin:8px 0;font-size:13px;line-height:1.55}.infobox[hidden]{display:none}.infobox b{color:var(--accent)}.infobox ul{margin:6px 0 0 18px}.infobox li{margin:2px 0}
 .tabs{display:flex;gap:8px;margin:12px 0 4px;flex-wrap:wrap}.tabs button{padding:8px 14px}.tabs button.on{background:var(--accent);color:#04120a}
 .prog{display:none;margin:6px 0}.prog.on{display:block}.prog .track{height:8px;border-radius:4px;background:rgba(0,230,118,.12);overflow:hidden}.prog .fill{height:100%;background:var(--accent);width:0}
 .stop{border-color:var(--red);color:var(--red)}iframe.teach{width:100%;height:68vh;min-height:420px;border:1px solid var(--border);border-radius:10px;background:#080c28}
 </style></head><body><main>
-<h1>R LEARNING<button type="button" class="i" data-info="info-all" title="What is this page?" aria-label="What is this page?">i</button></h1>
-<p class="sub">How the Hub learns to choose better. Nothing it learns is used by the live Hub until you say so.</p>
-<div class="infobox" id="info-all" hidden><b>What is this?</b> The Hub makes choices all day: what you meant, which model does a job, how to press through an app. R learning (reinforcement learning) is a way for small learners to get better at those choices from results.<ul><li><b>YARD</b>: a pretend copy of apps where a small learner can try thousands of times at no risk. This is where it actually learns.</li><li><b>TEACH</b>: you tell it what was right or wrong in things that really happened. Those are the most valuable results it can get.</li><li><b>STATUS</b>: how much it has to learn from, and what it is still waiting for.</li></ul><b>The order of things:</b> it records, you teach, the yard practises, the learner watches the live Hub without acting (shadow), and only then, with your yes, could it help for real.</div>
-<div class="tabs" role="tablist"><button type="button" data-tab="practice" class="on">YARD</button><button type="button" data-tab="teach">TEACH</button><button type="button" data-tab="status">STATUS</button></div>
+<header class="top"><h1>R LEARNING</h1><p class="sub">The Hub learns to make better choices from results. It only ever proposes; nothing it learns acts until you say yes.</p></header>
+<div class="tabs" role="tablist"><button type="button" data-tab="overview" class="on">OVERVIEW</button><button type="button" data-tab="practice">YARD</button><button type="button" data-tab="teach">TEACH</button><button type="button" data-tab="status">STATUS</button></div>
+<section id="tab-overview">
+<div class="flow" id="flow"></div>
+<h2>WHAT TO DO NEXT</h2><div id="next" class="card"></div>
+<h2>THE WORDS</h2>
+<div class="words">
+<div><b>Choice</b><span>a moment where the Hub must pick: what you meant, which model, how to press through an app.</span></div>
+<div><b>Result (label)</b><span>whether the choice worked. Exact when it comes from a real outcome or from you; only a hint when it is guessed from what you did next.</span></div>
+<div><b>Learner</b><span>a small program that gets better at one kind of choice by trying and seeing results. Not an agent that talks.</span></div>
+<div><b>Yard</b><span>pretend apps where a learner can try thousands of times at no risk.</span></div>
+<div><b>Shadow</b><span>the learner watches the live Hub and notes what it would have done. It never acts.</span></div>
+</div>
+</section>
 <section id="tab-practice">
-<p class="sub">The practice yard: pretend music apps where a small learner tries to play a playlist, again and again. Nothing here touches your PC.<button type="button" class="i" data-info="info-yard" title="What does this do?" aria-label="What does the yard do?">i</button></p>
+<p class="sub">Pretend music apps where a learner tries to play a playlist, again and again. Nothing here touches your PC.<button type="button" class="i" data-info="info-yard" title="Details" aria-label="Details about the yard">i</button></p>
 <div class="infobox" id="info-yard" hidden><b>What the button does.</b> START A SESSION trains two small learners for about a minute on eight pretend app designs, then tests them. It uses one processor core and opens nothing on your screen. <b>STOP</b> ends it straight away and throws that session away; the last finished results stay. You never have to stop it: it ends by itself.<br><br><b>The tables.</b><ul><li><b>Method</b> (the word &ldquo;policy&rdquo; in the code) is just a way of deciding what to press. Four are compared: random, the rule of thumb the Hub already uses, and two learned ones.</li><li><b>Known words / unseen words</b>: apps use different words for the same button (Play, Start, Listen now). &ldquo;Unseen&rdquo; tests it on words it never practised, which shows whether it learned the layout or only memorised words.</li><li><b>Layouts</b>: eight pretend app designs, each with its own trap (below).</li><li><b>Shadow</b>: during real PC tasks the learner watches the live agent and writes down what it would have pressed. It never presses anything.</li></ul><b>The eight layouts.</b><ul><li><b>direct</b>: the playlist is on the home screen with its own Play button (the easy one).</li><li><b>modal</b>: a welcome dialog blocks everything until you press Not now.</li><li><b>search</b>: no playlists listed; type its name in the search box first.</li><li><b>menu</b>: the playlist page has no Play button; it is under More options.</li><li><b>long</b>: a list of 30 with the target far down.</li><li><b>unnamed</b>: the Play button is an icon with no name (a real agent cannot see those; always fails, on purpose).</li><li><b>tabs</b>: the playlists are under a Library tab.</li><li><b>confirm</b>: pressing Play opens &ldquo;Resume or start over?&rdquo; that must be answered.</li></ul></div>
 <div class="row"><button id="go" type="button">START A SESSION</button><button id="stop" type="button" class="stop" hidden>STOP</button><span id="chips"></span></div>
 <div class="prog" id="prog"><div class="mute" id="phase"></div><div class="track"><div class="fill" id="fill"></div></div></div>
@@ -58,15 +78,15 @@ button.i{width:26px;height:26px;padding:0;border-radius:50%;font:700 13px Outfit
 <p class="sub" id="shadowsub"></p><div class="wrap"><table id="shadow"></table></div>
 </section>
 <section id="tab-teach" hidden>
-<p class="sub">Tell the Hub what was right or wrong in things that really happened.<button type="button" class="i" data-info="info-teach" title="What does this do?" aria-label="What does teach do?">i</button></p>
+<p class="sub">Tell the Hub what was right or wrong in things that really happened.<button type="button" class="i" data-info="info-teach" title="Details" aria-label="Details about teach">i</button></p>
 <div class="infobox" id="info-teach" hidden><b>REQUESTS</b> shows things you said to the Hub and what it took you to mean. Tap <b>RIGHT</b> if it understood, <b>WRONG</b> if not (and say what you meant). <b>MISSIONS</b> shows your latest jobs for coding agents, newest first. Tap <b>GOOD</b> or <b>BAD</b>. If you already pressed APPLY the Hub counts it as good, DISCARD as bad; your tap beats that.<br><br>Each tap is one exact result. The learners are short of these: they need about a hundred and have about ten. Nothing else changes when you tap.</div>
 <iframe class="teach" id="teachframe" title="Teach" data-src="/teach"></iframe>
 </section>
 <section id="tab-status" hidden>
-<h2>SWITCHES<button type="button" class="i" data-info="info-status" title="What is this?" aria-label="What does status show?">i</button></h2>
+<h2>SWITCHES<button type="button" class="i" data-info="info-status" title="Details" aria-label="Details about status">i</button></h2>
 <div class="infobox" id="info-status" hidden><b>LEARNING LOG</b> writes down each choice the Hub makes and how it turned out; switch it off and new notes stop. <b>SHADOW MODE</b> lets the trained learner watch real PC tasks and note what it would have done; it never acts. Below: how many choices exist and how many have an exact result, what each later step is still waiting for, and the <b>bandits</b> (the simplest learners: a tally of how often each option worked; they say nothing until two options have three results each).</div>
 <div class="row" id="switches"><button id="sw-learning" type="button"></button><button id="sw-shadow" type="button"></button></div>
-<p class="sub">LEARNING LOG notes each choice the Hub makes (route, model, desktop step) and how it turned out. SHADOW MODE lets the trained practice policy watch each live desktop step and record what it would have pressed; it never presses anything. Switch either off and new notes stop at once; what is already recorded stays.</p>
+
 <h2>HOW MUCH THERE IS TO LEARN FROM</h2><p class="sub" id="statsub"></p><div class="wrap"><table id="kinds"></table></div>
 <h2>WHAT EACH LATER STEP STILL NEEDS</h2><div class="wrap"><table id="needs"></table></div>
 <h2>SAVED LEARNERS</h2><p class="sub" id="versionsub">Each finished session saves its learner. The one the shadow mode watches with is replaced only by a learner at least as good on unseen words; older ones are kept so any can be restored.</p><div class="wrap"><table id="versions"></table></div>
@@ -117,8 +137,29 @@ button.i{width:26px;height:26px;padding:0;border-radius:50%;font:700 13px Outfit
     const b=$('bandits');head(b,['Choice','Decisions','Had an opinion','Agreed with what was chosen','Differed']);
     for(const [n,v] of Object.entries(j.bandits||{})){const r=el('tr');r.append(el('td',null,n),el('td',null,v.decided),el('td',null,v.had_an_opinion),el('td',null,v.agreed),el('td',null,v.differed));b.append(r);}
   }catch(e){}}
+  async function overview(){
+    let a={},y={},t={left:0};
+    try{a=await (await fetch('/api/learning/status',{cache:'no-store'})).json();}catch(e){}
+    try{y=await (await fetch('/api/yard/status',{cache:'no-store'})).json();}catch(e){}
+    const k=a.per_kind||{},route=k.route||{events:0,labelled:0},nR=Object.values(k).reduce((n,v)=>n+(v.events||0),0),vers=(y.versions||[]).length,sh=y.shadow||{};
+    const steps=[
+      ['1','RECORD','The Hub writes down each choice and how it turned out.','<b>'+nR+'</b> choices recorded',nR>0],
+      ['2','TEACH','You mark what was right or wrong.','<b>'+route.labelled+'</b> of '+route.events+' requests marked',route.labelled>=100],
+      ['3','PRACTISE','A learner tries thousands of times in pretend apps.',vers?('<b>'+vers+'</b> saved, version '+(y.in_use_version||'?')+' in use'):'no session yet',vers>0],
+      ['4','WATCH','It watches the live Hub and notes what it would have done.',sh.steps?('<b>'+sh.steps+'</b> choices watched'):(sh.policy?'ready, nothing watched yet':'waiting for a session'),sh.steps>0],
+      ['5','USE','Only with your yes, and only if it beats the current way.','not yet: never without you',false]];
+    const f=$('flow');f.replaceChildren();let marked=false;
+    steps.forEach(([n,t,d,v,done])=>{const s=el('div','step'+(!done&&!marked?' now':'')+(done?'':' wait'));if(!done)marked=true;s.append(el('div','n','STEP '+n),el('div','t',t),el('div','d',d));const vv=el('div','v');vv.innerHTML=v;s.append(vv);f.append(s);});
+    const nx=$('next');nx.replaceChildren();const todo=[];
+    if(route.events-route.labelled>0)todo.push(['TEACH','Mark '+(route.events-route.labelled)+' past requests as right or wrong. This is the most useful thing you can do.','teach']);
+    if(!vers)todo.push(['YARD','Start one practice session (about a minute) so the learner exists.','practice']);
+    else if(!sh.steps)todo.push(['USE TALK','Ask the Hub to do something inside an app; the learner will watch and note what it would have pressed.',null]);
+    todo.push(['MISSIONS','Mark your latest missions good or bad in TEACH > MISSIONS.','teach']);
+    todo.forEach(([b,t,go])=>{const r=el('div','a');r.append(el('span',null,t));if(go){const g=el('button',null,b);g.onclick=()=>tab(go);r.append(g);}else r.append(el('span','chip',b));nx.append(r);});
+  }
   function tab(name){document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===name));
-    for(const n of ['practice','teach','status'])$('tab-'+n).hidden=n!==name;
+    for(const n of ['overview','practice','teach','status'])$('tab-'+n).hidden=n!==name;
+    if(name==='overview')overview();
     if(name==='teach'){const f=$('teachframe');if(!f.src)f.src=f.dataset.src;}if(name==='status')status();try{localStorage.setItem('hub-rl-tab',name);}catch(e){}}
   document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>tab(b.dataset.tab));
   document.querySelectorAll('button.i').forEach(b=>b.onclick=()=>{const x=document.getElementById(b.dataset.info);x.hidden=!x.hidden;});
@@ -128,7 +169,7 @@ button.i{width:26px;height:26px;padding:0;border-radius:50%;font:700 13px Outfit
     try{const r=await fetch('/api/yard/practice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true,episodes:1500})});
       if(!r.ok)throw Error(await r.text()||('error '+r.status));const j=await r.json();$('msg').textContent=j.stopped?'Stopped. Nothing was saved; the last finished report is still shown.':'Done.';await load();}
     catch(e){$('msg').textContent=String(e.message||e);}finally{b.disabled=false;$('stop').hidden=true;$('prog').classList.remove('on');}};
-  let first='practice';try{first=localStorage.getItem('hub-rl-tab')||'practice';}catch(e){}
+  let first='overview';try{first=localStorage.getItem('hub-rl-tab')||'overview';}catch(e){}
   load();tab(first);
 })();
 </script></body></html>

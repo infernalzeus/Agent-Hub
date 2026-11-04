@@ -234,8 +234,9 @@ def test_the_r_learning_panel_has_three_tabs_and_practice_can_be_stopped(hub):
         errors = []
         pg.on("pageerror", lambda e: errors.append(str(e)))
         pg.goto(hub + "/yard")
-        assert [t.strip() for t in pg.locator(".tabs button").all_inner_texts()] == ["YARD", "TEACH", "STATUS"]
+        assert [t.strip() for t in pg.locator(".tabs button").all_inner_texts()] == ["OVERVIEW", "YARD", "TEACH", "STATUS"]
         assert pg.locator("#stop").is_hidden()
+        pg.click("[data-tab=practice]")
         pg.click("#go")
         pg.wait_for_selector("#stop", state="visible", timeout=8000)
         pg.wait_for_function("document.querySelector('#phase').textContent.length>0", timeout=8000)      # a phase and a percentage while it runs
@@ -257,9 +258,9 @@ def test_every_tab_of_the_r_learning_panel_has_an_info_button_that_explains_it(h
         b = p.chromium.launch(headless=True)
         pg = b.new_context(service_workers="block").new_page()
         pg.goto(hub + "/yard")
-        assert pg.locator("#info-all").is_hidden()
-        pg.click("[data-info=info-all]")
-        assert "reinforcement learning" in pg.inner_text("#info-all")
+        pg.wait_for_function("document.querySelectorAll('#flow .step').length===5")      # the whole story, with live numbers, on the first tab
+        assert "RECORD" in pg.inner_text("#flow") and "USE" in pg.inner_text("#flow") and pg.inner_text("#next")
+        pg.click("[data-tab=practice]")
         pg.click("[data-info=info-yard]")
         txt = pg.inner_text("#info-yard")
         for word in ("direct", "modal", "search", "menu", "long", "unnamed", "tabs", "confirm", "Method", "unseen", "STOP"):
