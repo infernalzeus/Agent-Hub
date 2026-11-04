@@ -38,7 +38,7 @@ SOFTWARE.
   const slop=()=>Math.max(40,Math.round(innerWidth*.05));      // measured: a hand drifts 20 to 45 px in the first third of a second of a pinch at 1280 px wide
   const boardView=()=>{try{return root.__hubBoard.active.view();}catch(_){return null;}};
   const ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 12V5a1.5 1.5 0 0 1 3 0v6-8a1.5 1.5 0 0 1 3 0v8-6a1.5 1.5 0 0 1 3 0v7-4a1.5 1.5 0 0 1 3 0v6c0 5-3 7-7 7-3 0-5-2-6-4l-3-5a1.5 1.5 0 0 1 2.5-1.6L8 12Z"/></svg>';
-  function styles(){if(document.getElementById('hands-style'))return;const s=document.createElement('style');s.id='hands-style';s.textContent='.hands-target{position:fixed;z-index:2147483000;pointer-events:none;border:2px solid #00e676;border-radius:8px;box-shadow:0 0 14px rgba(0,230,118,.55)}html.hands-live,html.hands-live body{cursor:none}.hb-hands{display:inline-flex;align-items:center;gap:5px}.hb-hands svg{width:17px;height:17px}.hb-hands i{width:6px;height:6px;border-radius:50%;background:var(--text-faint);display:inline-block}.hb-hands.live i{background:var(--accent);box-shadow:0 0 5px var(--accent)}.hb-hands.live{border-color:var(--cyan);color:var(--cyan)}.hands-overlay{position:fixed;inset:0;pointer-events:none;z-index:54}.hands-legend,.hands-status{position:fixed;z-index:55;pointer-events:none;max-width:min(520px,calc(100vw - 32px));padding:10px 14px;border:1px solid var(--border-dim);border-radius:9px;background:rgba(8,12,40,.96);color:var(--text);font:11px/1.8 Orbitron,monospace}.hands-legend{left:16px;bottom:calc(22px + env(safe-area-inset-bottom));transition:opacity .3s}.hands-status{left:16px;top:calc(12px + env(safe-area-inset-top));color:var(--cyan);font-size:10px}.hands-setup{position:fixed;inset:auto;left:50%;top:50%;transform:translate(-50%,-50%);z-index:95;box-sizing:border-box;width:min(460px,calc(100vw - 28px));padding:20px;border:1px solid var(--accent);border-radius:12px;background:#080c28;color:var(--text);font:12px/1.8 Orbitron,monospace;box-shadow:0 14px 50px #0009}.hands-setup button{margin:8px 6px 0 0}.hands-setup p{font-family:Outfit,system-ui,sans-serif;font-size:14px}.hands-legend[hidden],.hands-status[hidden],.hands-setup[hidden]{display:none!important}@media(prefers-reduced-motion:reduce){.hands-legend{transition:none}}';document.head.appendChild(s);}
+  function styles(){if(document.getElementById('hands-style'))return;const s=document.createElement('style');s.id='hands-style';s.textContent='.hands-log{position:fixed;right:160px;bottom:12px;z-index:46;width:min(420px,calc(100vw - 190px));font:12px Outfit,system-ui,sans-serif;color:#d6f5e6}.hl-head{display:flex;width:100%;align-items:center;gap:8px;text-align:left;background:rgba(6,10,36,.86);border:1px solid rgba(0,230,118,.28);border-radius:8px;padding:6px 10px;color:#00e676;font:700 9px Orbitron,monospace;letter-spacing:1.2px;cursor:pointer;min-height:30px}.hl-head:hover{border-color:#00e676}.hl-status{flex:1;min-width:0;font:600 11px Outfit,system-ui,sans-serif;letter-spacing:0;color:#d6f5e6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hl-body{display:none;position:absolute;bottom:36px;right:0;left:0;max-height:min(46vh,360px);overflow:auto;background:linear-gradient(145deg,#131b45ee,#080c28f2);border:1px solid #6576b755;border-radius:10px;padding:8px 10px;box-shadow:0 12px 30px #0008;animation:hlfade .18s ease}.hands-log.open .hl-body{display:block}@keyframes hlfade{from{opacity:0}to{opacity:1}}@media (prefers-reduced-motion:reduce){.hl-body{animation:none}}.hl-rows div{padding:2px 0;border-bottom:1px solid rgba(0,230,118,.08);font-size:12px}.hl-rows time{color:#8fcfb2;margin-right:8px;font-variant-numeric:tabular-nums}.hl-rows .hl-err{color:#ff9d9d}.hl-empty{color:#8fcfb2}.hl-legend{margin-top:8px;color:#8fcfb2;font-size:12px;line-height:1.55}html.hub-hide-hand-legend .hl-legend{display:none}.hands-target{position:fixed;z-index:2147483000;pointer-events:none;border:2px solid #00e676;border-radius:8px;box-shadow:0 0 14px rgba(0,230,118,.55)}html.hands-live,html.hands-live body{cursor:none}.hb-hands{display:inline-flex;align-items:center;gap:5px}.hb-hands svg{width:17px;height:17px}.hb-hands i{width:6px;height:6px;border-radius:50%;background:var(--text-faint);display:inline-block}.hb-hands.live i{background:var(--accent);box-shadow:0 0 5px var(--accent)}.hb-hands.live{border-color:var(--cyan);color:var(--cyan)}.hands-overlay{position:fixed;inset:0;pointer-events:none;z-index:54}.hands-legend,.hands-status{position:fixed;z-index:55;pointer-events:none;max-width:min(520px,calc(100vw - 32px));padding:10px 14px;border:1px solid var(--border-dim);border-radius:9px;background:rgba(8,12,40,.96);color:var(--text);font:11px/1.8 Orbitron,monospace}.hands-legend{left:16px;bottom:calc(22px + env(safe-area-inset-bottom));transition:opacity .3s}.hands-status{left:16px;top:calc(12px + env(safe-area-inset-top));color:var(--cyan);font-size:10px}.hands-setup{position:fixed;inset:auto;left:50%;top:50%;transform:translate(-50%,-50%);z-index:95;box-sizing:border-box;width:min(460px,calc(100vw - 28px));padding:20px;border:1px solid var(--accent);border-radius:12px;background:#080c28;color:var(--text);font:12px/1.8 Orbitron,monospace;box-shadow:0 14px 50px #0009}.hands-setup button{margin:8px 6px 0 0}.hands-setup p{font-family:Outfit,system-ui,sans-serif;font-size:14px}.hands-legend[hidden],.hands-status[hidden],.hands-setup[hidden]{display:none!important}@media(prefers-reduced-motion:reduce){.hands-legend{transition:none}}';document.head.appendChild(s);}
   function mount({host,bar,fitButton}){
     styles();
     let typedAt=-Infinity,lastAction=-Infinity,alive=true,enabled=false,canvas=null,ctx=null,legend=null,status=null,legendTimer=0,used=false,zooming=false,interlock=false,cooldown=0,diagnostic=false,measurementLabel='MEASURING',hint='',hintAt=0,calibration=null;
@@ -112,9 +112,41 @@ SOFTWARE.
 
     // ---- what is drawn: the skeleton, the three working fingertips, and a line from the thumb that fills as a pinch closes
     function showOverlay(){if(canvas)return;canvas=document.createElement('canvas');canvas.className='hands-overlay';canvas.setAttribute('aria-hidden','true');document.body.appendChild(canvas);ctx=canvas.getContext('2d');
-      legend=document.createElement('div');legend.className='hands-legend';legend.textContent='POINT: the ring is your cursor; hold it still on a button: click · THUMB + INDEX: a quick pinch taps, a pinch that moves scrolls a panel or drags a block · THUMB + MIDDLE (index away): right click menu · FLAT PALM, fingers together: move the board, push or pull to zoom · THUMB + INDEX + MIDDLE together, hand up or down: zoom · FIST in VIEW 3D: tilt and turn · OPEN HAND 1s: fit · ESC: camera off';document.body.appendChild(legend);
-      status=document.createElement('div');status.className='hands-status';status.setAttribute('role','status');status.textContent='CAMERA ON · LOCAL HAND CONTROL';document.body.appendChild(status);}
-    function clearOverlay(){clearTimeout(legendTimer);legendTimer=0;canvas?.remove();legend?.remove();status?.remove();canvas=ctx=legend=status=null;}
+      ensureLog();legend.textContent='POINT: the ring is your cursor; hold it still on a button: click · THUMB + INDEX: a quick pinch taps, a pinch that moves scrolls a panel or drags a block · THUMB + MIDDLE (index away): right click menu · FLAT PALM, fingers together: move the board, push or pull to zoom · THUMB + INDEX + MIDDLE together, hand up or down: zoom · FIST in VIEW 3D: tilt and turn · OPEN HAND 1s: fit · ESC: camera off';
+      status.textContent='CAMERA ON · LOCAL HAND CONTROL';}
+    function clearOverlay(){clearTimeout(legendTimer);legendTimer=0;canvas?.remove();canvas=ctx=null;if(status)status.textContent='OFF: press HANDS to start';}
+    // ---- HAND LOG: one small tab at the bottom (always there); pull it up for the last things that happened and the gesture list
+    let logBox=null,rowsEl=null;const logRows=[];
+    const LEGEND='POINT: the ring is your cursor; hold it still on a button: click · THUMB + INDEX: a quick pinch taps, a pinch that moves scrolls a panel or drags a block · THUMB + MIDDLE (index away): right click menu · THUMB + INDEX + MIDDLE together, hand up or down: zoom · FIST in VIEW 3D: tilt and turn · OPEN HAND 1 s: fit · ESC: camera off. (Flat-palm pan and zoom: switch on in HAND SETUP.)';
+    function ensureLog(){
+      if(logBox)return;
+      logBox=document.createElement('div');logBox.className='hands-log';
+      const head=document.createElement('button');head.type='button';head.className='hl-head';head.setAttribute('aria-expanded','false');
+      const lab=document.createElement('span');lab.textContent='HAND LOG';status=document.createElement('span');status.className='hl-status';status.setAttribute('role','status');status.textContent='OFF: press HANDS to start';
+      head.append(lab,status);
+      const body=document.createElement('div');body.className='hl-body';rowsEl=document.createElement('div');rowsEl.className='hl-rows';legend=document.createElement('div');legend.className='hl-legend';legend.textContent=LEGEND;
+      body.append(rowsEl,legend);logBox.append(body,head);document.body.appendChild(logBox);
+      const toggle=(open)=>{logBox.classList.toggle('open',open);head.setAttribute('aria-expanded',String(open));try{localStorage.setItem('agenthub:hands:log',open?'1':'0');}catch(_){}if(open)paintLog();};
+      head.onclick=()=>toggle(!logBox.classList.contains('open'));
+      window.addEventListener('hub-hands-log-open',()=>toggle(true));
+      try{if(localStorage.getItem('agenthub:hands:log')==='1')toggle(true);}catch(_){}
+      paintLog();
+    }
+    function paintLog(){
+      if(!rowsEl||!logBox||!logBox.classList.contains('open'))return;
+      rowsEl.replaceChildren();
+      if(!logRows.length){const d=document.createElement('div');d.className='hl-empty';d.textContent='Nothing yet. Turn HANDS on and use a gesture; each press, tap, scroll and error appears here.';rowsEl.append(d);return;}
+      logRows.slice(0,20).forEach(r=>{const d=document.createElement('div');if(r.err)d.className='hl-err';const tm=document.createElement('time');tm.textContent=new Date(r.at).toLocaleTimeString([],{hour12:false});d.append(tm,document.createTextNode(r.t));rowsEl.append(d);});
+    }
+    function logLine(t,err){if(logRows.length&&logRows[0].t===t)return;logRows.unshift({at:Date.now(),t,err:!!err});if(logRows.length>40)logRows.pop();paintLog();}
+    function friendly(ev,x){
+      if(ev==='end-left')return x.how==='tap'?'TAP: click':x.how==='scroll'?'SCROLL: a panel followed your hand':x.how==='drag'?'DRAG ('+x.travel+' px)':null;
+      if(ev==='dwell-click')return 'POINT CLICK on '+(x.target||'a control');
+      if(ev==='end-right')return x.how==='contextmenu'?'RIGHT CLICK: menu':'right press ended ('+x.how+')';
+      if(ev==='begin-orbit')return 'FIST: tilting the board';if(ev==='begin-zoom1')return 'ZOOM hold';if(ev==='begin-pan')return 'PALM: panning';
+      if(ev==='no-target'||ev==='tap-no-target')return 'press found nothing under the pointer';
+      return null;
+    }
     // ---- POINT: a ring that follows the index fingertip (it is the cursor), the control under it outlined, and a click when it is held still on one
     function clickableOf(el){
       for(let e=el,d=0;e&&e.nodeType===1&&d<6;e=e.parentElement,d++){
@@ -167,7 +199,7 @@ SOFTWARE.
       }
     }
     function firstPinch(){if(used)return;used=true;legendTimer=setTimeout(()=>{if(legend)legend.style.opacity='0';},4000);}
-    const say=(m)=>{hint=m;hintAt=performance.now();};
+    const say=(m)=>{hint=m;hintAt=performance.now();logLine(m);};
 
     // ---- one frame in
     function feed(result,now=performance.now(),meta={}){
@@ -233,15 +265,15 @@ SOFTWARE.
         else{const r=resolve(hand.x,hand.y);if(r)emit({target:r.el,k:r.k,ox:r.ox,oy:r.oy,button:0},'pointermove',hand.id,hand.x,hand.y,false);}
       }
     }
-    function stopped(reason){enabled=false;cursorInfo=null;hideTarget();document.documentElement.classList.remove('hands-live');saveBtn.hidden=true;btn.classList.remove('live');btn.setAttribute('aria-pressed','false');btn.title='Hand control off: '+reason;cancelAll();calibration=null;diagnostic=false;engine.reset();detected.clear();clearOverlay();}
-    const tracker=root.HubHandsTracker.create({onFrame:feed,onStop:stopped,onState(s){saveBtn.hidden=!s.enabled;if(s.enabled){enabled=true;showOverlay();btn.classList.add('live');btn.setAttribute('aria-pressed','true');}btn.setAttribute('aria-busy',String(s.loading));btn.title=s.error||('Hand control '+s.reason);},...(root.__HUB_HANDS_TEST?.tracker||{})});
+    function stopped(reason){logLine('HANDS OFF: '+reason,/fail|error|denied|blocked/i.test(String(reason)));enabled=false;cursorInfo=null;hideTarget();document.documentElement.classList.remove('hands-live');saveBtn.hidden=true;btn.classList.remove('live');btn.setAttribute('aria-pressed','false');btn.title='Hand control off: '+reason;cancelAll();calibration=null;diagnostic=false;engine.reset();detected.clear();clearOverlay();}
+    const tracker=root.HubHandsTracker.create({onFrame:feed,onStop:stopped,onState(s){if(s.error)logLine('ERROR: '+s.error+' - tell the Doctor it is there',true);saveBtn.hidden=!s.enabled;if(s.enabled){enabled=true;showOverlay();btn.classList.add('live');btn.setAttribute('aria-pressed','true');}btn.setAttribute('aria-busy',String(s.loading));btn.title=s.error||('Hand control '+s.reason);},...(root.__HUB_HANDS_TEST?.tracker||{})});
 
     // ---- numbers only: the last minute of what the camera saw and what the engine and the board did, kept in memory while HANDS is on and saved when asked
     const STEPS=[['relaxed','Rest your hand, relaxed, fingers loose'],['point','Point at the screen with your index finger, other fingers curled'],['open','Open hand, fingers spread'],
       ['pinch_index','Pinch thumb to INDEX fingertip, hold a second, release: three times'],['pinch_middle','Pinch thumb to MIDDLE fingertip, hold, release: three times'],
       ['fist','Make a FIST, hold, then open: twice'],['three_together','Bring thumb, index and middle together, then spread them: three times'],['rest','Rest your hand again, relaxed']];
     const ring=[],events=[],rd=v=>Math.round(v*1000)/1000;let guided=null,lastRingAt=-1e9;
-    function mark(ev,extra){events.push({t:Math.round(performance.now()),ev,...(extra||{})});if(events.length>500)events.shift();}
+    function mark(ev,extra){events.push({t:Math.round(performance.now()),ev,...(extra||{})});if(events.length>500)events.shift();const f=friendly(ev,extra||{});if(f)logLine(f);}
     function ringFrame(output,result,now){
       if(now-lastRingAt<66)return;lastRingAt=now;
       ring.push({t:Math.round(performance.now()),step:guided?guided.step():'',hands:output.hands.map((h,k)=>({gesture:h.gesture,pinched:h.pinched,rpinched:h.rpinched,triple:h.triple,flat:h.flat?1:0,gap:rd(h.gap),gapM:rd(h.gapM),roll:rd(h.roll),
@@ -252,7 +284,7 @@ SOFTWARE.
       const v=boardView();
       try{const x=await fetch('/api/hands/trace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true,trace:{version:3,kind,screen:[innerWidth,innerHeight],view:v?v.mode():'',
           tuning:{on:engine.tuning.pinchOn,off:engine.tuning.pinchOff},steps:STEPS.map(z=>z[0]),frames:ring.slice(),events:events.slice()}})});
-        if(!x.ok)throw Error('not saved');const j=await x.json();say('TRACE SAVED: '+j.saved+' ('+Math.round(j.bytes/1024)+' KB). Tell Claude it is there.');if(message)message.textContent='Saved '+j.saved+' in the Hub data folder: only numbers, no pictures. Tell Claude it is there.';}
+        if(!x.ok)throw Error('not saved');const j=await x.json();say('TRACE SAVED: '+j.saved+' ('+Math.round(j.bytes/1024)+' KB). Tell the Doctor it is there.');if(message)message.textContent='Saved '+j.saved+' in the Hub data folder: only numbers, no pictures. Tell the Doctor it is there.';}
       catch(e){say('TRACE NOT SAVED: '+e.message);if(message)message.textContent='The trace could not be saved: '+e.message;}
     }
     function startTrace(message){
@@ -302,6 +334,7 @@ SOFTWARE.
       startTrace,stats(){const l=counts.latencies;return {...counts,latencies:l.slice(),cameraLatencies:counts.cameraLatencies.slice(),tracker:{...tracker.stats},presses:presses.size};},
       measure(on,label){diagnostic=!!on;measurementLabel=label||'MEASURING';counts=fresh();cancelAll();},
       destroy(){alive=false;tracker.destroy();cancelAll();clearOverlay();hideTarget();document.documentElement.classList.remove('hands-live');removeEventListener('mousemove',mouseSeen,true);setup.remove();btn.remove();configure.remove();saveBtn.remove();document.removeEventListener('pointerdown',physical,true);document.removeEventListener('wheel',physical,true);document.removeEventListener('keydown',escape,true);document.removeEventListener('keydown',typing,true);if(root.__hubHands===api)root.__hubHands=null;}};
+    ensureLog();
     if(root.__HUB_HANDS_TEST)api.testEnable=()=>{enabled=true;engine.reset();showOverlay();};
     if(root.__HUB_HANDS_TEST)api.testOption=(k,v)=>{profile[k]=v;};
     root.__hubHands=api;return api;

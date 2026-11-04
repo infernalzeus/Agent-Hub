@@ -172,10 +172,10 @@ def test_a_guided_trace_records_numbers_only_and_is_saved(page):
  for _ in range(4):
   page.evaluate('feedHands([[600,400,.1,true]],5)');page.wait_for_timeout(60)
  assert page.evaluate('__hubHands.stats().presses')==0                              # actions are paused while it records
- assert 'RECORDING' in page.inner_text('.hands-status')
+ assert 'RECORDING' in page.inner_text('.hl-status')
  for _ in range(10):
   page.evaluate('feedHands([[600,400,1,true]],5)');page.wait_for_timeout(60)
- page.wait_for_function("document.querySelector('.hands-status')&&/TRACE SAVED/.test(document.querySelector('.hands-status').textContent)",timeout=8000)
+ page.wait_for_function("document.querySelector('.hl-status')&&/TRACE SAVED/.test(document.querySelector('.hl-status').textContent)",timeout=8000)
 
 
 def test_thumb_to_middle_is_only_a_right_click_and_never_turns_the_board(page):
@@ -313,3 +313,31 @@ def test_the_pointing_ring_clicks_anything_that_shows_a_pointing_cursor(page):
  page.evaluate("""()=>{const d=document.createElement('div');d.id='pc';d.textContent='card';d.style.cssText='position:fixed;left:200px;top:200px;width:160px;height:60px;z-index:60;cursor:pointer;background:#234';d.onclick=()=>window.cardClicks=(window.cardClicks||0)+1;document.querySelector('.hb').appendChild(d);}""")
  page.evaluate('feedWith(pointFrame,still(260,230,80))')
  assert page.evaluate('window.cardClicks||0')==1
+
+
+def test_the_hand_menu_buttons_really_do_something_with_real_clicks(page):
+ page.wait_for_timeout(700)
+ page.locator('.hb-hands-menu-button').click();page.wait_for_timeout(300)
+ page.get_by_role('button',name='HAND SETUP',exact=True).click();page.wait_for_selector('.hands-setup',state='visible',timeout=4000)    # the setup panel opens
+ page.get_by_role('button',name='CLOSE',exact=True).click();page.wait_for_timeout(300)
+ page.locator('.hb-hands-menu-button').click();page.wait_for_timeout(300)
+ page.get_by_role('button',name='GESTURE LEGEND',exact=True).click();page.wait_for_timeout(300)
+ assert page.locator('.hands-log.open').count()==1 and page.locator('.hl-legend').is_visible()           # the legend pulls the hand log up
+ assert 'POINT' in page.inner_text('.hl-legend')
+
+
+def test_the_hand_log_is_one_small_tab_that_pulls_up_and_records_what_happened(page):
+ page.wait_for_timeout(700)
+ assert page.locator('.hands-log .hl-head').is_visible() and 'OFF' in page.inner_text('.hl-status')       # there even when HANDS is off
+ page.evaluate('__hubHands.testEnable()')
+ page.evaluate('feedWith(openFrame,still(560,445,20))')
+ page.evaluate('feedWith((x,y)=>closeFrame(x,y,.1,0),still(560,445,8))');page.evaluate('feedWith(openFrame,still(560,445,8))')       # a tap
+ page.locator('.hl-head').click();page.wait_for_timeout(300)
+ assert 'TAP' in page.inner_text('.hl-rows')
+ box=page.locator('.hands-log').bounding_box();vw=page.evaluate('innerWidth');assert box['x']+box['width']<=vw-100          # clear of the right panel
+ page.locator('.hl-head').click();assert page.locator('.hands-log.open').count()==0
+
+
+def test_a_hands_error_tells_the_person_to_tell_the_doctor_not_claude():
+ src=(__import__('pathlib').Path(__file__).resolve().parents[1]/'hub'/'static'/'hand-board.js').read_text(encoding='utf-8')
+ assert 'tell the Doctor it is there' in src and 'Tell the Doctor it is there' in src and 'Tell Claude' not in src
