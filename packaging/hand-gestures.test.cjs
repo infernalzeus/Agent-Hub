@@ -39,20 +39,19 @@ test('a left pinch with the middle finger resting beside the index finger stays 
 test('a thumb on the middle fingertip with the index finger away is the right press',()=>{const e=new G.Engine({tuning:{settleMs:0,confirmMs:0}}),a=marks(.5,1,true);a[4]={x:a[12].x+.012,y:a[12].y,z:0};a[8]={...a[8],x:a[8].x-.14};const h=e.update(result(a),0,1000,800).hands[0];assert.equal(h.rpinched,true);assert.equal(h.pinched,false);});
 
 const feedN=(e,a,from,to,step=20)=>{let h;for(let t=from;t<=to;t+=step)h=e.update(result(a),t,1000,800).hands[0];return h;};
-const flexed=()=>{const a=marks(.5,1,false);a[8]={x:a[6].x,y:.69,z:0};return a;};
-test('pointing, then curling and straightening the index finger within half a second is a left click, once, where the pointer was',()=>{
-  const e=new G.Engine({tuning:{settleMs:0,confirmMs:0}});const point=marks(.5,1,false);
-  let h=feedN(e,point,0,400);assert.equal(h.tap,false);
-  const taps=[];for(const [a,from,to] of [[flexed(),420,540],[point,560,700]])for(let t=from;t<=to;t+=20){const o=e.update(result(a),t,1000,800).hands[0];if(o.tap)taps.push(o);}
-  assert.equal(taps.length,1);assert.ok(Number.isFinite(taps[0].tapX)&&Number.isFinite(taps[0].tapY));
+test('pointing with the curled middle finger resting against the thumb is not a right press',()=>{
+  const e=new G.Engine({tuning:{settleMs:0,confirmMs:0}}),a=marks(.5,1,false);a[4]={x:a[12].x+.012,y:a[12].y,z:0};a[8]={...a[8],x:a[8].x-.14};   // point pose (ring and little finger curled) with the thumb on the curled middle finger
+  const h=feedN(e,a,0,600);assert.equal(h.rpinched,false);assert.equal(h.gesture,'point');
 });
-test('an index finger that stays curled is not a click (it is becoming a fist)',()=>{
-  const e=new G.Engine({tuning:{settleMs:0,confirmMs:0}});const point=marks(.5,1,false);feedN(e,point,0,400);
-  let n=0;for(let t=420;t<=1400;t+=20){if(e.update(result(flexed()),t,1000,800).hands[0].tap)n++;}for(let t=1420;t<=1600;t+=20){if(e.update(result(point),t,1000,800).hands[0].tap)n++;}
-  assert.equal(n,0);
+test('a right press needs the ring or little finger out (the thumb on the middle fingertip, hand otherwise open)',()=>{
+  const e=new G.Engine({tuning:{settleMs:0,confirmMs:0}}),a=marks(.5,1,true);a[4]={x:a[12].x+.012,y:a[12].y,z:0};a[8]={...a[8],x:a[8].x-.14};
+  assert.equal(feedN(e,a,0,300).rpinched,true);
 });
-test('a pointing hand that never moves its index finger never clicks, and a thumb pinch never clicks by itself',()=>{
-  const e=new G.Engine({tuning:{settleMs:0,confirmMs:0}});let n=0;const a=marks(.5,1,false);for(let t=0;t<=3000;t+=20)if(e.update(result(a),t,1000,800).hands[0].tap)n++;assert.equal(n,0);
+test('a flat palm (open, fingers together) engages after a short hold and reports its size; spread fingers do not',()=>{
+  const e=new G.Engine({tuning:{settleMs:0,confirmMs:0}}),a=marks(.5,1,true);let h=feedN(e,a,0,100);assert.equal(h.flat,false);
+  h=feedN(e,a,120,700);assert.equal(h.flat,true);assert.ok(h.hsize>0);
+  const w=new G.Engine({tuning:{settleMs:0,confirmMs:0}}),b=marks(.5,1,true);b[8]={...b[8],x:b[8].x-.2};b[20]={...b[20],x:b[20].x+.2};      // fingers spread wide
+  assert.equal(feedN(w,b,0,900).flat,false);
 });
 test('thumb, index and middle touching is the zoom hold, and the same hand with the index finger away is a right press: they cannot both be true',()=>{
   const zoom=new G.Engine({tuning:{settleMs:0,confirmMs:0}}),b=marks(.5,1,true);b[4]={x:(b[8].x+b[12].x)/2,y:(b[8].y+b[12].y)/2,z:0};const hz=feedN(zoom,b,0,400);assert.equal(hz.triple,true);assert.equal(hz.rpinched,false);

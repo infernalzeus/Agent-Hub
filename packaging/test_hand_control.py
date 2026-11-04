@@ -232,29 +232,68 @@ def test_a_pinch_presses_and_drags_but_never_clicks(page):
  assert page.evaluate('__hubHands.stats().clicks')==0
 
 
-def test_pointing_and_tapping_the_index_finger_is_a_left_click_where_the_pointer_was(page):
+def test_holding_the_pointing_finger_still_on_a_button_clicks_it_with_a_visible_ring_and_outline(page):
  page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
- page.evaluate('feedWith(pointFrame,still(560,445,16))')
- page.evaluate('feedWith(flexFrame,still(760,445,6))')                                     # the finger curls and the hand drifts 200 px sideways while it does
- page.evaluate('feedWith(pointFrame,still(760,445,8))')
- assert page.evaluate('counters')=={'click':1,'ctx':0}                                     # the click landed on the button the pointer was on before the finger moved
- assert page.evaluate('__hubHands.stats().taps')==1
+ page.evaluate('feedWith(pointFrame,still(560,445,22))')                                 # the cursor settles; the ring is filling, the button is outlined, nothing clicked yet
+ assert page.locator('.hands-target').count()==1
+ assert page.evaluate('counters')=={'click':0,'ctx':0}
+ page.evaluate('feedWith(pointFrame,still(560,445,50))')                                 # held still for well over 0.8 s
+ assert page.evaluate('counters')=={'click':1,'ctx':0}
+ page.evaluate('feedWith(pointFrame,still(560,445,40))');assert page.evaluate('counters')['click']==1      # one click per rest, not a stream
+ assert page.evaluate('__hubHands.stats().dwells')==1
 
 
-def test_a_tap_clicks_a_button_inside_a_blocks_own_page(page):
+def test_pointing_and_moving_never_clicks_and_resting_on_empty_board_never_clicks(page):
+ page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
+ page.evaluate('feedWith(pointFrame,Array.from({length:60},(_,i)=>[300+i*8,445]))')     # sweeping across: no rest anywhere long enough
+ page.evaluate('feedWith(pointFrame,still(150,150,80))')                                 # resting on empty board
+ assert page.evaluate('counters')=={'click':0,'ctx':0}
+
+
+def test_a_click_inside_a_blocks_own_page_by_resting_the_pointing_finger(page):
  page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
  page.evaluate("""()=>{const f=document.createElement('iframe');f.id='tframe';f.style.cssText='position:fixed;left:300px;top:300px;width:300px;height:200px;z-index:60;border:0';
    f.srcdoc='<body style="margin:0"><button style="position:absolute;left:20px;top:20px;width:100px;height:40px" onclick="window.n=(window.n||0)+1">inside</button></body>';document.querySelector('.hb').appendChild(f);}""")
  page.wait_for_function("document.getElementById('tframe').contentDocument&&document.getElementById('tframe').contentDocument.querySelector('button')")
- page.evaluate('feedWith(pointFrame,still(370,340,16))')
- page.evaluate('feedWith(flexFrame,still(370,340,6))')
- page.evaluate('feedWith(pointFrame,still(370,340,8))')
+ page.evaluate('feedWith(pointFrame,still(370,340,60))')
  assert page.evaluate("document.getElementById('tframe').contentWindow.n")==1
 
 
-def test_a_finger_that_stays_curled_and_a_pointing_hand_at_rest_never_click(page):
+def test_pointing_with_the_middle_finger_curled_on_the_thumb_is_not_a_right_press(page):
  page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
- page.evaluate('feedWith(pointFrame,still(560,445,120))')
- page.evaluate('feedWith(flexFrame,still(560,445,60))')                                    # 1.2 s curled: a fist, not a tap
- page.evaluate('feedWith(pointFrame,still(560,445,10))')
- assert page.evaluate('counters')=={'click':0,'ctx':0}
+ page.evaluate('feedWith((x,y)=>{const a=pointFrame(x,y);a[4]={x:a[12].x+.01,y:a[12].y,z:0};return a},still(150,150,40))')
+ assert page.evaluate('__hubHands.stats().rclicks')==0 and page.evaluate('counters')['ctx']==0
+ assert page.locator('.hb-ctx').count()==0
+
+
+def test_a_flat_palm_moves_the_board_and_pushing_it_toward_the_camera_zooms(page):
+ page.wait_for_timeout(700);page.evaluate('__hubHands.testEnable()')
+ page.evaluate("window.flatFrame=(x,y,scale=1)=>{const a=handFrame(x,y,1,true);const c=a[9];return a.map(p=>({x:c.x+(p.x-c.x)*scale,y:c.y+(p.y-c.y)*scale,z:0}));}")
+ before=page.evaluate('({...__hubBoard.active.state().V})')
+ page.evaluate('feedWith((x,y)=>flatFrame(x,y),still(700,450,30))')                       # engage
+ page.evaluate('feedWith((x,y)=>flatFrame(x,y),Array.from({length:14},(_,i)=>[700-i*12,450-i*6]))')
+ mid=page.evaluate('({...__hubBoard.active.state().V})')
+ assert abs(mid['x']-before['x'])+abs(mid['y']-before['y'])>40,(before,mid)              # the board followed the palm
+ page.evaluate('feedWith((x,y)=>flatFrame(x,y,1.4),still(530,366,12))')                  # hand pushed toward the camera: bigger
+ assert page.evaluate('__hubBoard.active.state().V.k')>mid['k']*1.05
+ assert page.evaluate('__hubHands.stats().pans')>=1
+
+
+def test_thumb_to_middle_on_a_block_opens_its_menu_and_on_the_empty_board_the_board_menu(page):
+ page.wait_for_timeout(700);page.evaluate('__hubHands.testEnable()')
+ r=page.locator('.hk[data-id=runs] .hk-h').bounding_box();x=r['x']+40;y=r['y']+12
+ page.evaluate('p=>feedWith(openFrame,still(p.x,p.y,20))',{'x':x,'y':y})
+ page.evaluate('p=>feedWith(midFrame,still(p.x,p.y,10))',{'x':x,'y':y})
+ page.evaluate('p=>feedWith(openFrame,still(p.x,p.y,8))',{'x':x,'y':y})
+ labels=page.locator('.hb-ctx button').all_inner_texts()
+ assert any('MINIMISE' in l for l in labels),labels                       # the right press now DOES something
+
+
+def test_a_pinch_presses_and_drags_but_never_clicks(page):
+ page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
+ page.evaluate('feedWith(openFrame,still(560,445,20))')
+ page.evaluate('feedWith((x,y)=>closeFrame(x,y,.1,0),still(560,445,8))')
+ assert page.evaluate('__hubHands.stats().presses')==1                                   # it pressed (and would drag)
+ page.evaluate('feedWith(openFrame,still(560,445,8))')
+ assert page.evaluate('counters')=={'click':0,'ctx':0}                                     # but a pinch alone is not a click
+ assert page.evaluate('__hubHands.stats().clicks')==0

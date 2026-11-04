@@ -61,7 +61,7 @@ SOFTWARE.
         options.onFrame?.(result,begun,{captureTime:meta.captureTime,mediaTime:meta.mediaTime,inferenceMs:stats.inferenceMs,cam:{w:video.videoWidth||640,h:video.videoHeight||480}});
         stats.callbackToPointerMs=clock()-begun;stats.captureToPointerMs=Number.isFinite(meta.captureTime)?clock()-meta.captureTime:null;
         if(stats.frames%15===0)report();
-      }catch(error){stats.error=String(error.message||error);stop('tracking failed');return;}
+      }catch(error){stats.error=String(error.message||error);try{console.error('hand tracking failed',error);}catch(_){}stop('tracking failed');return;}
       if(clock()-lastHand>=idleMs){stop('No hand for 60 seconds');return;}schedule(mine);
     }
     function start(){
