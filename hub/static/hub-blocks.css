@@ -190,3 +190,13 @@ html.hub-modal-open .hb-right-panel,html.hub-modal-open .hb-panel-show,html.hub-
 .hb .hk-app .gi{background:conic-gradient(from 218deg at 50% 50%,rgba(150,175,255,.12),rgba(0,0,0,.1) 25%,rgba(140,165,255,.09) 50%,rgba(0,0,0,.1) 75%,rgba(150,175,255,.12)),linear-gradient(180deg,#1a2170,#0d1050 46%,#0a0c3e 54%,#160b54)!important;border:1px solid rgba(110,140,235,.32)!important;box-shadow:inset 0 1px 0 rgba(140,165,255,.4),inset 0 -1px 2px #0006,0 2px 6px #0008;display:flex!important;align-items:center;justify-content:center;padding:0!important;line-height:0}
 .hb .hk-app .gi>*{display:block!important;margin:0!important;flex:none}.hb .hk-app .gi svg,.hb .hk-app .gi img{width:24px!important;height:24px!important;object-fit:contain}
 
+
+/* Batch layout commands: standard dashboard text buttons, beside the minimap.
+   Leave the bottom strip free for the existing hand log. */
+.hb-batch-controls{position:absolute;right:156px;bottom:calc(max(12px,env(safe-area-inset-bottom)) + 38px);display:flex;flex-direction:column;gap:4px;z-index:9;width:112px}
+.hb-batch-controls .hb-btn{width:100%;min-height:28px;padding:6px;font-size:8px;letter-spacing:.6px;border-radius:7px;background:rgba(6,10,36,.78);border:1px solid var(--border-dim,rgba(0,230,118,.28));color:var(--accent,#00e676);box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+.hb-batch-controls .hb-btn:hover{background:rgba(0,230,118,.14);border-color:var(--accent,#00e676)}
+.hb-batch-controls .hb-btn:focus-visible{outline:2px solid #41ebff;outline-offset:2px}
+html.hub-modal-open .hb-batch-controls{display:none!important}
+html.hub-board-on:has(#voice:not([hidden])) .hb-batch-controls{visibility:hidden}
+@media(max-width:720px){.hb-batch-controls{right:104px;width:100px}.hb-batch-controls .hb-btn{font-size:7px;letter-spacing:.3px}}

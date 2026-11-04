@@ -442,7 +442,7 @@
     function stageRect(ignoreTray){
       var hr=host.getBoundingClientRect(),ar=bar.getBoundingClientRect(),top=Math.max(ar.bottom,document.querySelector('body>header')?document.querySelector('body>header').getBoundingClientRect().bottom:0,!restartChip.hidden?restartChip.getBoundingClientRect().bottom:0)-hr.top+8,right=hr.width-8,bottom=hr.height-8;
       [host.querySelector('.hb-right-panel')].forEach(function(e){if(e&&e.getClientRects().length&&getComputedStyle(e).display!=='none'&&getComputedStyle(e).visibility!=='hidden'){var r=e.getBoundingClientRect();right=Math.min(right,r.left-hr.left-8);}});
-      var map=host.querySelector('.hb-map');if(map&&getComputedStyle(map).visibility!=='hidden')bottom=Math.min(bottom,map.getBoundingClientRect().top-hr.top-8);var show=host.querySelector('.hb-panel-show');if(show&&!show.hidden)top=Math.max(top,show.getBoundingClientRect().bottom-hr.top+8);
+      var map=host.querySelector('.hb-map');if(map&&getComputedStyle(map).visibility!=='hidden')bottom=Math.min(bottom,map.getBoundingClientRect().top-hr.top-8);var batch=host.querySelector('.hb-batch-controls');if(batch&&batch.getClientRects().length&&getComputedStyle(batch).visibility!=='hidden')bottom=Math.min(bottom,batch.getBoundingClientRect().top-hr.top-8);
       if(!ignoreTray&&tray.childElementCount&&getComputedStyle(tray).visibility!=='hidden'){var tr=tray.getBoundingClientRect();bottom=Math.min(bottom,tr.top-hr.top-8);}
       stage={left:8,top:top,right:Math.max(48,right),bottom:Math.max(top+40,bottom)};stage.width=stage.right-stage.left;stage.height=stage.bottom-stage.top;
       stageClip.style.clipPath='inset('+stage.top+'px '+Math.max(0,hr.width-stage.right)+'px '+Math.max(0,hr.height-stage.bottom)+'px '+stage.left+'px)';return stage;
@@ -507,11 +507,11 @@
     // Two fingers: pinch to zoom around the point between them (a trackpad pinch arrives as Ctrl + wheel and is handled above).
     var pts = {}, pinch = null;
     function two() { var k = Object.keys(pts); return k.length === 2 ? [pts[k[0]], pts[k[1]]] : null; }
-    host.addEventListener('pointerdown', function (e) { if (e.pointerType !== 'touch' || e.target.closest('.hb-bar,.hb-more-menu,.hb-session-detail,.hb-gizmo,.hb-tray,.hb-map,.hb-jump')) return; pts[e.pointerId] = [e.clientX, e.clientY]; var p = two(); if (p) { stopCam(); touched = true; var r = host.getBoundingClientRect(), cx = (p[0][0] + p[1][0]) / 2 - r.left, cy = (p[0][1] + p[1][1]) / 2 - r.top; pinch = { d: Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]) || 1, k: V.k, wx: (cx - V.x) / V.k, wy: (cy - V.y) / V.k }; } }, true);
+    host.addEventListener('pointerdown', function (e) { if (e.pointerType !== 'touch' || e.target.closest('.hb-bar,.hb-more-menu,.hb-session-detail,.hb-gizmo,.hb-tray,.hb-map,.hb-batch-controls,.hb-jump')) return; pts[e.pointerId] = [e.clientX, e.clientY]; var p = two(); if (p) { stopCam(); touched = true; var r = host.getBoundingClientRect(), cx = (p[0][0] + p[1][0]) / 2 - r.left, cy = (p[0][1] + p[1][1]) / 2 - r.top; pinch = { d: Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]) || 1, k: V.k, wx: (cx - V.x) / V.k, wy: (cy - V.y) / V.k }; } }, true);
     host.addEventListener('pointermove', function (e) { if (!pts[e.pointerId]) return; pts[e.pointerId] = [e.clientX, e.clientY]; var p = two(); if (!p || !pinch) return; var r = host.getBoundingClientRect(), cx = (p[0][0] + p[1][0]) / 2 - r.left, cy = (p[0][1] + p[1][1]) / 2 - r.top, k = Math.min(2.6, Math.max(.3, pinch.k * Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]) / pinch.d)); V.k = k; V.x = cx - pinch.wx * k; V.y = cy - pinch.wy * k; place(); }, true);
     ['pointerup', 'pointercancel'].forEach(function (t) { host.addEventListener(t, function (e) { delete pts[e.pointerId]; if (Object.keys(pts).length < 2) pinch = null; }, true); });
     host.addEventListener('pointerdown', function (e) {
-      if (e.button || e.target.closest('.hk,.hb-bar,.hb-more-menu,.hb-session-detail,.hb-gizmo,.hb-tray,.hb-map,.hb-jump')) return;
+      if (e.button || e.target.closest('.hk,.hb-bar,.hb-more-menu,.hb-session-detail,.hb-gizmo,.hb-tray,.hb-map,.hb-batch-controls,.hb-jump')) return;
       touched = true; stopCam(); host.classList.add('panning'); var sx = e.clientX - V.x, sy = e.clientY - V.y;
       var lastX = e.clientX, lastY = e.clientY, lastT = performance.now(), vx = 0, vy = 0;
       function mv(ev) { if (pinch || Object.keys(pts).length > 1) { sx = ev.clientX - V.x; sy = ev.clientY - V.y; return; } var now = performance.now(), dt = Math.max(8, now - lastT); vx = vx * .4 + (ev.clientX - lastX) / dt * .6; vy = vy * .4 + (ev.clientY - lastY) / dt * .6; lastX = ev.clientX; lastY = ev.clientY; lastT = now; V.x = ev.clientX - sx; V.y = ev.clientY - sy; place(); }
@@ -566,7 +566,7 @@
     }
     host.addEventListener('pointerdown', function (e) { if (e.button === 2) ctxDown = [e.clientX, e.clientY]; if (ctxMenu && !ctxMenu.contains(e.target)) closeCtx(); }, true);
     host.addEventListener('contextmenu', function (e) {
-      if ((e.defaultPrevented&&!(view&&view.mode()==='3d'&&[host,world,stageClip].indexOf(e.target)>=0)) || e.target.closest('.hb-bar,.hb-viewbar,.hb-tray,.hb-more-menu,.hb-ctx,.hb-session-detail,.hb-gizmo,.hb-map,.hb-jump')) return;
+      if ((e.defaultPrevented&&!(view&&view.mode()==='3d'&&[host,world,stageClip].indexOf(e.target)>=0)) || e.target.closest('.hb-bar,.hb-viewbar,.hb-tray,.hb-more-menu,.hb-ctx,.hb-session-detail,.hb-gizmo,.hb-map,.hb-batch-controls,.hb-jump')) return;
       e.preventDefault();
       if (ctxDown && Math.abs(e.clientX - ctxDown[0]) + Math.abs(e.clientY - ctxDown[1]) > 8) return;        // the end of a right-drag turn is not a request for a menu
       var blk = e.target.closest('.hk');
@@ -603,21 +603,46 @@
         defs.forEach(function (d) { var f = from[d[0]], t = T[d[0]], l = L[d[0]]; if (l.exp) return; l.x = f.x + (t.x - f.x) * e; l.y = f.y + (t.y - f.y) * e; applyBlock(d[0]); });
         if (u < 1) requestAnimationFrame(s); else { relayout(); save(); trayDraw(); fit(true); } })(t0);
     }
-    tidyBtn.onclick=function(){
-      stopCam();focusId=null;undim();var ids=Object.keys(blocks).filter(function(id){return !isHidden(id);});
-      ids.sort(function(a,b){return L[a].y-L[b].y||L[a].x-L[b].x;});var r=stageRect(),unit=16,total=ids.reduce(function(n,id){return n+L[id].w*bh(L[id]);},0),width=Math.max(400,Math.sqrt(total*r.width/Math.max(1,r.height)));var x=0,y=0,row=0;
-      var from={},to={};ids.forEach(function(id){from[id]={x:L[id].x,y:L[id].y};});
-      ids.forEach(function(id){var l=L[id];if(x&&x+l.w>width){x=0;y+=Math.ceil((row+GAP)/unit)*unit;row=0;}l.x=x;l.y=y;l.u=1;to[id]={x:x,y:y};x+=Math.ceil((l.w+GAP)/unit)*unit;row=Math.max(row,bh(l));});
-      var cto=cameraFor(ids,1.2);                                   // where the camera should end up once everything is in its tidy place
+    // All three commands share one packer. Minimise changes only the title-bar flag;
+    // w/h remain the saved full size, including an already-open tool window.
+    var settlePack=null;
+    function arrangeLayerBands(minimise){
+      if(settlePack)settlePack();
+      stopCam();touched=true;focusId=null;undim();var ids=Object.keys(blocks).filter(function(id){return !isHidden(id);});
+      ids.sort(function(a,b){return L[a].y-L[b].y||L[a].x-L[b].x;});
+      var from={},to={},unit=16;
+      ids.forEach(function(id){var l=L[id];from[id]={x:l.x,y:l.y};if(minimise!==null)l.min=minimise?1:0;});
+      var r=stageRect(),total=ids.reduce(function(n,id){return n+L[id].w*bh(L[id]);},0),width=Math.max(400,Math.sqrt(total*r.width/Math.max(1,r.height))),y=0;
+      layerState.order.forEach(function(layer){
+        var band=ids.filter(function(id){return layerOf(id)===layer;});if(!band.length)return;
+        var x=0,row=0;
+        band.forEach(function(id){var l=L[id];if(x&&x+l.w>width){x=0;y+=Math.ceil((row+GAP)/unit)*unit;row=0;}
+          l.x=x;l.y=y;l.u=1;to[id]={x:x,y:y};x+=Math.ceil((l.w+GAP)/unit)*unit;row=Math.max(row,bh(l));});
+        y+=Math.ceil((row+GAP*2)/unit)*unit;
+      });
+      // The 3D fit solver measures DOM bounds, so measure the destination layout,
+      // then restore it synchronously before the first animated paint.
+      ids.forEach(applyBlock);
+      var cto=cameraFor(ids,1.2);
       if(reducedMotion.matches){ids.forEach(applyBlock);if(cto){V=cto;place();}save();trayDraw();return;}
-      ids.forEach(function(id){L[id].x=from[id].x;L[id].y=from[id].y;});
+      ids.forEach(function(id){L[id].x=from[id].x;L[id].y=from[id].y;applyBlock(id);});
       var cf={x:V.x,y:V.y,k:V.k},tok=++camTok,t0=performance.now();
-      (function s(n){if(!alive||tok!==camTok){ids.forEach(function(id){if(L[id]){L[id].x=to[id].x;L[id].y=to[id].y;applyBlock(id);}});save();trayDraw();return;}
+      var finished=false;
+      function finishPack(){if(finished)return;finished=true;settlePack=null;ids.forEach(function(id){if(L[id]){L[id].x=to[id].x;L[id].y=to[id].y;applyBlock(id);}});if(alive){save();trayDraw();}}
+      settlePack=finishPack;
+      (function s(n){if(finished)return;if(!alive||tok!==camTok){finishPack();return;}
         var u=Math.min(1,(n-t0)/620),e=1-Math.pow(1-u,3.4);
         ids.forEach(function(id){var l=L[id];if(!l)return;l.x=from[id].x+(to[id].x-from[id].x)*e;l.y=from[id].y+(to[id].y-from[id].y)*e;applyBlock(id);});
         if(cto){V={x:cf.x+(cto.x-cf.x)*e,y:cf.y+(cto.y-cf.y)*e,k:cf.k+(cto.k-cf.k)*e};place();}
-        if(u<1)requestAnimationFrame(s);else{save();trayDraw();}})(t0);
-    };
+        if(u<1)requestAnimationFrame(s);else{finishPack();}})(t0);
+    }
+    tidyBtn.onclick=function(){arrangeLayerBands(null);};
+    var batchControls=el('div','hb-batch-controls'),minAll=el('button','hb-btn','MINIMISE ALL'),maxAll=el('button','hb-btn','MAXIMISE ALL');
+    batchControls.setAttribute('role','group');batchControls.setAttribute('aria-label','Arrange all shown blocks');
+    minAll.type=maxAll.type='button';minAll.dataset.batch='minimise';maxAll.dataset.batch='maximise';
+    minAll.title='Collapse shown blocks into layer bands';maxAll.title='Restore shown blocks to full size in layer bands';
+    minAll.onclick=function(){arrangeLayerBands(true);};maxAll.onclick=function(){arrangeLayerBands(false);};
+    batchControls.appendChild(minAll);batchControls.appendChild(maxAll);host.appendChild(batchControls);
     var wire = document.getElementById('mcp-wire'), wireWatch = wire && window.MutationObserver ? new MutationObserver(legacy) : null;   // the bar mirrors the page's PC-control button the moment it changes, not at the next 10 s poll
     var banner = document.getElementById('setup-banner'), bannerWatch = banner && window.MutationObserver ? new MutationObserver(legacy) : null;   // the banner is hidden under the board; its issues show as a SETUP button
     if (bannerWatch) bannerWatch.observe(banner, { childList: true });
@@ -666,7 +691,7 @@
     hidePanel.onclick=function(){toggleRight(true);};showPanel.onclick=function(){toggleRight(false);};try{toggleRight(localStorage.getItem('agenthub:board:right-hidden')==='1');}catch(e){}
     function decoratePanels(root){var selector='#voice,.hands-setup,.hb-more-menu,.hb-layer-menu,.hb-jump,.hb-ctx,.hb-session-detail';if(root.matches&&root.matches(selector)){var fresh=!root._hubFade;fadePanel(root);if(fresh&&!root.hidden&&root.isConnected)root._fadeOpen();}if(root.querySelectorAll)root.querySelectorAll(selector).forEach(function(n){var fresh=!n._hubFade;fadePanel(n);if(fresh&&!n.hidden&&n.isConnected)n._fadeOpen();});}
     decoratePanels(document);panelObserver=new MutationObserver(function(changes){changes.forEach(function(c){c.addedNodes.forEach(function(n){if(n.nodeType===1)decoratePanels(n);});});syncModal();});panelObserver.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['hidden']});
-    var stageWatch=new ResizeObserver(function(){if(alive){stageRect();panelNodes.forEach(function(n){if(n.isConnected&&!n.hidden)positionPopup(n);});}});[bar,rightPanel,tray].forEach(function(e){stageWatch.observe(e);});
+    var stageWatch=new ResizeObserver(function(){if(alive){stageRect();panelNodes.forEach(function(n){if(n.isConnected&&!n.hidden)positionPopup(n);});}});[bar,rightPanel,tray,batchControls].forEach(function(e){stageWatch.observe(e);});
     stackDepth();
     var instance = {
       update: function (d) { data = d; paint(); HubBlocks.graphics(); if (!arrived) { arrived = true; HubBlocks.arrive(blocks, function () { return V.k; }, releaseArrival); } },
