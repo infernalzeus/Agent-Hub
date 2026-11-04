@@ -196,7 +196,9 @@ def status() -> dict:
         have = per[kind]["labelled"]
         needs[step] = {"needs": what, "want": n, "have": have, "ready": have >= n and (per[kind]["options"] >= 2 or kind == "route")}
     calls = _STATS["calls"]
-    return {"logging": enabled(), "per_kind": per, "needs": needs,
+    from . import bandit as BD
+    bandits = {"R3 model choice": BD.replay(rows, "model"), "R4 PC-task way": BD.replay(rows, "rung")}
+    return {"logging": enabled(), "per_kind": per, "needs": needs, "bandits": bandits,
             "cost": {"notes": calls, "spent_ms": round(_STATS["spent_s"] * 1000, 2), "mean_us": round(_STATS["spent_s"] / calls * 1e6) if calls else 0, "worst_us": round(_STATS["worst_s"] * 1e6)},
             "learning": "nothing learns yet: R1 only records"}
 

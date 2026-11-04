@@ -40,6 +40,7 @@ code{background:rgba(0,230,118,.08);border-radius:4px;padding:0 4px}
 <h1>PRACTICE YARD</h1>
 <p class="sub">Pretend apps where the Hub's own desktop agent can fail safely. A small learner practises there, and is measured on apps and words it has never seen. Nothing here touches your PC, and nothing it learns is used by the live agent yet.</p>
 <div class="row"><button id="go" type="button">PRACTICE</button><span id="chips"></span></div>
+<p class="sub">Quickest way to help the learner: <a href="/teach" style="color:var(--accent)">TEACH</a>. Tap RIGHT or WRONG on things you already asked; each tap is one exact label.</p>
 <div class="row" id="switches"><button id="sw-learning" type="button"></button><button id="sw-shadow" type="button"></button></div>
 <p class="sub">LEARNING LOG notes each choice the Hub makes (route, model, desktop step) and how it turned out. SHADOW MODE lets the trained practice policy watch each live desktop step and record what it would have pressed; it never presses anything. Switch either off and new notes stop at once; what is already recorded stays.</p>
 <div id="msg" role="status"></div>
