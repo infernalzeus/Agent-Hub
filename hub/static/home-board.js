@@ -404,10 +404,12 @@
     // A camera move in flight gives way the moment you touch the board (wheel, drag, zoom buttons): it must never fight your hand.
     var camTok = 0, physics = __hubBoardControls.camera(function () { return V; }, place, function () { return motion && motion.allowed(); }), guides = __hubBoardControls.guides(host, L, hid, function () { return V; });
     function stopCam() { camTok++; physics.stop(); }
-    function cam(to, ms) {
+    var reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+    // `force`: FIT and TIDY always glide unless the person asked the system for reduced motion (the software-graphics rule skips them otherwise, which read as no transition at all)
+    function cam(to, ms, force) {
       physics.stop();
       var tok = ++camTok;
-      if (!motion.allowed() || !ms) { V = to; place(); return; }
+      if (!ms || (force ? reducedMotion.matches : !motion.allowed())) { V = to; place(); return; }
       var f = { x: V.x, y: V.y, k: V.k }, t0 = performance.now();
       (function s(n) { if (!alive || tok !== camTok) return; var u = Math.min(1, (n - t0) / ms), e = 1 - Math.pow(1 - u, 3.4); V = { x: f.x + (to.x - f.x) * e, y: f.y + (to.y - f.y) * e, k: f.k + (to.k - f.k) * e }; place(); if (u < 1) requestAnimationFrame(s); })(t0);
     }
@@ -436,7 +438,7 @@
       }
       world.style.transform=old;return to;
     }
-    function fit(anim){var ids=Object.keys(blocks).filter(function(id){return !isHidden(id);});var to=cameraFor(ids,1.2);if(to)cam(to,anim?520:0);}
+    function fit(anim){var ids=Object.keys(blocks).filter(function(id){return !isHidden(id);});var to=cameraFor(ids,1.2);if(to)cam(to,anim?520:0,true);}
     function undim() { Object.keys(blocks).forEach(function (i) { blocks[i].classList.remove('dim'); }); }
     // the camera goes to a block you opened, but the others stay clickable (focus dims them; opening does not)
     function lookAt(id){var to=cameraFor([id],2.4);if(to)cam(to,520);}
@@ -578,7 +580,17 @@
     tidyBtn.onclick=function(){
       stopCam();focusId=null;undim();var ids=Object.keys(blocks).filter(function(id){return !isHidden(id);});
       ids.sort(function(a,b){return L[a].y-L[b].y||L[a].x-L[b].x;});var r=stageRect(),unit=16,total=ids.reduce(function(n,id){return n+L[id].w*bh(L[id]);},0),width=Math.max(400,Math.sqrt(total*r.width/Math.max(1,r.height)));var x=0,y=0,row=0;
-      ids.forEach(function(id){var l=L[id];if(x&&x+l.w>width){x=0;y+=Math.ceil((row+GAP)/unit)*unit;row=0;}l.x=x;l.y=y;l.u=1;x+=Math.ceil((l.w+GAP)/unit)*unit;row=Math.max(row,bh(l));applyBlock(id);});save();trayDraw();fit(true);
+      var from={},to={};ids.forEach(function(id){from[id]={x:L[id].x,y:L[id].y};});
+      ids.forEach(function(id){var l=L[id];if(x&&x+l.w>width){x=0;y+=Math.ceil((row+GAP)/unit)*unit;row=0;}l.x=x;l.y=y;l.u=1;to[id]={x:x,y:y};x+=Math.ceil((l.w+GAP)/unit)*unit;row=Math.max(row,bh(l));});
+      var cto=cameraFor(ids,1.2);                                   // where the camera should end up once everything is in its tidy place
+      if(reducedMotion.matches){ids.forEach(applyBlock);if(cto){V=cto;place();}save();trayDraw();return;}
+      ids.forEach(function(id){L[id].x=from[id].x;L[id].y=from[id].y;});
+      var cf={x:V.x,y:V.y,k:V.k},tok=++camTok,t0=performance.now();
+      (function s(n){if(!alive||tok!==camTok){ids.forEach(function(id){if(L[id]){L[id].x=to[id].x;L[id].y=to[id].y;applyBlock(id);}});save();trayDraw();return;}
+        var u=Math.min(1,(n-t0)/620),e=1-Math.pow(1-u,3.4);
+        ids.forEach(function(id){var l=L[id];if(!l)return;l.x=from[id].x+(to[id].x-from[id].x)*e;l.y=from[id].y+(to[id].y-from[id].y)*e;applyBlock(id);});
+        if(cto){V={x:cf.x+(cto.x-cf.x)*e,y:cf.y+(cto.y-cf.y)*e,k:cf.k+(cto.k-cf.k)*e};place();}
+        if(u<1)requestAnimationFrame(s);else{save();trayDraw();}})(t0);
     };
     var wire = document.getElementById('mcp-wire'), wireWatch = wire && window.MutationObserver ? new MutationObserver(legacy) : null;   // the bar mirrors the page's PC-control button the moment it changes, not at the next 10 s poll
     var banner = document.getElementById('setup-banner'), bannerWatch = banner && window.MutationObserver ? new MutationObserver(legacy) : null;   // the banner is hidden under the board; its issues show as a SETUP button

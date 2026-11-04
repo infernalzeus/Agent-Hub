@@ -62,3 +62,21 @@ def test_minimise_leaves_only_the_title_bar_and_an_offscreen_chip_carries_a_ques
     chips = page.locator(".hb-tray .hb-btn")
     assert chips.count() > 0 and not any("FIND" in t for t in chips.all_inner_texts())
     assert chips.first.locator("svg").count() == 1
+
+
+def test_tidy_and_fit_glide_instead_of_jumping(page):
+    page.evaluate("for(const id of ['runs','ses']){const l=__hubBoard.active.state().L[id];l.x+=300;l.y+=150;}")
+    before = page.evaluate("JSON.stringify(Object.fromEntries(Object.entries(__hubBoard.active.state().L).map(([k,l])=>[k,[l.x,l.y]])))")
+    page.locator(".hb-viewbar .hb-btn", has_text="TIDY").click()
+    page.wait_for_timeout(120)
+    mid = page.evaluate("JSON.stringify(Object.fromEntries(Object.entries(__hubBoard.active.state().L).map(([k,l])=>[k,[l.x,l.y]])))")
+    page.wait_for_timeout(1000)
+    end = page.evaluate("JSON.stringify(Object.fromEntries(Object.entries(__hubBoard.active.state().L).map(([k,l])=>[k,[l.x,l.y]])))")
+    assert before != mid != end, "TIDY moved the blocks in one frame"                  # a frame in the middle that is neither the start nor the end
+    k0 = page.evaluate("__hubBoard.active.state().V.k")
+    page.locator(".hb-viewbar .hb-btn", has_text="FIT").click()
+    page.wait_for_timeout(100)
+    k1 = page.evaluate("__hubBoard.active.state().V.k")
+    page.wait_for_timeout(900)
+    k2 = page.evaluate("__hubBoard.active.state().V.k")
+    assert k0 == k2 or k1 != k2                                                         # FIT is mid-glide at 100 ms unless it was already fitted
