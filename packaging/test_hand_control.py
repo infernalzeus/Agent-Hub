@@ -8,6 +8,11 @@ sync_playwright=pytest.importorskip('playwright.sync_api').sync_playwright
 ROOT=Path(__file__).resolve().parents[1]
 MARKS=json.loads((Path(__file__).with_name('hand-landmarks.json')).read_text())['landmarks']
 
+def more(page):
+ # HANDS, HAND SETUP and SAVE TRACE live in the MORE menu since UI round 2
+ if not page.locator('.hb-more-menu').is_visible():page.get_by_role('button',name='MORE',exact=True).click()
+
+
 @pytest.fixture
 def page(hub,tmp_path):
  clip=tmp_path/'fake.y4m';frame=bytes([16])*(320*240)+bytes([128])*(320*240//2)
@@ -104,14 +109,14 @@ def test_no_hand_timeout_stops_the_fake_camera(page):
 
 
 def test_missing_assets_only_offers_explicit_download(page):
- page.click('.hb-hands');page.wait_for_selector('.hands-setup',state='visible')
+ more(page);page.click('.hb-hands');page.wait_for_selector('.hands-setup',state='visible')
  assert page.locator('.hands-setup').inner_text().find('DOWNLOAD HAND TRACKING')>=0
  assert page.evaluate('__hubHands.tracker.stats.enabled') is False
  assert page.evaluate('(__hubStreams||[]).length')==0
 
 
 def test_setup_choices_are_kept_at_once_and_do_not_start_the_camera(page):
- page.get_by_role('button',name='HAND SETUP',exact=True).click()
+ more(page);page.get_by_role('button',name='HAND SETUP',exact=True).click()
  page.get_by_role('button',name='FIST TILTS 3D: ON',exact=True).click()
  assert 'FIST TILTS 3D: OFF' in page.locator('.hands-setup').inner_text()
  assert json.loads(page.evaluate("localStorage.getItem('hub-hands-profile')"))['orbit'] is False
@@ -229,6 +234,6 @@ def test_a_click_survives_the_hand_wandering_a_little(page):
 def test_the_last_minute_can_be_saved_from_setup(page):
  page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
  page.evaluate('feedWith(openFrame,still(560,445,30))')
- page.get_by_role('button',name='HAND SETUP',exact=True).click()
+ more(page);page.get_by_role('button',name='HAND SETUP',exact=True).click()
  page.get_by_role('button',name='SAVE LAST MINUTE',exact=True).click()
  page.wait_for_function("document.querySelector('.hands-setup').innerText.includes('Saved trace-')",timeout=6000)

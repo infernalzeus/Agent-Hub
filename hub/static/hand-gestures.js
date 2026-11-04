@@ -29,7 +29,7 @@ SOFTWARE.
   // pinchOn / pinchOff are fractions of the hand's own size (wrist to the middle finger's knuckle), measured in the camera's own space and
   // including depth, so two fingertips that merely overlap in the picture but sit at different depths are not a pinch. 0.22 is about 2 cm on an
   // adult hand and 0.34 about 3.5 cm: a pinch starts below the first and ends above the second.
-  const TUNING=Object.freeze({pinchOn:.22,pinchOff:.34,pinchOnM:.26,pinchOffM:.38,tripleOn:.28,tripleOff:.40,confirmMs:70,settleMs:220,poseHoldMs:200,aimLagMs:190,trailMs:500,clickSlop:20,fitHoldMs:1000,maxJump:.28,idleMs:60000});
+  const TUNING=Object.freeze({pinchOn:.22,pinchOff:.34,pinchOnM:.26,pinchOffM:.38,tripleOn:.28,tripleOff:.40,tripleHoldMs:260,confirmMs:70,settleMs:220,poseHoldMs:200,aimLagMs:190,trailMs:500,clickSlop:20,fitHoldMs:1000,maxJump:.28,idleMs:60000});
   const CAMERA={w:640,h:480};
   const PALM=[0,5,9,13,17];
   class LowPass{constructor(){this.last=null;}filter(x,a){this.last=this.last===null?x:a*x+(1-a)*this.last;return this.last;}}
@@ -71,11 +71,13 @@ SOFTWARE.
         // thumb, index and middle fingertips all together is a third thing, the zoom hold: it is neither of the two single pinches
         // (stricter than a single pinch: with the index finger resting beside the middle one, a thumb-to-middle pinch is also fairly close to the index tip)
         let wantsT=s.triple?(gap<t.tripleOff&&gapM<t.tripleOff):(gap<t.tripleOn&&gapM<t.tripleOn);
-        if(wantsT){wantsI=false;wantsM=false;}
-        else if(wantsI&&wantsM){if(s.pinched||(!s.rpinched&&gap/t.pinchOn<=gapM/t.pinchOnM))wantsM=false;else wantsI=false;}      // one pinch at a time: the one already held, else the tighter
+        // the zoom hold takes over only after it has been held a moment: a quick left pinch made with the middle finger resting beside the index finger must stay a click
+        if(wantsT&&!s.triple){if(s.tSince==null)s.tSince=now;}else if(!wantsT)s.tSince=null;
+        if(s.triple?wantsT:wantsT&&now-s.tSince>=t.tripleHoldMs){wantsI=false;wantsM=false;}
+        else if(wantsI&&wantsM){if(s.pinched||(!s.rpinched&&gapM>=gap*.75))wantsM=false;else wantsI=false;}      // one pinch at a time: the one already held, else the left click unless the middle finger is clearly (a quarter) nearer the thumb. The middle finger's wider threshold must never turn an ordinary left pinch into a right press
         if(wantsI&&!s.pinched){if(s.pinchSince===null)s.pinchSince=now;}else if(!wantsI)s.pinchSince=null;
         if(wantsM&&!s.rpinched){if(s.rSince===null)s.rSince=now;}else if(!wantsM)s.rSince=null;
-        if(wantsT&&!s.triple){if(s.tSince==null)s.tSince=now;}else if(!wantsT)s.tSince=null;
+        wantsT=wantsT&&(s.triple||now-s.tSince>=t.tripleHoldMs);
         if(fistShape&&!fist&&!wantsT){wantsI=false;wantsM=false;}
         const settled=now-s.changedAt>=t.settleMs;
         const pinched=s.pinched?wantsI:wantsI&&s.pinchSince!==null&&now-s.pinchSince>=t.confirmMs&&settled;
