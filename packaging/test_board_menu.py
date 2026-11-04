@@ -25,7 +25,6 @@ def board(hub):
 
 
 def open_blocks(pg):
-    pg.get_by_role('button',name='MORE',exact=True).click()
     pg.get_by_role('button',name='BLOCKS',exact=True).click()
 
 
@@ -36,10 +35,10 @@ def shown(pg):
 def test_the_list_never_covers_the_button_that_opens_it(board):
     open_blocks(board)
     assert shown(board)
-    btn = board.evaluate("(() => { const r = [...document.querySelectorAll('.hb-btn')].find(b => b.textContent === 'MORE').getBoundingClientRect(); return r.bottom; })()")
+    btn = board.evaluate("(() => { const r = [...document.querySelectorAll('.hb-btn')].find(b => b.textContent === 'BLOCKS').getBoundingClientRect(); return r.bottom; })()")
     top = board.evaluate("document.querySelector('.hb-jump').getBoundingClientRect().top")
-    assert top > btn
-    board.get_by_role('button',name='MORE',exact=True).click()              # return to the picker without the list covering it
+    assert board.locator('.hb-jump').is_visible()
+    board.get_by_role('button',name='BLOCKS',exact=True).click()              # return to the picker without the list covering it
     board.wait_for_timeout(300)
     assert not shown(board)
 

@@ -86,6 +86,7 @@
   function mount(root) {
     if (root.__hubBoardInstance) root.__hubBoardInstance.destroy();
     css();
+    var graphicsNotice=null,graphicsDismissed=false;
     var view = null, L = {}, hid = {}, touched = false, data = null, V = { x: 0, y: 0, k: 1 }, focusId = null, zTop = 2, blocks = {}, nav = null, alive = true, dragCleanups = [];
     try { var saved = JSON.parse(localStorage.getItem(KEY) || 'null'); if (saved) { L = saved.L || {}; hid = saved.hid || {}; } } catch (e) {}
     function save() {
@@ -98,17 +99,17 @@
     root.replaceChildren(); // Home is a 520 px column; the board breaks out of it to the width of the window.
     root.style.width = 'min(96vw,1500px)'; root.style.maxWidth = 'none'; root.style.marginLeft = 'calc((100% - min(96vw,1500px)) / 2)'; root.style.boxSizing = 'border-box';
     var recoveryTimer=0;var setupCard = document.getElementById('setup-card'), setupText = setupCard && setupCard.querySelector('.sc-text'); if (setupText) setupCard.title = setupText.textContent;   // the first-time notice is a small chip over the board; the sentence is its tooltip
-    var host = el('div', 'hb'), world = el('div', 'hb-world'), bar = el('div', 'hb-bar'), zh = el('div', 'hb-z', '100%'), tray = el('div', 'hb-tray');
+    var host = el('div', 'hb'), stageClip=el('div','hb-stage'), world = el('div', 'hb-world'), bar = el('div', 'hb-bar'), zh = el('div', 'hb-z', '100%'), tray = el('div', 'hb-tray');
     var restartChip=el('button','hb-btn hb-restart-needed','HUB IS OLDER THAN ITS FILES: RESTART');restartChip.type='button';restartChip.hidden=true;restartChip.onclick=function(){document.getElementById('restart-btn').click();};host.appendChild(restartChip);
     var fitBtn = el('button', 'hb-btn', 'FIT'), tidyBtn = el('button', 'hb-btn', 'TIDY'), zin = el('button', 'hb-btn', '+'), zout = el('button', 'hb-btn', '−');
-    fitBtn.type = tidyBtn.type = zin.type = zout.type = 'button'; tidyBtn.title = 'ORGANISE: pack every block back into the tidy default arrangement (hidden and minimised blocks come back)'; tidyBtn.setAttribute('aria-label', 'Organise the board'); fitBtn.title = 'Fit every block in view'; zin.title = 'Zoom in (Ctrl + wheel)'; zout.title = 'Zoom out (Ctrl + wheel)';
+    fitBtn.type = tidyBtn.type = zin.type = zout.type = 'button'; tidyBtn.title = 'Organise current blocks; keep hidden, minimised and resized blocks as they are'; tidyBtn.setAttribute('aria-label', 'Organise the board'); fitBtn.title = 'Fit every block in view'; zin.title = 'Zoom in (Ctrl + wheel)'; zout.title = 'Zoom out (Ctrl + wheel)';
     var hint = el('span', 'hb-z hint', ''); hint.style.cssText = 'margin-right:8px;opacity:.7'; hint.style.transition = 'opacity .7s'; hint.textContent = matchMedia('(pointer:coarse)').matches ? 'DRAG TO MOVE · PINCH TO ZOOM · DRAG A TITLE TO MOVE A BLOCK · TAP AN APP TO OPEN IT HERE' : 'WHEEL MOVES · CTRL + WHEEL ZOOMS · DRAG A BLOCK TO MOVE IT · CLICK AN APP TO OPEN IT HERE';
     var blocksBtn = el('button', 'hb-btn', 'BLOCKS'), ingestBtn = el('button', 'hb-btn', '+ INGEST APP'), talkBtn = el('button', 'hb-btn', 'TALK'), pcBtn = el('button', 'hb-btn off', 'PC CONTROL');
     blocksBtn.type = ingestBtn.type = talkBtn.type = pcBtn.type = 'button'; blocksBtn.title = 'Every block, shown or hidden (Ctrl + K)'; ingestBtn.title = 'Teach the Hub another app'; talkBtn.title = 'Talk to the Hub'; pcBtn.title = 'PC control';
     // Home is board-only; legacy cards remain hidden control hosts, never a navigation option.
     var setupHome = setupCard && { parent: setupCard.parentNode, next: setupCard.nextSibling };   // the first-time notice lives in the bar, where it can never sit over a block
     var setupBtn = el('button', 'hb-btn', 'SETUP'); setupBtn.type = 'button'; setupBtn.hidden = true; setupBtn.title = 'Things the Hub found that need setting up'; setupBtn.onclick = function () { location.href = '/setup'; };
-    bar.append(zh, hint, setupBtn, ingestBtn, talkBtn, pcBtn, zout, zin, blocksBtn, tidyBtn, fitBtn);  host.append(bar, world); document.body.appendChild(tray); root.appendChild(host); document.documentElement.classList.add('hub-board-on');
+    bar.append(zh, hint, setupBtn, ingestBtn, talkBtn, pcBtn, zout, zin, blocksBtn, tidyBtn, fitBtn);  stageClip.appendChild(world);host.append(bar,stageClip); document.body.appendChild(tray); root.appendChild(host); document.documentElement.classList.add('hub-board-on');
     // how you move around the board: 2D (flat; wheel zooms, middle-drag pans) or 3D (tilt and orbit)
     view = window.__hubBoardView ? window.__hubBoardView.mount({ host: host, V: function () { return V; }, place: function () { place(); }, stop: function () { stopCam(); }, touch: function () { touched = true; }, fit: function (a) { fit(a); }, motion: motion }) : null;
     if (view) { bar.insertBefore(view.btn, zout); bar.insertBefore(view.gizmoBtn, zout); }
@@ -128,10 +129,19 @@
     // No two blocks may sit on top of each other. The block you just opened, moved or resized keeps its place (then the open ones,
     // then the most recently used); every other block that is in the way goes to the nearest free spot, so a shove never ping-pongs.
     var GAP = 14;
+    var layerState={order:['system','tools','apps'],hidden:{},members:{}};
+    try{var ls=JSON.parse(localStorage.getItem('agenthub:board:layers'));if(ls&&Array.isArray(ls.order)&&ls.order.length===3&&['system','tools','apps'].every(function(k){return ls.order.indexOf(k)>=0;}))layerState={order:ls.order,hidden:ls.hidden||{},members:ls.members||{}};}catch(e){}
+    function layerOf(id){var base=id.split('#')[0];return layerState.members[base]||(P[base]?'system':base.indexOf('act:')===0?'apps':base.indexOf('app:')===0&&!['app:movie-clipper','app:file-browser'].includes(base)?'apps':'tools');}
+    function isHidden(id){return !!hid[id]||!!layerState.hidden[layerOf(id)];}
+    function revealLayer(id){var key=layerOf(id);if(layerState.hidden[key]){delete layerState.hidden[key];saveLayers();refreshLayers();}}
+    function saveLayers(){try{localStorage.setItem('agenthub:board:layers',JSON.stringify(layerState));}catch(e){}}
+    function changeLayer(id,key){layerState.members[id.split('#')[0]]=key;saveLayers();refreshLayers();}
+    function refreshLayers(){Object.keys(blocks).forEach(applyBlock);if(stackDepth)stackDepth();if(layerMenu&&!layerMenu.hidden)drawLayers();trayDraw();}
+
     function bh(l) { return l.min ? 32 + PEEK : l.h; }
     function hits(x, y, w, h, S, g) { for (var i = 0; i < S.length; i++) { var P = S[i]; if (g && P.g === g) continue; if (x < P.x + P.w + GAP && P.x < x + w + GAP && y < P.y + P.h + GAP && P.y < y + h + GAP) return true; } return false; }
     function resolve(pin) {
-      var ids = Object.keys(L).filter(function (i) { return blocks[i] && !hid[i]; }), pushed = {}, order = ids.slice();
+      var ids = Object.keys(L).filter(function (i) { return blocks[i] && !isHidden(i); }), pushed = {}, order = ids.slice();
       function rank(id) { return id === pin ? 1e9 : L[id].exp ? 1e8 : (L[id].z || 1); }
       order.sort(function (a, c) { return rank(c) - rank(a); });
       var placed = [];
@@ -156,7 +166,7 @@
     function sizeOf(id) { var l = L[id]; return { w: l.exp ? l.ow : l.w, h: l.exp ? l.oh : l.h }; }
     function autosize() {
       defs.forEach(function (d) {
-        var l = L[d[0]], e = blocks[d[0]]; if (!e || l.exp || l.min || hid[d[0]]) return;if(l.rz){e._in.style.overflowY='auto';return;}
+        var l = L[d[0]], e = blocks[d[0]]; if (!e || l.exp || l.min || isHidden(d[0])) return;if(l.rz){e._in.style.overflowY='auto';return;}
         var keep = e.style.height, visibility = e.style.contentVisibility; e.style.contentVisibility = 'visible'; e.style.height = 'auto'; var nat = Math.max(Math.ceil(e.offsetHeight),e.querySelector('.hk-h').offsetHeight+e._in.scrollHeight)+8; e.style.height = keep; e.style.contentVisibility = visibility;
         l.h = Math.max(d[1].h, Math.min(nat, 460));
         e._in.style.overflowY = nat > 460 ? 'auto' : 'hidden'; e.style.height = l.h + 'px';
@@ -165,7 +175,7 @@
     function grid() {
       // Wide window: the overview panels in a row, usage under the first, the tiles below. Narrow window (a tablet): everything flows
       // in rows that fit, centred, so nothing is cut off at the sides and the zoom can stay readable.
-      var T = {}, G = 22, host_w = host.clientWidth || 1100, maxW = Math.floor(host_w / .85) - 60, ids = ['att', 'runs', 'ses', 'hlt', 'use'];
+      var T = {}, G = 22, host_w = stageRect().width || 1100, maxW = Math.floor(host_w / .85) - 60, ids = ['att', 'runs', 'ses', 'hlt', 'use'];
       var tiles = defs.filter(function (d) { return !P[d[0]]; }), x, y, rowH = 0, widest = 0;
       if (maxW >= 1250) {
         var X0 = -640; x = X0; y = -330;
@@ -194,7 +204,7 @@
       defs.forEach(function (d) { blocks[d[0]]._shown = true; });
     }
 
-    function applyBlock(id) { var e = blocks[id], l = L[id]; if (!e.classList.contains('pick')) { e.style.left = l.x + 'px'; e.style.top = l.y + 'px'; } e.style.width = l.w + 'px'; e.style.height = l.min ? (32 + PEEK) + 'px' : l.h + 'px'; e.classList.toggle('min', !!l.min); e.style.zIndex = l.z || 1; e.hidden = !!hid[id];if(e._solid){var v=e._solid;v.hidden=e.hidden;v.style.left=l.x+'px';v.style.top=l.y+'px';v.style.width=l.w+'px';v.style.height=e.style.height;v.style.zIndex=e.style.zIndex;v.classList.toggle('exp',!!l.exp);} if (nav) nav.refresh(); }
+    function applyBlock(id) { var e = blocks[id], l = L[id]; if (!e.classList.contains('pick')) { e.style.left = l.x + 'px'; e.style.top = l.y + 'px'; } e.style.width = l.w + 'px'; e.style.height = l.min ? (32 + PEEK) + 'px' : l.h + 'px'; e.classList.toggle('min', !!l.min); e.style.zIndex = l.z || 1; e.hidden = isHidden(id);if(e._solid){var v=e._solid;v.hidden=e.hidden;v.style.left=l.x+'px';v.style.top=l.y+'px';v.style.width=l.w+'px';v.style.height=e.style.height;v.style.zIndex=e.style.zIndex;v.classList.toggle('exp',!!l.exp);} if (nav) nav.refresh(); }
     function mk(id, d) {
       var e = el('div', 'hk hub-block' + ((d.app || d.card || d.extra || d.act) ? ' tile' : '')); e.dataset.id = id; e.tabIndex = 0; e.setAttribute('role', 'group');
       var h = el('div', 'hk-h'), glyph = el('span', 'hk-glyph'); glyph.appendChild(svg(id === 'runs' ? 'M5 4l14 8-14 8V4Z' : 'M5 5h14v14H5zM8 12h8')); glyph.firstChild.style.width = glyph.firstChild.style.height = ''; h.appendChild(glyph); if (PANEL_ICON[id]) { var pi = svg(PANEL_ICON[id], 1.8); pi.classList.add('hk-pi'); pi.style.width = pi.style.height = '15px'; h.appendChild(pi); }
@@ -260,12 +270,9 @@
     var stackDepth = null;
     // Several windows of one tool: another block of the same tool, offset a little, allowed to overlap its siblings, in front of them in 3D.
     stackDepth = function () {
-      var groups = {};
-      Object.keys(blocks).forEach(function (id) { blocks[id].style.removeProperty('--hb-dz');if(blocks[id]._solid)blocks[id]._solid.style.removeProperty('--hb-dz'); var base = id.split('#')[0]; if (L[id] && L[id].exp && !hid[id]) (groups[base] = groups[base] || []).push(id); });
-      Object.keys(groups).forEach(function (base) {
-        var g = groups[base]; if (g.length < 2) return;
-        g.sort(function (a, c) { return (L[a].z || 0) - (L[c].z || 0); });
-        g.forEach(function (id, i) { blocks[id].style.setProperty('--hb-dz', (170 - (g.length - 1 - i) * 90) + 'px');if(blocks[id]._solid)blocks[id]._solid.style.setProperty('--hb-dz',(170-(g.length-1-i)*90)+'px'); });
+      var groups={};Object.keys(blocks).forEach(function(id){var key=layerOf(id);(groups[key]=groups[key]||[]).push(id);});
+      Object.keys(groups).forEach(function(key){var bases={};groups[key].forEach(function(id){var base=id.split('#')[0];if(L[id].exp&&!isHidden(id))(bases[base]=bases[base]||[]).push(id);});
+        groups[key].forEach(function(id){var siblings=bases[id.split('#')[0]]||[];siblings.sort(function(a,b){return (L[a].z||0)-(L[b].z||0);});var step=siblings.length>1?(siblings.indexOf(id)-siblings.length+1)*90:0;var z=layerState.order.indexOf(key)*140+step;[blocks[id],blocks[id]._solid].forEach(function(e){if(e)e.style.setProperty('--hb-dz',z+'px');});});
       });
     };
     function duplicate(srcId) {
@@ -379,17 +386,19 @@
       if(h.stale_code){var restartNote=el('button','hb-btn hb-health-restart','RESTART NEEDED');restartNote.type='button';restartNote.onclick=restartChip.onclick;hb._in.appendChild(restartNote);}hb._in.appendChild(li('', 'Hub v' + h.version, 'up ' + ago(h.uptime_s)));
       hb._in.appendChild(li(h.local_model && h.local_model.listening ? '' : 'o', 'Local model', h.local_model && h.local_model.listening ? 'listening' : 'off'));
       hb._in.appendChild(li(h.recent_problems ? 'a' : '', 'Warnings', String(h.recent_problems)));
-      hb._in.appendChild(li('o', 'Graphics card', 'not measured'));blockActions(hb._in,[['SETTINGS','/setup'],['LOCATIONS','/setup'],['RESTART',function(){document.getElementById('restart-btn').click();}]]);
+      hb._in.appendChild(li('o', 'Graphics card', 'not measured'));notices();blockActions(hb._in,[['SETTINGS','/setup'],['LOCATIONS','/setup'],['RESTART',function(){document.getElementById('restart-btn').click();}]]);
       if (h.apps.failed.length) hb._in.appendChild(li('r', 'Failed to start', h.apps.failed.join(', ')));
       Object.keys(blocks).forEach(function (id) { var b = blocks[id]; if (!b.dataset.loading) return; delete b.dataset.loading; if (motion.allowed()) b._in.animate([{opacity:0},{opacity:1}],{duration:220}); });
-      syncTiles(); relayout(); if (!touched) fit(true); legacy();
+      syncTiles(); relayout(); if (!touched) fit(false); legacy();
       Object.keys(blocks).forEach(function (id) { var b = blocks[id]; if (b._app) { var run = Array.isArray(h.apps.running)?h.apps.running.indexOf(b._app.id)>=0:!!b._app.running; b._st.textContent = run ? 'RUNNING' : 'IDLE'; b._st.className = run ? 'on' : '';b.querySelector('[data-a=stop]').hidden=!run; } });
     }
 
-    function place() {
+    var raster=1,rasterTimer=0;
+    function worldTransform(v){var t=view?view.transform(v):'translate3d('+v.x+'px,'+v.y+'px,0) scale('+v.k+')';return raster===1?t:'scale3d('+(1/raster)+','+(1/raster)+','+(1/raster)+') '+t;}
+    function place(rasterOnly) {
       clearTimeout(recoveryTimer);recoveryTimer=setTimeout(function(){if(alive)trayDraw();},180);
-      world.style.transform = view ? view.transform(V) : 'translate3d(' + V.x + 'px,' + V.y + 'px,0) scale(' + V.k + ')'; zh.textContent = Math.round(V.k * 100) + '%'; host.style.setProperty('--hb-scale', V.k); HubBlocks.grid(host, V); if (nav) nav.refresh();
-      var compact = V.k < .7;
+      world.style.transform=worldTransform(V);if(!rasterOnly){clearTimeout(rasterTimer);rasterTimer=setTimeout(function(){if(!alive)return;var next=/Apple/.test(navigator.vendor)?1:Math.max(1,V.k);if(Math.abs(next-raster)>.015){raster=next;world.style.zoom=raster;place(true);}},180);} zh.textContent = Math.round(V.k * 100) + '%'; host.style.setProperty('--hb-scale', V.k); HubBlocks.grid(host, V); if (nav) nav.refresh();
+      var compact = V.k < .35;
       if (host.classList.contains('hb-compact') !== compact) host.classList.toggle('hb-compact', compact);
     }
     // A camera move in flight gives way the moment you touch the board (wheel, drag, zoom buttons): it must never fight your hand.
@@ -403,34 +412,39 @@
       (function s(n) { if (!alive || tok !== camTok) return; var u = Math.min(1, (n - t0) / ms), e = 1 - Math.pow(1 - u, 3.4); V = { x: f.x + (to.x - f.x) * e, y: f.y + (to.y - f.y) * e, k: f.k + (to.k - f.k) * e }; place(); if (u < 1) requestAnimationFrame(s); })(t0);
     }
     // the glass header and the bar take the top of the window; the board's own content starts below them
-    function TOP() { var h = document.querySelector('body>header'), bb = bar.getBoundingClientRect(), r = host.getBoundingClientRect(); return Math.max(60, Math.ceil(Math.max(bb.bottom-r.top,!restartChip.hidden?restartChip.getBoundingClientRect().bottom+4:0, h ? h.getBoundingClientRect().bottom + 6 : 0) + 6)); }
-    function setTop() { var h = document.querySelector('body>header'); host.style.setProperty('--hb-top', Math.ceil(h ? h.getBoundingClientRect().bottom + 4 : 80) + 'px');document.documentElement.style.setProperty('--hub-chrome-bottom',Math.ceil(bar.getBoundingClientRect().bottom)+'px'); }
-    function fit(anim) {
-      var r = host.getBoundingClientRect(), x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9, n = 0;
-      Object.keys(blocks).forEach(function (id) { if (hid[id]) return; var l = L[id]; n++; x0 = Math.min(x0, l.x); y0 = Math.min(y0, l.y); x1 = Math.max(x1, l.x + l.w); y1 = Math.max(y1, l.y + (l.min ? 32 + PEEK : l.h)); });
-      if (!n || !r.width) return;
-      var top = TOP(), k = Math.min(1.2, Math.min((r.width - 90) / (x1 - x0), (r.height - top - 100) / (y1 - y0)));
-      // text must stay readable: a crowded board is not squeezed below 80 %, it starts at the top and the wheel carries you down
-      if (k < .8) { k = .8; cam({ k: k, x: r.width / 2 - (x0 + x1) / 2 * k, y: top + 10 - y0 * k }, anim ? 520 : 0); return; }
-      cam({ k: k, x: r.width / 2 - (x0 + x1) / 2 * k, y: top + (r.height - top - 90) / 2 - (y0 + y1) / 2 * k }, anim ? 520 : 0);
+    var stage={left:8,top:120,right:800,bottom:600,width:792,height:480};
+    function stageRect(ignoreTray){
+      var hr=host.getBoundingClientRect(),ar=bar.getBoundingClientRect(),top=Math.max(ar.bottom,!restartChip.hidden?restartChip.getBoundingClientRect().bottom:0)-hr.top+8,right=hr.width-8,bottom=hr.height-8;
+      [host.querySelector('.hb-viewbar'),host.querySelector('.hb-gizmo.on'),host.querySelector('.hb-map')].forEach(function(e){if(e&&e.getClientRects().length&&getComputedStyle(e).display!=='none'){var r=e.getBoundingClientRect();right=Math.min(right,r.left-hr.left-8);}});
+      if(!ignoreTray&&tray.childElementCount){var tr=tray.getBoundingClientRect();bottom=Math.min(bottom,tr.top-hr.top-8);}
+      stage={left:8,top:top,right:Math.max(48,right),bottom:Math.max(top+40,bottom)};stage.width=stage.right-stage.left;stage.height=stage.bottom-stage.top;
+      stageClip.style.clipPath='inset('+stage.top+'px '+Math.max(0,hr.width-stage.right)+'px '+Math.max(0,hr.height-stage.bottom)+'px '+stage.left+'px)';return stage;
     }
+    function TOP(){return stageRect().top;}
+    function setTop(){var h=document.querySelector('body>header');host.style.setProperty('--hb-top',Math.ceil(h?h.getBoundingClientRect().bottom+4:80)+'px');document.documentElement.style.setProperty('--hub-chrome-bottom',Math.ceil(bar.getBoundingClientRect().bottom)+'px');stageRect();}
+    function cameraFor(ids,maxK){
+      var r=stageRect(),x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;ids.forEach(function(id){var l=L[id];x0=Math.min(x0,l.x);y0=Math.min(y0,l.y);x1=Math.max(x1,l.x+l.w);y1=Math.max(y1,l.y+bh(l));});if(!ids.length)return null;
+      var k=Math.max(.01,Math.min(maxK,(r.width-16)/Math.max(1,x1-x0),(r.height-16)/Math.max(1,y1-y0))),to={k:k,x:(r.left+r.right)/2-(x0+x1)/2*k,y:(r.top+r.bottom)/2-(y0+y1)/2*k};
+      // Perspective changes projected bounds. Solve at the requested view, not at a guessed flat rectangle.
+      if(!view||view.mode()!=='3d')return to;
+      var old=world.style.transform,hr=host.getBoundingClientRect();
+      function projected(v){world.style.transform=worldTransform(v);var a=Infinity,b=Infinity,c=-Infinity,d=-Infinity;ids.forEach(function(id){var q=blocks[id].getBoundingClientRect();a=Math.min(a,q.left-hr.left);b=Math.min(b,q.top-hr.top);c=Math.max(c,q.right-hr.left);d=Math.max(d,q.bottom-hr.top);});return {x:(a+c)/2,y:(b+d)/2,w:c-a,h:d-b};}
+      for(var i=0;i<8;i++){
+        var q=projected(to),factor=Math.min(1,(r.width-16)/Math.max(1,q.w),(r.height-16)/Math.max(1,q.h));to.k*=factor;q=projected(to);
+        var px=projected({x:to.x+10,y:to.y,k:to.k}),py=projected({x:to.x,y:to.y+10,k:to.k}),ax=(px.x-q.x)/10,ay=(px.y-q.y)/10,bx=(py.x-q.x)/10,by=(py.y-q.y)/10,det=ax*by-ay*bx,dx=(r.left+r.right)/2-q.x,dy=(r.top+r.bottom)/2-q.y;
+        if(Math.abs(det)>.00001){to.x+=(dx*by-dy*bx)/det;to.y+=(dy*ax-dx*ay)/det;}
+      }
+      world.style.transform=old;return to;
+    }
+    function fit(anim){var ids=Object.keys(blocks).filter(function(id){return !isHidden(id);});var to=cameraFor(ids,1.2);if(to)cam(to,anim?520:0);}
     function undim() { Object.keys(blocks).forEach(function (i) { blocks[i].classList.remove('dim'); }); }
     // the camera goes to a block you opened, but the others stay clickable (focus dims them; opening does not)
-    function lookAt(id) {
-      var l = L[id], r = host.getBoundingClientRect(), k = Math.min(2.4, Math.min(r.width * .7 / l.w, r.height * .7 / (l.min ? 32 + PEEK : l.h)));
-      if (l.exp && r.width < 900) { var top=TOP();k=Math.min(1.2,(r.width-28)/l.w,(r.height-top-28)/l.h);cam({k:k,x:r.width/2-(l.x+l.w/2)*k,y:top+(r.height-top-l.h*k)/2-l.y*k},520);return; }
-      cam({ k: k, x: r.width / 2 - (l.x + l.w / 2) * k, y: r.height / 2 - (l.y + (l.min ? (32 + PEEK) / 2 : l.h / 2)) * k }, 520);
-    }
-    function focusBlock(id) {
-      if (focusId === id) { focusId = null; undim(); fit(true); return; }
-      focusId = id; Object.keys(blocks).forEach(function (i) { blocks[i].classList.toggle('dim', i !== id); });
-      var l = L[id], r = host.getBoundingClientRect(), k = Math.min(2.4, Math.min(r.width * .7 / l.w, r.height * .7 / (l.min ? 32 + PEEK : l.h)));
-      cam({ k: k, x: r.width / 2 - (l.x + l.w / 2) * k, y: r.height / 2 - (l.y + (l.min ? (32 + PEEK) / 2 : l.h / 2)) * k }, 520);
-    }
+    function lookAt(id){var to=cameraFor([id],2.4);if(to)cam(to,520);}
+    function focusBlock(id){if(focusId===id){focusId=null;undim();fit(true);return;}focusId=id;Object.keys(blocks).forEach(function(i){blocks[i].classList.toggle('dim',i!==id);});lookAt(id);}
     function trayDraw() {
-      tray.replaceChildren();
-      Object.keys(blocks).forEach(function(id){if(blocks[id].hidden&&!hid[id])hid[id]=1;});
-      Object.keys(blocks).filter(function(i){if(hid[i])return true;var r=blocks[i].getBoundingClientRect();var iw=Math.min(innerWidth-12,r.right)-Math.max(12,r.left),ih=Math.min(innerHeight-90,r.bottom)-Math.max(TOP(),r.top);return iw<Math.min(80,r.width*.5)||ih<Math.min(32,r.height*.5);}).forEach(function (id) {
+      tray.replaceChildren();var free=stageRect(true);
+      Object.keys(blocks).forEach(function(id){if(blocks[id].hidden&&!hid[id]&&!layerState.hidden[layerOf(id)])hid[id]=1;});
+      Object.keys(blocks).filter(function(i){if(layerState.hidden[layerOf(i)])return false;if(hid[i])return true;var r=blocks[i].getBoundingClientRect();var iw=Math.min(free.right,r.right)-Math.max(free.left,r.left),ih=Math.min(free.bottom,r.bottom)-Math.max(free.top,r.top);return iw<Math.min(80,r.width*.5)||ih<Math.min(32,r.height*.5);}).forEach(function (id) {
         var b = el('button', 'hb-btn', (hid[id]?'+ ':'') + (blocks[id]._name || id));b.dataset.restore=id;b.title=hid[id]?'Restore this hidden block':'Out of view: bring it back';b.setAttribute('aria-label',(hid[id]?'Restore ':'Find ')+(blocks[id]._name||id)); b.type = 'button';
         if(!hid[id]){var NS='http://www.w3.org/2000/svg',q=document.createElementNS(NS,'svg'),qp=document.createElementNS(NS,'path');q.setAttribute('viewBox','0 0 24 24');q.setAttribute('width','12');q.setAttribute('height','12');q.setAttribute('aria-hidden','true');q.setAttribute('fill','none');q.setAttribute('stroke','currentColor');q.setAttribute('stroke-width','2.6');q.setAttribute('stroke-linecap','round');q.style.cssText='margin-right:6px;vertical-align:-2px';qp.setAttribute('d','M8.5 9a3.5 3.5 0 1 1 5.3 3c-1.1.7-1.8 1.3-1.8 2.6M12 19h.01');q.appendChild(qp);b.insertBefore(q,b.firstChild);}
         b.onclick = function () { hid[id] = 0; applyBlock(id); resolve(id);save();lookAt(id); if (!reduce.matches) blocks[id].animate([{ opacity: 0, transform: 'scale(.8)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: SPRING }); trayDraw(); };
@@ -524,16 +538,16 @@
     }
     host.addEventListener('pointerdown', function (e) { if (e.button === 2) ctxDown = [e.clientX, e.clientY]; if (ctxMenu && !ctxMenu.contains(e.target)) closeCtx(); }, true);
     host.addEventListener('contextmenu', function (e) {
-      if (e.defaultPrevented || e.target.closest('.hb-bar,.hb-viewbar,.hb-tray,.hb-more-menu,.hb-ctx,.hb-session-detail,.hb-gizmo,.hb-map,.hb-jump')) return;
+      if ((e.defaultPrevented&&!(view&&view.mode()==='3d'&&[host,world,stageClip].indexOf(e.target)>=0)) || e.target.closest('.hb-bar,.hb-viewbar,.hb-tray,.hb-more-menu,.hb-ctx,.hb-session-detail,.hb-gizmo,.hb-map,.hb-jump')) return;
       e.preventDefault();
       if (ctxDown && Math.abs(e.clientX - ctxDown[0]) + Math.abs(e.clientY - ctxDown[1]) > 8) return;        // the end of a right-drag turn is not a request for a menu
       var blk = e.target.closest('.hk');
       if (blk) {
         var id = blk.dataset.id, items = [];
         Array.prototype.forEach.call(blk.querySelectorAll('.hk-h button[data-a]'), function (b) { if (!b.hidden && b.title) items.push([b.title.toUpperCase(), function () { b.click(); }]); });
-        openCtx(e.clientX, e.clientY, items, (blocks[id]._name || id) + ' actions');
+        ['system','tools','apps'].forEach(function(key){items.push(['MOVE TO LAYER: '+key.toUpperCase(),function(){changeLayer(id,key);}]);});openCtx(e.clientX, e.clientY, items, (blocks[id]._name || id) + ' actions');
       } else {
-        var items2 = [['TIDY', function () { tidyBtn.click(); }], ['FIT EVERYTHING', function () { fitBtn.click(); }]];
+        var items2 = [['RESET LAYOUT',resetLayout],['TIDY', function () { tidyBtn.click(); }], ['FIT EVERYTHING', function () { fitBtn.click(); }]];
         if (view) items2.push([view.btn.textContent === 'VIEW: 3D' ? 'SWITCH TO 2D' : 'SWITCH TO 3D', function () { view.btn.click(); }]);
         items2.push(['BLOCKS LIST', function () { blocksBtn.click(); }], ['TALK', function () { talkBtn.click(); }]);
         openCtx(e.clientX, e.clientY, items2, 'Board actions');
@@ -551,7 +565,7 @@
     zin.onclick = function () { touched = true; stopCam(); var r = host.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1.25); };
     zout.onclick = function () { touched = true; stopCam(); var r = host.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 0.8); };
     fitBtn.onclick = function () { focusId = null; undim(); fit(true); };
-    tidyBtn.onclick = function () {
+    function resetLayout() {
       stopCam();
       defs.forEach(function (d) { var l = L[d[0]]; hid[d[0]] = 0; l.u = 0; l.rz = 0; l.min = 0; l.from = null; if (!l.exp) { l.w = d[1].w; } });
       autosize(); var T = grid(), from = {}; touched = false;
@@ -560,34 +574,49 @@
       (function s(n) { if (!alive) return; var u = Math.min(1, (n - t0) / (motion.allowed() ? 620 : 1)), e = 1 - Math.pow(1 - u, 3.4);
         defs.forEach(function (d) { var f = from[d[0]], t = T[d[0]], l = L[d[0]]; if (l.exp) return; l.x = f.x + (t.x - f.x) * e; l.y = f.y + (t.y - f.y) * e; applyBlock(d[0]); });
         if (u < 1) requestAnimationFrame(s); else { relayout(); save(); trayDraw(); fit(true); } })(t0);
+    }
+    tidyBtn.onclick=function(){
+      stopCam();focusId=null;undim();var ids=Object.keys(blocks).filter(function(id){return !isHidden(id);});
+      ids.sort(function(a,b){return L[a].y-L[b].y||L[a].x-L[b].x;});var r=stageRect(),unit=16,total=ids.reduce(function(n,id){return n+L[id].w*bh(L[id]);},0),width=Math.max(400,Math.sqrt(total*r.width/Math.max(1,r.height)));var x=0,y=0,row=0;
+      ids.forEach(function(id){var l=L[id];if(x&&x+l.w>width){x=0;y+=Math.ceil((row+GAP)/unit)*unit;row=0;}l.x=x;l.y=y;l.u=1;x+=Math.ceil((l.w+GAP)/unit)*unit;row=Math.max(row,bh(l));applyBlock(id);});save();trayDraw();fit(true);
     };
     var wire = document.getElementById('mcp-wire'), wireWatch = wire && window.MutationObserver ? new MutationObserver(legacy) : null;   // the bar mirrors the page's PC-control button the moment it changes, not at the next 10 s poll
     var banner = document.getElementById('setup-banner'), bannerWatch = banner && window.MutationObserver ? new MutationObserver(legacy) : null;   // the banner is hidden under the board; its issues show as a SETUP button
     if (bannerWatch) bannerWatch.observe(banner, { childList: true });
     if (wireWatch) wireWatch.observe(wire, { attributes: true, attributeFilter: ['class', 'title', 'disabled'] });
     function onKey(e) { if (nav && nav.key(e)) return; if (e.key === 'Escape' && focusId) { focusId = null; undim(); fit(true); } }
-    nav = __hubBoardNav.mount(host, blocks, L, hid, function () { return V; }, function (id, point) { touched = true; stopCam(); if (id) { if (hid[id]) { hid[id] = 0; applyBlock(id); resolve(id); trayDraw(); save(); } lookAt(id); } else cam({x:host.clientWidth/2-point.x*V.k,y:host.clientHeight/2-point.y*V.k,k:V.k},350); }, expand, collapse);
+    nav = __hubBoardNav.mount(host, blocks, L, new Proxy(hid,{get:function(target,id){return isHidden(String(id));}}), function () { return V; }, function (id, point) { touched = true; stopCam(); if (id) { revealLayer(id);if (hid[id]) { hid[id] = 0; applyBlock(id); resolve(id); trayDraw(); save(); } lookAt(id); } else {var free=stageRect();cam({x:(free.left+free.right)/2-point.x*V.k,y:(free.top+free.bottom)/2-point.y*V.k,k:V.k},350);}; }, expand, collapse);
     document.addEventListener('keydown', onKey);
     var resizeFrame=0; function onResize() { document.documentElement.style.setProperty('--hub-visible-height',(window.visualViewport?visualViewport.height:innerHeight)+'px');if(resizeFrame)return;resizeFrame=requestAnimationFrame(function(){resizeFrame=0;if(!alive)return;setTop();relayout();if(!touched)fit(false);}); }
     addEventListener('resize', onResize);if(window.visualViewport)visualViewport.addEventListener('resize',onResize);onResize();setTop();
     relayout(); trayDraw(); paint(); requestAnimationFrame(function () { setTop(); fit(false); });
     var hands = window.HubHandsBoard ? HubHandsBoard.mount({host:host,bar:bar,fitButton:fitBtn}) : null;
-    var more=el('button','hb-btn','MORE'),menu=el('div','hb-more-menu');more.type='button';more.setAttribute('aria-expanded','false');menu.hidden=true;menu.setAttribute('role','group');menu.setAttribute('aria-label','More dashboard controls');bar.appendChild(more);host.appendChild(menu);
+    var CONTROL_HOME={talk:'actions',pc:'actions',ingest:'actions',setup:'actions',hands:'actions',handSetup:'hands',saveTrace:'hands',legend:'hands',graphics:'health',readout:'view',view:'view',axis:'view',zoom:'view',fit:'view',blocks:'view',tidy:'view',layers:'view'};
+    var more=el('button','hb-btn hb-hands-menu-button',''),menu=el('div','hb-more-menu');more.appendChild(svg('M5 9l7 7 7-7'));more.type='button';more.title='Hand control options';more.setAttribute('aria-label','Hand control options');more.setAttribute('aria-expanded','false');menu.hidden=true;menu.setAttribute('role','group');menu.setAttribute('aria-label','Hand control options');bar.appendChild(more);host.appendChild(menu);
     function closeMore(){menu.hidden=true;more.setAttribute('aria-expanded','false');}
-    more.onclick=function(){var jump=host.querySelector('.hb-jump');if(jump&&!jump.hidden&&nav)nav.toggle();menu.hidden=!menu.hidden;more.setAttribute('aria-expanded',String(!menu.hidden));};
-    var viewBar=el('div','hb-viewbar'),zoomRow=el('div','hb-zoomrow');viewBar.setAttribute('role','group');viewBar.setAttribute('aria-label','View controls');zoomRow.append(zout,zin);
-    viewBar.append(zh);if(view)viewBar.append(view.btn,view.gizmoBtn);viewBar.append(zoomRow,fitBtn,blocksBtn,tidyBtn);host.appendChild(viewBar);
-    Array.from(bar.children).forEach(function(b){if(b===more||b===talkBtn||b===pcBtn||b===ingestBtn||b===setupBtn||(hands&&b===hands.button))return;if(b===hint){b.hidden=true;return;}menu.appendChild(b);});
-    bar.insertBefore(ingestBtn,pcBtn.nextSibling);
-    function outsideMore(e){if(!menu.hidden&&!menu.contains(e.target)&&e.target!==more)closeMore();var jump=host.querySelector('.hb-jump');if(jump&&!jump.hidden&&!jump.contains(e.target)&&!menu.contains(e.target)&&e.target!==more&&nav)nav.toggle();}
-    function moreKey(e){if(e.key==='Escape'){closeMore();var d=host.querySelector('.hb-session-detail');if(d)d.remove();}}
+    more.onclick=function(){menu.hidden=!menu.hidden;more.setAttribute('aria-expanded',String(!menu.hidden));};
+    var viewBar=el('div','hb-viewbar'),zoomRow=el('div','hb-zoomrow');viewBar.setAttribute('role','group');viewBar.setAttribute('aria-label','View controls');zoomRow.append(zout,zin);viewBar.append(zh);if(view)viewBar.append(view.btn,view.gizmoBtn);viewBar.append(zoomRow,fitBtn,blocksBtn,tidyBtn);host.appendChild(viewBar);
+    var controls={readout:zh,view:view&&view.btn,axis:view&&view.gizmoBtn,zoom:zoomRow,fit:fitBtn,blocks:blocksBtn,tidy:tidyBtn,talk:talkBtn,pc:pcBtn,ingest:ingestBtn,setup:setupBtn,hands:hands&&hands.button};
+    Array.from(bar.children).forEach(function(b){if(b.textContent==='HAND SETUP')controls.handSetup=b;if(b.textContent==='SAVE TRACE')controls.saveTrace=b;});
+    var legend=el('button','hb-btn','GESTURE LEGEND');legend.type='button';controls.legend=legend;var legendOn=true;try{legendOn=localStorage.getItem('agenthub:hands:legend')!=='0';}catch(e){}
+    function legendPaint(){document.documentElement.classList.toggle('hub-hide-hand-legend',!legendOn);legend.setAttribute('aria-pressed',String(legendOn));}legend.onclick=function(){legendOn=!legendOn;try{localStorage.setItem('agenthub:hands:legend',legendOn?'1':'0');}catch(e){}legendPaint();};legendPaint();
+    function placeControl(key,node){if(!node)return;var home=CONTROL_HOME[key];if(home==='hands')menu.appendChild(node);else if(home==='health'){if(node.parentNode!==blocks.hlt._in)blocks.hlt._in.appendChild(node);}else if(home==='view')viewBar.appendChild(node);else bar.appendChild(node);}
+    Object.keys(controls).forEach(function(k){placeControl(k,controls[k]);});hint.hidden=true;menu.appendChild(hint);if(hands){bar.insertBefore(more,hands.button.nextSibling);}else more.hidden=true;
+    var layerButton=el('button','hb-btn','LAYERS'),layerMenu=el('div','hb-layer-menu');layerButton.type='button';layerButton.dataset.layers='1';layerButton.setAttribute('aria-expanded','false');layerMenu.hidden=true;layerMenu.setAttribute('aria-label','3D layers');host.appendChild(layerMenu);placeControl('layers',layerButton);
+    function drawLayers(){layerMenu.replaceChildren();layerState.order.slice().reverse().forEach(function(key){var row=el('div','hb-layer-row'),count=Object.keys(blocks).filter(function(id){return layerOf(id)===key;}).length;row.appendChild(el('b','',key.toUpperCase()+' · '+count));[['Show/hide layer','M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM9 12a3 3 0 1 0 6 0 3 3 0 1 0-6 0',function(){layerState.hidden[key]=!layerState.hidden[key];}],['FORWARD',null,function(){var i=layerState.order.indexOf(key);if(i<2){layerState.order.splice(i,1);layerState.order.splice(i+1,0,key);}}],['BACK',null,function(){var i=layerState.order.indexOf(key);if(i>0){layerState.order.splice(i,1);layerState.order.splice(i-1,0,key);}}]].forEach(function(spec){var btn=el('button','hb-btn',spec[1]?null:spec[0]);btn.type='button';btn.title=spec[0];if(spec[1]){btn.appendChild(svg(spec[1]));btn.setAttribute('aria-pressed',String(!layerState.hidden[key]));}btn.onclick=function(){spec[2]();host.classList.add('hb-layer-moving');saveLayers();refreshLayers();setTimeout(function(){host.classList.remove('hb-layer-moving');},350);};row.appendChild(btn);});layerMenu.appendChild(row);});}
+    layerButton.onclick=function(){layerMenu.hidden=!layerMenu.hidden;layerButton.setAttribute('aria-expanded',String(!layerMenu.hidden));if(!layerMenu.hidden)drawLayers();};
+    function outsideMore(e){if(!menu.hidden&&!menu.contains(e.target)&&!more.contains(e.target))closeMore();if(!layerMenu.hidden&&!layerMenu.contains(e.target)&&e.target!==layerButton)layerMenu.hidden=true;var jump=host.querySelector('.hb-jump');if(jump&&!jump.hidden&&!jump.contains(e.target)&&!menu.contains(e.target)&&!e.target.closest('.hb-viewbar')&&nav)nav.toggle();}
+    function moreKey(e){if(e.key==='Escape'){closeMore();layerMenu.hidden=true;var d=host.querySelector('.hb-session-detail');if(d)d.remove();}}
     document.addEventListener('pointerdown',outsideMore,true);document.addEventListener('keydown',moreKey,true);
-    function notices(){var seen=false;document.querySelectorAll('#hub-graphics-chip').forEach(function(n){if(seen)n.remove();else{seen=true;if(n.parentNode!==menu)menu.appendChild(n);}});}
-    var noticeWatch=new MutationObserver(notices);noticeWatch.observe(document.body,{childList:true});noticeWatch.observe(bar,{childList:true});notices();
+    function notices(){document.querySelectorAll('#hub-graphics-chip').forEach(function(n,i){if(i||graphicsDismissed)n.remove();else{graphicsNotice=n;var x=n.querySelector('button');if(x&&!x._hubDismiss){x._hubDismiss=true;x.addEventListener('click',function(){graphicsDismissed=true;graphicsNotice=null;});}}});if(graphicsNotice&&!graphicsDismissed)placeControl('graphics',graphicsNotice);}
+    var noticeWatch=new MutationObserver(function(){notices();});noticeWatch.observe(document.body,{childList:true});notices();
+    var stageWatch=new ResizeObserver(function(){if(alive){stageRect();}});[bar,viewBar,tray].forEach(function(e){stageWatch.observe(e);});
+    stackDepth();
     var instance = {
       update: function (d) { data = d; paint(); HubBlocks.graphics(); if (!arrived) { arrived = true; HubBlocks.arrive(blocks, function () { return V.k; }, releaseArrival); } },
-      destroy: function () { if (!alive) return; alive = false; closeCtx(); document.removeEventListener('keydown', ctxKey, true); removeEventListener('blur', closeCtx); if(hands)hands.destroy();document.removeEventListener('pointerdown',holdPaint,true);window.removeEventListener('pointerup',releasePaint,true);window.removeEventListener('pointercancel',releasePaint,true);window.removeEventListener('blur',releasePaint);clearTimeout(paintReleaseTimer);noticeWatch.disconnect();document.removeEventListener('pointerdown',outsideMore,true);document.removeEventListener('keydown',moreKey,true);if(bin)bin.classList.remove('drop-target'); if (view) view.destroy(); if (setupHome && setupHome.parent) setupHome.parent.insertBefore(setupCard, setupHome.next); if (wireWatch) wireWatch.disconnect(); if (bannerWatch) bannerWatch.disconnect(); if (window.__hubBoard.active === instance) window.__hubBoard.active = null; releaseArrival(); clearTimeout(hintTimer);clearTimeout(recoveryTimer); dragCleanups.forEach(function (fn) { fn(); }); stopCam(); stopEdge(); guides.destroy(); if (nav) nav.destroy(); document.removeEventListener('keydown', onKey); removeEventListener('resize', onResize);if(window.visualViewport)visualViewport.removeEventListener('resize',onResize); if(resizeFrame)cancelAnimationFrame(resizeFrame); tray.remove(); root.replaceChildren(); root.style.width = root.style.maxWidth = root.style.marginLeft = ''; root.__hubBoardInstance = null; },
+      destroy: function () { if (!alive) return; alive = false; closeCtx(); document.removeEventListener('keydown', ctxKey, true); removeEventListener('blur', closeCtx); if(hands)hands.destroy();document.removeEventListener('pointerdown',holdPaint,true);window.removeEventListener('pointerup',releasePaint,true);window.removeEventListener('pointercancel',releasePaint,true);window.removeEventListener('blur',releasePaint);clearTimeout(paintReleaseTimer);noticeWatch.disconnect();stageWatch.disconnect();document.removeEventListener('pointerdown',outsideMore,true);document.removeEventListener('keydown',moreKey,true);if(bin)bin.classList.remove('drop-target'); if (view) view.destroy(); if (setupHome && setupHome.parent) setupHome.parent.insertBefore(setupCard, setupHome.next); if (wireWatch) wireWatch.disconnect(); if (bannerWatch) bannerWatch.disconnect(); if (window.__hubBoard.active === instance) window.__hubBoard.active = null; releaseArrival(); clearTimeout(hintTimer);clearTimeout(recoveryTimer);clearTimeout(rasterTimer); dragCleanups.forEach(function (fn) { fn(); }); stopCam(); stopEdge(); guides.destroy(); if (nav) nav.destroy(); document.removeEventListener('keydown', onKey); removeEventListener('resize', onResize);if(window.visualViewport)visualViewport.removeEventListener('resize',onResize); if(resizeFrame)cancelAnimationFrame(resizeFrame); tray.remove(); root.replaceChildren(); root.style.width = root.style.maxWidth = root.style.marginLeft = ''; root.__hubBoardInstance = null; },
       state: function () { return { V: V, L: L, hid: hid }; },
+      stage:stageRect,layers:function(){return layerState;},
       view: function () { return view; },
       // what Talk can see of the board, and what it may do to it (the answer's `ui`: a panel to bring up, tidy, fit, zoom, the mouse scheme)
       scene: function () { return Object.keys(blocks).filter(function (i) { return !hid[i]; }).map(function (i) { return { id: i, t: String(blocks[i]._name || (blocks[i].querySelector('.hk-h .t') || {}).textContent || i) }; }); },
@@ -603,7 +632,7 @@
         var ids = (ui.focus ? [ui.focus] : (ui.blocks || []).map(function (x) { return x.id; })).map(function (i) { return blocks[i] ? i : MAP[i]; }).filter(function (i, n, a) { return i && blocks[i] && a.indexOf(i) === n; });
         if (!ids.length) return false;
         touched = true; stopCam();
-        ids.forEach(function (i) { if (hid[i]) { hid[i] = 0; applyBlock(i); resolve(i); } });
+        ids.forEach(function (i) { revealLayer(i);if (hid[i]) { hid[i] = 0; applyBlock(i); resolve(i); } });
         trayDraw(); save();
         if (ids.length === 1) { if (focusId !== ids[0]) focusBlock(ids[0]); } else { focusId = null; undim(); lookAt(ids[0]); }
         return true;
@@ -614,7 +643,7 @@
         if (!alive || !id || !blocks[id] || !L[id]) return false;
         touched = true; stopCam();
         if (hid[id]) { hid[id] = 0; applyBlock(id); resolve(id); trayDraw(); save(); }
-        var b = blocks[id]; if (!L[id].exp) expand(id);
+        revealLayer(id);var b = blocks[id]; if (!L[id].exp) expand(id);
         var fr = b.querySelector('iframe'), want = u.pathname.slice(1).toUpperCase();
         Array.prototype.forEach.call(b.querySelectorAll('.hk-tabs button'), function (t) { t.classList.toggle('on', t.textContent === want); });
         if (fr) { var next = embedUrl(u.pathname + u.search); if (fr.src !== next) { fr.src = next; if (motion) motion.frame(fr); } b._url = u.pathname + u.search; }

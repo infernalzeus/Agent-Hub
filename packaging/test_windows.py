@@ -48,10 +48,10 @@ def test_in_3d_the_windows_sit_at_stepped_depths_and_pressing_one_brings_it_forw
     board.click(".hb-btn:has-text('VIEW')")                                               # 3D
     board.wait_for_timeout(600)
     dz = lambda i: float(board.evaluate("document.querySelector(\".hk[data-id='%s']\").style.getPropertyValue('--hb-dz')" % i).replace("px", ""))
-    assert dz("card:oc#3") == 170 and dz("card:oc#2") == 80 and dz("card:oc") == -10      # last made is in front, the first at the back
+    assert dz("card:oc#3") - dz("card:oc#2") == 90 and dz("card:oc#2") - dz("card:oc") == 90      # last made is in front, stepped 90 px, the first at the back (on the tool layer's depth)
     board.locator(".hk[data-id='card:oc'] .hk-h").dispatch_event("pointerdown", {"button": 0, "pointerId": 1, "bubbles": True, "clientX": 400, "clientY": 100})   # press the one at the back
     board.evaluate("dispatchEvent(new PointerEvent('pointerup', {pointerId: 1}))")
-    assert dz("card:oc") == 170 and dz("card:oc#3") == 80
+    assert dz("card:oc") - dz("card:oc#3") == 90 and dz("card:oc#3") - dz("card:oc#2") == 90      # the pressed one moved to the front
 
 
 def test_a_window_can_be_closed_and_the_first_one_stays(board):
@@ -60,11 +60,11 @@ def test_a_window_can_be_closed_and_the_first_one_stays(board):
     board.click(".hk[data-id='card:oc#2'] [data-a=col]")
     board.wait_for_timeout(300)
     assert board.locator(".hk[data-id='card:oc#2']").count() == 0 and ids(board) == ["card:oc"]
-    assert board.evaluate("document.querySelector(\".hk[data-id='card:oc']\").style.getPropertyValue('--hb-dz')") == ""    # alone again: no stepped depth
+    assert board.evaluate("document.querySelector(\".hk[data-id='card:oc']\").style.getPropertyValue('--hb-dz')") in ("", "140px")    # alone again: no stepping, only its layer's depth
 
 
 def test_five_windows_at_most(board):
     for _ in range(6):
-        board.click(".hk[data-id='card:oc'] [data-a=dup]")
+        board.evaluate("document.querySelector(\".hk[data-id='card:oc'] [data-a=dup]\").click()")      # by script: the camera may have moved the button under the toolbar
         board.wait_for_timeout(150)
     assert len(ids(board)) == 5

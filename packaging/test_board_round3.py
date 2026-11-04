@@ -52,7 +52,7 @@ def test_missing_session_fields_are_omitted(page):
 
 def test_native_dismiss_and_more_clicks(page):
  page.locator('#setup-card').evaluate('e=>e.hidden=false');press(page,'.sc-dismiss');assert page.locator('#setup-card').is_hidden()
- press(page,'.hb-bar>button:last-child');assert page.locator('.hb-more-menu').is_visible()
+ press(page,'.hb-hands-menu-button');assert page.locator('.hb-more-menu').is_visible()
  page.keyboard.press('Escape');assert page.locator('.hb-more-menu').is_hidden()
 
 

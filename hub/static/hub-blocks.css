@@ -93,3 +93,30 @@ button.hb-session{width:100%;text-align:left;background:transparent;border:0;bor
 .hb-viewbar .hb-z{text-align:center;margin:0}.hb-zoomrow{display:flex;gap:6px}.hb-zoomrow .hb-btn{flex:1 1 0;min-width:0}
 @media(max-width:420px){.hb-viewbar{width:70px;gap:4px}.hb-viewbar .hb-btn{font-size:7px;padding:6px 2px}}
 .hb-ctx{position:absolute;z-index:45;display:flex;flex-direction:column;gap:4px;padding:6px;min-width:150px;background:rgba(6,10,36,.94);border:1px solid var(--border-dim,rgba(0,230,118,.28));border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.5)}.hb-ctx .hb-btn{text-align:left;justify-content:flex-start;width:100%}
+
+/* Free stage clips drawing and hit testing; chrome remains outside this viewport. */
+.hb-stage{position:absolute;inset:0;pointer-events:none}.hb-stage .hb-world{pointer-events:auto}.hb-3d .hb-stage{perspective:1500px}
+.hb-stage .hk{content-visibility:visible}.hb.hb-3d .hk,.hb.hb-3d.hb-slab .hk{backdrop-filter:none;-webkit-backdrop-filter:none}
+.hb.hb-3d.hb-slab .hk-solid i{backdrop-filter:none;-webkit-backdrop-filter:none}
+.hb .hb-stage .hk{background-color:rgba(8,12,40,.3)}
+.hb-layer-moving .hk,.hb-layer-moving .hk-volume{transition:translate .32s cubic-bezier(.2,.8,.2,1)}
+.hb-layer-menu{position:absolute;right:112px;top:calc(var(--hub-chrome-bottom,116px) + 8px);z-index:44;background:#080c28f5;border:1px solid #41ebff55;border-radius:10px;padding:10px;max-width:calc(100vw - 100px)}
+.hb-layer-row{display:flex;align-items:center;gap:5px;margin:5px 0;flex-wrap:wrap}.hb-layer-row b{font:700 9px Orbitron,monospace;min-width:120px}.hb-layer-row button{font-size:8px;padding:6px}
+.hb-layer-menu[hidden]{display:none}.hb:not(.hb-3d) .hb-layer-menu,.hb:not(.hb-3d) [data-layers]{display:none}
+.hb-hands-menu-button{padding:6px!important;min-width:28px}.hb-hands-menu-button svg{width:12px;height:12px}
+html.hub-hide-hand-legend .hands-legend{display:none!important}
+.hb .hb-tray,.hb-tray{max-height:74px;overflow-y:auto}
+.hb .hk.pick,.hb-turning .hk,.hb.panning .hk{box-shadow:0 0 0 2px var(--soft-edge);backdrop-filter:none;-webkit-backdrop-filter:none}
+@media(pointer:coarse){.hb .hk,.hb .hk-solid i{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}.hb .hk{box-shadow:0 0 3px 1px var(--soft-edge),inset 0 0 2px var(--soft-edge)}}
+
+/* Fitting the board must not disable the session and setup buttons inside it. */
+.hb.hb-compact .hk:not(.exp) .hk-b{pointer-events:auto;filter:none;opacity:1}
+
+/* Compact labels must not reflow every frame as the camera zooms. */
+.hb-compact .hk-h .t,.hb-compact .hk-h .n{font-size:12px}.hb-compact .hk-glyph svg{width:14px;height:14px}
+@media(max-height:620px){.hb .hb-gizmo.on{right:112px}}
+@media(max-height:620px) and (max-width:420px){.hb .hb-gizmo.on{right:88px}}
+
+.hb-layer-row button[aria-pressed=false]{opacity:.45}
+
+@media(prefers-reduced-motion:reduce){.hb-layer-moving .hk,.hb-layer-moving .hk-volume{transition:none}}
