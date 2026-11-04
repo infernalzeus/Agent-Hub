@@ -108,6 +108,44 @@ def _title(recs: "list[dict]") -> str:
     return ""
 
 
+def _cwd(recs: "list[dict]", path: Path) -> str:
+    """The folder the session works in. Claude Code writes it on every record; Codex writes it once, in the first line (session_meta)."""
+    for r in reversed(recs):
+        c = r.get("cwd") or ((r.get("payload") or {}).get("cwd") if isinstance(r.get("payload"), dict) else None)
+        if isinstance(c, str) and c:
+            return c
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as f:
+            first = json.loads(f.readline() or "{}")
+        c = first.get("cwd") or (first.get("payload") or {}).get("cwd")
+        return c if isinstance(c, str) else ""
+    except (OSError, ValueError, AttributeError):
+        return ""
+
+
+def _last_said(recs: "list[dict]") -> str:
+    """The last thing the agent itself wrote, short. Empty when the tail holds none."""
+    for r in reversed(recs):
+        if r.get("type") == "assistant":
+            t = _text_of((r.get("message") or {}).get("content")).strip()
+            if t:
+                return _short(t, 220)
+        p = r.get("payload") if isinstance(r.get("payload"), dict) else {}
+        if r.get("type") == "event_msg" and p.get("type") in ("agent_message", "task_complete"):
+            t = str(p.get("message") or p.get("last_agent_message") or "").strip()
+            if t:
+                return _short(t, 220)
+    return ""
+
+
+def folder_of(session_id: str) -> "str | None":
+    """The folder of a session the scan currently lists, by id; never a path taken from a request."""
+    for row in scan(limit=40):
+        if row["id"] == session_id and row.get("cwd") and Path(row["cwd"]).is_dir():
+            return row["cwd"]
+    return None
+
+
 def scan(now: "float | None" = None, limit: int = 10) -> "list[dict]":
     now = now or time.time()
     rows: "list[dict]" = []
@@ -134,6 +172,7 @@ def scan(now: "float | None" = None, limit: int = 10) -> "list[dict]":
         rows.append({
             "agent": agent, "project": _project_name(p.parent.name) if agent == "claude" else "Codex",
             "title": _title(recs), "state": state, "ask": ask, "age_s": int(age), "id": p.stem[:12],
+            "cwd": _cwd(recs, p), "last": _last_said(recs),
         })
     return rows
 

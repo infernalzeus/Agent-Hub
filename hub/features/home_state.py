@@ -62,7 +62,8 @@ def _sess(a: dict) -> dict:
     """A Claude Code or Codex session in the same shape as a mission row, so every panel draws both."""
     return {"id": a["id"], "project": a["project"], "brief": _short(_title(a["title"])) or ("Claude Code session" if a["agent"] == "claude" else "Codex session"),
             "status": a["state"], "agent": "claude code" if a["agent"] == "claude" else "codex", "runtime": a["agent"], "model": None,
-            "age_s": a["age_s"], "error": "", "ended": None, "changed": 0, "ask": a["ask"]}
+            "age_s": a["age_s"], "error": "", "ended": None, "changed": 0, "ask": a["ask"],
+            "kind": "agent-log", "cwd": a.get("cwd", ""), "last": a.get("last", "")}
 
 
 _STALE: dict = {"at": 0.0, "newest": 0.0}
@@ -354,6 +355,25 @@ def ui_for(text: str, say: str, scene: "list | None" = None) -> dict:
                 out["blocks"] = []
             return out
     return out
+
+
+@routes.post("/api/sessions/open-folder")
+async def api_open_folder(request: web.Request) -> web.Response:
+    """Open the folder of a Claude Code or Codex session in Explorer. The folder is looked up from the session id in the log scan; a path in
+    the request is never used, so this cannot open anything the agents were not already working in."""
+    import os
+    from . import agent_sessions as AS
+    try:
+        sid = str((await request.json()).get("id") or "")[:40]
+    except Exception:  # noqa: BLE001
+        raise web.HTTPBadRequest(text="send {\"id\": the session id}")
+    folder = AS.folder_of(sid) if sid else None
+    if not folder:
+        raise web.HTTPNotFound(text="That session's folder is not known or no longer exists")
+    if os.name != "nt":
+        raise web.HTTPNotImplemented(text="Opening a folder is only built for Windows")
+    os.startfile(folder)                                  # noqa: S606 - a folder the log scan reported, opened in Explorer
+    return web.json_response({"ok": True, "folder": folder})
 
 
 @routes.get("/api/home/state")

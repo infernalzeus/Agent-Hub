@@ -971,7 +971,7 @@ __SETUP_LINK__
   </div>
   <div class="header-shortcuts" id="header-shortcuts"></div>
   <div class="header-controls">
-  <button type="button" class="restart-btn" id="edit-toggle" title="Rearrange / wire out apps" aria-label="Edit apps">
+  <button type="button" class="restart-btn" id="edit-toggle" title="Tidy board; drag a block here to hide it in the tray" aria-label="Tidy board / block bin">
     <svg viewBox="0 0 24 24"><path d="M16.5 2.8a2.1 2.1 0 0 1 3 3L7.2 18 3.2 19l1-4Z"/><path class="ul" d="M3 22.2h18"/></svg>
   </button>
   <a class="restart-btn" id="loc-btn" href="/setup" title="Locations: where Agent Hub reads and writes" aria-label="Locations">
@@ -991,8 +991,9 @@ __SETUP_LINK__
   <div class="sc-title">FIRST-TIME SETUP</div>
   <div class="sc-text">Check where Agent Hub reads and writes: your project folders, the missions work folder, downloads and the phone inbox. Everything is prefilled with what was found. Look it over, then save.</div>
   <a class="btn go" href="/setup">CHECK &amp; SAVE</a>
+  <button type="button" class="sc-dismiss" aria-label="Dismiss first-time setup" title="Dismiss on this browser"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
 </div>
-<script>fetch('/api/locations/state',{cache:'no-store'}).then(r=>r.json()).then(j=>{ if(!j.configured) document.getElementById('setup-card').hidden=false; }).catch(()=>{});</script>
+<script>(function(){const card=document.getElementById('setup-card');let dismissed=false;try{dismissed=localStorage.getItem('agenthub:setup-dismissed')==='1';}catch(e){}card.querySelector('.sc-dismiss').onclick=()=>{dismissed=true;card.hidden=true;try{localStorage.setItem('agenthub:setup-dismissed','1');}catch(e){}};fetch('/api/locations/state',{cache:'no-store'}).then(r=>r.json()).then(j=>{card.hidden=!!j.configured||dismissed;}).catch(()=>{});})();</script>
 
 <div id="home-panels" aria-label="Overview"></div>
 <div id="apps-before"></div>
@@ -1714,6 +1715,7 @@ async function ingestPrompt() {
 
 const editToggle = document.getElementById('edit-toggle');
 editToggle.onclick = () => {
+  if(window.__hubBoard&&__hubBoard.applyUi({board:'tidy'}))return;
   EDIT = !EDIT;
   document.body.classList.toggle('edit-mode', EDIT);
   editToggle.classList.toggle('on', EDIT);

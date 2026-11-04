@@ -9,24 +9,18 @@
     att: { t: 'NEEDS ATTENTION', w: 380, h: 110 }, runs: { t: 'RUNS', w: 210, h: 100 }, ses: { t: 'SESSIONS', w: 320, h: 110 },
     hlt: { t: 'HEALTH', w: 280, h: 130 }, use: { t: 'CLAUDE CODE USAGE', w: 380, h: 120 }
   };
-  var ICON = { col: 'M6 15l6-6 6 6', dup: 'M9 9h10v10H9zM5 15V5h10', out: 'M7 17 17 7M9 7h8v8', move: 'M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01', min: 'M6 12h12', foc: 'M5 9V5h4M19 9V5h-4M5 15v4h4M19 15v4h-4', x: 'M6 6l12 12M18 6 6 18' };
+  var ICON = { stop: 'M7 7h10v10H7z', col: 'M6 15l6-6 6 6', dup: 'M9 9h10v10H9zM5 15V5h10', out: 'M7 17 17 7M9 7h8v8', move: 'M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01', min: 'M6 12h12', foc: 'M5 9V5h4M19 9V5h-4M5 15v4h4M19 15v4h-4', x: 'M6 6l12 12M18 6 6 18' };
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function svg(d, w) { var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('aria-hidden', 'true'); s.style.cssText = 'width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:' + (w || 1.8) + ';stroke-linecap:round;stroke-linejoin:round'; var p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', d); s.appendChild(p); return s; }
   var PANEL_ICON = { att: 'M12 3 2.5 20h19L12 3Zm0 6v5m0 3v.01', runs: 'M5 4l14 8-14 8V4Z', ses: 'M4 5h16v10H4zM8 19h8M12 15v4', hlt: 'M3 12h4l2-6 4 12 2-6h6', use: 'M5 20V11M12 20V4M19 20v-6' };
-  // An app with no drawn icon (only an emoji in apps.json, such as Movie Clipper) gets a crisp vector tile with its own colour and its emoji or initials drawn at final size.
-  function appTile(a) {
-    var NS = 'http://www.w3.org/2000/svg', key = String(a.id || a.name || '?'), hue = 0, i; for (i = 0; i < key.length; i++) hue = (hue * 31 + key.charCodeAt(i)) % 360;
-    var gid = 'hbt' + hue + '-' + (appTile.n = (appTile.n || 0) + 1), s = document.createElementNS(NS, 'svg'); s.setAttribute('viewBox', '0 0 32 32'); s.setAttribute('aria-hidden', 'true'); s.setAttribute('class', 'tile');
-    s.innerHTML = '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(' + hue + ',70%,34%)"/><stop offset="1" stop-color="hsl(' + ((hue + 50) % 360) + ',75%,16%)"/></linearGradient></defs><rect x="1.5" y="1.5" width="29" height="29" rx="8" fill="url(#' + gid + ')" stroke="hsl(' + hue + ',80%,62%)" stroke-opacity=".75"/>';
-    var t = document.createElementNS(NS, 'text'); t.setAttribute('x', '16'); t.setAttribute('y', a.emoji ? '22' : '21'); t.setAttribute('text-anchor', 'middle'); t.setAttribute('font-size', a.emoji ? '17' : '12'); t.setAttribute('font-weight', '700'); t.setAttribute('fill', '#eafff4');
-    t.textContent = a.emoji || String(a.name || key).replace(/[^A-Za-z0-9 ]/g, '').split(' ').map(function (w) { return w.charAt(0); }).join('').slice(0, 2).toUpperCase(); s.appendChild(t); return s;
-  }
-  // The old cards' own icon, copied: a gradient inside a hidden card does not paint, so the copy gets ids of its own.
-  function cardIcon(headerId) {
-    var h = document.getElementById(headerId), src = h && h.querySelector('.card-emoji svg'); if (!src) return null;
-    var n = (cardIcon.n = (cardIcon.n || 0) + 1), c = src.cloneNode(true); c.innerHTML = c.innerHTML.replace(/id="([^"]+)"/g, 'id="$1-b' + n + '"').replace(/url\(#([^)]+)\)/g, 'url(#$1-b' + n + ')');
-    c.removeAttribute('width'); c.removeAttribute('height'); c.setAttribute('class', 'cardicon'); c.style.cssText = 'width:30px;height:30px'; return c;
-  }
+  // Inline vector symbols share the header's metal tile; an app name stays outside the icon.
+  var APPLET_ICON={
+    'movie-clipper':'M4 5h16v15H4zM4 10h16M7 5l3 5M13 5l3 5M10 13l5 2-5 3z',
+    'file-browser':'M3 7V5h7l2 3h9v12H3V7z',
+    oc:'M9 4a3 3 0 0 0-5 3 4 4 0 0 0 0 7 3 3 0 0 0 5 5M15 4a3 3 0 0 1 5 3 4 4 0 0 1 0 7 3 3 0 0 1-5 5M9 3v18M15 3v18M9 8H6M15 13h4',
+    ytdl:'M12 3v12M7 10l5 5 5-5M4 16v5h16v-5',yt:'M12 15V3M7 8l5-5 5 5M4 16v5h16v-5'
+  };
+  function appTile(a){var s=svg(APPLET_ICON[a.id]||'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',2.2);s.setAttribute('class','tile');return s;}
   function ago(s) { return s < 90 ? s + 's' : s < 5400 ? Math.round(s / 60) + 'm' : s < 172800 ? Math.round(s / 3600) + 'h' : Math.round(s / 86400) + 'd'; }
   function li(level, a, b) { var d = el('div', 'hb-li'); d.appendChild(el('i', level || '')); d.appendChild(el('b', '', a)); if (b) d.appendChild(el('span', '', b)); return d; }
 
@@ -81,7 +75,7 @@
       '.hk-glyph{display:none}.hb-compact .hk:not(.exp) .hk-rz,.hb-compact .hk:not(.exp) .hk-h button{display:none}.hb-compact .hk:not(.exp) .hk-b{opacity:.5;filter:blur(calc((.7 - var(--hb-scale)) * 5px));pointer-events:none}.hb-compact .hk:not(.exp) .hk-h{min-height:0;gap:6px}.hb-compact .hk:not(.exp) .hk-glyph{display:flex;flex:none}.hb-compact .hk-glyph svg{width:calc(14px / var(--hb-scale));height:calc(14px / var(--hb-scale))}.hb-compact .hk-h .t,.hb-compact .hk-h .n{font-size:calc(12px / var(--hb-scale));letter-spacing:.3px;font-weight:900;color:var(--accent,#00e676)}',
       '@media (prefers-reduced-motion:reduce){.hb{animation:none}.hk-b{transition:none}.hk.settle{transition:none}}'
     ].join('\n');
-    document.head.appendChild(s);
+    document.head.appendChild(s);var shared=document.getElementById('hub-blocks-css');if(shared)document.head.appendChild(shared);
   }
 
   function mount(root) {
@@ -98,7 +92,7 @@
 
     root.replaceChildren(); // Home is a 520 px column; the board breaks out of it to the width of the window.
     root.style.width = 'min(96vw,1500px)'; root.style.maxWidth = 'none'; root.style.marginLeft = 'calc((100% - min(96vw,1500px)) / 2)'; root.style.boxSizing = 'border-box';
-    var setupCard = document.getElementById('setup-card'), setupText = setupCard && setupCard.querySelector('.sc-text'); if (setupText) setupCard.title = setupText.textContent;   // the first-time notice is a small chip over the board; the sentence is its tooltip
+    var recoveryTimer=0;var setupCard = document.getElementById('setup-card'), setupText = setupCard && setupCard.querySelector('.sc-text'); if (setupText) setupCard.title = setupText.textContent;   // the first-time notice is a small chip over the board; the sentence is its tooltip
     var host = el('div', 'hb'), world = el('div', 'hb-world'), bar = el('div', 'hb-bar'), zh = el('div', 'hb-z', '100%'), tray = el('div', 'hb-tray');
     var fitBtn = el('button', 'hb-btn', 'FIT'), tidyBtn = el('button', 'hb-btn', 'TIDY'), zin = el('button', 'hb-btn', '+'), zout = el('button', 'hb-btn', '−');
     fitBtn.type = tidyBtn.type = zin.type = zout.type = 'button'; tidyBtn.title = 'ORGANISE: pack every block back into the tidy default arrangement (hidden and minimised blocks come back)'; tidyBtn.setAttribute('aria-label', 'Organise the board'); fitBtn.title = 'Fit every block in view'; zin.title = 'Zoom in (Ctrl + wheel)'; zout.title = 'Zoom out (Ctrl + wheel)';
@@ -108,7 +102,7 @@
     // Home is board-only; legacy cards remain hidden control hosts, never a navigation option.
     var setupHome = setupCard && { parent: setupCard.parentNode, next: setupCard.nextSibling };   // the first-time notice lives in the bar, where it can never sit over a block
     var setupBtn = el('button', 'hb-btn', 'SETUP'); setupBtn.type = 'button'; setupBtn.hidden = true; setupBtn.title = 'Things the Hub found that need setting up'; setupBtn.onclick = function () { location.href = '/setup'; };
-    bar.append(zh, hint, setupBtn, ingestBtn, talkBtn, pcBtn, zout, zin, blocksBtn, tidyBtn, fitBtn); if (setupCard) bar.insertBefore(setupCard, hint); host.append(bar, world); document.body.appendChild(tray); root.appendChild(host); document.documentElement.classList.add('hub-board-on');
+    bar.append(zh, hint, setupBtn, ingestBtn, talkBtn, pcBtn, zout, zin, blocksBtn, tidyBtn, fitBtn);  host.append(bar, world); document.body.appendChild(tray); root.appendChild(host); document.documentElement.classList.add('hub-board-on');
     // how you move around the board: 2D (flat; wheel zooms, middle-drag pans) or 3D (tilt and orbit)
     view = window.__hubBoardView ? window.__hubBoardView.mount({ host: host, V: function () { return V; }, place: function () { place(); }, stop: function () { stopCam(); }, touch: function () { touched = true; }, fit: function (a) { fit(a); }, motion: motion }) : null;
     if (view) { bar.insertBefore(view.btn, zout); bar.insertBefore(view.gizmoBtn, zout); }
@@ -156,7 +150,7 @@
     function sizeOf(id) { var l = L[id]; return { w: l.exp ? l.ow : l.w, h: l.exp ? l.oh : l.h }; }
     function autosize() {
       defs.forEach(function (d) {
-        var l = L[d[0]], e = blocks[d[0]]; if (!e || l.exp || l.rz || l.min || hid[d[0]]) return;
+        var l = L[d[0]], e = blocks[d[0]]; if (!e || l.exp || l.min || hid[d[0]]) return;if(l.rz){e._in.style.overflowY='auto';return;}
         var keep = e.style.height, visibility = e.style.contentVisibility; e.style.contentVisibility = 'visible'; e.style.height = 'auto'; var nat = Math.ceil(e.offsetHeight) + 4; e.style.height = keep; e.style.contentVisibility = visibility;
         l.h = Math.max(d[1].h, Math.min(nat, 460));
         e._in.style.overflowY = nat > 460 ? 'auto' : 'hidden'; e.style.height = l.h + 'px';
@@ -199,12 +193,11 @@
       var e = el('div', 'hk hub-block' + ((d.app || d.card || d.extra || d.act) ? ' tile' : '')); e.dataset.id = id; e.tabIndex = 0; e.setAttribute('role', 'group');
       var h = el('div', 'hk-h'), glyph = el('span', 'hk-glyph'); glyph.appendChild(svg(id === 'runs' ? 'M5 4l14 8-14 8V4Z' : 'M5 5h14v14H5zM8 12h8')); glyph.firstChild.style.width = glyph.firstChild.style.height = ''; h.appendChild(glyph); if (PANEL_ICON[id]) { var pi = svg(PANEL_ICON[id], 1.8); pi.classList.add('hk-pi'); pi.style.width = pi.style.height = '15px'; h.appendChild(pi); }
       h.appendChild(el('span', 't', d.app ? (d.app.name || d.app.id) : d.card ? d.card[1] : d.extra ? d.extra[1] : d.act ? (d.act.name || 'Action') : d.t)); h.appendChild(el('span', 'n'));
-      [['col', 'Close this view'], ['dup', 'Open another window of this tool'], ['out', 'Open in its own tab'], ['min', 'Minimise'], ['foc', 'Focus'], ['x', 'Hide']].forEach(function (b) { var bt = el('button'); bt.type = 'button'; bt.dataset.a = b[0]; bt.setAttribute('aria-label', b[1]); bt.title = b[1]; bt.appendChild(svg(ICON[b[0]])); h.appendChild(bt); });
+      [['stop', 'Stop this app'], ['col', 'Close this view'], ['dup', 'Open another window of this tool'], ['out', 'Open in its own tab'], ['min', 'Minimise'], ['foc', 'Focus'], ['x', 'Hide in tray; click its chip to restore']].forEach(function (b) { var bt = el('button'); bt.type = 'button'; bt.dataset.a = b[0]; bt.setAttribute('aria-label', b[1]); bt.title = b[1]; bt.appendChild(svg(ICON[b[0]]));if(b[0]==='stop'){bt.hidden=true;bt.appendChild(el('span','','STOP'));}h.appendChild(bt); });
       var body = el('div', 'hk-b'), inn = el('div', 'hk-i'); body.appendChild(inn); var solid=el('div','hk-solid');solid.setAttribute('aria-hidden','true');['back','left','right','top','bottom'].forEach(function(side){solid.appendChild(el('i',side));});e.append(solid, h, body, el('div', 'hk-rz')); e._in = inn; e._n = h.querySelector('.n'); e._app = d.app || null; e._open = null; e._name = d.app ? (d.app.name || d.app.id) : d.card ? d.card[1] : d.t;
       if (d.app) {
         var a = d.app, box = el('div', 'hk-app'), gi = el('div', 'gi');
-        var ic = (typeof CARD_ICONS !== 'undefined' && CARD_ICONS[a.id]) || null;
-        if (ic && /<svg[ >]/i.test(ic)) gi.innerHTML = ic; else gi.appendChild(appTile(a));
+        gi.appendChild(appTile(a));
         var nm = el('div'); nm.appendChild(el('b', '', a.name || a.id)); var st = el('small', a.running ? 'on' : '', a.running ? 'RUNNING' : 'IDLE'); nm.appendChild(st); if (gi.firstElementChild && gi.firstElementChild.tagName.toLowerCase() === 'svg') gi.firstElementChild.style.width = gi.firstElementChild.style.height = '30px'; box.append(gi, nm); inn.appendChild(box); e._st = st;
         if (a.id === 'file-browser' && typeof SMB_SHORTCUT !== 'undefined' && SMB_SHORTCUT) {   // the old card's SMB link
           var sm = el('a', 'hb-btn', 'SMB'), onMac = /Macintosh/.test(navigator.userAgent) && !(navigator.maxTouchPoints > 1);
@@ -222,8 +215,7 @@
         e._name = t2.name || 'Action'; e._open = function () { if (typeof openActions === 'function') openActions(t2); };
       }
       if (d.card) {
-        var c = d.card, bx2 = el('div', 'hk-app'), g2 = el('div', 'gi'); g2.appendChild(cardIcon(c[2]) || svg(c[0] === 'oc' ? 'M9 4a3 3 0 0 0-5 3 4 4 0 0 0 0 7 3 3 0 0 0 5 5M15 4a3 3 0 0 1 5 3 4 4 0 0 1 0 7 3 3 0 0 1-5 5M9 3v18M15 3v18M9 8H6M15 13h4' : c[0] === 'ytdl' ? 'M12 3v12M7 10l5 5 5-5M4 16v5h16v-5' : 'M12 15V3M7 8l5-5 5 5M4 16v5h16v-5'));
-        if (!g2.firstChild.classList.contains('cardicon')) g2.firstChild.style.width = g2.firstChild.style.height = '30px';
+        var c = d.card, bx2 = el('div', 'hk-app'), g2 = el('div', 'gi'); g2.appendChild(appTile({id:c[0]}));
         var nm2 = el('div'); nm2.appendChild(el('b', '', c[1])); nm2.appendChild(el('small', '', 'OPEN')); bx2.append(g2, nm2); inn.appendChild(bx2);
         e._spec = c[0] === 'oc' ? { tabs: [['MISSIONS', '/missions'], ['AGENTS', '/agents'], ['GRAPH', '/graph'], ['PRACTICE', '/yard']], w: 860, h: 600 } : { move: c[0] === 'ytdl' ? 'ytdl-app-area' : 'yt-app-area', toggle: c[3], w: 560, h: 620 };
         e._open = function () { expand(id); };
@@ -300,7 +292,7 @@
       if (sp.app) {
         b._in.appendChild(motion.skeleton('Starting ' + b._name));
         fetch('/api/start/' + sp.app, { method: 'POST' }).then(function (r) { if (!r.ok) throw new Error('could not start'); return r.json(); }).then(function (j) {
-          if (!l.exp) return; b._url = j.base_path + '/'; b._in.replaceChildren(frame(b._url, id));
+          if (!alive||!l.exp) return;b._app.running=true;b.querySelector('[data-a=stop]').hidden=false;b._st.textContent='RUNNING';b._st.className='on';b._url = j.base_path + '/'; b._in.replaceChildren(frame(b._url, id));
         }).catch(function (err) { if (l.exp) b._in.replaceChildren(el('div', 'hk-wait', 'Could not start ' + b._name + ': ' + err.message)); });
       } else if (sp.tabs) {
         var tabs = el('div', 'hk-tabs'), fr = frame(sp.tabs[0][1], id); b._url = sp.tabs[0][1];
@@ -328,6 +320,14 @@
     }
     if (apps.length === 0) { /* nothing to add */ }
 
+
+    function blockActions(target,actions){var row=el('div','hb-block-actions');actions.forEach(function(a){var b=el(typeof a[1]==='string'?'a':'button','hb-btn',a[0]);if(typeof a[1]==='string')b.href=a[1];else {b.type='button';b.onclick=a[1];}row.appendChild(b);});target.appendChild(row);}
+    function hideBlock(id){var b=blocks[id];if(!b)return;hid[id]=1;b.getAnimations().forEach(function(a){a.cancel();});applyBlock(id);save();trayDraw();if(focusId===id){focusId=null;undim();}if(stackDepth)stackDepth();}
+    var bin=document.getElementById('edit-toggle');
+    function overBin(e){if(!bin)return false;var r=bin.getBoundingClientRect();return e.clientX>=r.left-8&&e.clientX<=r.right+8&&e.clientY>=r.top-8&&e.clientY<=r.bottom+8;}
+    function stopApp(id){var b=blocks[id],app=b&&b._app;if(!app||!confirm('Stop '+b._name+'?'))return;var button=b.querySelector('[data-a=stop]');button.disabled=true;fetch('/api/stop/'+encodeURIComponent(app.id),{method:'POST'}).then(function(r){if(!r.ok)throw Error('Could not stop app');Object.keys(blocks).forEach(function(k){if(blocks[k]._app&&blocks[k]._app.id===app.id){if(L[k].exp)collapse(k,true);blocks[k]._app.running=false;blocks[k]._st.textContent='IDLE';blocks[k]._st.className='';blocks[k].querySelector('[data-a=stop]').hidden=true;}});if(window.__hubHomePanels)__hubHomePanels.refresh();}).catch(function(e){button.title=e.message;}).finally(function(){button.disabled=false;});}
+    function sessionOpen(m){if(/^Doctor[: ]/.test(m.brief)){window.__hubBoard.open('/support?session='+encodeURIComponent(m.id));var support=blocks['extra:support'];var selected=support.querySelector('.hb-session-context');if(selected)selected.remove();selected=el('aside','hb-session-context');selected.setAttribute('aria-label','Selected Doctor session');selected.append(el('strong','',m.brief),el('div','',m.id+' · '+(m.status||'unknown')),el('div','',m.ask||m.project||''));support._in.prepend(selected);var f=support.querySelector('iframe');if(f)f.addEventListener('load',function(){try{var rows=f.contentDocument.querySelectorAll('#ms .m');Array.from(rows).forEach(function(r){if(r.textContent.includes(m.id)){r.style.outline='2px solid #41ebff';r.scrollIntoView({block:'center'});}});}catch(e){}},{once:true});return;}var dlg=host.querySelector('.hb-session-detail');if(dlg)dlg.remove();dlg=el('section','hb-session-detail');dlg.setAttribute('role','dialog');dlg.setAttribute('aria-label','Session details');var close=el('button','hb-btn','CLOSE');close.onclick=function(){dlg.remove();};dlg.append(el('strong','',m.brief||'Session'),el('p','','Status: '+(m.status||'unknown')),el('p','',m.last_message||m.ask||'Last message is not supplied by the session feed.'),el('p','',m.folder||m.cwd||m.project||'Folder is not supplied by the session feed.'),close);host.appendChild(dlg);close.focus();}
+
     function paint() {
       if (!data) { ['att', 'runs', 'ses', 'hlt', 'use'].forEach(function (id) { if (!blocks[id]._in.firstChild) { blocks[id].dataset.loading = '1'; blocks[id]._in.appendChild(motion.skeleton('Loading ' + blocks[id]._name)); } }); return; }
       var a = blocks.att, nA = data.attention.length; a._in.replaceChildren(); a._n.textContent = nA ? String(nA) : '';
@@ -342,10 +342,11 @@
           db.appendChild(ask); a._in.appendChild(db);
         }
       });
+      if(setupCard)a._in.appendChild(setupCard);blockActions(a._in,[['SETUP','/setup']]);
       a.classList.toggle('amber', nA > 0); a.classList.toggle('red', data.attention.some(function (x) { return x.level === 'red'; }));
       var r = blocks.runs; r._n.textContent = String(data.runs.length); r._in.replaceChildren(); var st = el('div', 'hb-stat'); var runNumber = el('b'); st.appendChild(runNumber); motion.number(runNumber, r._count, data.runs.length); r._count = data.runs.length; st.appendChild(el('span', '', data.runs.length ? data.runs.map(function (m) { return m.brief; }).slice(0, 2).join(' · ') : 'missions running')); r._in.appendChild(st);
       var s = blocks.ses; s._in.replaceChildren(); var ss = data.sessions, any = false; s._n.textContent = String(ss.needs_you.length + ss.working.length + ss.idle.length);
-      [['needs_you', 'a'], ['working', ''], ['idle', 'o']].forEach(function (g) { ss[g[0]].forEach(function (m) { any = true; s._in.appendChild(li(g[1], m.brief, (m.ask || m.project) + ' · ' + g[0].replace('_', ' '))); }); });
+      [['needs_you', 'a'], ['working', ''], ['idle', 'o']].forEach(function (g) { if(ss[g[0]].length)s._in.appendChild(el('div','hb-session-group',g[0].replace('_',' ').toUpperCase()));ss[g[0]].forEach(function (m) { any = true; var row=li(g[1],m.brief,(m.ask||m.project||'')+' · '+g[0].replace('_',' '));row.classList.add('hb-session');row.tabIndex=0;row.setAttribute('role','button');row.title=/^Doctor[: ]/.test(m.brief)?'Open this Doctor session in Support':'Show session status and details';row.onclick=function(){sessionOpen(m);};row.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();row.click();}};s._in.appendChild(row); }); });
       if (!any) s._in.appendChild(el('div', 'hb-note', 'No agent session is waiting, working or recently finished.'));
       var u = blocks.use; u._in.replaceChildren(); var cu = data.usage && data.usage.claude;
       if (!cu) u._in.appendChild(el('div', 'hb-note', 'Counting Claude Code’s logs…'));
@@ -358,14 +359,15 @@
       hb._in.appendChild(li('', 'Hub v' + h.version, 'up ' + ago(h.uptime_s)));
       hb._in.appendChild(li(h.local_model && h.local_model.listening ? '' : 'o', 'Local model', h.local_model && h.local_model.listening ? 'listening' : 'off'));
       hb._in.appendChild(li(h.recent_problems ? 'a' : '', 'Warnings', String(h.recent_problems)));
-      hb._in.appendChild(li('o', 'Graphics card', 'not measured'));
+      hb._in.appendChild(li('o', 'Graphics card', 'not measured'));blockActions(hb._in,[['SETTINGS','/setup'],['LOCATIONS','/setup'],['RESTART',function(){document.getElementById('restart-btn').click();}]]);
       if (h.apps.failed.length) hb._in.appendChild(li('r', 'Failed to start', h.apps.failed.join(', ')));
       Object.keys(blocks).forEach(function (id) { var b = blocks[id]; if (!b.dataset.loading) return; delete b.dataset.loading; if (motion.allowed()) b._in.animate([{opacity:0},{opacity:1}],{duration:220}); });
       syncTiles(); relayout(); if (!touched) fit(true); legacy();
-      Object.keys(blocks).forEach(function (id) { var b = blocks[id]; if (b._app) { var run = (h.apps.running || []).indexOf(b._app.id) >= 0 || b._app.running; b._st.textContent = run ? 'RUNNING' : 'IDLE'; b._st.className = run ? 'on' : ''; } });
+      Object.keys(blocks).forEach(function (id) { var b = blocks[id]; if (b._app) { var run = Array.isArray(h.apps.running)?h.apps.running.indexOf(b._app.id)>=0:!!b._app.running; b._st.textContent = run ? 'RUNNING' : 'IDLE'; b._st.className = run ? 'on' : '';b.querySelector('[data-a=stop]').hidden=!run; } });
     }
 
     function place() {
+      clearTimeout(recoveryTimer);recoveryTimer=setTimeout(function(){if(alive)trayDraw();},180);
       world.style.transform = view ? view.transform(V) : 'translate3d(' + V.x + 'px,' + V.y + 'px,0) scale(' + V.k + ')'; zh.textContent = Math.round(V.k * 100) + '%'; host.style.setProperty('--hb-scale', V.k); HubBlocks.grid(host, V); if (nav) nav.refresh();
       var compact = V.k < .7;
       if (host.classList.contains('hb-compact') !== compact) host.classList.toggle('hb-compact', compact);
@@ -382,7 +384,7 @@
     }
     // the glass header and the bar take the top of the window; the board's own content starts below them
     function TOP() { var h = document.querySelector('body>header'), bb = bar.getBoundingClientRect(), r = host.getBoundingClientRect(); return Math.max(60, Math.ceil(Math.max(bb.bottom - r.top, h ? h.getBoundingClientRect().bottom + 6 : 0) + 6)); }
-    function setTop() { var h = document.querySelector('body>header'); host.style.setProperty('--hb-top', Math.ceil(h ? h.getBoundingClientRect().bottom + 4 : 80) + 'px'); }
+    function setTop() { var h = document.querySelector('body>header'); host.style.setProperty('--hb-top', Math.ceil(h ? h.getBoundingClientRect().bottom + 4 : 80) + 'px');document.documentElement.style.setProperty('--hub-chrome-bottom',Math.ceil(bar.getBoundingClientRect().bottom)+'px'); }
     function fit(anim) {
       var r = host.getBoundingClientRect(), x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9, n = 0;
       Object.keys(blocks).forEach(function (id) { if (hid[id]) return; var l = L[id]; n++; x0 = Math.min(x0, l.x); y0 = Math.min(y0, l.y); x1 = Math.max(x1, l.x + l.w); y1 = Math.max(y1, l.y + (l.min ? 32 + PEEK : l.h)); });
@@ -407,9 +409,10 @@
     }
     function trayDraw() {
       tray.replaceChildren();
-      Object.keys(hid).filter(function (i) { return hid[i] && blocks[i]; }).forEach(function (id) {
-        var b = el('button', 'hb-btn', '+ ' + (blocks[id]._name || id)); b.type = 'button';
-        b.onclick = function () { hid[id] = 0; applyBlock(id); resolve(id); save(); if (!reduce.matches) blocks[id].animate([{ opacity: 0, transform: 'scale(.8)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: SPRING }); trayDraw(); };
+      Object.keys(blocks).forEach(function(id){if(blocks[id].hidden&&!hid[id])hid[id]=1;});
+      Object.keys(blocks).filter(function(i){if(hid[i])return true;var r=blocks[i].getBoundingClientRect();var iw=Math.min(innerWidth-12,r.right)-Math.max(12,r.left),ih=Math.min(innerHeight-90,r.bottom)-Math.max(TOP(),r.top);return iw<Math.min(80,r.width*.5)||ih<Math.min(32,r.height*.5);}).forEach(function (id) {
+        var b = el('button', 'hb-btn', (hid[id]?'+ ':'FIND ') + (blocks[id]._name || id));b.dataset.restore=id;b.title=hid[id]?'Restore this hidden block':'Bring this offscreen block into view'; b.type = 'button';
+        b.onclick = function () { hid[id] = 0; applyBlock(id); resolve(id);save();lookAt(id); if (!reduce.matches) blocks[id].animate([{ opacity: 0, transform: 'scale(.8)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: SPRING }); trayDraw(); };
         tray.appendChild(b);
       });
     }
@@ -441,11 +444,11 @@
     // Two fingers: pinch to zoom around the point between them (a trackpad pinch arrives as Ctrl + wheel and is handled above).
     var pts = {}, pinch = null;
     function two() { var k = Object.keys(pts); return k.length === 2 ? [pts[k[0]], pts[k[1]]] : null; }
-    host.addEventListener('pointerdown', function (e) { if (e.pointerType !== 'touch' || e.target.closest('.hb-bar,.hb-gizmo,.hb-tray,.hb-map,.hb-jump')) return; pts[e.pointerId] = [e.clientX, e.clientY]; var p = two(); if (p) { stopCam(); touched = true; var r = host.getBoundingClientRect(), cx = (p[0][0] + p[1][0]) / 2 - r.left, cy = (p[0][1] + p[1][1]) / 2 - r.top; pinch = { d: Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]) || 1, k: V.k, wx: (cx - V.x) / V.k, wy: (cy - V.y) / V.k }; } }, true);
+    host.addEventListener('pointerdown', function (e) { if (e.pointerType !== 'touch' || e.target.closest('.hb-bar,.hb-more-menu,.hb-session-detail,.hb-gizmo,.hb-tray,.hb-map,.hb-jump')) return; pts[e.pointerId] = [e.clientX, e.clientY]; var p = two(); if (p) { stopCam(); touched = true; var r = host.getBoundingClientRect(), cx = (p[0][0] + p[1][0]) / 2 - r.left, cy = (p[0][1] + p[1][1]) / 2 - r.top; pinch = { d: Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]) || 1, k: V.k, wx: (cx - V.x) / V.k, wy: (cy - V.y) / V.k }; } }, true);
     host.addEventListener('pointermove', function (e) { if (!pts[e.pointerId]) return; pts[e.pointerId] = [e.clientX, e.clientY]; var p = two(); if (!p || !pinch) return; var r = host.getBoundingClientRect(), cx = (p[0][0] + p[1][0]) / 2 - r.left, cy = (p[0][1] + p[1][1]) / 2 - r.top, k = Math.min(2.6, Math.max(.3, pinch.k * Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]) / pinch.d)); V.k = k; V.x = cx - pinch.wx * k; V.y = cy - pinch.wy * k; place(); }, true);
     ['pointerup', 'pointercancel'].forEach(function (t) { host.addEventListener(t, function (e) { delete pts[e.pointerId]; if (Object.keys(pts).length < 2) pinch = null; }, true); });
     host.addEventListener('pointerdown', function (e) {
-      if (e.button || e.target.closest('.hk,.hb-bar,.hb-gizmo,.hb-tray,.hb-map,.hb-jump')) return;
+      if (e.button || e.target.closest('.hk,.hb-bar,.hb-more-menu,.hb-session-detail,.hb-gizmo,.hb-tray,.hb-map,.hb-jump')) return;
       touched = true; stopCam(); host.classList.add('panning'); var sx = e.clientX - V.x, sy = e.clientY - V.y;
       var lastX = e.clientX, lastY = e.clientY, lastT = performance.now(), vx = 0, vy = 0;
       function mv(ev) { if (pinch || Object.keys(pts).length > 1) { sx = ev.clientX - V.x; sy = ev.clientY - V.y; return; } var now = performance.now(), dt = Math.max(8, now - lastT); vx = vx * .4 + (ev.clientX - lastX) / dt * .6; vy = vy * .4 + (ev.clientY - lastY) / dt * .6; lastX = ev.clientX; lastY = ev.clientY; lastT = now; V.x = ev.clientX - sx; V.y = ev.clientY - sy; place(); }
@@ -469,26 +472,27 @@
       e.preventDefault(); if(b._flip)b._flip.cancel(); b.classList.remove('settle'); l.z = ++zTop; applyBlock(id); if (stackDepth) stackDepth(); b.classList.add('pick'); host.classList.add('hb-dragging');
       var sx2 = e.clientX, sy2 = e.clientY, ox = l.x, oy = l.y, moved = false, dragFrame = 0;
       function drawDrag(){dragFrame=0;b.style.transform='translate3d('+(l.x-ox)+'px,'+(l.y-oy)+'px,0)';if(nav)nav.refresh();}
-      function mv2(ev) { var dx = ev.clientX - sx2, dy = ev.clientY - sy2; if (Math.abs(dx) + Math.abs(dy) > 5) moved = true; var p=point(ev); l.x = ox + p.x-press.x; l.y = oy + p.y-press.y; guides.snap(id, false); if(!dragFrame)dragFrame=requestAnimationFrame(drawDrag); }
-      function up2(event) { removeEventListener('pointermove', mv2); removeEventListener('pointerup', up2); removeEventListener('pointercancel', up2); if(dragFrame)cancelAnimationFrame(dragFrame);b.style.transform=''; b.classList.remove('pick'); applyBlock(id); host.classList.remove('hb-dragging'); if (moved) { var before = b.getBoundingClientRect(); guides.snap(id, true); l.u = 1; applyBlock(id); resolve(id); if (motion) motion.flip(b, before, V.k, 'drop'); } guides.clear(); save(); dragCleanups = []; if ((!event || event.type !== 'pointercancel') && !moved && b._open && !l.exp) b._open(); }
+      function mv2(ev) { if(bin)bin.classList.toggle('drop-target',overBin(ev));var dx = ev.clientX - sx2, dy = ev.clientY - sy2; if (Math.abs(dx) + Math.abs(dy) > 5) moved = true; var p=point(ev); l.x = ox + p.x-press.x; l.y = oy + p.y-press.y; guides.snap(id, false); if(!dragFrame)dragFrame=requestAnimationFrame(drawDrag); }
+      function up2(event) { removeEventListener('pointermove', mv2); removeEventListener('pointerup', up2); removeEventListener('pointercancel', up2); if(dragFrame)cancelAnimationFrame(dragFrame);b.style.transform=''; b.classList.remove('pick'); applyBlock(id); host.classList.remove('hb-dragging'); if(moved&&event&&event.type!=='pointercancel'&&overBin(event)){hideBlock(id);bin.classList.remove('drop-target');guides.clear();dragCleanups=[];return;}if(bin)bin.classList.remove('drop-target');if (moved) { var before = b.getBoundingClientRect(); guides.snap(id, true); l.u = 1; applyBlock(id); resolve(id); if (motion) motion.flip(b, before, V.k, 'drop'); } guides.clear();save();trayDraw();dragCleanups = []; if ((!event || event.type !== 'pointercancel') && !moved && b._open && !l.exp) b._open(); }
       addEventListener('pointermove', mv2); addEventListener('pointerup', up2); addEventListener('pointercancel', up2); dragCleanups.push(function () { removeEventListener('pointermove', mv2); removeEventListener('pointerup', up2); removeEventListener('pointercancel', up2); });
     });
     world.addEventListener('click', function (e) {
       var bt = e.target.closest('button[data-a]'); if (!bt) return; var id = bt.closest('.hk').dataset.id, a = bt.dataset.a;
+      if(a==='stop'){stopApp(id);return;}
       if (a === 'dup') { duplicate(id); return; }
       if ((a === 'col' || a === 'x') && id.indexOf('#') > 0) { closeWindow(id); return; }
       if (a === 'col') collapse(id);
       if (a === 'out') { var bb = blocks[id]; if (bb._url) window.open(bb._url, '_blank'); else if (bb._app && typeof openApp === 'function') openApp(bb._app.id, bb._app.name); }
       if (a === 'min') { L[id].min = L[id].min ? 0 : 1; applyBlock(id); resolve(id); save(); }
       if (a === 'foc') focusBlock(id);
-      if (a === 'x') { var b = blocks[id]; var done = function () { hid[id] = 1; applyBlock(id); b.getAnimations().forEach(function (x) { x.cancel(); }); save(); trayDraw(); }; if (reduce.matches) done(); else b.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.85)' }], { duration: 200, fill: 'forwards' }).onfinish = done; }
+      if (a === 'x') hideBlock(id);
     });
     world.addEventListener('dblclick', function (e) { var h = e.target.closest('.hk-h'); if (h && !e.target.closest('button')) focusBlock(h.closest('.hk').dataset.id); });
     // the old cards' controls, reached from the bar: they stay in the page (hidden) and the bar buttons press them
     ingestBtn.onclick = function () { var c = document.querySelector('.ingest-card'); if (c) c.click(); };
-    talkBtn.onclick = function () { var t = document.querySelector('[data-talk]'); if (t) t.click(); };
+    talkBtn.onclick = function () { if(typeof closeMore==='function')closeMore();var t = document.querySelector('[data-talk]'); if (t) t.click(); };
     pcBtn.onclick = function () { var w = document.getElementById('mcp-wire'); if (w) w.click(); };
-    blocksBtn.onclick = function () { if (nav && nav.toggle) nav.toggle(); };
+    blocksBtn.onclick = function () { if(typeof closeMore==='function')closeMore();if (nav && nav.toggle) nav.toggle(); };
     function legacy() { var w = document.getElementById('mcp-wire'); if (w) { pcBtn.className = 'hb-btn ' + (w.classList.contains('off') ? 'off' : 'on'); pcBtn.title = w.title || 'PC control'; pcBtn.disabled = !!w.disabled; pcBtn.textContent = w.disabled && !w.classList.contains('unusable') ? 'PC CONTROL…' : 'PC CONTROL'; } talkBtn.hidden = !document.querySelector('[data-talk]'); ingestBtn.hidden = !document.querySelector('.ingest-card'); pcBtn.hidden = !w; var issues = document.querySelectorAll('#setup-banner .setup-issue').length; setupBtn.hidden = !issues; setupBtn.textContent = 'SETUP · ' + issues; }
     zin.onclick = function () { touched = true; stopCam(); var r = host.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1.25); };
     zout.onclick = function () { touched = true; stopCam(); var r = host.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 0.8); };
@@ -510,13 +514,22 @@
     function onKey(e) { if (nav && nav.key(e)) return; if (e.key === 'Escape' && focusId) { focusId = null; undim(); fit(true); } }
     nav = __hubBoardNav.mount(host, blocks, L, hid, function () { return V; }, function (id, point) { touched = true; stopCam(); if (id) { if (hid[id]) { hid[id] = 0; applyBlock(id); resolve(id); trayDraw(); save(); } lookAt(id); } else cam({x:host.clientWidth/2-point.x*V.k,y:host.clientHeight/2-point.y*V.k,k:V.k},350); }, expand, collapse);
     document.addEventListener('keydown', onKey);
-    var resizeFrame=0; function onResize() { if(resizeFrame)return;resizeFrame=requestAnimationFrame(function(){resizeFrame=0;if(!alive)return;setTop();relayout();if(!touched)fit(false);}); }
-    addEventListener('resize', onResize); setTop();
+    var resizeFrame=0; function onResize() { document.documentElement.style.setProperty('--hub-visible-height',(window.visualViewport?visualViewport.height:innerHeight)+'px');if(resizeFrame)return;resizeFrame=requestAnimationFrame(function(){resizeFrame=0;if(!alive)return;setTop();relayout();if(!touched)fit(false);}); }
+    addEventListener('resize', onResize);if(window.visualViewport)visualViewport.addEventListener('resize',onResize);onResize();setTop();
     relayout(); trayDraw(); paint(); requestAnimationFrame(function () { setTop(); fit(false); });
     var hands = window.HubHandsBoard ? HubHandsBoard.mount({host:host,bar:bar,fitButton:fitBtn}) : null;
+    var more=el('button','hb-btn','MORE'),menu=el('div','hb-more-menu');more.type='button';more.setAttribute('aria-expanded','false');menu.hidden=true;menu.setAttribute('role','group');menu.setAttribute('aria-label','More dashboard controls');bar.appendChild(more);host.appendChild(menu);
+    function closeMore(){menu.hidden=true;more.setAttribute('aria-expanded','false');}
+    more.onclick=function(){var jump=host.querySelector('.hb-jump');if(jump&&!jump.hidden&&nav)nav.toggle();menu.hidden=!menu.hidden;more.setAttribute('aria-expanded',String(!menu.hidden));};
+    Array.from(bar.children).forEach(function(b){if(b===more||b===talkBtn||b===pcBtn||b===fitBtn||(view&&b===view.btn)||b===zh)return;if(b===hint){b.hidden=true;return;}menu.appendChild(b);});
+    function outsideMore(e){if(!menu.hidden&&!menu.contains(e.target)&&e.target!==more)closeMore();}
+    function moreKey(e){if(e.key==='Escape'){closeMore();var d=host.querySelector('.hb-session-detail');if(d)d.remove();}}
+    document.addEventListener('pointerdown',outsideMore,true);document.addEventListener('keydown',moreKey,true);
+    function notices(){var seen=false;document.querySelectorAll('#hub-graphics-chip').forEach(function(n){if(seen)n.remove();else{seen=true;if(n.parentNode!==menu)menu.appendChild(n);}});}
+    var noticeWatch=new MutationObserver(notices);noticeWatch.observe(document.body,{childList:true});noticeWatch.observe(bar,{childList:true});notices();
     var instance = {
       update: function (d) { data = d; paint(); HubBlocks.graphics(); if (!arrived) { arrived = true; HubBlocks.arrive(blocks, function () { return V.k; }, releaseArrival); } },
-      destroy: function () { if (!alive) return; alive = false; if(hands)hands.destroy(); if (view) view.destroy(); if (setupHome && setupHome.parent) setupHome.parent.insertBefore(setupCard, setupHome.next); if (wireWatch) wireWatch.disconnect(); if (bannerWatch) bannerWatch.disconnect(); if (window.__hubBoard.active === instance) window.__hubBoard.active = null; releaseArrival(); clearTimeout(hintTimer); dragCleanups.forEach(function (fn) { fn(); }); stopCam(); stopEdge(); guides.destroy(); if (nav) nav.destroy(); document.removeEventListener('keydown', onKey); removeEventListener('resize', onResize); if(resizeFrame)cancelAnimationFrame(resizeFrame); tray.remove(); root.replaceChildren(); root.style.width = root.style.maxWidth = root.style.marginLeft = ''; root.__hubBoardInstance = null; },
+      destroy: function () { if (!alive) return; alive = false; if(hands)hands.destroy();noticeWatch.disconnect();document.removeEventListener('pointerdown',outsideMore,true);document.removeEventListener('keydown',moreKey,true);if(bin)bin.classList.remove('drop-target'); if (view) view.destroy(); if (setupHome && setupHome.parent) setupHome.parent.insertBefore(setupCard, setupHome.next); if (wireWatch) wireWatch.disconnect(); if (bannerWatch) bannerWatch.disconnect(); if (window.__hubBoard.active === instance) window.__hubBoard.active = null; releaseArrival(); clearTimeout(hintTimer);clearTimeout(recoveryTimer); dragCleanups.forEach(function (fn) { fn(); }); stopCam(); stopEdge(); guides.destroy(); if (nav) nav.destroy(); document.removeEventListener('keydown', onKey); removeEventListener('resize', onResize);if(window.visualViewport)visualViewport.removeEventListener('resize',onResize); if(resizeFrame)cancelAnimationFrame(resizeFrame); tray.remove(); root.replaceChildren(); root.style.width = root.style.maxWidth = root.style.marginLeft = ''; root.__hubBoardInstance = null; },
       state: function () { return { V: V, L: L, hid: hid }; },
       view: function () { return view; },
       // what Talk can see of the board, and what it may do to it (the answer's `ui`: a panel to bring up, tidy, fit, zoom, the mouse scheme)
