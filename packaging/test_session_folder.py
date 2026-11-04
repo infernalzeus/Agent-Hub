@@ -54,3 +54,20 @@ def test_open_folder_uses_only_a_folder_the_scan_reported(tmp_path, monkeypatch)
             assert (await c.post("/api/sessions/open-folder", data="x")).status == 400
             assert opened == [str(work)]                                     # nothing else was opened
     asyncio.run(go())
+
+
+def test_a_codex_session_shows_what_was_asked_and_the_last_reply_and_its_own_review_sessions_are_hidden(tmp_path, monkeypatch):
+    work = tmp_path / "proj"
+    work.mkdir()
+    codex = tmp_path / "codex"
+    ctx = {"type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "<recommended_plugins>x</recommended_plugins>"}]}}
+    ask = {"type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "make the hands scroll like a touch screen"}]}}
+    reply = {"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Done: a pinch now scrolls."}]}}
+    _lines(codex / "2026" / "rollout-a.jsonl", [{"type": "session_meta", "payload": {"cwd": str(work)}}, ctx, ask, reply])
+    review = {"type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "The following is the Codex agent history added since your last approval decision"}]}}
+    _lines(codex / "2026" / "rollout-b.jsonl", [{"type": "session_meta", "payload": {"cwd": str(work)}}, review])
+    monkeypatch.setattr(AS, "CLAUDE_DIR", tmp_path / "none")
+    monkeypatch.setattr(AS, "CODEX_DIR", codex)
+    rows = AS.scan(time.time())
+    assert len(rows) == 1                                               # the review session is not a conversation
+    assert rows[0]["title"] == "make the hands scroll like a touch screen" and "pinch now scrolls" in rows[0]["last"] and rows[0]["project"] == "proj"

@@ -98,13 +98,22 @@ def _codex_state(recs: "list[dict]", age: float) -> "tuple[str, str]":
 
 
 def _title(recs: "list[dict]") -> str:
-    """The most recent thing a person typed to it, with system wrappers removed."""
+    """The most recent thing a person typed to it, with system wrappers removed. Claude Code writes it as a `user` record; Codex as a
+    `response_item` message with role user, mixed in with its own context blocks, which start with a tag and are skipped."""
     for r in reversed(recs):
+        t = ""
+        pl = r.get("payload") if isinstance(r.get("payload"), dict) else {}
         if r.get("type") == "user":
             t = _text_of((r.get("message") or {}).get("content"))
-            t = re.sub(r"<([a-z-]+)[^>]*>.*?</\1>", "", t, flags=re.S).strip()
-            if t:
-                return _short(t, 70)
+        elif r.get("type") == "response_item" and pl.get("type") == "message" and pl.get("role") == "user":
+            t = " ".join(str(x.get("text") or "") for x in (pl.get("content") or []) if isinstance(x, dict) and x.get("type") == "input_text")
+        elif r.get("type") == "event_msg" and pl.get("type") == "user_message":
+            t = str(pl.get("message") or "")
+        else:
+            continue
+        t = re.sub(r"<([A-Za-z_-]+)[^>]*>.*?</\1>", "", t, flags=re.S).strip()
+        if t and not t.startswith(("<", "# AGENTS.md", "AGENTS.md")):
+            return _short("Doctor session" if t.startswith("You are the doctor for Agent Hub") else t, 70)
     return ""
 
 
@@ -123,11 +132,53 @@ def _cwd(recs: "list[dict]", path: Path) -> str:
         return ""
 
 
+_HEAD: dict = {}
+
+
+def _first_asked(path: Path) -> str:
+    """When the tail of a long session holds no message from the person (a long run of tool output), the first thing they asked, from the start of the file."""
+    try:
+        key = (str(path), path.stat().st_mtime)
+        if key in _HEAD:
+            return _HEAD[key]
+        recs = []
+        with path.open("r", encoding="utf-8", errors="replace") as f:
+            for _ in range(400):
+                line = f.readline()
+                if not line:
+                    break
+                try:
+                    recs.append(json.loads(line))
+                except ValueError:
+                    pass
+        out = _title(list(reversed(recs)))                       # _title looks from the end; the first request is the oldest, so hand it the list reversed and take its last
+        for r in recs:
+            t = _title([r])
+            if t:
+                out = t
+                break
+        _HEAD.clear()
+        _HEAD[key] = out
+        return out
+    except (OSError, ValueError):
+        return ""
+
+
+def _helper_session(title: str, last: str) -> bool:
+    """Codex runs small review sessions of its own (it asks itself whether an action is allowed). They are not conversations with the person."""
+    return title.startswith("The following is the Codex agent history") or last.startswith('{"risk_level"')
+
+
 def _last_said(recs: "list[dict]") -> str:
     """The last thing the agent itself wrote, short. Empty when the tail holds none."""
     for r in reversed(recs):
         if r.get("type") == "assistant":
             t = _text_of((r.get("message") or {}).get("content")).strip()
+            if t:
+                return _short(t, 220)
+        rp = r.get("payload") if isinstance(r.get("payload"), dict) else {}
+        if r.get("type") == "response_item" and rp.get("type") == "message" and rp.get("role") == "assistant":
+            t = " ".join(str(x.get("text") or "") for x in (rp.get("content") or []) if isinstance(x, dict) and x.get("type") == "output_text").strip()
             if t:
                 return _short(t, 220)
         p = r.get("payload") if isinstance(r.get("payload"), dict) else {}
@@ -169,10 +220,15 @@ def scan(now: "float | None" = None, limit: int = 10) -> "list[dict]":
         recs = _tail_records(p)
         age = now - m
         state, ask = (_claude_state if agent == "claude" else _codex_state)(recs, age)
+        cwd = _cwd(recs, p)
+        title = _title(recs) or (_first_asked(p) if agent == "codex" else "")
+        last = _last_said(recs)
+        if agent == "codex" and _helper_session(title, last):
+            continue
         rows.append({
-            "agent": agent, "project": _project_name(p.parent.name) if agent == "claude" else "Codex",
-            "title": _title(recs), "state": state, "ask": ask, "age_s": int(age), "id": p.stem[:12],
-            "cwd": _cwd(recs, p), "last": _last_said(recs),
+            "agent": agent, "project": _project_name(p.parent.name) if agent == "claude" else (Path(cwd).name or "Codex"),
+            "title": title, "state": state, "ask": ask, "age_s": int(age), "id": p.stem[:12],
+            "cwd": cwd, "last": last,
         })
     return rows
 
