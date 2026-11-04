@@ -124,7 +124,7 @@ SOFTWARE.
       counts.latencies.push(performance.now()-(Number.isFinite(meta.inferenceMs)?now:processingAt));if(Number.isFinite(meta.captureTime))counts.cameraLatencies.push(performance.now()-meta.captureTime);
       if(counts.latencies.length>1800)counts.latencies.shift();if(counts.cameraLatencies.length>1800)counts.cameraLatencies.shift();
       if(output.hands.length)counts.handFrames++;
-      if(status&&output.hands[0]&&performance.now()-hintAt>2500){const h=output.hands[0];status.textContent=(diagnostic?measurementLabel+' · ACTIONS PAUSED':'CAMERA ON')+' · L '+h.gap.toFixed(2)+' · R '+h.gapM.toFixed(2)+' (press below '+engine.tuning.pinchOn.toFixed(2)+') · '+(h.triple?'ZOOM HOLD':h.pinched?'LEFT PRESS':h.rpinched?'RIGHT PRESS':String(h.gesture).toUpperCase());}
+      if(status&&output.hands[0]&&performance.now()-hintAt>2500){const h=output.hands[0];status.textContent=(diagnostic?measurementLabel+' · ACTIONS PAUSED':'CAMERA ON')+' · L '+h.gap.toFixed(2)+' · R '+h.gapM.toFixed(2)+' (press below '+engine.tuning.pinchOn.toFixed(2)+' / '+engine.tuning.pinchOnM.toFixed(2)+') · '+(h.triple?'ZOOM HOLD':h.pinched?'LEFT PRESS':h.rpinched?'RIGHT PRESS':String(h.gesture).toUpperCase());}
       else if(status&&hint&&performance.now()-hintAt<=2500)status.textContent=hint;
       for(const lost of output.lost)release(lost.id,true);
       ringFrame(output,result,now);
