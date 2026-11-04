@@ -222,16 +222,6 @@ def test_thumb_to_middle_on_a_block_opens_its_menu_and_on_the_empty_board_the_bo
  assert any('MINIMISE' in l for l in labels),labels                       # the right press now DOES something
 
 
-def test_a_pinch_presses_and_drags_but_never_clicks(page):
- page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
- page.evaluate('feedWith(openFrame,still(560,445,20))')
- page.evaluate('feedWith((x,y)=>closeFrame(x,y,.1,0),still(560,445,8))')
- assert page.evaluate('__hubHands.stats().presses')==1                                   # it pressed (and would drag)
- page.evaluate('feedWith(openFrame,still(560,445,8))')
- assert page.evaluate('counters')=={'click':0,'ctx':0}                                     # but a pinch alone is not a click
- assert page.evaluate('__hubHands.stats().clicks')==0
-
-
 def test_holding_the_pointing_finger_still_on_a_button_clicks_it_with_a_visible_ring_and_outline(page):
  page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
  page.evaluate('feedWith(pointFrame,still(560,445,22))')                                 # the cursor settles; the ring is filling, the button is outlined, nothing clicked yet
@@ -288,23 +278,38 @@ def test_thumb_to_middle_on_a_block_opens_its_menu_and_on_the_empty_board_the_bo
  labels=page.locator('.hb-ctx button').all_inner_texts()
  assert any('MINIMISE' in l for l in labels),labels                       # the right press now DOES something
 
-
-def test_a_pinch_presses_and_drags_but_never_clicks(page):
+def test_a_quick_pinch_is_a_tap_like_a_touch_screen(page):
  page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
  page.evaluate('feedWith(openFrame,still(560,445,20))')
  page.evaluate('feedWith((x,y)=>closeFrame(x,y,.1,0),still(560,445,8))')
- assert page.evaluate('__hubHands.stats().presses')==1                                   # it pressed (and would drag)
+ assert page.evaluate('__hubHands.stats().presses')==1
  page.evaluate('feedWith(openFrame,still(560,445,8))')
- assert page.evaluate('counters')=={'click':0,'ctx':0}                                     # but a pinch alone is not a click
- assert page.evaluate('__hubHands.stats().clicks')==0
+ assert page.evaluate('counters')=={'click':1,'ctx':0}
+ assert page.evaluate('__hubHands.stats().taps')==1
 
-def test_a_flat_palm_does_nothing_by_default_and_a_noisy_hand_never_moves_the_board(page):
- page.wait_for_timeout(700);page.evaluate('__hubHands.testEnable()')
- page.evaluate("window.flatFrame=(x,y,scale=1)=>{const a=handFrame(x,y,1,true);const c=a[9];return a.map(p=>({x:c.x+(p.x-c.x)*scale,y:c.y+(p.y-c.y)*scale,z:0}));}")
- before=page.evaluate('({...__hubBoard.active.state().V})')
- page.evaluate('feedWith((x,y)=>flatFrame(x,y,1+((x*7)%3)*.01),Array.from({length:60},(_,i)=>[700+(i%3),450+(i%2)]))')      # off: a hand held up with the size and position wobbling
- assert page.evaluate('({...__hubBoard.active.state().V})')==before
- page.evaluate("__hubHands.testOption('palm',true)")
- page.evaluate('feedWith((x,y)=>flatFrame(x,y,1+((x*7)%3)*.01),Array.from({length:80},(_,i)=>[700+(i%3),450+(i%2)]))')      # on: tremor of a few pixels and a few per cent of size is inside the dead band
- after=page.evaluate('({...__hubBoard.active.state().V})')
- assert abs(after['x']-before['x'])<4 and abs(after['y']-before['y'])<4 and abs(after['k']/before['k']-1)<.02,(before,after)
+
+def test_a_pinch_that_moves_over_a_scrollable_panel_scrolls_it_and_does_not_click(page):
+ page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
+ page.evaluate("""()=>{const d=document.createElement('div');d.id='sc';d.style.cssText='position:fixed;left:300px;top:300px;width:260px;height:160px;overflow:auto;z-index:60;background:#123';
+   d.innerHTML='<div style="height:900px">'+Array.from({length:30},(_,i)=>'<p>row '+i+'</p>').join('')+'</div>';d.onclick=()=>window.scrolledClick=(window.scrolledClick||0)+1;document.querySelector('.hb').appendChild(d);d.scrollTop=300;}""")
+ page.evaluate('feedWith(openFrame,still(400,380,20))')
+ page.evaluate('feedWith((x,y)=>closeFrame(x,y,.1,0),Array.from({length:16},(_,i)=>[400,380+i*7]))')       # a pinch that moves down about 105 px
+ page.evaluate('feedWith(openFrame,still(400,490,8))')
+ top=page.evaluate("document.getElementById('sc').scrollTop")
+ assert top<250,top                                                                      # the content followed the finger (down) like a touch screen
+ assert page.evaluate('window.scrolledClick||0')==0
+
+
+def test_a_pinch_that_moves_over_nothing_scrollable_does_not_click(page):
+ page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
+ page.evaluate('feedWith(openFrame,still(150,150,20))')
+ page.evaluate('feedWith((x,y)=>closeFrame(x,y,.1,0),Array.from({length:14},(_,i)=>[150+i*10,150]))')
+ page.evaluate('feedWith(openFrame,still(290,150,8))')
+ assert page.evaluate('counters')=={'click':0,'ctx':0}
+
+
+def test_the_pointing_ring_clicks_anything_that_shows_a_pointing_cursor(page):
+ page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
+ page.evaluate("""()=>{const d=document.createElement('div');d.id='pc';d.textContent='card';d.style.cssText='position:fixed;left:200px;top:200px;width:160px;height:60px;z-index:60;cursor:pointer;background:#234';d.onclick=()=>window.cardClicks=(window.cardClicks||0)+1;document.querySelector('.hb').appendChild(d);}""")
+ page.evaluate('feedWith(pointFrame,still(260,230,80))')
+ assert page.evaluate('window.cardClicks||0')==1

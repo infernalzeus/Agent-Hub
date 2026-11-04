@@ -38,7 +38,7 @@ SOFTWARE.
   const slop=()=>Math.max(40,Math.round(innerWidth*.05));      // measured: a hand drifts 20 to 45 px in the first third of a second of a pinch at 1280 px wide
   const boardView=()=>{try{return root.__hubBoard.active.view();}catch(_){return null;}};
   const ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 12V5a1.5 1.5 0 0 1 3 0v6-8a1.5 1.5 0 0 1 3 0v8-6a1.5 1.5 0 0 1 3 0v7-4a1.5 1.5 0 0 1 3 0v6c0 5-3 7-7 7-3 0-5-2-6-4l-3-5a1.5 1.5 0 0 1 2.5-1.6L8 12Z"/></svg>';
-  function styles(){if(document.getElementById('hands-style'))return;const s=document.createElement('style');s.id='hands-style';s.textContent='.hands-target{position:fixed;z-index:2147483000;pointer-events:none;border:2px solid #00e676;border-radius:8px;box-shadow:0 0 14px rgba(0,230,118,.55)}html.hands-live,html.hands-live *{cursor:none!important}.hb-hands{display:inline-flex;align-items:center;gap:5px}.hb-hands svg{width:17px;height:17px}.hb-hands i{width:6px;height:6px;border-radius:50%;background:var(--text-faint);display:inline-block}.hb-hands.live i{background:var(--accent);box-shadow:0 0 5px var(--accent)}.hb-hands.live{border-color:var(--cyan);color:var(--cyan)}.hands-overlay{position:fixed;inset:0;pointer-events:none;z-index:54}.hands-legend,.hands-status{position:fixed;z-index:55;pointer-events:none;max-width:min(520px,calc(100vw - 32px));padding:10px 14px;border:1px solid var(--border-dim);border-radius:9px;background:rgba(8,12,40,.96);color:var(--text);font:11px/1.8 Orbitron,monospace}.hands-legend{left:16px;bottom:calc(22px + env(safe-area-inset-bottom));transition:opacity .3s}.hands-status{left:16px;top:calc(12px + env(safe-area-inset-top));color:var(--cyan);font-size:10px}.hands-setup{position:fixed;inset:auto;left:50%;top:50%;transform:translate(-50%,-50%);z-index:95;box-sizing:border-box;width:min(460px,calc(100vw - 28px));padding:20px;border:1px solid var(--accent);border-radius:12px;background:#080c28;color:var(--text);font:12px/1.8 Orbitron,monospace;box-shadow:0 14px 50px #0009}.hands-setup button{margin:8px 6px 0 0}.hands-setup p{font-family:Outfit,system-ui,sans-serif;font-size:14px}.hands-legend[hidden],.hands-status[hidden],.hands-setup[hidden]{display:none!important}@media(prefers-reduced-motion:reduce){.hands-legend{transition:none}}';document.head.appendChild(s);}
+  function styles(){if(document.getElementById('hands-style'))return;const s=document.createElement('style');s.id='hands-style';s.textContent='.hands-target{position:fixed;z-index:2147483000;pointer-events:none;border:2px solid #00e676;border-radius:8px;box-shadow:0 0 14px rgba(0,230,118,.55)}html.hands-live,html.hands-live body{cursor:none}.hb-hands{display:inline-flex;align-items:center;gap:5px}.hb-hands svg{width:17px;height:17px}.hb-hands i{width:6px;height:6px;border-radius:50%;background:var(--text-faint);display:inline-block}.hb-hands.live i{background:var(--accent);box-shadow:0 0 5px var(--accent)}.hb-hands.live{border-color:var(--cyan);color:var(--cyan)}.hands-overlay{position:fixed;inset:0;pointer-events:none;z-index:54}.hands-legend,.hands-status{position:fixed;z-index:55;pointer-events:none;max-width:min(520px,calc(100vw - 32px));padding:10px 14px;border:1px solid var(--border-dim);border-radius:9px;background:rgba(8,12,40,.96);color:var(--text);font:11px/1.8 Orbitron,monospace}.hands-legend{left:16px;bottom:calc(22px + env(safe-area-inset-bottom));transition:opacity .3s}.hands-status{left:16px;top:calc(12px + env(safe-area-inset-top));color:var(--cyan);font-size:10px}.hands-setup{position:fixed;inset:auto;left:50%;top:50%;transform:translate(-50%,-50%);z-index:95;box-sizing:border-box;width:min(460px,calc(100vw - 28px));padding:20px;border:1px solid var(--accent);border-radius:12px;background:#080c28;color:var(--text);font:12px/1.8 Orbitron,monospace;box-shadow:0 14px 50px #0009}.hands-setup button{margin:8px 6px 0 0}.hands-setup p{font-family:Outfit,system-ui,sans-serif;font-size:14px}.hands-legend[hidden],.hands-status[hidden],.hands-setup[hidden]{display:none!important}@media(prefers-reduced-motion:reduce){.hands-legend{transition:none}}';document.head.appendChild(s);}
   function mount({host,bar,fitButton}){
     styles();
     let typedAt=-Infinity,lastAction=-Infinity,alive=true,enabled=false,canvas=null,ctx=null,legend=null,status=null,legendTimer=0,used=false,zooming=false,interlock=false,cooldown=0,diagnostic=false,measurementLabel='MEASURING',hint='',hintAt=0,calibration=null;
@@ -49,7 +49,7 @@ SOFTWARE.
     const setup=document.createElement('section');setup.className='hands-setup';setup.hidden=true;setup.setAttribute('role','dialog');setup.setAttribute('aria-label','Set up hand control');document.body.appendChild(setup);
     const configure=document.createElement('button');configure.type='button';configure.className='hb-btn';configure.textContent='HAND SETUP';configure.onclick=()=>calibrationPanel();bar.appendChild(configure);
     const saveBtn=document.createElement('button');saveBtn.type='button';saveBtn.className='hb-btn';saveBtn.textContent='SAVE TRACE';saveBtn.hidden=true;saveBtn.title='Save the last minute of hand numbers (no pictures) so Claude can look at what happened';saveBtn.onclick=()=>saveTrace('free',null);bar.appendChild(saveBtn);
-    const fresh=()=>({frames:0,handFrames:0,pinches:0,detectedPinches:0,clicks:0,rclicks:0,orbits:0,zooms:0,zoom1:0,fits:0,dwells:0,pans:0,latencies:[],cameraLatencies:[]});
+    const fresh=()=>({frames:0,handFrames:0,pinches:0,detectedPinches:0,clicks:0,rclicks:0,orbits:0,zooms:0,zoom1:0,fits:0,dwells:0,pans:0,taps:0,latencies:[],cameraLatencies:[]});
     let counts=fresh();
 
     // ---- what a hand is over: the board's own elements, and inside a block's frame when it is one of our own pages
@@ -66,11 +66,24 @@ SOFTWARE.
       p.target.dispatchEvent(new w.PointerEvent(type,{bubbles:true,cancelable:true,composed:true,pointerId:9000+id,pointerType:'touch',isPrimary:id===0,clientX:(x-p.ox)/p.k,clientY:(y-p.oy)/p.k,button:type==='pointermove'?-1:b,buttons:pressed?(b===2?2:1):0,pressure:pressed?.5:0}));
     }
     const posOf=(p,hand)=>({x:p.down.x+(hand.palm.x-p.palm0.x)+(p.mode==='orbit'?(hand.roll-p.roll0)*ROLL_PX:0),y:p.down.y+(hand.palm.y-p.palm0.y)});
+    // the nearest panel under the pointer that can scroll (inside a block's own page too); null for the board itself, which pans by pointer events
+    function scrollerOf(el){
+      if(!el||!el.ownerDocument)return null;const w=el.ownerDocument.defaultView||window;
+      for(let e=el;e&&e.nodeType===1;e=e.parentElement){
+        if(e===el.ownerDocument.body||e===el.ownerDocument.documentElement)break;
+        if(e.classList&&e.classList.contains('hk-h'))return null;                                   // a title bar is for dragging the block
+        const cs=w.getComputedStyle(e);
+        if(/(auto|scroll|overlay)/.test(cs.overflowY)&&e.scrollHeight>e.clientHeight+2)return e;
+        if(/(auto|scroll|overlay)/.test(cs.overflowX)&&e.scrollWidth>e.clientWidth+2)return e;
+      }
+      const d=el.ownerDocument;if(d!==document&&d.scrollingElement&&d.scrollingElement.scrollHeight>d.scrollingElement.clientHeight+2)return d.scrollingElement;   // a block's own page scrolls as a document
+      return null;
+    }
     function begin(id,hand,mode){
       if(mode==='orbit'||mode==='zoom1'){presses.set(id,{mode,prev:{...hand.palm},roll:hand.roll,at:{x:hand.x,y:hand.y},travel:0});if(mode==='orbit')counts.orbits++;else counts.zoom1++;mark('begin-'+mode);lastAction=performance.now();firstPinch();return true;}
       const from=mode==='zoom'?hand.palm:{x:hand.aimX,y:hand.aimY};
       const r=mode==='zoom'?{el:host,k:1,ox:0,oy:0}:resolve(from.x,from.y);if(!r){mark('no-target',{mode});return false;}
-      const p={target:r.el,k:r.k,ox:r.ox,oy:r.oy,mode,button:mode==='right'?2:0,down:{x:from.x,y:from.y},last:{x:from.x,y:from.y},palm0:{...hand.palm},roll0:hand.roll,travel:0};
+      const p={target:r.el,k:r.k,ox:r.ox,oy:r.oy,mode,button:mode==='right'?2:0,down:{x:from.x,y:from.y},last:{x:from.x,y:from.y},palm0:{...hand.palm},roll0:hand.roll,travel:0,t0:performance.now(),scroller:mode==='left'?scrollerOf(r.el):null,sy:from.y,sx:from.x,scrolled:false};
       presses.set(id,p);emit(p,'pointerdown',id,from.x,from.y,true);counts.pinches++;mark('begin-'+mode,{x:Math.round(from.x),y:Math.round(from.y),target:String(r.el.className||r.el.tagName).slice(0,30)});lastAction=performance.now();firstPinch();return true;
     }
     function beginPan(id,hand){
@@ -81,9 +94,11 @@ SOFTWARE.
       const p=presses.get(id);if(!p)return;
       if(p.mode==='orbit'||p.mode==='zoom1'){presses.delete(id);mark('end-'+p.mode);lastAction=performance.now();return;}
       const at=hand?posOf(p,hand):p.last;
-      emit(p,cancel?'pointercancel':'pointerup',id,at.x,at.y,false);
+      const tap=!cancel&&p.mode==='left'&&!p.scrolled&&p.travel<dead()&&performance.now()-p.t0<700;
+      emit(p,(cancel||p.scrolled)?'pointercancel':'pointerup',id,at.x,at.y,false);
+      if(tap){const w=p.target.ownerDocument.defaultView||window;p.target.dispatchEvent(new w.MouseEvent('click',{bubbles:true,cancelable:true,composed:true,clientX:(p.down.x-p.ox)/p.k,clientY:(p.down.y-p.oy)/p.k,detail:1}));counts.clicks++;counts.taps++;}
       if(p.mode==='pan'){presses.delete(id);mark('end-pan',{travel:Math.round(p.travel)});return;}
-      let how=cancel?'cancelled':'drag';
+      let how=cancel?'cancelled':tap?'tap':p.scrolled?'scroll':'drag';
       if(!cancel&&p.mode==='right'&&G.isClick(p.down,at,p.travel,slop())){
         const now=resolve(at.x,at.y);how='click-missed';
         if(now&&now.el===p.target){const w=p.target.ownerDocument.defaultView||window,o={bubbles:true,cancelable:true,composed:true,clientX:(at.x-p.ox)/p.k,clientY:(at.y-p.oy)/p.k};
@@ -97,10 +112,18 @@ SOFTWARE.
 
     // ---- what is drawn: the skeleton, the three working fingertips, and a line from the thumb that fills as a pinch closes
     function showOverlay(){if(canvas)return;canvas=document.createElement('canvas');canvas.className='hands-overlay';canvas.setAttribute('aria-hidden','true');document.body.appendChild(canvas);ctx=canvas.getContext('2d');
-      legend=document.createElement('div');legend.className='hands-legend';legend.textContent='POINT: the ring is your cursor; hold it still on a button: click · THUMB + INDEX held: drag · THUMB + MIDDLE (index away): right click menu · FLAT PALM, fingers together: move the board, push or pull to zoom · THUMB + INDEX + MIDDLE together, hand up or down: zoom · FIST in VIEW 3D: tilt and turn · OPEN HAND 1s: fit · ESC: camera off';document.body.appendChild(legend);
+      legend=document.createElement('div');legend.className='hands-legend';legend.textContent='POINT: the ring is your cursor; hold it still on a button: click · THUMB + INDEX: a quick pinch taps, a pinch that moves scrolls a panel or drags a block · THUMB + MIDDLE (index away): right click menu · FLAT PALM, fingers together: move the board, push or pull to zoom · THUMB + INDEX + MIDDLE together, hand up or down: zoom · FIST in VIEW 3D: tilt and turn · OPEN HAND 1s: fit · ESC: camera off';document.body.appendChild(legend);
       status=document.createElement('div');status.className='hands-status';status.setAttribute('role','status');status.textContent='CAMERA ON · LOCAL HAND CONTROL';document.body.appendChild(status);}
     function clearOverlay(){clearTimeout(legendTimer);legendTimer=0;canvas?.remove();legend?.remove();status?.remove();canvas=ctx=legend=status=null;}
     // ---- POINT: a ring that follows the index fingertip (it is the cursor), the control under it outlined, and a click when it is held still on one
+    function clickableOf(el){
+      for(let e=el,d=0;e&&e.nodeType===1&&d<6;e=e.parentElement,d++){
+        if(e.classList&&e.classList.contains('hk-h'))return null;
+        if(e.matches&&e.matches(CLICKABLE)&&!e.disabled)return e;
+        const w=e.ownerDocument.defaultView||window;if(w.getComputedStyle(e).cursor==='pointer')return e;                // anything that shows a pointing cursor is clickable
+      }
+      return null;
+    }
     const DWELL_MS=800,RING_FROM_MS=250,CLICKABLE='button,a[href],[role=button],[role=menuitem],[role=tab],input:not([type=hidden]),select,textarea,summary,label,[data-a],[data-restore],[onclick]';
     let cursorInfo=null,dw={x:0,y:0,since:0,fired:false},targetBox=null,realMouseAt=-Infinity,handsLive=false,lastEl=null,lastRes=null,lastAt=-Infinity,lastX=-1e9,lastY=-1e9,lastRect='';
     function hideTarget(){if(targetBox){targetBox.remove();targetBox=null;lastRect='';}}
@@ -110,7 +133,7 @@ SOFTWARE.
       const x=h.x,y=h.y;
       if(!dw.since||Math.hypot(x-dw.x,y-dw.y)>Math.max(22,innerWidth*.017)){dw={x,y,since:now,fired:false};}
       if(Math.hypot(x-lastX,y-lastY)>4||now-lastAt>150){lastRes=resolve(x,y);lastX=x;lastY=y;lastAt=now;}         // the element under the pointer is looked up when the pointer moved, not every frame
-      const r=lastRes,el=r&&r.el&&r.el.closest?r.el.closest(CLICKABLE):null,usable=!!el&&!el.disabled&&!el.closest('.hk-h:not(button)');
+      const r=lastRes,el=r&&r.el?clickableOf(r.el):null,usable=!!el;
       const live=now-realMouseAt>2500;if(live!==handsLive){handsLive=live;document.documentElement.classList.toggle('hands-live',live);}
       const held=now-dw.since;
       cursorInfo={x,y,progress:usable&&!dw.fired?Math.max(0,Math.min(1,(held-RING_FROM_MS)/(DWELL_MS-RING_FROM_MS))):0,usable};
@@ -200,7 +223,9 @@ SOFTWARE.
           }
           const done=p.mode==='left'?!hand.pinched:!hand.rpinched;
           if(done){release(hand.id,false,hand);continue;}
-          const at=posOf(p,hand);p.travel=Math.max(p.travel,G.distance(p.down,at));p.last=p.travel<(p.mode==='left'?dead():slop())?p.down:at;emit(p,'pointermove',hand.id,p.last.x,p.last.y,true);
+          const at=posOf(p,hand);p.travel=Math.max(p.travel,G.distance(p.down,at));
+          if(p.mode==='left'&&p.scroller&&p.travel>=dead()){const k=p.k||1;p.scroller.scrollTop-=(at.y-p.sy)/k;p.scroller.scrollLeft-=(at.x-p.sx)/k;p.sy=at.y;p.sx=at.x;p.scrolled=true;p.last=at;continue;}      // touch-style scrolling
+          p.last=p.travel<(p.mode==='left'?dead():slop())?p.down:at;emit(p,'pointermove',hand.id,p.last.x,p.last.y,true);
         }else if(profile.palm&&hand.flat&&!hand.pinched&&!hand.rpinched&&!hand.triple&&hand.sincePinch>500){beginPan(hand.id,hand);}
         else if(hand.pinched)begin(hand.id,hand,'left');
         else if(hand.rpinched)begin(hand.id,hand,'right');
