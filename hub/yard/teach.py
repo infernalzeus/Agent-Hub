@@ -57,6 +57,9 @@ async def api_tap(request: web.Request) -> web.Response:
     correct = b.get("correct")
     if not ok and isinstance(correct, str) and correct in BIN.BINS:
         row["correct"] = correct
+    note = b.get("note")
+    if isinstance(note, str) and note.strip():
+        row["note"] = note.strip()[:300]                      # why it was wrong, in your words
     BIN._append(row)
     return web.json_response({"ok": True})
 
@@ -99,6 +102,9 @@ async def api_mission_tap(request: web.Request) -> web.Response:
         raise web.HTTPNotFound(text="no such mission")
     labels = LRN._jsonl_dict(LRN.MISSION_LABELS)
     labels[mid] = {"ok": ok, "at": time.time()}
+    note = b.get("note")
+    if isinstance(note, str) and note.strip():
+        labels[mid]["note"] = note.strip()[:300]
     write_json(LRN.MISSION_LABELS, labels)
     return web.json_response({"ok": True})
 
@@ -119,6 +125,7 @@ p.sub{color:var(--mute);margin:6px 0 14px;font-size:13px}
 button,select{font:700 13px Orbitron,system-ui,sans-serif;letter-spacing:.06em;border-radius:8px;padding:11px 18px;border:1px solid var(--accent);background:var(--panel);color:var(--accent);cursor:pointer;min-height:44px}
 button.no{border-color:var(--red);color:var(--red)}button.skip{border-color:var(--border);color:var(--mute)}
 select{font-weight:400;letter-spacing:0;max-width:100%}
+textarea{width:100%;font:14px Outfit,system-ui,sans-serif;color:var(--text);background:rgba(8,12,40,.9);border:1px solid var(--border);border-radius:8px;padding:8px 10px;resize:vertical}
 .count{color:var(--amber);font-size:13px}
 .seg{display:flex;gap:8px;margin:6px 0 10px}.seg button.on{background:var(--accent);color:#04120a}
 .chip{border:1px solid var(--border);border-radius:99px;padding:2px 10px;font-size:12px;color:var(--mute);margin-right:6px;display:inline-block}.chip.ok{color:var(--accent);border-color:var(--accent)}.chip.no{color:var(--red);border-color:var(--red)}
@@ -135,7 +142,7 @@ select{font-weight:400;letter-spacing:0;max-width:100%}
   const $=id=>document.getElementById(id),el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;};
   async function load(){const r=await fetch('/api/learning/teach',{cache:'no-store'});const j=await r.json();items=j.items;bins=j.bins;left=j.left;i=0;show();}
   function help(b){const x=bins.find(y=>y.id===b);return x&&x.help?x.help:b;}
-  async function tap(ok,correct){const it=items[i];try{await fetch('/api/learning/teach',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({of:it.of,ok:ok,correct:correct||undefined})});}catch(e){}left=Math.max(0,left-1);i++;show();}
+  async function tap(ok,correct,note){const it=items[i];try{await fetch('/api/learning/teach',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({of:it.of,ok:ok,correct:correct||undefined,note:note||undefined})});}catch(e){}left=Math.max(0,left-1);i++;show();}
   function show(){
     const c=$('card');c.replaceChildren();$('count').textContent=left?left+' still without a label':'';
     const it=items[i];
@@ -147,7 +154,8 @@ select{font-weight:400;letter-spacing:0;max-width:100%}
     yes.onclick=()=>tap(true);skip.onclick=()=>{i++;show();};
     no.onclick=()=>{row.replaceChildren();const sel=el('select');const o0=el('option',null,'It should have been...');o0.value='';sel.appendChild(o0);
       bins.filter(b=>b.id!==it.chosen).forEach(b=>{const o=el('option',null,b.help||b.id);o.value=b.id;sel.appendChild(o);});
-      const done=el('button','no','SAVE WRONG');done.onclick=()=>tap(false,sel.value);row.append(sel,done);};
+      const why=el('textarea');why.placeholder='Why was it wrong? (optional, in your own words)';why.rows=2;why.maxLength=300;
+      const done=el('button','no','SAVE WRONG');done.onclick=()=>tap(false,sel.value,why.value);row.append(sel,why,done);};
     row.append(yes,no,skip);card.appendChild(row);c.appendChild(card);
   }
   async function missions(){const c=$('card');c.replaceChildren();$('count').textContent='Newest first. APPLY already counts as a yes and DISCARD as a no; tap for the rest.';
@@ -159,8 +167,10 @@ select{font-weight:400;letter-spacing:0;max-width:100%}
       if(m.verdict!==null&&m.verdict!==undefined)meta.append(el('span','chip '+(m.verdict?'ok':'no'),(m.verdict?'good':'bad')+' ('+m.decided_by+')'));
       card.appendChild(meta);
       const row=el('div','row'),g=el('button',null,'GOOD'),b=el('button','no','BAD');
-      const tap=async ok=>{try{await fetch('/api/learning/teach/mission',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:m.id,ok:ok})});}catch(e){}missions();};
-      g.onclick=()=>tap(true);b.onclick=()=>tap(false);row.append(g,b);card.appendChild(row);c.appendChild(card);});}
+      const tap=async(ok,note)=>{try{await fetch('/api/learning/teach/mission',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:m.id,ok:ok,note:note||undefined})});}catch(e){}missions();};
+      g.onclick=()=>tap(true);
+      b.onclick=()=>{row.replaceChildren();const why=el('textarea');why.placeholder='Why was it bad? (optional, in your own words)';why.rows=2;why.maxLength=300;const done=el('button','no','SAVE BAD');done.onclick=()=>tap(false,why.value);row.append(why,done);};
+      row.append(g,b);card.appendChild(row);c.appendChild(card);});}
   $('s-req').onclick=()=>{$('s-req').classList.add('on');$('s-mis').classList.remove('on');show();};
   $('s-mis').onclick=()=>{$('s-mis').classList.add('on');$('s-req').classList.remove('on');missions();};
   load().catch(e=>{$('card').textContent='Could not read the decision log: '+e.message;});

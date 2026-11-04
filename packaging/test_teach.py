@@ -31,12 +31,13 @@ def test_offers_only_unlabelled_decisions_newest_first_and_a_tap_labels_exactly(
         async with TestClient(TestServer(app)) as c:
             j = await (await c.get("/api/learning/teach")).json()
             assert [i["of"] for i in j["items"]] == [200.0, 100.0] and j["left"] == 2
-            assert (await c.post("/api/learning/teach", json={"of": 200.0, "ok": False, "correct": "conversation"})).status == 200
+            assert (await c.post("/api/learning/teach", json={"of": 200.0, "ok": False, "correct": "conversation", "note": "  I was asking a question, not giving a command  "})).status == 200
             j = await (await c.get("/api/learning/teach")).json()
             assert [i["of"] for i in j["items"]] == [100.0]
     _run(go())
     verdict = [json.loads(l) for l in log.read_text(encoding="utf-8").splitlines() if '"verdict"' in l][0]
     assert verdict["of"] == 200.0 and verdict["ok"] is False and verdict["by"] == "teach" and verdict["correct"] == "conversation"
+    assert verdict["note"] == "I was asking a question, not giving a command"                  # why, in the person's own words
     ev = {e["at"]: e for e in LRN._route_events()}
     assert ev[200.0]["ok"] is False                                   # the learning log reads the tap as an exact label
 
