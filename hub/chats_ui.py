@@ -10,13 +10,15 @@ Three sections, all read from things that already exist:
 """
 from __future__ import annotations
 
+from pathlib import Path as _PhonePath
+
 from aiohttp import web
 
 from .embed import embedded
 
 routes = web.RouteTableDef()
 
-_HTML = r"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chats</title>
+_HTML = r"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Chats</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Outfit:wght@400;600&display=swap">
 <style>
 :root{--bg:#080c28;--bg2:#0d1050;--bd:rgba(0,230,118,.22);--ac:#00e676;--cy:#41ebff;--tx:#d6f5e6;--mu:rgba(214,245,230,.62)}
@@ -62,7 +64,7 @@ function talk(){
   if(!rows.length){const d=document.createElement('div');d.className='empty';d.textContent='Nothing said yet in this tab. Left-click TALK to start listening, or open the chat window to type.';box.appendChild(d);return;}
   rows.forEach(r=>{const m=/^(You|Smith): ?(.*)$/s.exec(r.t||'');box.appendChild(row(m?m[1].toUpperCase():'CHAT',m?m[2]:r.t,'',new Date(r.at).toLocaleTimeString([],{hour12:false})));});
 }
-$('open-chat').onclick=()=>{const v=(window.parent&&window.parent!==window&&window.parent.HubVoice)||window.HubVoice;if(v&&v.open)v.open(false);else location.href='/';};
+$('open-chat').onclick=()=>{const v=(window.parent&&window.parent!==window&&window.parent.HubVoice)||window.HubVoice;if(v&&v.open)v.open(false);else location.href='/?enter=1&chat=1';};
 $('quick').onclick=async()=>{
   const b=$('quick'),e=$('quick-err');b.disabled=true;b.textContent='STARTING';e.hidden=true;
   try{
@@ -85,6 +87,9 @@ async function sessions(){
 }
 talk();sessions();window.addEventListener('storage',talk);setInterval(talk,4000);setInterval(sessions,20000);
 </script></body></html>"""
+
+
+_HTML = _HTML.replace('</head>', '<style>' + _PhonePath(__file__).with_name('static').joinpath('phone-ui.css').read_text(encoding='utf-8') + '</style></head>', 1)
 
 
 @routes.get("/chats")

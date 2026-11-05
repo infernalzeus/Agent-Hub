@@ -17,6 +17,7 @@ _WIDGET = _widget(True)      # conversation popover + orbs, built once
 _PICKER = (Path(__file__).parent / "static" / "picker.js").read_text(encoding="utf-8")
 _MARK_JS = (Path(__file__).parent / "static" / "agent-hub-mark.min.js").read_text(encoding="utf-8")
 _HOME_PANELS_JS = (Path(__file__).parent / "static" / "home-panels.js").read_text(encoding="utf-8")
+_PHONE_CSS = (Path(__file__).parent / 'static' / 'phone-ui.css').read_text(encoding='utf-8')
 _BLOCK_CSS = (Path(__file__).parent / "static" / "hub-blocks.css").read_text(encoding="utf-8")
 # Include the shared local stylesheet in both existing script payloads, so the existing content hash covers it too.
 _BLOCKS_JS = ("(function(){if(document.getElementById('hub-blocks-css'))return;var s=document.createElement('style');"
@@ -35,7 +36,7 @@ _DEPTH_LIFT_SOURCE = (Path(__file__).parent / "static" / "depth-lift.js").read_t
 # cached - this file (both pages), the mark and the controller - not just the controller, so a mark- or page-only
 # update can no longer leave an old landing/Home alive inside a host that still thinks it is current.
 _DEPTH_LIFT_BUILD = hashlib.sha256(
-    (_DEPTH_LIFT_SOURCE + "\0" + _MARK_JS + "\0" + _WAKE_JS + "\0" + _HOME_PANELS_JS + "\0" + _HOME_BOARD_JS + "\0" + Path(__file__).read_text(encoding="utf-8")).encode()).hexdigest()[:16]
+    (_PHONE_CSS + "\0" + _DEPTH_LIFT_SOURCE + "\0" + _MARK_JS + "\0" + _WAKE_JS + "\0" + _HOME_PANELS_JS + "\0" + _HOME_BOARD_JS + "\0" + Path(__file__).read_text(encoding="utf-8")).encode()).hexdigest()[:16]
 _DEPTH_LIFT_JS = _DEPTH_LIFT_SOURCE.replace("__DL_BUILD__", _DEPTH_LIFT_BUILD)
 # Retire old midpoint-resume tickets. The whole turn now finishes before navigation.
 _DL_ARRIVE = """<script>
@@ -517,6 +518,7 @@ _MARK_VERSION = _hashlib.sha256(_MARK_JS.encode("utf-8")).hexdigest()[:12]
 _MARK_URL = "/static/agent-hub-mark.js?v=" + _MARK_VERSION
 _OFFLINE_HTML = (_OFFLINE_HTML.replace("__MARK_VERSION__", _MARK_VERSION).replace("__DL_ARRIVE__", _DL_ARRIVE)
                  .replace("__WAKE_JS__", _WAKE_JS).replace("__DEPTH_LIFT__", _DEPTH_LIFT_JS))
+_OFFLINE_HTML = _OFFLINE_HTML.replace('</head>', '<style>' + _PHONE_CSS + '</style></head>', 1)
 _OFFLINE_CACHE = "agent-hub-offline-" + _hashlib.sha1((_OFFLINE_HTML + _MARK_JS).encode("utf-8")).hexdigest()[:10]
 
 _SW_JS = """\
@@ -2370,9 +2372,11 @@ function ytdlDisconnectWs() {
       const res = await fetch('/api/mcp/windows/enabled', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:on})});
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      paintMcp((data.servers || []).find(s => s.name === 'windows'));
+      const confirmed = (data.servers || []).find(s => s.name === 'windows');
+      paintMcp(confirmed);
+      if (confirmed) window.dispatchEvent(new CustomEvent('hub-log', {detail:{kind:'hub', text:'MCP / PC control ' + (confirmed.enabled ? 'ON' : 'OFF')}}));
       toast(on ? 'PC control ON — TALK can now open Edge, YouTube, and web searches. New OpenCode and Mission workspaces get Windows MCP.' : 'PC control OFF — TALK, new OpenCode chats, and new Mission workspaces cannot control this PC.');
-    } catch (e) { toast('PC control could not change: ' + (e.message || e), 'err'); await syncMcp(); }
+    } catch (e) { window.dispatchEvent(new CustomEvent('hub-log', {detail:{kind:'hub', text:'MCP / PC control could not change: ' + (e.message || e), err:true}})); toast('PC control could not change: ' + (e.message || e), 'err'); await syncMcp(); }
   };
 
   scratchBtn.onclick = async () => {
@@ -2558,6 +2562,9 @@ def _render_menu() -> str:
             .replace("__APP_LIST_JSON__", json.dumps(app_list).replace("</", "<\\/"))
             .replace("__SHORTCUTS_JSON__", shortcuts_json)
             .replace("__SETUP_LINK__", _setup_link()))
+
+
+_HTML = _HTML.replace('</head>', '<style>' + _PHONE_CSS + '</style></head>', 1)
 
 
 @routes.get("/")

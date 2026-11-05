@@ -14,6 +14,8 @@ hub/features/missions.py:
 """
 from __future__ import annotations
 
+from pathlib import Path as _PhonePath
+
 from aiohttp import web
 from .embed import embedded
 
@@ -1551,6 +1553,9 @@ boot();
 __VOICE_WIDGET__
 </body></html>
 """
+
+
+_HTML = _HTML.replace('</head>', '<style>' + _PhonePath(__file__).with_name('static').joinpath('phone-ui.css').read_text(encoding='utf-8') + '</style></head>', 1)
 
 
 @routes.get("/missions")

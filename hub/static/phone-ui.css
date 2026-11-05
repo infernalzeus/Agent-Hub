@@ -1,0 +1,19 @@
+/* Touch presentation only: desktop rules and interaction logic are unchanged. */
+@media (pointer:coarse){
+ button:not(.hb-world *),button.btn:not(.hb-world *),a.btn:not(.hb-world *),a.back-link,[role="button"]:not(.hb-world *),summary{min-height:44px!important;min-width:44px!important;touch-action:manipulation}
+ input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:16px!important;min-height:44px;max-width:100%}
+ button,a.btn,a.back-link,summary{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+ body{padding-bottom:max(24px,env(safe-area-inset-bottom));overflow-wrap:anywhere}
+ .bar,header{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
+ .modal{top:calc(12px + env(safe-area-inset-top));max-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px);overscroll-behavior:contain}
+ .persona:has(>table){overflow-x:auto;overscroll-behavior-x:contain}
+ .persona table{min-width:360px}.persona td,.persona th{padding:6px;vertical-align:top}
+ .pick button,.nav button,.skl summary,.explain summary{min-height:44px}
+ .nav,.pick{touch-action:pan-x;overscroll-behavior-x:contain}
+ .sticky{padding-bottom:max(10px,env(safe-area-inset-bottom));flex-wrap:wrap}
+ .btns>button{max-width:100%;white-space:normal}
+ .row{flex-wrap:wrap}.row time{margin-left:auto}.row span{flex:1 1 140px;overflow-wrap:anywhere}
+ #panel{padding-top:calc(24px + env(safe-area-inset-top));padding-bottom:max(24px,env(safe-area-inset-bottom));overscroll-behavior:contain}
+ #panel .close{top:max(8px,env(safe-area-inset-top));right:max(8px,env(safe-area-inset-right));width:44px;height:44px}
+ #panel:not(.open){visibility:hidden}#copies-toggle{min-height:44px}
+}

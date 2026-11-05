@@ -64,3 +64,9 @@ html.hub-board-on:has(.hands-status) #voice{top:calc(var(--hub-chrome-bottom,116
 
 /* The conversation uses the same centred glass presentation as R Learning. */
 html.hub-board-on #voice{left:50%!important;top:50%!important;right:auto!important;bottom:auto!important;transform:translate(-50%,-50%);width:min(620px,calc(100vw - 24px))!important;max-width:calc(100vw - 24px)!important;max-height:calc(var(--hub-visible-height,100dvh) - 2 * (var(--hub-chrome-bottom,70px) + 12px))!important;background:linear-gradient(140deg,#152152dc,#080c28e8);border-color:#6c8abb66;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:inset 0 1px 0 #bdcfff22,0 16px 45px #0008;overflow-y:auto;box-sizing:border-box}
+
+@media(pointer:coarse){
+ #voice .vbtn,#voice input,#voice select{min-height:44px;min-width:44px}
+ #voice input,#voice select,#voice textarea{font-size:16px!important}
+ html.hub-board-on #voice{top:calc(var(--hub-visible-top,0px) + var(--hub-visible-height,100dvh) * .5)!important;max-height:calc(var(--hub-visible-height,100dvh) - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom))!important;scroll-padding-block:24px}
+}

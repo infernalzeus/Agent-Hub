@@ -7,6 +7,8 @@ in place; it never explodes the graph into extra file nodes.
 """
 from __future__ import annotations
 
+from pathlib import Path as _PhonePath
+
 from aiohttp import web
 from .embed import embedded
 
@@ -672,6 +674,9 @@ loadGraph();
 </body>
 </html>
 """
+
+
+_GRAPH_HTML = _GRAPH_HTML.replace('</head>', '<style>' + _PhonePath(__file__).with_name('static').joinpath('phone-ui.css').read_text(encoding='utf-8') + '</style></head>', 1)
 
 
 @routes.get("/graph")

@@ -13,6 +13,8 @@ Reads:
 """
 from __future__ import annotations
 
+from pathlib import Path as _PhonePath
+
 from aiohttp import web
 from .embed import embedded
 
@@ -627,24 +629,25 @@ textarea{min-height:200px;resize:vertical;font-family:ui-monospace,Consolas,mono
   <span class="brand">AGENCY</span>
   <button class="btn-icon" id="btn-create" title="Create an agent with Neo" aria-label="Create an agent with Neo">__NEO_ICON_BIG__<span class="plus-badge">+</span></button>
   <span class="spacer"></span>
-  <button class="btn" id="btn-skills" title="The skill library every agent can reach">SKILLS</button>
   <a class="btn" href="/missions">MISSIONS</a>
   <a class="btn" href="/graph">GRAPH</a>
 </div>
+<div class="agency-tabs" role="tablist" aria-label="Agency"><button type="button" role="tab" id="tab-agents" aria-selected="true" aria-controls="agents-view">AGENTS</button><button type="button" role="tab" id="btn-skills" aria-selected="false" aria-controls="skl-modal">SKILLS</button></div>
 <div class="scrim" id="skl-scrim"></div>
 <div class="modal" id="skl-modal">
   <h2>SKILLS <span id="skl-count" class="skl-count"></span>
     <button class="btn" id="skl-close" style="float:right">CLOSE</button></h2>
-  <div id="skills"></div>
+<label class="skill-search">Search skills<input type="search" id="skill-search" placeholder="Find a skill or agent"></label><div id="skills"></div>
 </div>
-<div style="font-size:11px;color:var(--text-muted);margin:12px 0">
+<section id="agents-view" role="tabpanel" aria-labelledby="tab-agents">
+<div class="ag-policy"><label for="agency-all-model">All agents use: <select id="agency-all-model" aria-label="All agents use"></select></label><div id="agency-resolved" role="status"></div><small>Auto chooses a configured paid provider when available, otherwise the Hub’s free/cloud and local fallback settings.</small><div id="agency-model-error" class="ag-error" role="status"></div></div>
+<details class="explain"><summary>About agents and their settings</summary><div style="font-size:11px;color:var(--text-muted);margin:12px 0">
   Personas ship in the repo (<code>hub/agent_knowledge/agents/</code>) and are copied into every
   mission's private working copy. Yours (blue) live in <code>agents_user/</code>. LLM settings save to
   <code>agent_overrides.json</code> and apply on the next mission dispatch.
 </div>
 
-<details class="explain">
-  <summary>How these values are chosen</summary>
+
   <div class="body">
     Value in effect = your <b>override</b> (set below) → the agent's <b>persona</b> default →
     the model's own default. <b>temperature</b>: low = repeatable, higher = more varied.
@@ -654,7 +657,7 @@ textarea{min-height:200px;resize:vertical;font-family:ui-monospace,Consolas,mono
 </details>
 
 <div class="pick" id="pick"></div>
-<div id="list"></div>
+<div id="list"></div></section>
 
 <div class="scrim" id="scrim"></div>
 <div class="modal" id="modal">
@@ -680,7 +683,7 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function jget(u){ const r=await fetch(u,{cache:'no-store'}); if(!r.ok) throw new Error(await r.text()); return r.json(); }
 async function jpost(u,b){ const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});
-  const t=await r.text(); let j; try{j=JSON.parse(t)}catch(e){j={raw:t}} if(!r.ok) throw new Error(j.raw||t); return j; }
+  const t=await r.text(); let j; try{j=JSON.parse(t)}catch(e){j={raw:t}} if(!r.ok) throw new Error(typeof j.error==='string'?j.error:(j.error?.message||j.message||j.raw||t)); return j; }
 let DATA = null, RECS = {}, PROFILES = {};
 const SMITH_A = '/static/agent-icons/smith.png';
 
@@ -691,7 +694,7 @@ async function load(){
   try { HELPERS = (await jget('/api/hub/helpers')).helpers || []; } catch(e){ HELPERS = []; }
   try { AGENTMAP = await jget('/api/hub/agent-map'); } catch(e){ AGENTMAP = null; }
   try {
-    const mp = await jget('/api/model-policy');
+    const mp = await jget('/api/model-policy'); AG_POLICY=mp;
     $('mpol').innerHTML = `<b>Model:</b> policy <code>${esc(mp.policy)}</code> → runs use `
       + `<code>${esc(mp.resolved)}</code>. Measured 2026-09-19: Ollama-cloud Nemotron 3-6 s/call; OpenCode Zen free (<code>opencode/*</code>) `
       + `6-170 s/call. A call with no answer for 150 s is killed and the run fails over: cloud Nemotron → <code>${esc(mp.local)}</code> `
@@ -761,41 +764,8 @@ async function load(){
   const loose = subs.filter(p => !inFam.has(p.name));
   if(loose.length) fams.push({key:'other', label:'Other', hint:'not offered by any work type', members:loose});
 
-  const TABS = [{key:'run', label:'Runs the hub', n:RUNS.length}, {key:'helpers', label:'Hub helpers', n:HELPERS.length}, {key:'map', label:'How they work together', n:AGENTMAP?AGENTMAP.nodes.length:0}]
-    .concat(fams.map(f => ({key:f.key, label:f.label, n:f.members.length})));
-  if(!TABS.some(t => t.key === FAM)) FAM = TABS[0].key;
-
-  $('pick').innerHTML = TABS.map(t =>
-    `<button data-fam="${t.key}" class="${t.key===FAM?'on':''}">${esc(t.label)}<span class="n">${t.n}</span></button>`).join('');
-  document.querySelectorAll('[data-fam]').forEach(b => b.onclick = () => {
-    // load() is fetch-then-draw and the hub is local, so re-running it is the
-    // honest way to redraw without splitting a 900-line page in half today.
-    FAM = b.dataset.fam; location.hash = FAM; load(); window.scrollTo({top:0}); });
-
-  if(FAM === 'map'){
-    const M = AGENTMAP;
-    if(!M){ $('list').innerHTML = '<div class="note">Could not read the agent map.</div>'; }
-    else {
-      const name = (id) => (M.nodes.find(n => n.id===id)||{name:id}).name;
-      const by = {}; M.edges.forEach(e => (by[e.from] = by[e.from] || []).push(e));
-      const callRows = Object.keys(by).map(k => `<tr><td><b>${esc(name(k))}</b></td><td>${by[k].map(e => esc(name(e.to)) + ' <span class="note">(' + esc(e.why) + ')</span>').join('<br>')}</td></tr>`).join('');
-      const covRows = M.nodes.map(n => { const c = M.coverage[n.id]; return c ? `<tr><td><b>${esc(n.name)}</b></td><td>${esc(c.decides)}</td><td><span class="tag ${c.state==='gap'?'':'primary'}">${esc(c.state)}</span></td><td>${esc(c.note)}</td></tr>` : `<tr><td><b>${esc(n.name)}</b></td><td colspan="3">NOT DECIDED YET</td></tr>`; }).join('');
-      $('list').innerHTML = `<div class="secthead">WHO CALLS WHOM<span>read from the helpers' own lists and the team rosters, not typed into this page</span></div>
-        <div class="persona"><table style="width:100%;border-collapse:collapse"><tr><th align="left">Agent</th><th align="left">Hands work or questions to</th></tr>${callRows}</table></div>
-        <div class="secthead">WHAT THE LEARNERS CAN SEE<span>${M.complete?'every agent has been decided on':'an agent has no decision yet'}; gaps: ${M.gaps.map(g=>esc(name(g.id))).join(', ')||'none'}</span></div>
-        <div class="persona"><table style="width:100%;border-collapse:collapse"><tr><th align="left">Agent</th><th align="left">What it decides</th><th align="left">State</th><th align="left">Why</th></tr>${covRows}</table></div>`;
-    }
-  } else if(FAM === 'helpers'){
-    $('list').innerHTML = `<div class="secthead">THE HUB'S OWN HELPERS<span>the voice, the Doctor, the desktop agent and the small learners: who they are, what they do, and where each stands now</span></div>` + HELPERS.map(helperCard).join('');
-  } else if(FAM === 'run'){
-    $('list').innerHTML =
-        sec('ORCHESTRATOR', 'takes your ask, asks what it needs, plans the steps — writes no project code', orch)
-      + sec('NEO', 'designs and edits agents from a plain description. Smith is the voice you talk to; Neo is the one that writes agents', smith)
-      + sec('BRINGS IN NEW APPS', 'reads an unfamiliar repo and writes the manifest that lets the Hub front it — the orchestrator can call it, or you can run it directly', other);
-  } else {
-    const f = fams.find(x => x.key === FAM);
-    $('list').innerHTML = f ? sec(f.label.toUpperCase(), f.hint, f.members, true) : '';
-  }
+  const linked=(location.hash||'').slice(1);if(Object.prototype.hasOwnProperty.call(PROFILES,linked)){AG_WORK=linked;AG_SCOPE='missions';}
+  AG_CARD=card;AG_FAMS=fams;agRender();
   bindSkills();
   loadSkills();
 }
@@ -867,7 +837,7 @@ function skillsByTopic(list){
   const tabs = `<div class="pick skl-pick">` + names.map(n =>
     `<button data-skt="${esc(n)}" class="${n===SKTOPIC?'on':''}">${esc(n)}<span class="n">${by[n].length}</span></button>`
   ).join('') + `</div>`;
-  return tabs + (by[SKTOPIC]||[]).map(skillCard).join('');
+  return tabs + (AG_SKILL_QUERY ? (list||[]).filter(s=>agSkillMatches(s,AG_SKILL_QUERY)) : (by[SKTOPIC]||[])).map(skillCard).join('');
 }
 
 function skillCard(s){
@@ -880,7 +850,7 @@ function skillCard(s){
   return `<details class="skl"><summary><span class="nm">${esc(s.name)}</span>`
     + `<span class="tag">${esc(origin)}</span>`
     + `<span class="sm">${esc((s.description||'').split('. ')[0]).slice(0,110)}</span></summary>`
-    + `<div class="body">${esc(s.description||'')}</div>`
+    + agSkillUsers(s) + `<div class="body">${esc(s.description||'')}</div>`
     + (kw ? `<div class="meta">${esc(kw)}</div>` : '')
     + (removable ? `<div class="row"><button class="btn" onclick="removeSkill('${esc(s.name)}')">REMOVE</button></div>` : '')
     + `</details>`;
@@ -891,7 +861,7 @@ function catalogueCard(e){
   return `<details class="skl add"><summary><span class="nm">${esc(e.name)}</span>`
     + `<span class="tag">available</span>`
     + `<span class="sm">${esc(e.title||'')} \u2014 ${esc(e.summary||'')}</span></summary>`
-    + `<div class="body">${esc(e.description||'')}</div>`
+    + `<div class="body">${esc(e.description||e.summary||e.title||'')}</div>`
     + `<div class="meta">${esc(e.publisher||'')} · ${esc(e.licence||'')} · pinned at ${esc(e.ref||'')}`
     + (e.size_mb ? ` · about ${esc(e.size_mb)} MB${e.size_note?' ('+esc(e.size_note)+')':''}` : '')
     + (needs ? ` · needs ${esc(needs)}` : '') + `</div>`
@@ -905,7 +875,7 @@ function bindSkills(){
   const b = $('btn-skills'); if(b) b.onclick = () => openSkills(true);
   const c = $('skl-close');  if(c) c.onclick = () => openSkills(false);
   const s = $('skl-scrim');  if(s) s.onclick = () => openSkills(false);
-  document.addEventListener('keydown', e => { if(e.key === 'Escape') openSkills(false); });
+  if(!bindSkills.bound){document.addEventListener('keydown', e => { if(e.key === 'Escape') openSkills(false); });bindSkills.bound=true;}
 }
 
 async function loadSkills(){
@@ -929,15 +899,15 @@ async function loadSkills(){
     + (SKDRAFT ? skillDraftBox() : `<div class="addbar"><button class="btn go" onclick="newSkill()">NEW SKILL</button>
          <span class="lp">Describe it, a model drafts it, you save it.</span></div>`)
     + (add.length ? add.map(catalogueCard).join('') : '')
-    + `<div class="secthead">SKILL LIBRARY<span>${SKILLS.library.length}</span></div>`
+    + `<div class="secthead">SKILL LIBRARY<span>${SKILLS.library.length}${AG_SKILL_QUERY?' · search across all topics':''}</span></div>`
     + skillsByTopic(SKILLS.library);
   document.querySelectorAll('[data-skt]').forEach(b => b.onclick = () => {
     SKTOPIC = b.dataset.skt; loadSkills(); });
+  agFilterSkills();
 }
 
 function openSkills(open){
-  $('skl-modal').classList.toggle('open', open);
-  $('skl-scrim').classList.toggle('open', open);
+  agSetTab(open?'skills':'agents');
 }
 
 // Writing a skill is one step: describe it, a model drafts the file, you read it
@@ -1071,22 +1041,32 @@ $('c-save').onclick = async () => {
 // A linked or bookmarked #family must move the page; changing only the hash
 // never reloads, so without this a cold link works and a warm one does nothing.
 window.addEventListener('hashchange', () => {
-  const want = (location.hash||'').replace('#','');
-  if(want && want !== FAM){ FAM = want; load(); }
+  const want=(location.hash||'').slice(1);FAM=want;
+  if(want==='map'){AG_OVERVIEW=true;AG_TAB='agents';}
+  else if(want==='skills'||want==='agents')AG_TAB=want;
+  else if(want==='helpers'){AG_SCOPE='helpers';AG_WORK='';AG_TAB='agents';}
+  else if(Object.prototype.hasOwnProperty.call(PROFILES,want)){AG_WORK=want;AG_SCOPE='missions';AG_TAB='agents';}
+  if(DATA)agRender();
 });
 
-load();
+__AGENCY_MENU_JS__
+load().catch(e=>{$('list').textContent='Could not load Agency: '+e.message;});
 </script>
 </body></html>
 """
 
 _HTML = (_HTML
+    .replace('__AGENCY_MENU_JS__', _PhonePath(__file__).with_name('static').joinpath('agency-menu.js').read_text(encoding='utf-8'))
     .replace("__NEO_ICON_BIG__", '<img class="smith-lg" src="/static/agent-icons/neo.png" alt="">')
     .replace("__NEO_ICON__", '<img class="smith" src="/static/agent-icons/neo.png" alt="" style="object-fit:contain">')
     .replace("__SMITH_ICON__", '<img class="smith" src="/static/agent-icons/smith.png" alt="" style="object-fit:contain">')
     .replace("__SMITH_A_B64__", _SMITH_B64)
     .replace("__SMITH_ICON_BIG__", '<img class="smith-lg" src="/static/agent-icons/smith.png" alt="">')
 )
+
+
+_HTML = _HTML.replace('</head>', '<style>' + _PhonePath(__file__).with_name('static').joinpath('phone-ui.css').read_text(encoding='utf-8') + '</style></head>', 1)
+_HTML = _HTML.replace('</head>', '<style>' + _PhonePath(__file__).with_name('static').joinpath('agency-menu.css').read_text(encoding='utf-8') + '</style></head>', 1)
 
 
 @routes.get("/agents")

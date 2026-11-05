@@ -40,7 +40,7 @@ html.hub-board-on #setup-card .sc-title{font-size:9px;white-space:normal;flex:1;
 .hb.hb-3d .hk-solid{display:none!important}.hb.hb-back .hk:not(.dim){opacity:1}.hb.hb-3d .hk-b,.hb.hb-3d .hk-i,.hb.hb-3d .hk-fr{backface-visibility:visible!important;-webkit-backface-visibility:visible!important}
 .hb .hk-h button[hidden]{display:none!important}
 html.hub-board-on .hands-status{top:auto!important;bottom:118px;left:12px;max-width:calc(100vw - 150px)}html.hub-board-on .hands-legend{bottom:160px;max-width:min(460px,calc(100vw - 150px))}
-@media(max-width:720px){html.hub-board-on body>header{left:8px;transform:none;right:64px;max-width:none;padding:5px 7px;gap:5px}html.hub-board-on header .brand{font-size:10px;letter-spacing:1px}html.hub-board-on header .conn-label{display:none}html.hub-board-on header .restart-btn,html.hub-board-on header .shutdown-btn{width:30px;height:30px;border-radius:9px}html.hub-board-on header .orb-home,html.hub-board-on header .orb-host{width:30px;height:30px}html.hub-board-on .power-btn{width:40px;height:40px}.hb .hb-bar{left:8px;right:8px;gap:4px}.hb .hb-bar>.hb-btn{font-size:8px;letter-spacing:.4px;padding:6px 8px;min-height:34px}.hb .hb-bar .hb-z{display:none}.hb .hb-tray,.hb-tray{max-width:calc(100vw - 112px);max-height:74px}.hb .hb-map{width:88px;height:56px;right:8px}.hb .hb-gizmo{right:8px;bottom:82px;width:88px}.hb .hb-gizmo svg{width:68px;height:68px}.hb .hb-gizmo .gz-tools button{min-height:32px;font-size:8px}}
+@media(max-width:720px){html.hub-board-on body>header{left:8px;transform:none;right:64px;max-width:none;padding:5px 7px;gap:5px}html.hub-board-on header .brand{font-size:10px;letter-spacing:1px}html.hub-board-on header .conn-label{display:none}html.hub-board-on header .restart-btn,html.hub-board-on header .shutdown-btn{width:30px;height:30px;border-radius:9px}html.hub-board-on header .orb-home,html.hub-board-on header .orb-host{width:30px;height:30px}html.hub-board-on .power-btn{width:40px;height:40px}.hb .hb-bar{left:8px;right:8px;gap:4px}.hb .hb-bar>.hb-btn{font-size:8px;letter-spacing:.4px;padding:6px 8px;min-height:34px}.hb .hb-bar .hb-z{display:none}.hb .hb-tray,.hb-tray{max-width:calc(100vw - 112px);max-height:74px}.hb .hb-map{width:88px;height:56px;right:8px}.hb .hb-gizmo{right:8px;bottom:calc(82px + var(--hb-log,0px));width:88px}.hb .hb-gizmo svg{width:68px;height:68px}.hb .hb-gizmo .gz-tools button{min-height:32px;font-size:8px}}
 html.hub-board-on .power-wrap{width:44px;height:44px;display:block}html.hub-board-on .power-wrap .power-menu{position:absolute;top:54px;right:0;bottom:auto;transform-origin:top right}html.hub-board-on .power-btn{position:absolute;top:0;right:0}
 
 /* Applet symbols follow the header's spun-blue metal theme; title-bar controls keep their original styling. */
@@ -209,3 +209,163 @@ img.hub-doctor{width:26px!important;height:26px!important;object-fit:contain;fle
 .hb .hb-bar .hb-pc.on::after{background:#00e676;box-shadow:0 0 6px #00e676}
 .hb .hb-bar .hb-pc:disabled{opacity:.42}
 :root{--hb-log:24px}
+
+/* iPhone/touch chrome: keep the log and board controls out of drag gestures. */
+@media(pointer:coarse){
+ html{--hb-log:44px!important}
+ .hb button:not(.hb-world *),.hb [role=button]:not(.hb-world *),.hands-log button{touch-action:manipulation;min-height:44px;min-width:44px}
+ .hb-right-panel .hb-viewbar>.hb-btn,.hb-ingest-dock>.hb-btn,.hb .hb-zoomrow .hb-btn,.hb .hb-right-panel .hb-gizmo .gz-tools button{min-height:44px;height:44px}
+ .hb .hb-right-panel .hb-gizmo .gz-tools button{flex-basis:44px;width:44px}
+ .hb-right-panel{bottom:calc(max(12px,env(safe-area-inset-bottom)) + 180px);gap:6px}
+ .hb-batch-controls .hb-btn{min-height:44px;font-size:8px}.hb-batch-controls{bottom:calc(max(12px,env(safe-area-inset-bottom)) + 46px)}
+ .hb-panel-hide,.hb-panel-show{min-height:44px;min-width:44px;display:flex;align-items:center;justify-content:center;box-sizing:border-box}
+ .hb-panel-hide[hidden],.hb-panel-show[hidden]{display:none}
+ .hb-tray-count{min-height:44px}.hl-head{min-height:44px!important}
+ .hl-top button{min-height:44px!important;min-width:44px}.hl-body{bottom:calc(62px + env(safe-area-inset-bottom))!important;max-height:calc(var(--hub-visible-height,100dvh) - var(--hub-chrome-bottom,120px) - 86px)!important;touch-action:pan-y;overscroll-behavior:contain}
+ .hb-tray-list,.hb-jump,.hb-layer-menu,.hb-more-menu,.hb-session-detail,.hb-glass-frame,#voice{touch-action:pan-y;overscroll-behavior:contain}
+ .hb-tray-list button,.hb-jump button,.hb-layer-menu button,.hb-ctx button{min-height:44px}
+ .hb .hb-bar>.hb-btn{width:44px;height:44px;min-height:44px}
+ .hb-bar,.hb-right-panel,.hb-batch-controls,.hb-tray,.hb-panel-hide,.hb-panel-show{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+ .hb-glass-head>.hb-btn{min-width:44px;min-height:44px}
+ .hb-btn:active{background:rgba(0,230,118,.14)}
+}
+@media(pointer:coarse) and (max-width:720px){
+ html.hub-board-on body>header{display:flex;flex-wrap:wrap;max-width:none;left:max(8px,env(safe-area-inset-left));right:calc(max(8px,env(safe-area-inset-right)) + 52px);gap:4px;padding:4px 6px}
+ html.hub-board-on header .header-controls{flex-basis:100%;justify-content:space-evenly;gap:4px}
+ html.hub-board-on header .restart-btn,html.hub-board-on header .shutdown-btn,html.hub-board-on header .orb-home{width:44px;height:44px;min-width:44px;min-height:44px}
+ html.hub-board-on header .brand{font-size:11px;letter-spacing:1px}
+ .hb .hb-bar{left:max(8px,env(safe-area-inset-left));right:auto;top:calc(var(--hb-top,116px) + 4px)}
+ .hb-right-panel,.hb-map{right:max(8px,env(safe-area-inset-right))!important}
+ .hb-right-panel{width:88px;max-width:calc(100vw - 24px)}
+ .hb .hb-right-panel .hb-gizmo .gz-tools{flex-wrap:wrap}
+ .hl-body{left:max(12px,env(safe-area-inset-left))!important;right:max(12px,env(safe-area-inset-right))!important}
+}
+
+@media(pointer:coarse) and (min-width:500px) and (max-height:500px){
+ html.hub-board-on body>header{flex-wrap:nowrap}
+ html.hub-board-on header .header-controls{flex-basis:auto}
+ .hb-right-panel{bottom:calc(var(--hb-log,44px) + env(safe-area-inset-bottom) + 12px)}
+ .hb-panel-hide,.hb-panel-show{bottom:auto;top:calc(var(--hub-chrome-bottom,112px) + 8px);right:108px}
+ .hb .hb-map{right:220px!important}
+}
+
+@media(pointer:coarse){.hb-restart-needed{max-width:calc(100vw - 128px);white-space:normal;letter-spacing:.5px}}
+
+@media(pointer:coarse){
+ .hb .hb-tray{max-width:100px;flex-wrap:nowrap}
+ .hb .hb-tray-count{padding:5px 4px;font-size:9px;letter-spacing:0;min-width:44px}
+}
+@media(pointer:coarse) and (min-width:500px) and (max-height:500px){
+ .hb-right-panel{width:88px}
+ .hb .hb-map{width:88px}
+ .hb-batch-controls{right:104px;width:100px}
+}
+
+@media(pointer:coarse){
+ .hb-tray{padding:0!important;gap:4px;max-width:100px;flex-wrap:nowrap}
+ .hb-tray-count{padding:5px 4px;font-size:9px;letter-spacing:0;min-width:44px}
+}
+
+@media(pointer:coarse){
+ .hb-glass-panel{top:calc(var(--hub-visible-top,0px) + var(--hub-visible-height,100dvh) * .5);height:min(700px,calc(var(--hub-visible-height,100dvh) - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));max-height:calc(var(--hub-visible-height,100dvh) - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}
+ html.hub-board-on .hb-session-detail{top:calc(var(--hub-visible-top,0px) + var(--hub-visible-height,100dvh) * .5);max-height:calc(var(--hub-visible-height,100dvh) - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}
+}
+
+/* Round 10: persistent controls occupy measured lanes, never the board surface. */
+:root{--hub-action-top:max(8px,env(safe-area-inset-top));--hb-primary:40px}
+html:not(.hub-log-visible){--hb-log:0px!important}
+html.hub-log-visible{--hb-log:24px!important}
+html:not(.hub-log-visible) .hands-log{display:none!important}
+.hb .hb-bar{display:grid!important;grid-template-columns:var(--hb-primary) var(--hb-primary);grid-template-rows:var(--hb-primary) var(--hb-primary);gap:6px;left:max(12px,env(safe-area-inset-left));right:auto;top:var(--hub-action-top)!important;width:max-content;align-items:center;justify-content:start}
+.hb .hb-bar>.talk-btn{grid-column:1;grid-row:1}.hb .hb-bar>.hb-pc{grid-column:2;grid-row:1}.hb .hb-bar>.hb-learning{grid-column:1;grid-row:2}
+.hb .hb-bar>[hidden]{display:none!important}
+.hb .hb-bar>.hb-btn{width:var(--hb-primary);height:var(--hb-primary);min-height:var(--hb-primary);min-width:var(--hb-primary)}
+.hb .hb-bar .hb-pc{position:relative}.hb .hb-bar .hb-pc:after{content:'';position:absolute;right:4px;top:4px;width:4px;height:4px;border-radius:50%;background:#5f6b79;box-shadow:none}.hb .hb-bar .hb-pc.on:after{background:#00e676;box-shadow:0 0 4px #00e67666}
+.hb .hb-top-tools{position:absolute;top:var(--hub-action-top)!important;right:calc(max(12px,env(safe-area-inset-right)) + 56px);display:flex;flex-direction:row;align-items:center;gap:6px;width:auto;z-index:9}
+.hb .hb-top-tools>.hb-btn{width:auto!important;min-height:var(--hb-primary);height:var(--hb-primary);padding:7px 10px!important;font-size:8px}
+.hb .hb-top-tools>.hb-hands{width:var(--hb-primary)!important;min-width:var(--hb-primary);padding:0!important;justify-content:center}
+html.hub-board-on .power-wrap{top:var(--hub-action-top)!important}
+.hb .hb-right-panel{top:calc(var(--hub-action-top) + var(--hb-primary) + 8px);right:max(12px,env(safe-area-inset-right))!important;width:112px;bottom:calc(max(12px,env(safe-area-inset-bottom)) + var(--hb-log,0px) + 120px);gap:6px}
+.hb-right-panel .hb-viewbar{gap:6px}.hb-right-panel .hb-viewbar>.hb-btn{min-height:30px;font-size:8px}
+.hb .hb-batch-controls{left:calc(50% - 18px);right:auto;bottom:calc(max(12px,env(safe-area-inset-bottom)) + var(--hb-log,0px));transform:translateX(-50%);width:auto;display:flex;flex-direction:row;gap:6px}
+.hb .hb-batch-controls>.hb-btn{width:32px;min-width:32px;min-height:32px;height:32px;padding:6px;font-size:0}
+.hb-batch-controls svg{width:18px!important;height:18px!important}
+.hb .hb-map{right:max(12px,env(safe-area-inset-right))!important;width:136px}
+.hb .hk-h{height:32px;min-height:32px}.hb .hk-h button{width:28px;height:28px;min-width:28px;min-height:28px;padding:0}
+.hb button,.hb a.hb-btn,.hb [role=button]{min-height:28px;min-width:28px}
+.hb .hb-log-toggle[aria-pressed=true]{border-color:#41ebff;color:#41ebff;background:#41ebff12}
+html.hub-log-visible .hands-log{animation:hbIn .18s ease both}
+@media(prefers-reduced-motion:reduce){html.hub-log-visible .hands-log{animation:none}}
+@media(pointer:coarse){
+ :root{--hb-primary:44px}html.hub-log-visible{--hb-log:44px!important}
+ .hb .hb-bar>.hb-btn,.hb .hb-top-tools>.hb-btn,.hb .hb-right-panel button,.hb .hb-batch-controls>.hb-btn,.hb .hk-h button,.hb [role=button]{min-height:44px;min-width:44px}
+ .hb .hb-batch-controls{left:calc(50% + 8px);gap:4px}.hb .hb-batch-controls>.hb-btn{width:44px;height:44px}
+ .hb .hk-h{height:44px;min-height:44px}.hb .hk-h button{width:44px;height:44px}
+ .hb .hb-right-panel .hb-gizmo .gz-tools{flex-wrap:wrap}
+ .hb .hb-panel-hide,.hb .hb-panel-show{top:auto;right:max(12px,env(safe-area-inset-right));bottom:calc(max(12px,env(safe-area-inset-bottom)) + var(--hb-log,0px) + 84px)}
+}
+@media(max-width:1000px){
+ :root{--hub-action-top:calc(var(--hub-header-bottom,64px) + 8px)}
+ html.hub-board-on body>header{left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));max-width:none;transform:none}
+ .hb .hb-top-tools{right:calc(max(8px,env(safe-area-inset-right)) + 52px);gap:4px}
+ .hb .hb-top-tools>.hb-btn{padding:6px!important;font-size:7px;letter-spacing:.4px}
+ .hb .hb-right-panel{width:88px;right:max(8px,env(safe-area-inset-right))!important}
+ .hb .hb-map{width:88px;right:max(8px,env(safe-area-inset-right))!important}
+ .hb .hb-top-tools>.hb-hands{padding:0!important}
+ .hb .hb-top-tools>.hb-btn:not(.hb-hands){max-width:92px;white-space:normal}
+}
+
+.hb .hb-bar>.hb-btn>svg,.hb .hb-top-tools>.hb-hands>svg{width:22px!important;height:22px!important}
+
+/* A 44 px HIDE target needs its own gap above the map, not the panel's last row. */
+@media(pointer:coarse){.hb .hb-right-panel{bottom:calc(max(12px,env(safe-area-inset-bottom)) + var(--hb-log,0px) + 136px)}}
+
+/* Context-specific log tools; the collectors still retain every category. */
+.hands-log:not([data-context="hands"]) .hl-tools [data-log-kind="hands"],
+.hands-log:not([data-context="chat"]) .hl-tools [data-log-kind="chat"],
+.hands-log:not([data-context="hands"]) .hl-legend{display:none!important}
+.hands-log[data-context="hands"] .hl-legend{opacity:1!important}
+#v-history{display:none!important}
+.hb-layer-add,.hb-layer-remove{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.hb-layer-remove[hidden]{display:none}
+.hb-layer-add input,.hb-layer-menu select{min-width:0;background:#080c28;color:#bdeeff;border:1px solid #41ebff55;border-radius:6px;padding:6px;font:12px Outfit,sans-serif}
+.hb-layer-add input{flex:1;width:120px}.hb-layer-menu small{display:block;color:#9bbbc9;line-height:1.5;margin-bottom:8px}
+.hb-layer-section{border-top:1px solid #41ebff25;padding:6px 0}.hb-layer-row b{flex:1;min-width:0;overflow-wrap:anywhere}
+.hb-layer-row .hb-btn{flex:none;width:30px;padding:5px}.hb-layer-row svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6}
+.hb-layer-block{display:flex;align-items:center;gap:8px}.hb-layer-block span{flex:1;min-width:0}.hb-layer-block select{max-width:55%}
+@media(pointer:coarse){.hb-layer-menu button,.hb-layer-menu select,.hb-layer-menu input{min-height:44px}.hb-layer-row .hb-btn{width:44px}}
+
+/* View tools grow upwards from the minimap, not downwards from power. */
+.hb .hb-right-panel{top:auto!important;height:auto;max-height:max(64px,calc(100dvh - var(--hub-action-top) - var(--hb-primary) - 156px));gap:10px}
+.hb .hb-right-scroll{flex:0 1 auto;min-height:0;overflow:auto;padding:2px 0}
+.hb .hb-right-panel .hb-viewbar{gap:8px}
+.hb-context-panel{height:auto!important;max-height:calc(var(--hub-visible-height,100dvh) - 32px)!important;overflow:auto}
+.hb-context-note{font:14px/1.55 Outfit,system-ui,sans-serif;color:#a8c8cf;margin:0 0 12px}
+.hb-hand-actions{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.hb-gesture-guide{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.hb-gesture-guide[hidden]{display:none!important}
+.hb-gesture-guide article{padding:12px;border:1px solid #41ebff33;border-radius:9px;background:#0d105066}
+.hb-gesture-guide h3{margin:0 0 6px;font:700 10px/1.5 Orbitron,sans-serif;color:#41ebff}
+.hb-gesture-guide p{margin:0;font:14px/1.55 Outfit,sans-serif;color:#d6f5e6}
+.hands-log .hl-legend{display:none!important}
+#voice .hb-chat-tabs{display:flex;gap:8px;flex:none;margin:8px 0}
+#voice .hb-chat-tabs [aria-selected=true]{border-color:#41ebff;color:#41ebff;background:#41ebff12}
+#voice #v-log.hb-chat-current-hidden{display:none!important}
+#voice .hb-chat-history{min-height:80px;max-height:36vh;overflow:auto;flex:1 1 auto}
+#voice .hb-chat-history[hidden]{display:none!important}
+.hb-chat-history-row{border-bottom:1px solid #41ebff22;padding:10px 0}
+.hb-chat-history-row time{font:11px Outfit,sans-serif;color:#91aebd}
+.hb-chat-history-row p{font:14px/1.5 Outfit,sans-serif;white-space:pre-wrap;overflow-wrap:anywhere;margin:4px 0}
+@media(pointer:coarse){.hb-hand-actions button,#voice .hb-chat-tabs button{min-height:44px;min-width:44px}}
+
+/* Short landscape keeps the scrollable tools above the map and HIDE beside it. */
+@media(max-height:420px) and (max-width:1000px){
+ .hb .hb-right-panel{bottom:calc(max(12px,env(safe-area-inset-bottom)) + var(--hb-log,0px) + 64px);max-height:max(0px,calc(100dvh - var(--hub-action-top) - var(--hb-primary) - 96px))}
+ .hb .hb-panel-hide,.hb .hb-panel-show{top:auto;bottom:calc(max(12px,env(safe-area-inset-bottom)) + var(--hb-log,0px));right:calc(max(8px,env(safe-area-inset-right)) + 100px)}
+}
+
+.hb-context-panel,html.hub-board-on #voice{z-index:12000}
+@media(max-height:420px) and (max-width:1000px){.hb .hb-map{height:56px}}
+
+/* 320 px wide: the footer icons start clear of the tray (found by test_footer_buttons_have_own_lane) */
+@media(max-width:360px){html .hb .hb-batch-controls{left:calc(50% - 2px)}}

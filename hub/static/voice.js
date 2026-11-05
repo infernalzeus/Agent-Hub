@@ -434,11 +434,18 @@
     // TALK: a plain click turns listening on or off without putting a window up; Alt-click, the wheel button or a right click opens or closes the chat window.
     const talkTarget = (e) => (e.target && e.target.closest ? e.target.closest('[data-talk]') : null);
     const chatToggle = () => { unlockAudio(); $('voice').hidden ? open(false) : close(); };
-    document.addEventListener('click', (e) => { if (!talkTarget(e)) return; e.preventDefault(); e.stopPropagation(); if (e.altKey) chatToggle(); else { unlockAudio(); toggle(); hubLog('hub', S.on ? 'Listening on' : 'Listening off'); bubble(S.on ? 'Listening. Speak now. Click TALK again to stop; Alt-click opens the chat.' : 'Stopped listening.', S.on ? 4500 : 2200); } }, true);
+    // Touch has no Alt/middle click: hold TALK to type, without starting capture.
+    let talkHold=0,talkPress=null,heldTalk=null,skipTalkUntil=0;
+    const clearTalkHold=()=>{clearTimeout(talkHold);talkHold=0;talkPress=null;};
+    document.addEventListener('pointerdown',e=>{const b=talkTarget(e);if(e.pointerType!=='touch'||!b)return;clearTalkHold();talkPress={x:e.clientX,y:e.clientY};talkHold=setTimeout(()=>{heldTalk=b;skipTalkUntil=Date.now()+1200;chatToggle();},550);},true);
+    document.addEventListener('pointermove',e=>{if(talkPress&&Math.hypot(e.clientX-talkPress.x,e.clientY-talkPress.y)>8)clearTalkHold();},true);
+    ['pointerup','pointercancel'].forEach(t=>document.addEventListener(t,clearTalkHold,true));
+    addEventListener('pagehide',clearTalkHold);
+    document.addEventListener('click', (e) => { if (!talkTarget(e)) return;if(talkTarget(e)===heldTalk&&Date.now()<skipTalkUntil){e.preventDefault();e.stopImmediatePropagation();return;} e.preventDefault(); e.stopPropagation(); if (e.altKey) chatToggle(); else { unlockAudio(); toggle(); hubLog('hub', S.on ? 'Listening on' : 'Listening off'); bubble(S.on ? 'Listening. Speak now. Click TALK again to stop; Alt-click opens the chat.' : 'Stopped listening.', S.on ? 4500 : 2200); } }, true);
     document.addEventListener('auxclick', (e) => { if (!talkTarget(e) || e.button !== 1) return; e.preventDefault(); e.stopPropagation(); chatToggle(); }, true);
     document.addEventListener('mousedown', (e) => { if (talkTarget(e) && e.button === 1) e.preventDefault(); }, true);
-    document.addEventListener('contextmenu', (e) => { if (!talkTarget(e)) return; e.preventDefault(); e.stopPropagation(); chatToggle(); }, true);
-    talkBtns().forEach((b) => { b.title = 'Talk to the Hub\nAlt-click to open chat'; });
+    document.addEventListener('contextmenu', (e) => { if (!talkTarget(e)) return; e.preventDefault(); e.stopPropagation(); if(talkTarget(e)===heldTalk&&Date.now()<skipTalkUntil)return;chatToggle(); }, true);
+    talkBtns().forEach((b) => { b.title = 'Talk to the Hub\nAlt-click or touch and hold to open chat'; });
     $('v-close').onclick = close; $('v-mic').onclick = toggle;
     $('v-size').onclick = () => { S.compact = !S.compact; layout(); };
     $('v-history').onclick = () => { S.expanded = !S.expanded; layout(); };

@@ -4,6 +4,8 @@ Reads / writes through features/locations_api.py. Folder choice uses a server-si
 """
 from __future__ import annotations
 
+from pathlib import Path as _PhonePath
+
 from aiohttp import web
 
 routes = web.RouteTableDef()
@@ -846,6 +848,9 @@ window.addEventListener('hashchange', () => {
 
 load().catch(e => { $('main').innerHTML = '<div class="err">Could not load locations: '+esc(e.message)+'</div>'; });
 </script></body></html>"""
+
+
+_HTML = _HTML.replace('</head>', '<style>' + _PhonePath(__file__).with_name('static').joinpath('phone-ui.css').read_text(encoding='utf-8') + '</style></head>', 1)
 
 
 @routes.get("/setup")
