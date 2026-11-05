@@ -1,0 +1,4 @@
+# Production assets for the website stage, under the repository's asset allowlist.
+!assets/site.css
+!assets/site.js
+!assets/depth-lift-site.js
