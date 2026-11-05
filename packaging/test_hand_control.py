@@ -10,7 +10,7 @@ MARKS=json.loads((Path(__file__).with_name('hand-landmarks.json')).read_text())[
 
 def more(page):
  # HAND SETUP and SAVE TRACE live in the tool row of the LOG tab since 4 Nov (the chevron beside HANDS did nothing and is gone)
- if page.locator('.hands-log.open').count()==0:page.locator('.hands-log .hl-head').click();page.wait_for_timeout(250)
+ if page.locator('.hands-log.open').count()==0:page.locator('.hb-log-toggle').click();page.wait_for_timeout(250)
 
 
 @pytest.fixture

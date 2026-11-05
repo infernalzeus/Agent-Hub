@@ -519,6 +519,7 @@ _MARK_URL = "/static/agent-hub-mark.js?v=" + _MARK_VERSION
 _OFFLINE_HTML = (_OFFLINE_HTML.replace("__MARK_VERSION__", _MARK_VERSION).replace("__DL_ARRIVE__", _DL_ARRIVE)
                  .replace("__WAKE_JS__", _WAKE_JS).replace("__DEPTH_LIFT__", _DEPTH_LIFT_JS))
 _OFFLINE_HTML = _OFFLINE_HTML.replace('</head>', '<style>' + _PHONE_CSS + '</style></head>', 1)
+_OFFLINE_HTML = _OFFLINE_HTML.replace('</head>', '<style>.hands-log,.hb-tray,.hb-batch-controls,.hb-right-panel,.hb-map,.hb-log-toggle,.hb-panel-show,.hb-panel-hide,.hb-gizmo,.hb-bar,.hb-viewbar{display:none!important}</style></head>', 1)
 _OFFLINE_CACHE = "agent-hub-offline-" + _hashlib.sha1((_OFFLINE_HTML + _MARK_JS).encode("utf-8")).hexdigest()[:10]
 
 _SW_JS = """\

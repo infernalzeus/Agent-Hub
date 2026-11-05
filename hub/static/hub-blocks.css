@@ -82,7 +82,7 @@ html.hub-board-on #setup-card{border:1px solid transparent;background:rgba(100,6
 button.hb-session{width:100%;text-align:left;background:transparent;border:0;border-top:1px solid rgba(255,255,255,.05);font-family:inherit;line-height:inherit}
 
 /* Geometry is a sibling of the interactive flat pane: no preserve-3d ancestor can cull its content. */
-.hk-volume{position:absolute;pointer-events:none;display:none}.hk-volume[hidden]{display:none!important}.hb.hb-3d.hb-slab .hk-volume{display:block!important;translate:0 0 var(--hb-dz,0px);transform-style:preserve-3d}.hb.hb-3d.hb-glass .hk-volume{display:none!important}
+.hk-volume{position:absolute;pointer-events:none;display:none}.hk-volume[hidden]{display:none!important}.hb.hb-3d.hb-slab .hk-volume{display:block!important;translate:0 var(--hb-dy,0px) var(--hb-dz,0px);transform-style:preserve-3d}.hb.hb-3d.hb-glass .hk-volume{display:none!important}
 .hb-3d .hk-volume[data-id=att]{--hb-dz:150px}.hb-3d .hk-volume[data-id=runs],.hb-3d .hk-volume[data-id=ses]{--hb-dz:65px}.hb-3d .hk-volume[data-id=hlt],.hb-3d .hk-volume[data-id=use]{--hb-dz:-100px}.hb-3d .hk-volume.tile{--hb-dz:20px}.hb-3d .hk-volume.exp{--hb-dz:170px}
 .hb .hk.is-hover:not(.exp)>.hk-b{transform:none!important}.hb-3d .hk.is-hover{background-image:none!important}
 /* The slab belongs to its block: a hidden or closed block takes its volume with it (the display rule above would otherwise override the hidden attribute) */
@@ -369,3 +369,54 @@ html.hub-log-visible .hands-log{animation:hbIn .18s ease both}
 
 /* 320 px wide: the footer icons start clear of the tray (found by test_footer_buttons_have_own_lane) */
 @media(max-width:360px){html .hb .hb-batch-controls{left:calc(50% - 2px)}}
+
+/* Round 11: the LOG button lives under the minimap and opens a pop-over (no strip along the bottom), empty panel areas let taps through,
+   controls fade when idle and are sized for a thumb without being huge, layers exist in 2D, and the layer list drags and folds. */
+html:root:root{--hb-logbtn:34px;--hb-log:var(--hb-logbtn)!important}
+@media(pointer:coarse){html:root:root{--hb-logbtn:48px;--hb-log:var(--hb-logbtn)!important}}
+.hands-log{left:auto!important;right:max(12px,env(safe-area-inset-right))!important;width:136px!important;height:0!important;overflow:visible}
+.hands-log .hl-head{display:none!important}
+.hb .hb-log-toggle{position:absolute;right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));width:136px;min-height:28px;height:28px;z-index:9;display:flex;align-items:center;justify-content:center;font-size:8px}
+@media(pointer:coarse){.hb .hb-log-toggle{height:44px;min-height:44px}}
+.hb .hb-map{bottom:calc(max(12px,env(safe-area-inset-bottom)) + var(--hb-logbtn))!important}
+.hb .hb-tray{bottom:max(12px,env(safe-area-inset-bottom))!important}
+@media(pointer:fine){.hb .hb-batch-controls{bottom:max(12px,env(safe-area-inset-bottom))!important}}
+/* empty parts of the right-hand panel must not catch taps meant for the board */
+.hb .hb-right-panel,.hb .hb-right-scroll,.hb .hb-viewbar,.hb .hb-ingest-dock{pointer-events:none!important}
+.hb .hb-right-panel button,.hb .hb-right-panel .hb-btn,.hb .hb-right-panel .hb-gizmo,.hb .hb-right-panel .hb-gizmo *,.hb .hb-right-panel select,.hb .hb-right-panel input,.hb .hb-ingest-dock button,.hb .hb-ingest-dock .hb-btn,.hb .hb-viewbar button,.hb .hb-viewbar .hb-btn{pointer-events:auto}
+/* a thumb-sized, not enormous, set of buttons on a phone */
+@media(pointer:coarse){
+ .hb .hb-right-panel{width:76px!important;gap:4px}
+ .hb-right-panel .hb-viewbar>.hb-btn,.hb-ingest-dock>.hb-btn{min-height:44px!important;height:44px!important;font-size:8px!important;letter-spacing:.5px;padding:4px 2px!important}
+ .hb .hb-right-panel .hb-zoomrow .hb-btn{min-height:44px;height:44px}
+ .hb .hb-right-panel .hb-gizmo .gz-tools button{flex-basis:44px;width:44px;min-height:44px;height:44px}
+}
+/* fade when idle */
+.hb .hb-right-panel,.hb .hb-map,.hb .hb-log-toggle,.hb .hb-panel-show,.hb .hb-panel-hide,.hb .hb-batch-controls,.hb .hb-tray{transition:opacity .6s ease}
+.hb.hb-idle .hb-right-panel,.hb.hb-idle .hb-map,.hb.hb-idle .hb-log-toggle,.hb.hb-idle .hb-panel-show,.hb.hb-idle .hb-panel-hide,.hb.hb-idle .hb-batch-controls,.hb.hb-idle .hb-tray{opacity:.22}
+.hb.hb-idle .hb-right-panel:hover,.hb.hb-idle .hb-map:hover,.hb.hb-idle .hb-log-toggle:hover,.hb.hb-idle .hb-batch-controls:hover,.hb.hb-idle .hb-tray:hover,.hb.hb-idle :focus-visible{opacity:1}
+@media(prefers-reduced-motion:reduce){.hb .hb-right-panel,.hb .hb-map,.hb .hb-log-toggle,.hb .hb-batch-controls,.hb .hb-tray{transition:none}}
+/* the session detail's CLOSE stays one word on one line */
+.hb-session-head{flex-wrap:nowrap}.hb-session-head h2{flex:1 1 0;min-width:0}.hb-session-head .hub-doctor{flex:none}
+.hb-session-head .hb-btn{flex:none;white-space:nowrap;writing-mode:horizontal-tb;min-width:max-content;width:auto;padding:6px 12px;height:auto}
+.hb-session-note{margin:12px 0 0;padding:10px 12px;border:1px solid #41ebff44;border-radius:8px;background:#41ebff10;color:#bfeaf4;font-size:13px;line-height:1.5}
+/* a chat is something to read, not to answer: muted and tagged */
+.hb-li.hb-chat{opacity:.82}.hb-tag{display:inline-block;font:700 8px Orbitron,monospace;font-style:normal;letter-spacing:.8px;color:#41ebff;border:1px solid #41ebff55;border-radius:4px;padding:2px 5px;margin:0 6px 0 0;vertical-align:1px;white-space:nowrap}
+/* layers are in 2D too */
+.hb:not(.hb-3d) .hb-right-panel [data-layers]{display:inline-flex!important;align-items:center;justify-content:center}
+.hb:not(.hb-3d) .hb-layer-menu:not([hidden]){display:block}
+.hb-layer-menu{max-height:min(70vh,560px)}
+.hb-layer-axis{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:0 0 8px}.hb-layer-axis span{flex:1 1 100%;font:700 8px Orbitron,monospace;letter-spacing:1px;color:#9bbbc9}
+.hb-layer-axis .hb-btn{flex:1;font-size:8px;padding:6px 4px}.hb-layer-axis .hb-btn[aria-pressed=true]{border-color:#41ebff;color:#41ebff;background:#41ebff14}
+.hb-layer-row .hb-layer-grip,.hb-layer-block .hb-layer-grip{flex:none;width:26px;min-width:26px;height:26px;min-height:26px;padding:3px;cursor:grab;touch-action:none}
+.hb-layer-grip svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round}
+.hb-layer-row .hb-layer-fold{flex:none;width:26px;min-width:26px;height:26px;min-height:26px;padding:3px}
+.hb-layer-section.folded{padding-bottom:2px}
+.hb-layer-section.dragging,.hb-layer-block.dragging{opacity:.45}
+.hb-layer-section.drop-before{box-shadow:0 -2px 0 #41ebff}.hb-layer-section.drop-after{box-shadow:0 2px 0 #41ebff}
+.hb-layer-section.drop-into{background:#41ebff14;box-shadow:inset 0 0 0 1px #41ebff88}
+@media(pointer:coarse){.hb-layer-row .hb-layer-grip,.hb-layer-block .hb-layer-grip,.hb-layer-row .hb-layer-fold{width:40px;min-width:40px;height:40px;min-height:40px}}
+@media(max-width:720px){.hb .hb-log-toggle{width:88px;right:max(8px,env(safe-area-inset-right))}}
+/* a short screen cannot spare a row for the LOG button: it sits beside the minimap instead */
+@media(max-height:700px){html:root:root{--hb-logbtn:0px;--hb-log:0px!important}.hb .hb-log-toggle{width:72px;right:calc(max(12px,env(safe-area-inset-right)) + 144px)}}
+@media(max-height:700px) and (max-width:720px){.hb .hb-log-toggle{right:calc(max(8px,env(safe-area-inset-right)) + 96px)}}

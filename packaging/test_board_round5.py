@@ -35,7 +35,7 @@ def test_tidy_keeps_sizes_visibility_and_minimised_state(page):
 def test_hand_tools_live_in_the_log_without_starting_capture(page):
  assert page.get_by_role('button',name='MORE',exact=True).count()==0
  assert page.get_by_role('button',name='Hand control options',exact=True).count()==0       # the chevron that did nothing is gone
- page.locator('.hands-log .hl-head').click();page.wait_for_timeout(250)
+ page.locator('.hb-log-toggle').click();page.wait_for_timeout(250)
  assert page.get_by_role('button',name='HAND SETUP',exact=True).is_visible()
  page.get_by_role('button',name='GESTURE LEGEND',exact=True).click();page.wait_for_timeout(300)
  assert page.locator('.hl-legend').is_hidden()                                              # the legend button shows or hides the legend in the log

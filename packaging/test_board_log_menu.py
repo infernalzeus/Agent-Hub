@@ -15,13 +15,13 @@ def install_mcp(p):
 
 def test_mcp_on_off_is_logged_only_after_confirmed_result(page):
  p,_=page;install_mcp(p)
- press(p,'.hb-pc');press(p,'.hb-pc');press(p,'.hb-log-toggle');press(p,'.hl-head');press(p,'.hl-filters [data-kind=all]')
+ press(p,'.hb-pc');press(p,'.hb-pc');press(p,'.hb-log-toggle');press(p,'.hl-filters [data-kind=all]')
  text=p.locator('.hl-rows').inner_text();assert 'MCP / PC control ON' in text and 'MCP / PC control OFF' in text
  assert p.evaluate('captureRequests')==0
 
 
 def test_chat_filter_does_not_open_chat_and_chat_has_real_history(page):
- p,_=page;press(p,'.hb-log-toggle');press(p,'.hl-head');press(p,'.hl-filters [data-kind=chat]')
+ p,_=page;press(p,'.hb-log-toggle');press(p,'.hl-filters [data-kind=chat]')
  assert not p.locator('#voice').is_visible()
  p.evaluate("dispatchEvent(new CustomEvent('hub-log',{detail:{kind:'chat',text:'You: Earlier example'}}))")
  p.locator('.hb-bar .talk-btn').click(button='right');p.wait_for_timeout(250)
@@ -54,7 +54,7 @@ def test_view_panel_is_bottom_anchored_above_minimap(page):
 
 def test_mcp_failure_is_logged_as_failure_not_success(page):
  p,_=page;install_mcp(p);p.route('**/api/mcp/windows/enabled',lambda r:r.fulfill(status=500,body='Test refusal'))
- press(p,'.hb-pc');press(p,'.hb-log-toggle');press(p,'.hl-head')
+ press(p,'.hb-pc');press(p,'.hb-log-toggle')
  text=p.locator('.hl-rows').inner_text();assert 'could not change: Test refusal' in text and 'MCP / PC control ON' not in text
 
 

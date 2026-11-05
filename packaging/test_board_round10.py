@@ -39,11 +39,11 @@ def test_controls_have_separate_lanes_and_batch_never_covers_blocks(page,size,mo
 
 
 def test_log_is_off_by_default_collects_lines_and_remembers_device_choice(page):
- p,_=page;assert not p.locator('.hl-head').is_visible();assert p.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--hb-log').trim()")=='0px'
+ p,_=page;assert not p.locator('.hl-body').is_visible();assert not p.locator('.hl-head').is_visible()
  p.evaluate("dispatchEvent(new CustomEvent('hub-log',{detail:{kind:'hub',text:'Background test line'}}))")
- press(p,'.hb-log-toggle');assert p.locator('.hl-head').is_visible();press(p,'.hl-head');assert 'Background test line' in p.locator('.hl-rows').inner_text()
- p.reload();p.wait_for_selector('.hb-log-toggle');p.wait_for_timeout(350);assert p.locator('.hl-head').is_visible()
- press(p,'.hb-log-toggle');p.reload();p.wait_for_selector('.hb-log-toggle');assert not p.locator('.hl-head').is_visible()
+ press(p,'.hb-log-toggle');assert p.locator('.hl-body').is_visible();assert 'Background test line' in p.locator('.hl-rows').inner_text()
+ p.reload();p.wait_for_selector('.hb-log-toggle');p.wait_for_timeout(350);assert not p.locator('.hl-body').is_visible()   # the log is a pop-over, not a layer that stays
+ press(p,'.hb-log-toggle');assert p.locator('.hl-body').is_visible();press(p,'.hb-log-toggle');assert not p.locator('.hl-body').is_visible()
  assert p.evaluate('captureRequests')==0
 
 

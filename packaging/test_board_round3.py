@@ -32,7 +32,7 @@ def test_native_session_click_opens_detail_in_all_modes(page,mode,hands):
  page.evaluate("m=>__hubBoard.active.view().setMode(m)",mode);page.wait_for_timeout(600)
  if hands:page.evaluate('__hubHands.testEnable()')
  press(page,'.hb-session');assert page.locator('.hb-session-detail').is_visible()
- assert page.locator('.hb-session-detail').get_by_text('agent-log',exact=True).count()==1
+ assert page.locator('.hb-session-detail').get_by_text('chat',exact=True).count()==1
  assert 'Finished the example check.' in page.locator('.hb-session-detail').inner_text()
  assert page.evaluate("(__hubStreams||[]).flatMap(s=>s.getTracks()).length")==0
 
@@ -52,8 +52,8 @@ def test_missing_session_fields_are_omitted(page):
 
 def test_native_dismiss_and_more_clicks(page):
  page.locator('#setup-card').evaluate('e=>e.hidden=false');press(page,'.sc-dismiss');assert page.locator('#setup-card').is_hidden()
- press(page,'.hands-log .hl-head');assert page.locator('.hands-log.open').count()==1       # the hand tools live in the LOG now
- press(page,'.hands-log .hl-head');assert page.locator('.hands-log.open').count()==0
+ press(page,'.hb-log-toggle');assert page.locator('.hands-log.open').count()==1       # the hand tools live in the LOG now
+ press(page,'.hb-log-toggle');assert page.locator('.hands-log.open').count()==0
 
 
 def test_stale_code_chip_delegates_to_existing_restart(page):

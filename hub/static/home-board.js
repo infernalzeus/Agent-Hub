@@ -186,8 +186,8 @@
     // then the most recently used); every other block that is in the way goes to the nearest free spot, so a shove never ping-pongs.
     var GAP = 14;
     function validLayers(ls){return !!(ls&&Array.isArray(ls.order)&&ls.order.length&&ls.order.length<=32&&ls.order.every(function(k,i,a){return typeof k==='string'&&/^[a-z0-9-]{1,64}$/.test(k)&&a.indexOf(k)===i;}));}
-    function normalLayers(ls){return {order:ls.order.slice(),hidden:ls.hidden||{},members:ls.members||{},labels:ls.labels||{}};}
-    var layerState={order:['system','tools','apps'],hidden:{},members:{},labels:{}};
+    function normalLayers(ls){return {order:ls.order.slice(),hidden:ls.hidden||{},members:ls.members||{},labels:ls.labels||{},collapsed:ls.collapsed||{},axis:(ls.axis==='height'||ls.axis==='both')?ls.axis:'depth'};}
+    var layerState={order:['system','tools','apps'],hidden:{},members:{},labels:{},collapsed:{},axis:'depth'};
     try{var ls=JSON.parse(localStorage.getItem('agenthub:board:layers'));if(validLayers(ls))layerState=normalLayers(ls);}catch(e){}
     function layerName(k){return layerState.labels[k]||k.toUpperCase();}
     function layerOf(id){var base=id.split('#')[0],k=layerState.members[base]||(P[base]?'system':base.indexOf('act:')===0?'apps':base.indexOf('app:')===0&&!['app:movie-clipper','app:file-browser'].includes(base)?'apps':'tools');return layerState.order.indexOf(k)>=0?k:layerState.order[0];}
@@ -263,11 +263,10 @@
       defs.forEach(function (d) { blocks[d[0]]._shown = true; });
     }
 
-    function applyBlock(id) { var e = blocks[id], l = L[id]; if (!e.classList.contains('pick')) { e.style.left = l.x + 'px'; e.style.top = l.y + 'px'; } e.style.width = l.w + 'px'; e.style.height = l.min ? (32 + PEEK) + 'px' : l.h + 'px'; e.classList.toggle('min', !!l.min); e.style.zIndex = l.z || 1; e.hidden = isHidden(id);if(e._solid){var v=e._solid;v.hidden=e.hidden;v.style.left=l.x+'px';v.style.top=l.y+'px';v.style.width=l.w+'px';v.style.height=e.style.height;v.style.zIndex=e.style.zIndex;v.classList.toggle('exp',!!l.exp);} if (nav) nav.refresh(); }
+    function applyBlock(id) { var e = blocks[id], l = L[id]; if (!e.classList.contains('pick')) { e.style.left = l.x + 'px'; e.style.top = l.y + 'px'; } e.style.width = l.w + 'px'; e.style.height = l.min ? (32 + PEEK) + 'px' : l.h + 'px'; e.classList.toggle('min', !!l.min); e.style.zIndex = (layerState.order.indexOf(layerOf(id))+1)*100000+Math.min(99999,l.z||1); e.hidden = isHidden(id);if(e._solid){var v=e._solid;v.hidden=e.hidden;v.style.left=l.x+'px';v.style.top=l.y+'px';v.style.width=l.w+'px';v.style.height=e.style.height;v.style.zIndex=e.style.zIndex;v.classList.toggle('exp',!!l.exp);} if (nav) nav.refresh(); }
     function mk(id, d) {
       var e = el('div', 'hk hub-block' + ((d.app || d.card || d.extra || d.act) ? ' tile' : '')); e.dataset.id = id; e.tabIndex = 0; e.setAttribute('role', 'group');
       var h = el('div', 'hk-h'), glyph = el('span', 'hk-glyph'); glyph.appendChild(svg(id === 'runs' ? 'M5 4l14 8-14 8V4Z' : 'M5 5h14v14H5zM8 12h8')); glyph.firstChild.style.width = glyph.firstChild.style.height = ''; h.appendChild(glyph); if (PANEL_ICON[id]) { var pi = svg(PANEL_ICON[id], 1.8); pi.classList.add('hk-pi'); pi.style.width = pi.style.height = '15px'; h.appendChild(pi); }
-      if(id.split('#')[0]==='extra:support'){var doctor=doctorPicture();h.appendChild(doctor);}
       h.appendChild(el('span', 't', d.app ? (d.app.name || d.app.id) : d.card ? d.card[1] : d.extra ? d.extra[1] : d.act ? (d.act.name || 'Action') : d.t)); h.appendChild(el('span', 'n'));
       [['stop', 'Stop this app'], ['col', 'Close this view'], ['dup', 'Open another window of this tool'], ['out', 'Open in its own tab'], ['min', 'Minimise'], ['foc', 'Focus'], ['x', 'Hide in tray; click its chip to restore']].forEach(function (b) { var bt = el('button'); bt.type = 'button'; bt.dataset.a = b[0]; bt.setAttribute('aria-label', b[1]); bt.title = b[1]; bt.appendChild(svg(ICON[b[0]]));if(b[0]==='stop'){bt.hidden=true;bt.appendChild(el('span','','STOP'));}h.appendChild(bt); });
       var body = el('div', 'hk-b'), inn = el('div', 'hk-i'); body.appendChild(inn); var solid=el('div','hk-solid');solid.setAttribute('aria-hidden','true');['back','left','right','top','bottom'].forEach(function(side){solid.appendChild(el('i',side));});solid.classList.add('hk-volume');solid.dataset.id=id;if(d.app||d.card||d.extra||d.act)solid.classList.add('tile');e._solid=solid;e.append(h,body,el('div','hk-rz')); e._in = inn; e._n = h.querySelector('.n'); e._app = d.app || null; e._open = null; e._name = d.app ? (d.app.name || d.app.id) : d.card ? d.card[1] : d.t;
@@ -343,7 +342,7 @@
     stackDepth = function () {
       var groups={};Object.keys(blocks).forEach(function(id){var key=layerOf(id);(groups[key]=groups[key]||[]).push(id);});
       Object.keys(groups).forEach(function(key){var bases={};groups[key].forEach(function(id){var base=id.split('#')[0];if(L[id].exp&&!isHidden(id))(bases[base]=bases[base]||[]).push(id);});
-        groups[key].forEach(function(id){var siblings=bases[id.split('#')[0]]||[];siblings.sort(function(a,b){return (L[a].z||0)-(L[b].z||0);});var step=siblings.length>1?(siblings.indexOf(id)-siblings.length+1)*90:0;var z=layerState.order.indexOf(key)*Math.min(140,280/Math.max(1,layerState.order.length-1))+step;[blocks[id],blocks[id]._solid].forEach(function(e){if(e)e.style.setProperty('--hb-dz',z+'px');});});
+        groups[key].forEach(function(id){var siblings=bases[id.split('#')[0]]||[];siblings.sort(function(a,b){return (L[a].z||0)-(L[b].z||0);});var step=siblings.length>1?(siblings.indexOf(id)-siblings.length+1)*90:0;var n=layerState.order.length,idx=layerState.order.indexOf(key),axis=layerState.axis||'depth',z=(axis==='height'?0:idx*Math.min(140,280/Math.max(1,n-1)))+step,dy=axis==='depth'?0:-(idx-(n-1)/2)*Math.min(130,320/Math.max(1,n-1));[blocks[id],blocks[id]._solid].forEach(function(e){if(e){e.style.setProperty('--hb-dz',z+'px');e.style.setProperty('--hb-dy',dy+'px');}});});
       });
     };
     function duplicate(srcId) {
@@ -414,7 +413,7 @@
       var dlg=el('section','hb-session-detail');dlg.setAttribute('role','dialog');dlg.setAttribute('aria-modal','true');dlg.setAttribute('aria-label','Session details');
       var head=el('div','hb-session-head'),title=el('h2','',m.brief||'Session'),close=el('button','hb-btn','CLOSE');close.type='button';close.onclick=function(){dlg.remove();};head.append(title,close);dlg.appendChild(head);
       if(/^Doctor[: ]/.test(m.brief)){var doctor=doctorPicture();head.prepend(doctor);}
-      var meta=el('div','hb-session-meta');if(m.status)meta.appendChild(el('span','hb-status-chip',m.status.replace(/_/g,' ')));if(m.kind)meta.appendChild(el('span','hb-session-kind',m.kind));dlg.appendChild(meta);
+      var meta=el('div','hb-session-meta');var chatNote=(m.kind==='agent-log')?el('p','hb-session-note','This is a '+(m.agent==='codex'?'Codex':'Claude Code')+' chat. The Hub can read it but cannot answer it: open it in '+(m.agent==='codex'?'Codex':'Claude Code')+' to reply. Only missions can be answered here.'):null;if(m.status)meta.appendChild(el('span','hb-status-chip',m.status.replace(/_/g,' ')));if(m.kind)meta.appendChild(el('span','hb-session-kind',m.kind==='agent-log'?'chat':m.kind));dlg.appendChild(meta);if(chatNote)dlg.appendChild(chatNote);
       if(m.last){dlg.append(el('h3','','LAST MESSAGE'),el('p','hb-session-last',m.last));}
       if(m.cwd){dlg.append(el('h3','','FOLDER'),el('p','hb-session-folder',m.cwd));var folder=el('button','hb-btn','OPEN FOLDER');folder.type='button';folder.onclick=function(){folder.disabled=true;fetch('/api/sessions/open-folder',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:m.id})}).then(function(r){if(!r.ok)throw Error('Could not open folder');folder.textContent='FOLDER OPENED';}).catch(function(e){folder.textContent=e.message;}).finally(function(){folder.disabled=false;});};dlg.appendChild(folder);}
       if(/^Doctor[: ]/.test(m.brief)){var support=el('button','hb-btn','OPEN SUPPORT');support.type='button';support.onclick=function(){dlg.remove();window.__hubBoard.open('/support?session='+encodeURIComponent(m.id));var block=blocks['extra:support'],selected=block.querySelector('.hb-session-context');if(selected)selected.remove();selected=el('aside','hb-session-context');selected.textContent=(m.brief||'Doctor session')+' · '+m.id+' · '+(m.status||'');block._in.prepend(selected);};dlg.appendChild(support);}
@@ -428,9 +427,9 @@
     function paint() {
       if(heldPointers.size){paintPending=true;return;}
       if (!data) { ['att', 'runs', 'ses', 'hlt', 'use'].forEach(function (id) { if (!blocks[id]._in.firstChild) { blocks[id].dataset.loading = '1'; blocks[id]._in.appendChild(motion.skeleton('Loading ' + blocks[id]._name)); } }); return; }
-      var a = blocks.att, nA = data.attention.length; a._in.replaceChildren(); a._n.textContent = nA ? String(nA) : '';
+      var a = blocks.att, nA = data.attention.filter(function (x) { return x.kind !== 'session'; }).length; a._in.replaceChildren(); a._n.textContent = nA ? String(nA) : '';
       if (!nA) a._in.appendChild(el('div', 'hb-note', 'Nothing needs you right now.')); data.attention.forEach(function (x) {
-        var r = li(x.level === 'red' ? 'r' : 'a', x.title, x.options ? '' : x.detail);
+        var chat = x.kind === 'session', r = li(chat ? 'o' : (x.level === 'red' ? 'r' : 'a'), x.title, x.options ? '' : x.detail); if (chat) { r.classList.add('hb-chat'); r.insertBefore(el('em', 'hb-tag', 'CHAT · REPLY IN ITS OWN APP'), r.children[1]); }
         if (x.options) { var bar = el('div'); bar.style.cssText = 'display:flex;gap:6px;padding:2px 10px 8px'; x.options.forEach(function (o) { var b = el('button', 'hb-btn', String(o.name || o.id).toUpperCase()); b.type = 'button'; b.onclick = function () { fetch('/api/acp/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: x.id, option: o.id }) }).then(function () { if (window.__hubHomePanels) window.__hubHomePanels.refresh(); }); }; bar.appendChild(b); }); a._in.appendChild(r); a._in.appendChild(bar); }
         else a._in.appendChild(r);
         if (x.doctor) {
@@ -444,7 +443,7 @@
       a.classList.toggle('amber', nA > 0); a.classList.toggle('red', data.attention.some(function (x) { return x.level === 'red'; }));
       var r = blocks.runs; r._n.textContent = String(data.runs.length); r._in.replaceChildren(); var st = el('div', 'hb-stat'); var runNumber = el('b'); st.appendChild(runNumber); motion.number(runNumber, r._count, data.runs.length); r._count = data.runs.length; st.appendChild(el('span', '', data.runs.length ? data.runs.map(function (m) { return m.brief; }).slice(0, 2).join(' · ') : 'missions running')); r._in.appendChild(st);
       var s = blocks.ses; s._in.replaceChildren(); var ss = data.sessions, any = false; s._n.textContent = String(ss.needs_you.length + ss.working.length + ss.idle.length);
-      [['needs_you', 'a'], ['working', ''], ['idle', 'o']].forEach(function (g) { if(ss[g[0]].length)s._in.appendChild(el('div','hb-session-group',g[0].replace('_',' ').toUpperCase()));ss[g[0]].forEach(function (m) { any = true; var row=li(g[1],m.brief,(m.ask||m.project||'')+' · '+g[0].replace('_',' '),'button');row.type='button';if(/^Doctor[: ]/.test(m.brief)){var doctor=doctorPicture();row.prepend(doctor);}row.classList.add('hb-session');row.tabIndex=0;row.setAttribute('role','button');row.title=/^Doctor[: ]/.test(m.brief)?'Open this Doctor session in Support':'Show session status and details';row.onclick=function(){sessionOpen(m);};row.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();row.click();}};s._in.appendChild(row); }); });
+      [['needs_you', 'a'], ['working', ''], ['idle', 'o']].forEach(function (g) { if(ss[g[0]].length)s._in.appendChild(el('div','hb-session-group',g[0].replace('_',' ').toUpperCase()));ss[g[0]].forEach(function (m) { any = true; var chatRow=m.kind==='agent-log',row=li(g[1],m.brief,(chatRow?'CHAT · ':'MISSION · ')+(m.ask||m.project||'')+' · '+g[0].replace('_',' '),'button');if(chatRow)row.classList.add('hb-chat');row.type='button';if(/^Doctor[: ]/.test(m.brief)){var doctor=doctorPicture();row.prepend(doctor);}row.classList.add('hb-session');row.tabIndex=0;row.setAttribute('role','button');row.title=/^Doctor[: ]/.test(m.brief)?'Open this Doctor session in Support':'Show session status and details';row.onclick=function(){sessionOpen(m);};row.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();row.click();}};s._in.appendChild(row); }); });
       if (!any) s._in.appendChild(el('div', 'hb-note', 'No agent session is waiting, working or recently finished.'));
       var u = blocks.use; u._in.replaceChildren(); var cu = data.usage && data.usage.claude;
       if (!cu) u._in.appendChild(el('div', 'hb-note', 'Counting Claude Code’s logs…'));
@@ -569,8 +568,8 @@
     world.addEventListener('pointerdown', function (e) {
       var b = e.target.closest('.hk'); if (!b || e.button) return;
       if(host.classList.contains('hb-3d')){var projected=document.elementFromPoint(e.clientX,e.clientY);if(projected&&b.contains(projected)&&projected.closest('button,a,[role=button]')){touched=true;stopCam();return;}} var id = b.dataset.id, l = L[id]; touched = true; stopCam();
-      var dragRect=host.getBoundingClientRect(), depth=Number.parseFloat(getComputedStyle(b).getPropertyValue('--hb-dz'))||0;
-      function point(ev){return view?view.toWorld(ev.clientX,ev.clientY,depth,dragRect):{x:(ev.clientX-dragRect.left-V.x)/V.k,y:(ev.clientY-dragRect.top-V.y)/V.k};}
+      var dragRect=host.getBoundingClientRect(), depth=Number.parseFloat(getComputedStyle(b).getPropertyValue('--hb-dz'))||0,lift=Number.parseFloat(getComputedStyle(b).getPropertyValue('--hb-dy'))||0;
+      function point(ev){if(view){var w=view.toWorld(ev.clientX,ev.clientY,depth,dragRect);return w&&typeof w.y==='number'?{x:w.x,y:w.y-lift}:w;}return {x:(ev.clientX-dragRect.left-V.x)/V.k,y:(ev.clientY-dragRect.top-V.y)/V.k};}
       var press=point(e);
       if (e.target.closest('.hk-rz')) {
         e.preventDefault(); var sw = l.w, sh = l.h, sx = e.clientX, sy = e.clientY;
@@ -752,13 +751,49 @@
     var logPending=[];function toLog(node){if(node===controls.handSetup||node===controls.saveTrace){node.remove();return;}var t=document.querySelector('.hands-log .hl-tools');if(t){if(node.parentNode!==t)t.appendChild(node);}else if(logPending.indexOf(node)<0)logPending.push(node);}function onLogReady(){var all=logPending.slice();[handMenuButton,controls.legend].forEach(function(n){if(n&&all.indexOf(n)<0)all.push(n);});all.forEach(toLog);logPending=[];}window.addEventListener('hub-log-ready',onLogReady);
     function placeControl(key,node){if(!node)return;var home=CONTROL_HOME[key];if(home==='hands')toLog(node);else if(home==='health'){if(node.parentNode!==blocks.hlt._in)blocks.hlt._in.appendChild(node);}else if(home==='ingest')ingestDock.appendChild(node);else if(home==='view')viewBar.appendChild(node);else bar.appendChild(node);}
     Object.keys(controls).forEach(function(k){placeControl(k,controls[k]);});if(view)viewBar.append(view.btn);viewBar.append(fitBtn,tidyBtn,blocksBtn);if(view)viewBar.append(view.gizmoBtn);viewBar.append(zoomRow);zoomRow.dataset.only3d='1';zh.dataset.only3d='1';hint.hidden=true;menu.appendChild(hint);more.hidden=true;
-    var layerButton=el('button','hb-btn','LAYERS'),layerMenu=el('div','hb-layer-menu');layerButton.type='button';layerButton.dataset.layers='1';layerButton.setAttribute('aria-expanded','false');layerMenu.hidden=true;layerMenu.setAttribute('aria-label','3D layers');host.appendChild(layerMenu);placeControl('layers',layerButton);
+    var layerButton=el('button','hb-btn','LAYERS'),layerMenu=el('div','hb-layer-menu');layerButton.type='button';layerButton.dataset.layers='1';layerButton.setAttribute('aria-expanded','false');layerMenu.hidden=true;layerMenu.setAttribute('aria-label','Layers');host.appendChild(layerMenu);placeControl('layers',layerButton);
     function commitLayers(){host.classList.add('hb-layer-moving');saveLayers();refreshLayers();setTimeout(function(){host.classList.remove('hb-layer-moving');},350);}
+    // The layer list: drag a layer by its grip to put it in front of or behind another, drag an app onto a layer to move it there,
+    // fold a layer so its apps are out of the way, and (in 3D) choose whether layers sit apart in depth, in height or both.
+    function dragThing(grip,source,kind,done){
+      grip.addEventListener('pointerdown',function(e){
+        if(e.button&&e.pointerType==='mouse')return;e.preventDefault();e.stopPropagation();
+        try{grip.setPointerCapture(e.pointerId);}catch(x){}
+        source.classList.add('dragging');var target=null,after=false;
+        function clear(){layerMenu.querySelectorAll('.drop-before,.drop-after,.drop-into').forEach(function(n){n.classList.remove('drop-before','drop-after','drop-into');});}
+        function over(ev){
+          clear();var hit=document.elementFromPoint(ev.clientX,ev.clientY),sec=hit&&hit.closest('.hb-layer-section');target=null;
+          if(!sec||!layerMenu.contains(sec))return;
+          if(kind==='layer'){if(sec===source)return;var r=sec.getBoundingClientRect();after=ev.clientY>r.top+r.height/2;sec.classList.add(after?'drop-after':'drop-before');target=sec;}
+          else{if(sec.dataset.layer===source.dataset.from)return;sec.classList.add('drop-into');target=sec;}
+        }
+        function move(ev){over(ev);var box=layerMenu.getBoundingClientRect();if(ev.clientY<box.top+28)layerMenu.scrollTop-=12;else if(ev.clientY>box.bottom-28)layerMenu.scrollTop+=12;}
+        function end(ev){
+          grip.removeEventListener('pointermove',move);grip.removeEventListener('pointerup',end);grip.removeEventListener('pointercancel',end);
+          try{grip.releasePointerCapture(e.pointerId);}catch(x){}
+          over(ev);source.classList.remove('dragging');var t=target;clear();if(t&&ev.type==='pointerup')done(t,after);
+        }
+        grip.addEventListener('pointermove',move);grip.addEventListener('pointerup',end);grip.addEventListener('pointercancel',end);
+      });
+    }
     function drawLayers(){
-      layerMenu.replaceChildren();
-      var add=el('form','hb-layer-add'),name=el('input'),create=el('button','hb-btn','ADD LAYER');name.placeholder='Layer name';name.maxLength=40;name.setAttribute('aria-label','New layer name');create.type='submit';create.disabled=layerState.order.length>=32;add.append(name,create);add.onsubmit=function(e){e.preventDefault();var label=name.value.trim();if(!label||layerState.order.length>=32)return;var key='layer-'+Date.now().toString(36);while(layerState.order.includes(key))key+='x';layerState.order.push(key);layerState.labels[key]=label;commitLayers();};layerMenu.append(add,el('small','','Front to back. Arrows change depth; TIDY packs these layers into bands.'));
+      var keep=layerMenu.scrollTop;layerMenu.replaceChildren();
+      var is3d=host.classList.contains('hb-3d');
+      var add=el('form','hb-layer-add'),name=el('input'),create=el('button','hb-btn','ADD LAYER');name.placeholder='Layer name';name.maxLength=40;name.setAttribute('aria-label','New layer name');create.type='submit';create.disabled=layerState.order.length>=32;add.append(name,create);add.onsubmit=function(e){e.preventDefault();var label=name.value.trim();if(!label||layerState.order.length>=32)return;var key='layer-'+Date.now().toString(36);while(layerState.order.includes(key))key+='x';layerState.order.push(key);layerState.labels[key]=label;commitLayers();};
+      layerMenu.append(add);
+      if(is3d){
+        var axisRow=el('div','hb-layer-axis');axisRow.appendChild(el('span','','LAYERS SIT APART IN'));
+        [['depth','DEPTH','Front to back'],['height','HEIGHT','Top to bottom'],['both','BOTH','Diagonal']].forEach(function(o){var b=el('button','hb-btn',o[1]);b.type='button';b.title=o[2];b.setAttribute('aria-pressed',String((layerState.axis||'depth')===o[0]));b.onclick=function(){layerState.axis=o[0];commitLayers();};axisRow.appendChild(b);});
+        layerMenu.appendChild(axisRow);
+      }
+      layerMenu.appendChild(el('small','','Top of the list is in front. Drag a layer by its grip to reorder it; drag an app onto a layer to move it. TIDY packs each layer into its own band.'));
       layerState.order.slice().reverse().forEach(function(key){
-        var section=el('section','hb-layer-section'),row=el('div','hb-layer-row'),count=Object.keys(blocks).filter(function(id){return layerOf(id)===key;}).length;section.dataset.layer=key;row.appendChild(el('b','',layerName(key)+' · '+count));
+        var section=el('section','hb-layer-section'),row=el('div','hb-layer-row'),ids=Object.keys(blocks).filter(function(id){return layerOf(id)===key;}),folded=!!(layerState.collapsed&&layerState.collapsed[key]);
+        section.dataset.layer=key;section.classList.toggle('folded',folded);
+        var grip=el('button','hb-btn hb-layer-grip');grip.type='button';grip.title='Drag to move this layer in front of or behind another';grip.setAttribute('aria-label','Drag layer '+layerName(key));grip.appendChild(svg('M5 8h14M5 12h14M5 16h14'));
+        var fold=el('button','hb-btn hb-layer-fold');fold.type='button';fold.title=folded?'Show the apps in this layer':'Fold this layer';fold.setAttribute('aria-expanded',String(!folded));fold.setAttribute('aria-label',(folded?'Show apps in ':'Fold ')+layerName(key));fold.appendChild(svg(folded?'M9 6l6 6-6 6':'M6 9l6 6 6-6'));
+        fold.onclick=function(){layerState.collapsed=layerState.collapsed||{};layerState.collapsed[key]=!folded;saveLayers();drawLayers();};
+        row.append(grip,fold,el('b','',layerName(key)+' · '+ids.length));
         function action(label,path,fn,disabled){var btn=el('button','hb-btn');btn.type='button';btn.title=label;btn.setAttribute('aria-label',label+' '+layerName(key));btn.appendChild(svg(path));btn.disabled=!!disabled;btn.onclick=fn;row.appendChild(btn);return btn;}
         action('Show/hide layer','M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM9 12a3 3 0 1 0 6 0 3 3 0 1 0-6 0',function(){layerState.hidden[key]=!layerState.hidden[key];commitLayers();}).setAttribute('aria-pressed',String(!layerState.hidden[key]));
         function shift(by){var i=layerState.order.indexOf(key),j=i+by;if(j<0||j>=layerState.order.length)return;layerState.order.splice(i,1);layerState.order.splice(j,0,key);commitLayers();}
@@ -766,9 +801,20 @@
         action('Move backward','M6 10l6 6 6-6',function(){shift(-1);},layerState.order.indexOf(key)===0);
         var removal=el('div','hb-layer-remove');removal.hidden=true;
         action('Remove layer','M6 6l12 12M18 6L6 18',function(){removal.hidden=!removal.hidden;},layerState.order.length===1);
-        var target=el('select');target.setAttribute('aria-label','Move removed layer blocks to');layerState.order.filter(function(k){return k!==key;}).forEach(function(k){var o=el('option','',layerName(k));o.value=k;target.appendChild(o);});var confirm=el('button','hb-btn','MOVE BLOCKS AND REMOVE');confirm.type='button';confirm.onclick=function(){var dest=target.value;if(!dest)return;Object.keys(blocks).forEach(function(id){if(layerOf(id)===key){if(layerState.hidden[key])hid[id]=1;layerState.members[id.split('#')[0]]=dest;}});Object.keys(layerState.members).forEach(function(id){if(layerState.members[id]===key)layerState.members[id]=dest;});layerState.order.splice(layerState.order.indexOf(key),1);delete layerState.labels[key];delete layerState.hidden[key];commitLayers();save();};removal.append(target,confirm);section.append(row,removal);
-        var seen={};Object.keys(blocks).filter(function(id){return layerOf(id)===key;}).forEach(function(id){var base=id.split('#')[0];if(seen[base])return;seen[base]=1;var line=el('label','hb-layer-block'),title=(blocks[id]&&blocks[id]._name)||base,pick=el('select');line.appendChild(el('span','',title));pick.setAttribute('aria-label','Layer for '+title);pick.dataset.layerBlock=base;layerState.order.slice().reverse().forEach(function(k){var o=el('option','',layerName(k));o.value=k;pick.appendChild(o);});pick.value=key;pick.onchange=function(){changeLayer(base,pick.value);};line.appendChild(pick);section.appendChild(line);});layerMenu.appendChild(section);
+        var target=el('select');target.setAttribute('aria-label','Move removed layer blocks to');layerState.order.filter(function(k){return k!==key;}).forEach(function(k){var o=el('option','',layerName(k));o.value=k;target.appendChild(o);});var confirm=el('button','hb-btn','MOVE BLOCKS AND REMOVE');confirm.type='button';confirm.onclick=function(){var dest=target.value;if(!dest)return;Object.keys(blocks).forEach(function(id){if(layerOf(id)===key){if(layerState.hidden[key])hid[id]=1;layerState.members[id.split('#')[0]]=dest;}});Object.keys(layerState.members).forEach(function(id){if(layerState.members[id]===key)layerState.members[id]=dest;});layerState.order.splice(layerState.order.indexOf(key),1);delete layerState.labels[key];delete layerState.hidden[key];if(layerState.collapsed)delete layerState.collapsed[key];commitLayers();save();};removal.append(target,confirm);section.append(row,removal);
+        dragThing(grip,section,'layer',function(t,after){
+          var shown=layerState.order.slice().reverse(),from=shown.indexOf(key);shown.splice(from,1);var to=shown.indexOf(t.dataset.layer)+(after?1:0);shown.splice(to,0,key);layerState.order=shown.reverse();commitLayers();
+        });
+        if(!folded){
+          var seen={};ids.forEach(function(id){var base=id.split('#')[0];if(seen[base])return;seen[base]=1;var line=el('div','hb-layer-block'),title=(blocks[id]&&blocks[id]._name)||base,pick=el('select');
+            var g=el('button','hb-btn hb-layer-grip');g.type='button';g.title='Drag onto another layer to move '+title+' there';g.setAttribute('aria-label','Drag '+title+' to another layer');g.appendChild(svg('M5 8h14M5 12h14M5 16h14'));
+            line.dataset.from=key;line.append(g,el('span','',title));
+            pick.setAttribute('aria-label','Layer for '+title);pick.dataset.layerBlock=base;layerState.order.slice().reverse().forEach(function(k){var o=el('option','',layerName(k));o.value=k;pick.appendChild(o);});pick.value=key;pick.onchange=function(){changeLayer(base,pick.value);};line.appendChild(pick);
+            dragThing(g,line,'app',function(t){changeLayer(base,t.dataset.layer);});section.appendChild(line);});
+        }
+        layerMenu.appendChild(section);
       });
+      layerMenu.scrollTop=keep;
     }
     layerButton.onclick=function(){layerMenu.hidden=!layerMenu.hidden;layerButton.setAttribute('aria-expanded',String(!layerMenu.hidden));if(!layerMenu.hidden)drawLayers();};
     function outsideMore(e){Object.keys(trayLists).forEach(function(k){if(!trayLists[k].hidden&&!trayLists[k].contains(e.target)&&!trayButtons[k].contains(e.target))trayLists[k].hidden=true;});if(!menu.hidden&&!menu.contains(e.target)&&!more.contains(e.target))closeMore();if(!layerMenu.hidden&&!layerMenu.contains(e.target)&&e.target!==layerButton)layerMenu.hidden=true;var jump=host.querySelector('.hb-jump');if(jump&&!jump.hidden&&!jump.contains(e.target)&&!menu.contains(e.target)&&!e.target.closest('.hb-viewbar')&&nav)nav.toggle();}
@@ -785,9 +831,12 @@
     var gizmo=host.querySelector('.hb-gizmo');if(gizmo)rightScroll.appendChild(gizmo);
     // LOG is a per-device presentation choice; recording its lines remains active.
     var logToggle=el('button','hb-btn hb-log-toggle','LOG');logToggle.type='button';logToggle.title='Show or hide the chat, hands and Hub log';
-    function showLog(on){document.documentElement.classList.toggle('hub-log-visible',on);logToggle.setAttribute('aria-pressed',String(on));try{localStorage.setItem('agenthub:log:visible',on?'1':'0');}catch(e){}requestAnimationFrame(function(){if(alive){stageRect();if(!touched)fit(false);}});}
+    function showLog(on){document.documentElement.classList.toggle('hub-log-visible',on);if(on)window.dispatchEvent(new CustomEvent('hub-log-open'));else{var lg=document.querySelector('.hands-log');if(lg)lg.classList.remove('open');}logToggle.setAttribute('aria-pressed',String(on));try{localStorage.setItem('agenthub:log:visible',on?'1':'0');}catch(e){}requestAnimationFrame(function(){if(alive){stageRect();if(!touched)fit(false);}});}
     logToggle.onclick=function(){showLog(!document.documentElement.classList.contains('hub-log-visible'));};
-    var logWasOn=false;try{logWasOn=localStorage.getItem('agenthub:log:visible')==='1';}catch(e){}showLog(logWasOn);
+    showLog(false);
+    // The controls fade when nothing is touched for a few seconds, and come back at the first touch, move or key.
+    var idleTimer=0;function wakeControls(){if(!alive)return;host.classList.remove('hb-idle');clearTimeout(idleTimer);idleTimer=setTimeout(function(){if(alive&&!document.querySelector('.hb-layer-menu:not([hidden]),.hb-tray-list:not([hidden]),.hb-more-menu:not([hidden]),.hb-session-detail,.hb-glass-panel'))host.classList.add('hb-idle');},4500);}
+    ['pointermove','pointerdown','keydown','wheel','touchstart'].forEach(function(t){host.addEventListener(t,wakeControls,{passive:true});});wakeControls();
     // Primary clicks retain their original actions. Context clicks expose tools, never capture.
     var handsToggle=hands&&hands.button.onclick,handAction=el('button','hb-btn','START HANDS');handAction.type='button';handAction.dataset.logKind='hands';
     handAction.onclick=function(e){if(handsToggle)return handsToggle.call(hands.button,e);};
@@ -821,7 +870,7 @@
     installChatHistory();
     var fullChatLog=document.getElementById('v-log');if(fullChatLog){chatWatch=new MutationObserver(function(changes){changes.forEach(function(c){c.addedNodes.forEach(function(n){if(n.nodeType!==1||!n.matches('.v-msg.you,.v-msg.hub'))return;var text=(n.classList.contains('you')?'You: ':'Smith: ')+Array.from(n.childNodes).filter(function(x){return x.nodeType===3;}).map(function(x){return x.textContent;}).join(''),short=text.replace(/\s+/g,' ').trim().slice(0,400),row=chatArchive.rows[chatArchive.rows.length-1];if(row&&row.t===short){row.t=text;saveChatArchive();}});});});chatWatch.observe(fullChatLog,{childList:true});}
 
-    viewBar.appendChild(logToggle);if(view)viewBar.append(view.btn,view.gizmoBtn);viewBar.append(zoomRow,fitBtn,tidyBtn,blocksBtn,layerButton,logToggle);
+    if(view)viewBar.append(view.btn,view.gizmoBtn);viewBar.append(zoomRow,fitBtn,tidyBtn,blocksBtn,layerButton);host.appendChild(logToggle);
     if(hands)ingestDock.appendChild(hands.button);ingestDock.appendChild(ingestBtn);
     var hidePanel=el('span','hb-panel-hide','HIDE'),showPanel=el('span','hb-panel-show','SHOW');[hidePanel,showPanel].forEach(function(e){e.setAttribute('role','button');e.tabIndex=0;e.onkeydown=function(k){if(k.key==='Enter'||k.key===' '){k.preventDefault();e.click();}};});hidePanel.setAttribute('aria-label','Hide view controls');showPanel.setAttribute('aria-label','Show view controls');host.appendChild(hidePanel);host.appendChild(showPanel);showPanel.hidden=true;
     function toggleRight(hide){rightPanel.hidden=hide;showPanel.hidden=!hide;hidePanel.hidden=hide;try{localStorage.setItem('agenthub:board:right-hidden',hide?'1':'0');}catch(e){}setTimeout(function(){if(alive){stageRect();if(!touched)fit(false);}},190);}

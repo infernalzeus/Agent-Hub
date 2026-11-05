@@ -111,7 +111,7 @@ def test_talk_click_listens_without_a_window_and_other_clicks_open_chat(page):
 
 def test_log_collects_chat_hands_and_hub_lines_and_has_the_hand_tools(page):
  page.evaluate("()=>{window.dispatchEvent(new CustomEvent('hub-log',{detail:{kind:'chat',text:'You: open missions'}}));window.dispatchEvent(new CustomEvent('hub-log',{detail:{kind:'hub',text:'Hub restarted'}}));window.dispatchEvent(new CustomEvent('hub-log',{detail:{kind:'hands',text:'RIGHT PRESS',err:false}}))}")
- press(page,'.hands-log .hl-head');assert page.locator('.hands-log').evaluate("e=>e.classList.contains('open')")
+ press(page,'.hb-log-toggle');assert page.locator('.hands-log').evaluate("e=>e.classList.contains('open')")
  txt=page.locator('.hands-log .hl-rows').inner_text();assert 'open missions' in txt and 'Hub restarted' in txt and 'RIGHT PRESS' in txt
  press(page,'.hands-log .hl-filters [data-kind="chat"]');txt=page.locator('.hands-log .hl-rows').inner_text();assert 'open missions' in txt and 'Hub restarted' not in txt
  assert page.locator('.hands-log .hl-tools >> text=OPEN CHAT').count()==1
