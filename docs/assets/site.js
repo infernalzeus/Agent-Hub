@@ -20,7 +20,7 @@
  function select(a,i){
   a.i=(i+a.btns.length)%a.btns.length;const b=a.btns[a.i];
   a.btns.forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false'));
-  a.kicker.textContent=b.dataset.k;a.h3.textContent=b.dataset.t;a.d.textContent=b.dataset.d;
+  a.detail.dataset.n=a.i+1;a.kicker.textContent=b.dataset.k;a.h3.textContent=b.dataset.t;a.d.textContent=b.dataset.d;
   a.el.classList.remove('playing');void a.el.offsetWidth;if(!a.pinned&&!reduced.matches&&a.live)a.el.classList.add('playing');
  }
  function play(a){clearTimeout(a.timer);if(!a.live||a.pinned||reduced.matches)return;a.el.style.setProperty('--step',STEP+'ms');a.el.classList.add('playing');a.timer=setTimeout(()=>{select(a,a.i+1);play(a);},STEP);}
@@ -114,7 +114,7 @@
  /* ---------- tilt: pointer on a computer, the phone's gravity sensor on a phone, a finger drag as the fallback ---------- */
  let targetX=0,targetY=0,x=0,y=0,raf=0,last=0,lastMove=0,drag=null;
  const tiltEl=()=>active.querySelector('[data-tilt]');
- const maxFor=(el,kind)=>el&&el.classList.contains('tilt-layer')?(kind==='phone'?13:7):(kind==='phone'?18:9);
+ const maxFor=(el,kind)=>el&&el.classList.contains('tilt-layer')?(kind==='phone'?9:4.5):(kind==='phone'?18:9);
  function animate(now){
   raf=0;if(document.hidden||reduced.matches||busy)return;const b=tiltEl();if(!b)return;
   const dt=last?Math.min(60,now-last):16;last=now;const ease=1-Math.exp(-dt/110);x+=(targetX-x)*ease;y+=(targetY-y)*ease;
@@ -124,17 +124,24 @@
  function move(a,b){if(busy||document.hidden||reduced.matches)return;targetX=a;targetY=b;lastMove=performance.now();if(!raf){last=0;raf=requestAnimationFrame(animate);}}
  function resetTilt(){cancelAnimationFrame(raf);raf=0;targetX=targetY=x=y=0;document.querySelectorAll('[data-tilt]').forEach(b=>{b.style.setProperty('--rx','0deg');b.style.setProperty('--ry','0deg');});}
  const clamp=(v,m)=>Math.max(-m,Math.min(m,v));
- document.querySelectorAll('[data-tilt]').forEach(b=>{
-  b.addEventListener('pointermove',e=>{
-   if(busy)return;const r=b.getBoundingClientRect(),m=maxFor(b,'mouse');
-   if(e.pointerType==='mouse'&&!drag)move(clamp(-((e.clientY-r.top)/r.height-.5)*2*m,m),clamp(((e.clientX-r.left)/r.width-.5)*2*m,m));
-   if(drag&&drag.id===e.pointerId){drag.dx=e.clientX-drag.x;drag.dy=e.clientY-drag.y;const p=maxFor(b,'phone');if(permission!=='granted'||!hasOrientation)move(clamp(-drag.dy*.14,p),clamp(drag.dx*.14,p));}
+ // The pointer is read against the scene, which never rotates. (Reading it against the board that is turning made the board chase the
+ // cursor: as the edge moved away the cursor looked "outside", the tilt reset, and the hover flickered.)
+ scenes.forEach(sc=>{
+  const el=()=>sc.querySelector('[data-tilt]');
+  sc.addEventListener('pointermove',e=>{
+   if(busy||sc!==active||!drag||drag.id!==e.pointerId)return;const b=el();if(!b)return;drag.dx=e.clientX-drag.x;drag.dy=e.clientY-drag.y;const p=maxFor(b,'phone');
+   if(permission!=='granted'||!hasOrientation)move(clamp(-drag.dy*.14,p),clamp(drag.dx*.14,p));
   });
-  b.addEventListener('pointerleave',()=>{if(!drag)move(0,0);});
-  b.addEventListener('pointerdown',e=>{if(busy||e.target.closest('button,a'))return;drag={id:e.pointerId,x:e.clientX,y:e.clientY,dx:0,dy:0};try{b.setPointerCapture(e.pointerId);}catch(error){}});
+  sc.addEventListener('pointerdown',e=>{if(busy||sc!==active||e.target.closest('button,a,.zoom'))return;drag={id:e.pointerId,x:e.clientX,y:e.clientY,dx:0,dy:0};try{sc.setPointerCapture(e.pointerId);}catch(error){}});
   function end(e){if(!drag||drag.id!==e.pointerId)return;const d=drag;drag=null;if(Math.abs(d.dx)>70&&Math.abs(d.dx)>Math.abs(d.dy)*1.5)stepActive(d.dx<0?1:-1);move(0,0);}
-  b.addEventListener('pointerup',end);b.addEventListener('pointercancel',()=>{drag=null;move(0,0);});
+  sc.addEventListener('pointerup',end);sc.addEventListener('pointercancel',()=>{drag=null;move(0,0);});
  });
+ // A mouse anywhere in the window steers the tilt (the header is part of the window, so crossing it no longer resets it).
+ document.addEventListener('pointermove',e=>{
+  if(busy||e.pointerType!=='mouse'||drag)return;const b=tiltEl();if(!b)return;const r=active.getBoundingClientRect(),m=maxFor(b,'mouse');
+  move(clamp(-((e.clientY-r.top)/r.height-.5)*2*m,m),clamp(((e.clientX-r.left)/r.width-.5)*2*m,m));
+ });
+ document.documentElement.addEventListener('mouseleave',()=>{if(!drag)move(0,0);});
  addEventListener('deviceorientation',e=>{
   if(permission!=='granted'||busy||!tiltEl()||e.beta===null||e.gamma===null)return;
   hasOrientation=true;if(!pose){pose={beta:e.beta,gamma:e.gamma};return;}

@@ -134,7 +134,7 @@ def auto(steps, with_downloads=False, key=""):
 
 def scene(sid, label, headline, chips_, line, runs, runs_line, body, wide=False):
     return (
-        '<section class="scene" id="%s" aria-labelledby="%s-title"><div class="board%s" data-tilt>'
+        '<section class="scene" id="%s" aria-labelledby="%s-title"><div class="board%s" data-tilt><i class="slab s3" aria-hidden="true"></i><i class="slab s2" aria-hidden="true"></i><i class="slab s1" aria-hidden="true"></i>'
         '<article class="blk main-block"><header class="blk-h"><p class="label">%s</p><h2 id="%s-title" tabindex="-1">%s</h2><span class="hchips">%s</span></header>'
         '<div class="blk-b">%s</div></article>%s</div></section>'
         % (sid, sid, " wide" if wide else "", escape(label), sid, escape(headline), chips(chips_), body, "" if wide else small_blocks(sid, chips_, line, runs, runs_line)))

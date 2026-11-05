@@ -74,37 +74,37 @@ html.js,html.js body{overflow:hidden;width:100%;height:100%}
 @keyframes gridPulse{0%,100%{opacity:.55}50%{opacity:1}}
 #hub-grid{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .js .landing{padding:0}
-.js .tilt-layer{position:absolute;inset:0;padding:76px clamp(20px,4vw,64px) 22px;display:grid;grid-template-rows:auto minmax(0,1fr) auto auto;gap:14px;align-items:center;justify-items:center;transform-style:preserve-3d;transform:perspective(1100px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));will-change:transform;touch-action:pan-y}
+.js .tilt-layer{position:absolute;inset:0;padding:76px clamp(20px,4vw,64px) 40px;display:grid;grid-template-rows:auto minmax(0,1fr) auto auto;gap:14px;align-items:center;justify-items:center;transform-style:preserve-3d;transform:perspective(1100px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));will-change:transform;touch-action:pan-y}
 .js .hero-title{transform:translateZ(40px)}
 .js .mark-host{width:min(46vw,46dvh,520px);height:min(46vw,46dvh,520px);opacity:0;transition:opacity 1s ease;transform:translateZ(70px)}
 .js .mark-host.on{opacity:1}
 .js .tagline,.js .actions{transform:translateZ(30px)}
 .js .landing .actions{align-self:end}
-.js .doors{position:absolute;inset:21% 4% 21%;max-width:none;margin:0;display:grid;grid-template-columns:minmax(150px,220px) minmax(150px,220px);grid-template-rows:repeat(4,1fr);justify-content:space-between;align-items:center;gap:12px;pointer-events:none;transform:translateZ(55px);transform-style:preserve-3d}
+.js .doors{position:absolute;inset:22% 13% 22%;max-width:none;margin:0;display:grid;grid-template-columns:minmax(150px,220px) minmax(150px,220px);grid-template-rows:repeat(4,1fr);justify-content:space-between;align-items:center;gap:12px;pointer-events:none;transform:translateZ(55px);transform-style:preserve-3d}
 .js .door{pointer-events:auto;min-height:52px}
 /* scene boards */
-.js .board{height:100%;max-height:820px;max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:18px;position:relative;z-index:1;transform-style:preserve-3d;transform:perspective(1100px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));will-change:transform;touch-action:pan-y}
+.js .board{height:100%;max-height:680px;max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:18px;position:relative;z-index:1;transform-style:preserve-3d;transform:perspective(1100px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));will-change:transform;touch-action:pan-y}
 .js .board.wide{grid-template-columns:minmax(0,1fr)}
-.js .main-block{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;transform:translateZ(var(--z-main,22px))}
+.js .main-block{grid-column:1;grid-row:1;display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;transform:translateZ(var(--z-main,22px))}
 .js .blk-b{min-height:0;display:flex;flex-direction:column;padding:clamp(12px,2vw,26px)}
-.js .side-blocks{margin:0;align-content:center;transform:translateZ(var(--z-side,48px))}
+.js .side-blocks{grid-column:2;grid-row:1;margin:0;align-content:center;transform:translateZ(var(--z-side,48px))}
 .js .small-block{cursor:pointer}
 .js .hchips{margin-left:auto}
 .js .turning .board,.js .turning .tilt-layer{transform:none!important}
 .js .turning .blk{-webkit-backdrop-filter:none;backdrop-filter:none}
 /* the auto-playing step list */
 .js .auto{flex:1;min-height:0;display:grid;grid-template-columns:minmax(200px,290px) minmax(0,1fr);gap:clamp(14px,2.4vw,34px);align-items:stretch}
-.js .auto-steps{align-content:center}
-.js .st{cursor:pointer}
+.js .auto-steps{align-content:stretch;grid-auto-rows:1fr;gap:10px}
+.js .st{cursor:pointer;min-height:0;grid-template-columns:40px 1fr}.js .st .num{width:34px;height:34px;font-size:13px}.js .sb b{font-size:13px}.js .sb em{font-size:15px}
 .js .st[aria-pressed=true]{border-color:var(--green);background:rgba(0,230,118,.09)}
 .js .st.gate[aria-pressed=true]{border-color:var(--amber);background:rgba(224,165,60,.09)}
 .js .more-static{display:none}
-.js .auto-detail{display:flex;flex-direction:column;justify-content:center;min-height:0;position:relative;padding:clamp(6px,1.6vw,22px) 0 14px}
-.js .auto-detail .kicker{font:600 11px Orbitron,system-ui;letter-spacing:.13em;color:var(--green);text-transform:uppercase;margin-bottom:12px}
-.js .auto-detail h3{font-size:clamp(22px,3vw,40px);line-height:1.15;letter-spacing:-.02em;margin-bottom:14px}
-.js .auto-detail .d{font-size:clamp(15px,1.5vw,20px);color:var(--muted);max-width:60ch}
+.js .auto-detail{display:flex;flex-direction:column;justify-content:center;min-height:0;position:relative;padding:clamp(10px,2vw,30px) clamp(8px,2vw,28px) 18px;border-radius:12px;background:linear-gradient(160deg,rgba(65,235,255,.07),rgba(8,12,40,.35) 60%,rgba(0,230,118,.05));border:1px solid rgba(65,235,255,.12)}
+.js .auto-detail .kicker{font:600 12px Orbitron,system-ui;letter-spacing:.13em;color:var(--green);text-transform:uppercase;margin-bottom:14px}
+.js .auto-detail h3{font-size:clamp(26px,3.8vw,56px);line-height:1.1;letter-spacing:-.02em;margin-bottom:clamp(12px,1.6vw,24px)}
+.js .auto-detail .d{font-size:clamp(16px,1.9vw,27px);line-height:1.5;color:var(--ink);opacity:.88;max-width:56ch}
 .js .auto-detail .downloads{margin-bottom:22px}
-.js .bar{position:absolute;left:0;bottom:0;height:2px;width:100%;background:var(--green);opacity:.6;transform-origin:left;transform:scaleX(0)}
+.js .bar{position:absolute;left:14px;right:14px;bottom:10px;height:2px;width:auto;background:var(--green);opacity:.6;transform-origin:left;transform:scaleX(0)}
 .js .auto.playing .bar{animation:fill var(--step,4s) linear forwards}
 @keyframes fill{to{transform:scaleX(1)}}
 /* TALK: the original animated machine on a big screen, an auto list on a small one */
@@ -123,7 +123,7 @@ html.js,html.js body{overflow:hidden;width:100%;height:100%}
 .js .zoom-scroll{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch}
 .js .zoom-scroll img{width:max(1200px,100%);height:auto;display:block}
 
-@media(max-width:1000px){.js .doors{grid-template-columns:minmax(145px,180px) minmax(145px,180px);inset-inline:3%}.door{font-size:10px}.js .mark-host{width:min(40vw,42dvh)}.js .board{grid-template-columns:minmax(0,1fr) 190px;gap:14px}.js .auto{grid-template-columns:minmax(170px,230px) minmax(0,1fr)}}
+@media(max-width:1000px){.js .doors{grid-template-columns:minmax(145px,180px) minmax(145px,180px);inset-inline:7%}.door{font-size:10px}.js .mark-host{width:min(40vw,42dvh)}.js .board{grid-template-columns:minmax(0,1fr) 190px;gap:14px}.js .auto{grid-template-columns:minmax(170px,230px) minmax(0,1fr)}}
 /* small and narrow screens: the steps become a row of numbered buttons above the detail; TALK shows its list, not the machine */
 @media(max-width:900px),(max-height:620px){.js .talk-desktop{display:none}.js .talk-phone{display:flex;flex-direction:column;flex:1;min-height:0}.js .talk-phone .auto{flex:1}}
 @media(max-width:650px) and (orientation:portrait),(max-height:540px) and (orientation:landscape){
@@ -154,7 +154,7 @@ html.js,html.js body{overflow:hidden;width:100%;height:100%}
  .action{font-size:10px;padding:8px 18px}
  .js .board{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto;gap:10px;max-height:none}
  .js .board.wide{grid-template-rows:minmax(0,1fr)}
- .js .side-blocks{grid-template-columns:1fr 1fr;gap:8px;align-content:end}
+ .js .side-blocks{grid-column:1;grid-row:2;grid-template-columns:1fr 1fr;gap:8px;align-content:end}
  .js .small-block{padding:8px 11px}.small-block .label{font-size:8px;letter-spacing:.08em}.small-block .line{font-size:11px}.small-block .line.strong{font-size:12px}
  .small-block .chip{font-size:10px;line-height:17px;margin:0 4px 0 0}
  .js .blk-h{padding:8px 12px;gap:6px}.js .blk-h h2{font-size:clamp(16px,4.6vw,22px)}.js .hchips{display:none}
@@ -191,3 +191,22 @@ html.js,html.js body{overflow:hidden;width:100%;height:100%}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation:none!important;transition:none!important}.js .board,.js .tilt-layer{transform:none!important}.js .mark-host{opacity:1}.brand img{opacity:1}}
 .turn-shield{position:fixed;inset:0;z-index:2147483002;touch-action:none;cursor:wait}
 body[data-turning] .site-header{pointer-events:none}
+
+/* the dashboard's 3D glass slabs: translucent teal plates stacked behind the block, so tilting slides them over each other */
+.js .slab{display:block;grid-column:1;grid-row:1;pointer-events:none;border-radius:12px;border:1px solid rgba(65,235,255,.34);background:linear-gradient(140deg,rgba(30,125,155,.2),rgba(30,125,155,.07));box-shadow:inset 0 0 14px rgba(65,235,255,.07),0 0 16px rgba(65,235,255,.07);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+.js .slab.s1{transform:translate3d(10px,12px,calc(var(--z-main,22px) - 36px)) scale(1.02)}
+.js .slab.s2{transform:translate3d(22px,26px,calc(var(--z-main,22px) - 78px)) scale(1.04);border-color:rgba(65,235,255,.26)}
+.js .slab.s3{transform:translate3d(34px,40px,calc(var(--z-main,22px) - 125px)) scale(1.06);border-color:rgba(65,235,255,.18)}
+.js .turning .slab{display:none}
+.slab{display:none}
+@media(prefers-reduced-motion:reduce){.js .slab{transform:none!important}}
+
+.js .auto-detail::after{content:attr(data-n);position:absolute;right:16px;bottom:14px;font:800 clamp(90px,15vw,220px)/1 Orbitron,system-ui;color:rgba(0,230,118,.07);pointer-events:none}
+@media(max-width:650px) and (orientation:portrait){.js .auto-detail h3{font-size:clamp(24px,7.4vw,32px)}.js .auto-detail .d{font-size:clamp(15px,4.5vw,19px)}.js .auto-detail .kicker{font-size:10px}.js .auto-detail::after{font-size:140px}}
+
+/* on small screens the plates sit straight behind the block, so nothing is pushed off screen */
+@media(max-width:1000px),(max-height:760px){
+ .js .slab.s1{transform:translate3d(0,0,calc(var(--z-main,22px) - 22px)) scale(1.012)}
+ .js .slab.s2{transform:translate3d(0,0,calc(var(--z-main,22px) - 46px)) scale(1.024)}
+ .js .slab.s3{transform:translate3d(0,0,calc(var(--z-main,22px) - 72px)) scale(1.036)}
+}
