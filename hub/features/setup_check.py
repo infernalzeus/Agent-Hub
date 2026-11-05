@@ -65,6 +65,11 @@ def _check() -> list[dict]:
     issues: list[dict] = []
 
     from .. import locations as LOC
+    why = {"saved": "your saved choice", "legacy": "set by this machine's local settings", "default": "the default"}
+    for o in LOC.outside_hub():                 # the hub is meant to stay inside its own folder; say so for every place it is set to leave it
+        issues.append({"severity": "warn", "title": f"{o['label']} is outside the Agent Hub folder",
+                       "detail": f"{o['path']} ({why.get(o['source'], o['source'])}). The hub writes files there. Move it under {LOC.BASE} in LOCATIONS unless you mean it.",
+                       "action": {"kind": "link", "label": "Review in LOCATIONS", "href": "/setup"}})
     if LOC.configured():
         for r in LOC.REGISTRY:
             st = LOC.validate(r["key"], LOC.get(r["key"]))

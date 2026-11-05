@@ -68,6 +68,9 @@ def _selfcheck() -> None:
         config.logger.warning("SELF-CHECK: %d dependency path(s) missing — those features will fail until fixed", len(missing))
     else:
         config.logger.info("SELF-CHECK: all %d dependency paths present", len(checks))
+    from hub import locations as _loc
+    for o in _loc.outside_hub():                   # the hub keeps to its own folder; say so loudly for every place it is set to leave it
+        config.logger.warning("OUTSIDE THE HUB FOLDER: %s is %s (%s). Move it under %s in LOCATIONS unless you mean it.", o["label"], o["path"], o["source"], _loc.BASE)
 
 
 def main() -> None:

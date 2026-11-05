@@ -1,7 +1,8 @@
 """Locations ("pointers"): every folder and tool the hub reads or writes, in one place, editable from the UI (/setup).
 
 Precedence for each key: hub/locations.json (what the user saved) > this machine's pre-existing layout (only while it really exists on disk,
-so an upgrade changes nothing) > a default derived under <home>/AgentHub. Nothing here imports the rest of the hub, so config.py, projects.py,
+so an upgrade changes nothing) > a default INSIDE THE HUB'S OWN FOLDER (BASE below). The hub never picks a place outside its own folder by itself;
+a location you choose outside it is allowed but raises a warning everywhere it is shown. Nothing here imports the rest of the hub, so config.py, projects.py,
 opencode.py and agent_knowledge can all read it at import time.
 
 Project folders are a LIST of sources, each either
@@ -18,36 +19,60 @@ import sys
 import tempfile
 from pathlib import Path
 
-from .runtime import STATE, python_for
+from .runtime import ASSETS, PACKAGED, STATE, python_for
 
 FILE = STATE / "locations.json"          # per machine, gitignored (repo hub/ from source)
 HOME = Path(os.environ.get("USERPROFILE") or Path.home())
 
 
 def _default_base() -> Path:
-    """Choose the writable drive with the most free space; Locations remains editable."""
-    candidates = []
-    for letter in "CDEFGHIJKLMNOPQRSTUVWXYZ":
-        root = Path(f"{letter}:\\")
-        try:
-            if root.is_dir() and os.access(root, os.W_OK):
-                candidates.append((shutil.disk_usage(root).free, root))
-        except OSError:
-            pass
-    for _, root in sorted(candidates, key=lambda item: item[0], reverse=True):
-        try:
-            # os.access() does not prove write permission under Windows ACLs —
-            # a drive can report writable and still refuse. Actually write.
-            with tempfile.TemporaryFile(dir=root):
-                pass
-            return root / "AgentHub"
-        except OSError:
-            continue
-    return HOME / "AgentHub"
+    """Where the hub keeps what it creates (mission working copies, downloads, inbox, outputs, new projects): always inside the hub's own folder.
+
+    From source: <hub folder>/data (gitignored). Packaged: next to the state folder, <app data>/AgentHub/data. A hub started with its own state
+    folder (tests, a second copy) keeps it under that state folder, so nothing it makes can land anywhere else. Earlier versions (22 Sep to 5 Nov 2026)
+    picked the drive with the most free space and made a folder called AgentHub at its root; `python -m hub.migrate_data` moves that folder in.
+    """
+    if os.environ.get("AGENTHUB_STATE_DIR"):
+        return Path(os.environ["AGENTHUB_STATE_DIR"]) / "data"
+    if PACKAGED:
+        return STATE.parent / "data"
+    return ASSETS / "data"
 
 
-# The installer sets AGENTHUB_WORK_ROOT so the user can pick where data goes.
+# The installer sets AGENTHUB_WORK_ROOT to the data folder the user chose; that choice is explicit, so it counts as inside.
 BASE = Path(os.environ.get("AGENTHUB_WORK_ROOT") or _default_base())
+
+# Locations the hub WRITES to. Reading a project from another folder is normal (missions work on copies of it), writing there is not.
+WRITE_KEYS = ("work_dir", "opencode_home", "dl_audio", "dl_video", "inbox", "outputs")
+
+
+def inside_hub(path) -> bool:
+    """True when `path` is under the hub's own folder: the data folder, the program folder or the state folder."""
+    try:
+        p = Path(path).resolve()
+    except (OSError, ValueError):
+        return False
+    for root in (BASE, ASSETS, STATE):
+        try:
+            p.relative_to(Path(root).resolve())
+            return True
+        except (ValueError, OSError):
+            continue
+    return False
+
+
+def outside_hub() -> list[dict]:
+    """The write locations that are set to somewhere outside the hub's own folder, with where each value came from. Empty is the goal."""
+    out = []
+    for key in WRITE_KEYS:
+        v = str(get(key) or "").strip()
+        if v and not inside_hub(v):
+            out.append({"key": key, "label": _BY_KEY[key]["label"], "path": v, "source": source(key)})
+    return out
+
+
+OUTSIDE_MSG = "outside the Agent Hub folder: the hub will write files here. Keep it inside the hub's data folder unless you mean it"
+
 
 # key, label, group, kind (folder | file | sources | share), required, needs-restart, purpose
 REGISTRY = [
@@ -208,7 +233,7 @@ def _count_git(p: Path, limit: int = 400) -> tuple[int, int]:
     return dirs, repos
 
 
-def _validate_path(key: str, value: str, meta: dict) -> dict:
+def _validate_path_inner(key: str, value: str, meta: dict) -> dict:
     v = (value or "").strip()
     if not v:
         return {"level": "error" if meta["required"] else "ok", "msg": "required" if meta["required"] else "off (not set)"}
@@ -233,6 +258,14 @@ def _validate_path(key: str, value: str, meta: dict) -> dict:
         return {"level": "ok", "msg": f"ok · {free:.0f} GB free"}
     except OSError:
         return {"level": "ok", "msg": "ok"}
+
+
+def _validate_path(key: str, value: str, meta: dict) -> dict:
+    r = _validate_path_inner(key, value, meta)
+    v = (value or "").strip()
+    if key in WRITE_KEYS and v and meta["kind"] == "folder" and r["level"] != "error" and not inside_hub(v):
+        return {**r, "level": "warn", "msg": OUTSIDE_MSG + (" · " + r["msg"] if r.get("msg") else ""), "outside": True}
+    return r
 
 
 def validate_source(s: dict) -> dict:

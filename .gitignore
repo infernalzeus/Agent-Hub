@@ -197,3 +197,5 @@ hub/model_outcomes.json
 hub/choices.jsonl
 hub/choices.jsonl.1
 hub/board_prefs.json
+# Everything the hub creates by default (mission working copies, downloads, inbox, outputs, new projects) lives here, never outside the hub folder.
+/data/

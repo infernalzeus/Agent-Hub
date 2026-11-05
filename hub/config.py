@@ -18,8 +18,8 @@ HERE = Path(__file__).resolve().parent.parent
 HOST = os.getenv("HUB_HOST", "127.0.0.1")
 PORT = int(os.getenv("HUB_PORT", "8081"))
 
-# Default folders come from locations.BASE (the writable drive with the most free
-# space), never from one developer's disk — this file is public. Real values arrive
+# Default folders come from locations.BASE (inside the hub's own folder; never another
+# drive, never one developer's disk — this file is public. Real values arrive
 # from local_settings.py or, last and strongest, the Locations the user saved.
 from . import locations as _loc  # noqa: E402
 
