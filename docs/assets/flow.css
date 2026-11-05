@@ -1,0 +1,301 @@
+.flow{--amber:#e0a53c;--red:#ff5c5c;--hw-orb:Orbitron,"Segoe UI",system-ui,sans-serif;--hw-mono:ui-monospace,"Cascadia Mono",Consolas,monospace}
+
+@keyframes hw_talkWave{0%{transform:scale(1);opacity:.8}100%{transform:scale(1.9);opacity:0}}
+
+
+.flow .machine{border:1px solid var(--line);border-radius:22px;padding:clamp(14px,2.4vw,26px);background:linear-gradient(155deg,rgba(16,18,78,.88),rgba(5,8,30,.8));box-shadow:inset 0 0 70px rgba(0,230,118,.05),0 24px 70px rgba(0,0,0,.3);position:relative;overflow:hidden;scroll-margin-top:84px}
+
+.flow .machine:before{content:"";position:absolute;inset:0;background:linear-gradient(rgba(0,230,118,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(0,230,118,.05) 1px,transparent 1px);background-size:30px 30px;mask-image:linear-gradient(to bottom,black,rgba(0,0,0,.35));pointer-events:none}
+
+.flow .machine>*{position:relative}
+
+.flow .top{display:grid;grid-template-columns:1fr 44px 1fr;gap:6px;align-items:stretch}
+
+.flow .arrow{display:grid;place-items:center}
+
+.flow .box{border:1px solid var(--line);border-radius:14px;background:rgba(6,10,34,.92);padding:14px 18px;min-height:92px}
+
+.flow .lbl{font:700 .58rem var(--hw-orb);letter-spacing:.14em;text-transform:uppercase;color:var(--green);opacity:.85;display:flex;align-items:center;gap:8px}
+
+.flow .askline{display:flex;align-items:center;gap:12px;margin-top:10px;height:28px}
+
+.flow .typed{position:relative;flex:1;height:26px;min-width:0}
+
+.flow .ask{position:absolute;left:0;top:0;white-space:nowrap;overflow:hidden;border-right:2px solid var(--green);font:500 clamp(.8rem,1.5vw,1rem)/24px var(--hw-mono);color:#fff;width:0;opacity:0}
+
+.flow .ask.ask0{width:28ch;opacity:1}
+
+.flow .routebox{position:relative;border-color:rgba(0,230,118,.6);box-shadow:0 0 28px rgba(0,230,118,.1)}
+
+.flow .rt{position:absolute;left:18px;right:18px;top:40px;opacity:0}
+
+.flow .rt.route0{opacity:1}
+
+.flow .rt b{display:block;font:700 .84rem var(--hw-orb);letter-spacing:.03em;color:#fff}
+
+.flow .rt span{display:block;color:var(--muted);font-size:.9rem;margin-top:2px}
+
+
+.flow .lanes{display:grid;gap:10px;margin-top:16px}
+
+.flow .lane{display:grid;grid-template-columns:172px repeat(3,1fr) 1.2fr;gap:10px;align-items:stretch;padding:10px;border:1px solid rgba(0,230,118,.22);border-radius:16px;opacity:.42;background:rgba(7,10,37,.5)}
+
+.flow .lane.base-on{opacity:1;border-color:rgba(0,230,118,.7)}
+
+.flow .lname{display:flex;align-items:center;gap:10px}
+
+.flow .lname strong{display:block;font:700 .74rem var(--hw-orb);letter-spacing:.05em;text-transform:uppercase;color:#fff;line-height:1.25}
+
+.flow .chip{display:inline-block;margin-top:5px;padding:2px 9px;border-radius:999px;font:500 .6rem var(--hw-mono);letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--green);color:var(--green)}
+
+.flow .chip.unit{border-color:rgba(224,165,60,.65);color:var(--amber)}
+
+.flow .n{position:relative;padding:10px 12px;border:1px solid rgba(0,230,118,.24);border-radius:11px;background:rgba(6,10,34,.9);min-width:0}
+
+.flow .n b{display:block;font:700 .72rem var(--hw-orb);letter-spacing:.03em;color:#fff;line-height:1.3}
+
+.flow .n span{display:block;font-size:.8rem;color:var(--muted);line-height:1.35;margin-top:3px}
+
+.flow .n:after{content:"";position:absolute;inset:-1px;border-radius:11px;border:1px solid var(--green);background:rgba(0,230,118,.12);box-shadow:0 0 22px rgba(0,230,118,.38);opacity:0;pointer-events:none}
+
+.flow .n.lit1:after{opacity:1}
+
+.flow .n.gate{border-color:rgba(224,165,60,.45)}
+
+.flow .n.gate:after{border-color:var(--amber);background:rgba(224,165,60,.1);box-shadow:0 0 22px rgba(224,165,60,.34)}
+
+.flow .res{min-height:72px}
+
+.flow .res .rv{display:block}
+
+.flow .res .resB1,.flow .res .resB2{position:absolute;left:12px;right:12px;top:30px}
+
+.flow .res .resB2{opacity:0}
+
+
+.flow .foot{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:18px;flex-wrap:wrap}
+
+.flow .captions{position:relative;flex:1;min-width:240px;height:3.1em}
+
+.flow .cap{position:absolute;left:0;right:0;top:0;opacity:0;font-size:clamp(.95rem,1.5vw,1.08rem);color:#fff;transform:translateY(6px)}
+
+.flow .cap.cap0{opacity:1;transform:none}
+
+.flow .cap b{color:var(--green);font-weight:600}
+
+.flow .dots{display:flex;gap:6px;align-items:center}
+
+.flow .dot{height:8px;width:8px;border-radius:99px;background:rgba(0,230,118,.25)}
+
+.flow .dot.dot0{width:26px;background:var(--green);box-shadow:0 0 10px var(--green)}
+
+
+@media(max-width:900px){
+  .flow .top{grid-template-columns:1fr}
+  .flow .arrow{display:none}
+  .flow .lane{grid-template-columns:1fr 1fr}
+  .flow .lname,.flow .res{grid-column:1/-1}
+  .flow .cols,.flow .promises{grid-template-columns:1fr}
+  .flow .rt{top:38px}
+  .flow .col{--slot:9em}
+}
+
+@keyframes hw_ask0{0.000%{width:0ch;opacity:1}3.333%{width:28ch;opacity:1}15.741%{width:28ch;opacity:1}16.574%{width:28ch;opacity:0}100.000%{width:0ch;opacity:0}}
+
+@keyframes hw_ask1{0.000%{width:0ch;opacity:0}16.648%{width:0ch;opacity:0}16.667%{width:0ch;opacity:1}20.000%{width:34ch;opacity:1}32.407%{width:34ch;opacity:1}33.241%{width:34ch;opacity:0}100.000%{width:0ch;opacity:0}}
+
+@keyframes hw_ask2{0.000%{width:0ch;opacity:0}33.315%{width:0ch;opacity:0}33.333%{width:0ch;opacity:1}36.667%{width:34ch;opacity:1}49.074%{width:34ch;opacity:1}49.907%{width:34ch;opacity:0}100.000%{width:0ch;opacity:0}}
+
+@keyframes hw_ask3{0.000%{width:0ch;opacity:0}49.981%{width:0ch;opacity:0}50.000%{width:0ch;opacity:1}53.333%{width:24ch;opacity:1}65.741%{width:24ch;opacity:1}66.574%{width:24ch;opacity:0}100.000%{width:0ch;opacity:0}}
+
+@keyframes hw_ask4{0.000%{width:0ch;opacity:0}66.648%{width:0ch;opacity:0}66.667%{width:0ch;opacity:1}70.000%{width:27ch;opacity:1}82.407%{width:27ch;opacity:1}83.241%{width:27ch;opacity:0}100.000%{width:0ch;opacity:0}}
+
+@keyframes hw_ask5{0.000%{width:0ch;opacity:0}83.315%{width:0ch;opacity:0}83.333%{width:0ch;opacity:1}86.667%{width:32ch;opacity:1}99.074%{width:32ch;opacity:1}99.907%{width:32ch;opacity:0}100.000%{width:0ch;opacity:0}}
+
+@keyframes hw_route0{0.000%{opacity:0}2.574%{opacity:0}3.333%{opacity:1}15.926%{opacity:1}16.667%{opacity:0}100.000%{opacity:0}}
+
+@keyframes hw_cap0{0.000%{opacity:0;transform:translateY(6px)}0.926%{opacity:1;transform:none}15.741%{opacity:1;transform:none}16.667%{opacity:0;transform:translateY(6px)}100.000%{opacity:0;transform:translateY(6px)}}
+
+@keyframes hw_dot0{0.000%{background:rgba(0,230,118,.25);box-shadow:none;width:8px}0.556%{background:#00e676;box-shadow:0 0 10px #00e676;width:26px}16.111%{background:#00e676;box-shadow:0 0 10px #00e676;width:26px}16.667%{background:rgba(0,230,118,.25);box-shadow:none;width:8px}100.000%{background:rgba(0,230,118,.25);box-shadow:none;width:8px}}
+
+@keyframes hw_route1{0.000%{opacity:0}19.241%{opacity:0}20.000%{opacity:1}32.593%{opacity:1}33.333%{opacity:0}100.000%{opacity:0}}
+
+@keyframes hw_cap1{0.000%{opacity:0;transform:translateY(6px)}16.648%{opacity:0;transform:translateY(6px)}17.593%{opacity:1;transform:none}32.407%{opacity:1;transform:none}33.333%{opacity:0;transform:translateY(6px)}100.000%{opacity:0;transform:translateY(6px)}}
+
+@keyframes hw_dot1{0.000%{background:rgba(0,230,118,.25);box-shadow:none;width:8px}16.648%{background:rgba(0,230,118,.25);box-shadow:none;width:8px}17.222%{background:#00e676;box-shadow:0 0 10px #00e676;width:26px}32.778%{background:#00e676;box-shadow:0 0 10px #00e676;width:26px}33.333%{background:rgba(0,230,118,.25);box-shadow:none;width:8px}100.000%{background:rgba(0,230,118,.25);box-shadow:none;width:8px}}
+
+@keyframes hw_route2{0.000%{opacity:0}35.907%{opacity:0}36.667%{opacity:1}49.259%{opacity:1}50.000%{opacity:0}100.000%{opacity:0}}
+
+@keyframes hw_cap2{0.000%{opacity:0;transform:translateY(6px)}33.315%{opacity:0;transform:translateY(6px)}34.259%{opacity:1;transform:none}49.074%{opacity:1;transform:none}50.000%{opacity:0;transform:translateY(6px)}100.000%{opacity:0;transform:translateY(6px)}}
+
+@keyframes hw_dot2{0.000%{background:rgba(0,230,118,.25);box-shadow:none;width:8px}33.315%{background:rgba(0,230,118,.25);box-shadow:none;width:8px}33.889%{background:#00e676;box-shadow:0 0 10px #00e676;width:26px}49.444%{background:#00e676;box-shadow:0 0 10px #00e676;width:26px}50.000%{background:rgba(0,230,118,.25);box-shadow:none;width:8px}100.000%{background:rgba(0,230,118,.25);box-shadow:none;width:8px}}
+
+@keyframes hw_route3{0.000%{opacity:0}52.574%{opacity:0}53.333%{opacity:1}65.926%{opacity:1}66.667%{opacity:0}100.000%{opacity:0}}
+
+@keyframes hw_cap3{0.000%{opacity:0;transform:translateY(6px)}49.981%{opacity:0;transform:translateY(6px)}50.926%{opacity:1;transform:none}65.741%{opacity:1;transform:none}66.667%{opacity:0;transform:translateY(6px)}100.000%{opacity:0;transform:translateY(6px)}}
+
+@keyframes hw_dot3{0.000%{background:rgba(0,230,118,.25);box-shadow:none;width:8px}49.981%{background:rgba(0,230,118,.25);box-shadow:none;width:8px}50.556%{background:#00e676;box-shadow:0 0 10px #00e676;width:26px}66.111%{background:#00e676;box-shadow:0 0 10px #00e676;width:26px}66.667%{background:rgba(0,230,118,.25);box-shadow:none;width:8px}100.000%{background:rgba(0,230,118,.25);box-shadow:none;width:8px}}
+
+@keyframes hw_route4{0.000%{opacity:0}69.241%{opacity:0}70.000%{opacity:1}82.593%{opacity:1}83.333%{opacity:0}100.000%{opacity:0}}
+
+@keyframes hw_cap4{0.000%{opacity:0;transform:translateY(6px)}66.648%{opacity:0;transform:translateY(6px)}67.593%{opacity:1;transform:none}82.407%{opacity:1;transform:none}83.333%{opacity:0;transform:translateY(6px)}100.000%{opacity:0;transform:translateY(6px)}}
+
+@keyframes hw_dot4{0.000%{background:rgba(0,230,118,.25);box-shadow:none;width:8px}66.648%{background:rgba(0,230,118,.25);box-shadow:none;width:8px}67.222%{background:#00e676;box-shadow:0 0 10px #00e676;width:26px}82.778%{background:#00e676;box-shadow:0 0 10px #00e676;width:26px}83.333%{background:rgba(0,230,118,.25);box-shadow:none;width:8px}100.000%{background:rgba(0,230,118,.25);box-shadow:none;width:8px}}
+
+@keyframes hw_route5{0.000%{opacity:0}85.907%{opacity:0}86.667%{opacity:1}99.259%{opacity:1}100.000%{opacity:0}}
+
+@keyframes hw_cap5{0.000%{opacity:0;transform:translateY(6px)}83.315%{opacity:0;transform:translateY(6px)}84.259%{opacity:1;transform:none}99.074%{opacity:1;transform:none}100.000%{opacity:0;transform:translateY(6px)}}
+
+@keyframes hw_dot5{0.000%{background:rgba(0,230,118,.25);box-shadow:none;width:8px}83.315%{background:rgba(0,230,118,.25);box-shadow:none;width:8px}83.889%{background:#00e676;box-shadow:0 0 10px #00e676;width:26px}99.444%{background:#00e676;box-shadow:0 0 10px #00e676;width:26px}100.000%{background:rgba(0,230,118,.25);box-shadow:none;width:8px}}
+
+@keyframes hw_laneA{0.000%{opacity:.42;border-color:rgba(0,230,118,.22)}0.926%{opacity:1;border-color:rgba(0,230,118,.7)}15.741%{opacity:1;border-color:rgba(0,230,118,.7)}16.667%{opacity:.42;border-color:rgba(0,230,118,.22)}100.000%{opacity:.42;border-color:rgba(0,230,118,.22)}}
+
+@keyframes hw_laneB{0.000%{opacity:.42;border-color:rgba(0,230,118,.22)}16.648%{opacity:.42;border-color:rgba(0,230,118,.22)}17.593%{opacity:1;border-color:rgba(0,230,118,.7)}32.407%{opacity:1;border-color:rgba(0,230,118,.7)}33.333%{opacity:.42;border-color:rgba(0,230,118,.22)}83.315%{opacity:.42;border-color:rgba(0,230,118,.22)}84.259%{opacity:1;border-color:rgba(0,230,118,.7)}99.074%{opacity:1;border-color:rgba(0,230,118,.7)}100.000%{opacity:.42;border-color:rgba(0,230,118,.22)}}
+
+@keyframes hw_laneC{0.000%{opacity:.42;border-color:rgba(0,230,118,.22)}33.315%{opacity:.42;border-color:rgba(0,230,118,.22)}34.259%{opacity:1;border-color:rgba(0,230,118,.7)}49.074%{opacity:1;border-color:rgba(0,230,118,.7)}50.000%{opacity:.42;border-color:rgba(0,230,118,.22)}100.000%{opacity:.42;border-color:rgba(0,230,118,.22)}}
+
+@keyframes hw_laneD{0.000%{opacity:.42;border-color:rgba(0,230,118,.22)}49.981%{opacity:.42;border-color:rgba(0,230,118,.22)}50.926%{opacity:1;border-color:rgba(0,230,118,.7)}65.741%{opacity:1;border-color:rgba(0,230,118,.7)}66.667%{opacity:.42;border-color:rgba(0,230,118,.22)}100.000%{opacity:.42;border-color:rgba(0,230,118,.22)}}
+
+@keyframes hw_laneE{0.000%{opacity:.42;border-color:rgba(0,230,118,.22)}66.648%{opacity:.42;border-color:rgba(0,230,118,.22)}67.593%{opacity:1;border-color:rgba(0,230,118,.7)}82.407%{opacity:1;border-color:rgba(0,230,118,.7)}83.333%{opacity:.42;border-color:rgba(0,230,118,.22)}100.000%{opacity:.42;border-color:rgba(0,230,118,.22)}}
+
+@keyframes hw_litA0{0.000%{opacity:0}3.685%{opacity:0}4.074%{opacity:1}5.185%{opacity:1}5.556%{opacity:0}100.000%{opacity:0}}
+
+@keyframes hw_litA1{0.000%{opacity:0}5.907%{opacity:0}6.481%{opacity:1}16.111%{opacity:1}16.667%{opacity:0}100.000%{opacity:0}}
+
+@keyframes hw_litAr{0.000%{opacity:0}9.241%{opacity:0}9.815%{opacity:1}16.111%{opacity:1}16.667%{opacity:0}100.000%{opacity:0}}
+
+@keyframes hw_litB0{0.000%{opacity:0}20.352%{opacity:0}20.926%{opacity:1}32.778%{opacity:1}33.333%{opacity:0}87.019%{opacity:0}87.593%{opacity:1}99.444%{opacity:1}100.000%{opacity:0}}
+
+@keyframes hw_litB1{0.000%{opacity:0}23.315%{opacity:0}23.889%{opacity:1}32.778%{opacity:1}33.333%{opacity:0}89.981%{opacity:0}90.556%{opacity:1}99.444%{opacity:1}100.000%{opacity:0}}
+
+@keyframes hw_litB2{0.000%{opacity:0}26.278%{opacity:0}26.852%{opacity:1}32.778%{opacity:1}33.333%{opacity:0}92.944%{opacity:0}93.519%{opacity:1}99.444%{opacity:1}100.000%{opacity:0}}
+
+@keyframes hw_litBr{0.000%{opacity:0}28.500%{opacity:0}29.074%{opacity:1}32.778%{opacity:1}33.333%{opacity:0}95.167%{opacity:0}95.741%{opacity:1}99.444%{opacity:1}100.000%{opacity:0}}
+
+@keyframes hw_litC0{0.000%{opacity:0}37.019%{opacity:0}37.593%{opacity:1}49.444%{opacity:1}50.000%{opacity:0}100.000%{opacity:0}}
+
+@keyframes hw_litC1{0.000%{opacity:0}39.981%{opacity:0}40.556%{opacity:1}49.444%{opacity:1}50.000%{opacity:0}100.000%{opacity:0}}
+
+@keyframes hw_litC2{0.000%{opacity:0}42.944%{opacity:0}43.519%{opacity:1}49.444%{opacity:1}50.000%{opacity:0}100.000%{opacity:0}}
+
+@keyframes hw_litCr{0.000%{opacity:0}45.167%{opacity:0}45.741%{opacity:1}49.444%{opacity:1}50.000%{opacity:0}100.000%{opacity:0}}
+
+@keyframes hw_litD0{0.000%{opacity:0}53.685%{opacity:0}54.259%{opacity:1}66.111%{opacity:1}66.667%{opacity:0}100.000%{opacity:0}}
+
+@keyframes hw_litD1{0.000%{opacity:0}56.648%{opacity:0}57.222%{opacity:1}66.111%{opacity:1}66.667%{opacity:0}100.000%{opacity:0}}
+
+@keyframes hw_litD2{0.000%{opacity:0}59.611%{opacity:0}60.185%{opacity:1}66.111%{opacity:1}66.667%{opacity:0}100.000%{opacity:0}}
+
+@keyframes hw_litDr{0.000%{opacity:0}61.833%{opacity:0}62.407%{opacity:1}66.111%{opacity:1}66.667%{opacity:0}100.000%{opacity:0}}
+
+@keyframes hw_litE0{0.000%{opacity:0}70.352%{opacity:0}70.926%{opacity:1}82.778%{opacity:1}83.333%{opacity:0}100.000%{opacity:0}}
+
+@keyframes hw_litE1{0.000%{opacity:0}73.315%{opacity:0}73.889%{opacity:1}82.778%{opacity:1}83.333%{opacity:0}100.000%{opacity:0}}
+
+@keyframes hw_litE2{0.000%{opacity:0}76.278%{opacity:0}76.852%{opacity:1}82.778%{opacity:1}83.333%{opacity:0}100.000%{opacity:0}}
+
+@keyframes hw_litEr{0.000%{opacity:0}78.500%{opacity:0}79.074%{opacity:1}82.778%{opacity:1}83.333%{opacity:0}100.000%{opacity:0}}
+
+@keyframes hw_resB1{0.000%{opacity:0}28.500%{opacity:0}29.074%{opacity:1}32.778%{opacity:1}33.333%{opacity:0}100.000%{opacity:0}}
+
+@keyframes hw_resB2{0.000%{opacity:0}95.167%{opacity:0}95.741%{opacity:1}99.444%{opacity:1}100.000%{opacity:0}}
+
+.flow .ask0{animation:hw_ask0 54s steps(28,end) infinite both}
+
+.flow .ask1{animation:hw_ask1 54s steps(34,end) infinite both}
+
+.flow .ask2{animation:hw_ask2 54s steps(34,end) infinite both}
+
+.flow .ask3{animation:hw_ask3 54s steps(24,end) infinite both}
+
+.flow .ask4{animation:hw_ask4 54s steps(27,end) infinite both}
+
+.flow .ask5{animation:hw_ask5 54s steps(32,end) infinite both}
+
+.flow .route0{animation:hw_route0 54s linear infinite both}
+
+.flow .cap0{animation:hw_cap0 54s linear infinite both}
+
+.flow .dot0{animation:hw_dot0 54s linear infinite both}
+
+.flow .route1{animation:hw_route1 54s linear infinite both}
+
+.flow .cap1{animation:hw_cap1 54s linear infinite both}
+
+.flow .dot1{animation:hw_dot1 54s linear infinite both}
+
+.flow .route2{animation:hw_route2 54s linear infinite both}
+
+.flow .cap2{animation:hw_cap2 54s linear infinite both}
+
+.flow .dot2{animation:hw_dot2 54s linear infinite both}
+
+.flow .route3{animation:hw_route3 54s linear infinite both}
+
+.flow .cap3{animation:hw_cap3 54s linear infinite both}
+
+.flow .dot3{animation:hw_dot3 54s linear infinite both}
+
+.flow .route4{animation:hw_route4 54s linear infinite both}
+
+.flow .cap4{animation:hw_cap4 54s linear infinite both}
+
+.flow .dot4{animation:hw_dot4 54s linear infinite both}
+
+.flow .route5{animation:hw_route5 54s linear infinite both}
+
+.flow .cap5{animation:hw_cap5 54s linear infinite both}
+
+.flow .dot5{animation:hw_dot5 54s linear infinite both}
+
+.flow .laneA{animation:hw_laneA 54s linear infinite both}
+
+.flow .laneB{animation:hw_laneB 54s linear infinite both}
+
+.flow .laneC{animation:hw_laneC 54s linear infinite both}
+
+.flow .laneD{animation:hw_laneD 54s linear infinite both}
+
+.flow .laneE{animation:hw_laneE 54s linear infinite both}
+
+.flow .litA0::after{animation:hw_litA0 54s linear infinite both}
+
+.flow .litA1::after{animation:hw_litA1 54s linear infinite both}
+
+.flow .litAr::after{animation:hw_litAr 54s linear infinite both}
+
+.flow .litB0::after{animation:hw_litB0 54s linear infinite both}
+
+.flow .litB1::after{animation:hw_litB1 54s linear infinite both}
+
+.flow .litB2::after{animation:hw_litB2 54s linear infinite both}
+
+.flow .litBr::after{animation:hw_litBr 54s linear infinite both}
+
+.flow .litC0::after{animation:hw_litC0 54s linear infinite both}
+
+.flow .litC1::after{animation:hw_litC1 54s linear infinite both}
+
+.flow .litC2::after{animation:hw_litC2 54s linear infinite both}
+
+.flow .litCr::after{animation:hw_litCr 54s linear infinite both}
+
+.flow .litD0::after{animation:hw_litD0 54s linear infinite both}
+
+.flow .litD1::after{animation:hw_litD1 54s linear infinite both}
+
+.flow .litD2::after{animation:hw_litD2 54s linear infinite both}
+
+.flow .litDr::after{animation:hw_litDr 54s linear infinite both}
+
+.flow .litE0::after{animation:hw_litE0 54s linear infinite both}
+
+.flow .litE1::after{animation:hw_litE1 54s linear infinite both}
+
+.flow .litE2::after{animation:hw_litE2 54s linear infinite both}
+
+.flow .litEr::after{animation:hw_litEr 54s linear infinite both}
+
+.flow .resB1{animation:hw_resB1 54s linear infinite both}
+
+.flow .resB2{animation:hw_resB2 54s linear infinite both}
