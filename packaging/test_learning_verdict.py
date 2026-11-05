@@ -46,3 +46,24 @@ def test_an_agent_without_its_own_model_reports_the_default_for_all_agents(monke
     assert AK.effective_settings("coder")["model"] == {"value": "ollama/special", "source": "override"}
     other = AK.effective_settings("tester")["model"]
     assert other["source"] == "all" and other["value"] and "all agents" in other["note"]
+
+
+def test_changing_one_setting_does_not_wipe_the_others(tmp_path, monkeypatch):
+    import asyncio
+    from hub.features import opencode as OC
+    monkeypatch.setattr(AK, "OVERRIDES_FILE", tmp_path / "ov.json")
+    AK.save_override("coder", {"model": "a/b", "temperature": 0.3, "steps": 9})
+
+    class Req:
+        match_info = {"name": "coder"}
+        async def json(self): return {"model": "c/d"}
+        async def read(self): return b'{"model": "c/d"}'
+        can_read_body = True
+    try:
+        asyncio.run(OC.oc_agent_settings(Req()))
+    except Exception:
+        pass
+    got = AK.load_overrides()["coder"]
+    assert got["model"] == "c/d" and got["temperature"] == 0.3 and got["steps"] == 9
+    AK.save_override("coder", {"model": ""})                         # an empty model removes the override: the agent follows the default again
+    assert "model" not in AK.load_overrides()["coder"]

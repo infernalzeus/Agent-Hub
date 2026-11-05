@@ -1357,7 +1357,7 @@ async def oc_agent_delete(request: web.Request) -> web.Response:
 async def oc_agent_settings(request: web.Request) -> web.Response:
     """Per-agent LLM knobs → agent_overrides.json (applied on next workspace start)."""
     body = await _body(request)
-    patch = {k: body.get(k) for k in ("model", "temperature", "top_p", "variant", "steps")}
+    patch = {k: body.get(k) for k in ("model", "temperature", "top_p", "variant", "steps") if k in body}      # only what was sent: a lone model change must not wipe the other knobs
     if isinstance(body.get("options"), dict):
         patch["options"] = body["options"]
     agent_knowledge.save_override(request.match_info["name"], patch)
