@@ -13,7 +13,7 @@ from html import escape
 from pathlib import Path
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
-V = "20261105d"
+V = "20261105r2-final"
 REPO = "https://github.com/infernalzeus/Agent-Hub"
 AG = "assets/agents/"
 LEGEND = "Live: seen running on a real machine. Unit-tested: the logic is tested, not yet seen running. Built, not tried: built and tested without the real hardware."
@@ -39,48 +39,126 @@ SCENES = [
 ]
 
 # title, short line, what happens, what you do, you-decide?
-STEPS = {
-    "missions": [
-        ("Ask", "Type it or say it", "No form to learn. A sentence typed on the board, spoken to TALK from your phone, or the first step of a saved automation.", "Type or say what you want, from any device.", 0),
-        ("Route", "Cheapest answer first", "Most questions never need an agent. The router walks a ladder and stops at the first rung that can answer, so you are not paying a model to tell you the time.", "Nothing. The hub picks the cheapest way.", 0),
-        ("Plan", "Split it into briefs", "One planner reads the ask and proposes the pieces. Briefs that do not depend on each other run side by side; one that needs earlier work waits for it.", "Nothing, unless it asks you a question.", 0),
-        ("Work", "In a private copy", "Each mission gets its own git worktree on its own branch. Your files do not change while it runs, and a provider hiccup moves the run to the next model instead of failing it.", "Nothing. Watch it appear in the Git Graph if you like.", 0),
-        ("Ask you", "It parks if it is stuck", "An agent at a real fork does not guess. The run parks, the question reaches whichever device is open, and your answer resumes the same mission. It never asks for a password or a key.", "Answer the question from whichever device you have.", 1),
-        ("Review", "Read the diff", "When the work is done the mission stops with the diff beside it. This is the one decision the system will not make for you.", "Read the diff. This part is yours.", 1),
-        ("Apply", "Or discard", "Apply merges the branch into your repo. Discard removes the copy and the branch. An automation waiting on this carries on only if you applied.", "Press APPLY to merge it, or DISCARD to throw it away.", 1),
-    ],
-    "pc": [
-        ("Say it", "In plain words", "“Open Apple Music and play my liked songs.” Speak to TALK or type it. No scripting, no recorded macro to maintain.", "Say or type what you want done.", 0),
-        ("Look", "Find it by name, not by pixel", "Windows MCP reads the controls on screen, so it finds Play by what it is, not by where it was last time.", "Nothing.", 0),
-        ("Ask first", "You see the press before it happens", "It shows the control it found and waits for your yes before touching anything.", "Look at the press it shows, then say yes or no.", 1),
-        ("Act", "Click, type, open", "Windows MCP presses the control. Shell, registry, file and process tools are switched off, so it can drive apps but not rewrite the machine.", "Nothing. It cannot rewrite the machine.", 0),
-        ("Check", "Did it actually work?", "A press only counts if the window changed. A replay that leaves the window as it was is not counted as a success.", "Nothing.", 0),
-        ("Remember", "Learned once, replayed after", "A run that worked is saved as a routine. It starts as a candidate and is trusted only after it has worked twice.", "Nothing. Ask again later and it replays.", 0),
-    ],
-    "media": [
-        ("Download", "yt-dlp, audio or video", "The download runs on your PC, as audio or as video.", "Paste a link, or say what to save.", 0),
-        ("Convert", "ffmpeg makes the format you picked", "ffmpeg turns it into the format you chose, on your PC.", "Pick the format.", 0),
-        ("Save", "To the folder you chose", "The result is saved to the folder you picked, not to someone else's server.", "Pick the folder.", 0),
-        ("It is yours to use", "Browse it, or copy it to your phone", "Browse it here, or copy it from your phone. Files you send from your phone land in your inbox on the PC.", "Open it, or copy it to your phone.", 0),
-    ],
-    "graph": [
-        ("One dot per project", "Found in your own folders", "The map finds your projects in the folders you chose and draws one dot for each, read straight from git.", "Open the Git Graph.", 0),
-        ("Status at a glance", "Changes waiting, orphaned copies", "See which projects have changes waiting and which agent copies have been left behind.", "Look for dots with changes waiting.", 0),
-        ("Open the diff", "Changed files, line by line", "Tap a dot to see exactly what an agent changed, including the copy it is working in right now.", "Tap a dot and read what changed.", 0),
-        ("Your move", "Merge the branch, or leave it", "Merge the agent's branch, or leave it. Nothing is merged for you.", "Merge it, or leave it.", 1),
-    ],
-    "install": [
-        ("Install", "On your own machine", "Download it for your system and run it. The first run asks what to set up, and every step says what it downloads. Desktop control is Windows only.", "Choose your system below and run the installer.", 0),
-        ("Private access", "Install Tailscale", "Install Tailscale on this PC and on your phone, so they can reach each other privately.", "Install Tailscale on both devices.", 0),
-        ("Connect", "Your own network", "Sign both into the same private network. Nothing is exposed to the internet.", "Sign both devices into the same network.", 0),
-        ("Open", "Keep it within reach", "Open the hub address and save the bookmark to your home screen.", "Open the address and save the bookmark.", 0),
-    ],
-    "skills": [
-        ("Add a skill", "Pick one, add it to your agents", "A skill is a pack of instructions an agent can follow, such as how to make a launch video. Adding one gives your agents that ability.", "Open the Skills tab and press ADD TO MY AGENTS.", 0),
-        ("Write your own", "It is just a SKILL.md file", "A skill is one text file of instructions. Write it for the work you want done.", "Write the file and drop it in.", 0),
-        ("Every agent gets them", "OpenCode and Claude Code", "Skills are published to the skill folders of OpenCode and Claude Code, so any agent session can use them.", "Nothing. They are there when an agent needs them.", 0),
-    ],
-}
+STEPS = {'missions': [('Ask',
+               'YOU',
+               'Smith receives your request and hands it to the router.',
+               'Type or say: add a dark-mode toggle to settings.',
+               0),
+              ('Route',
+               'HUB · ROUTER',
+               'A code change becomes a mission, rather than a direct answer.',
+               'Check that the request says what you want.',
+               0),
+              ('Plan',
+               'PLANNER AGENT',
+               'The planner divides the mission into briefs for named agents.',
+               'Answer if the planner needs a decision.',
+               0),
+              ('Work',
+               'CODING AGENT',
+               'The agent changes a private git worktree, not your project.',
+               'Watch progress; your working files stay untouched.',
+               0),
+              ('Ask you',
+               'AGENT → YOU',
+               'A blocked mission parks with a question, then resumes.',
+               'Answer the question from your open device.',
+               1),
+              ('Review',
+               'YOU',
+               'The finished mission stops with its diff ready to read.',
+               'Read the changed lines and the review.',
+               1),
+              ('Apply or discard',
+               'YOU',
+               'APPLY merges the branch. DISCARD removes the private copy.',
+               'Choose APPLY or DISCARD. Nothing merges for you.',
+               1)],
+ 'pc': [('Say it',
+         'YOU → SMITH',
+         'Smith hands the request to the Windows desktop agent.',
+         'Say: open Apple Music and play my liked songs.',
+         0),
+        ('Look',
+         'DESKTOP AGENT',
+         'Windows MCP finds the control by name, not by pixel.',
+         'Wait while it identifies the control.',
+         0),
+        ('Ask first',
+         'YOU · APPROVAL GATE',
+         'The proposed press is shown before the agent acts.',
+         'Read the proposal; say yes or no.',
+         1),
+        ('Act', 'WINDOWS MCP', 'The approved click or typing is sent to the app.', 'Watch the app respond.', 0),
+        ('Check',
+         'DESKTOP AGENT',
+         'The window must change for the press to count as a success.',
+         'Review the result the agent reports.',
+         0),
+        ('Remember', 'HUB', 'A successful run is saved as a candidate routine.', 'Ask again later to use the saved routine.', 0)],
+ 'media': [('Download',
+            'YOU → YT-DLP',
+            'The audio or video download runs on your own PC.',
+            'Paste a link: save this video as audio.',
+            0),
+           ('Convert', 'FFMPEG', 'The file is converted into the format you picked.', 'Choose the output format.', 0),
+           ('Save', 'YOU → HUB', 'The result goes to the folder you selected.', 'Pick the destination folder.', 0),
+           ('Browse or receive',
+            'YOU',
+            "Browse the PC's files or send a file from your phone.",
+            'Open a result, copy it, or use the phone inbox.',
+            0)],
+ 'graph': [('Open the map',
+            'YOU',
+            'The map draws projects found in your chosen folders.',
+            'Open Git Graph and choose a project dot.',
+            0),
+           ('Read its status',
+            'HUB · GIT',
+            'Git reports changes and the copies agents are using.',
+            'Check the project and its working branches.',
+            0),
+           ('Inspect the diff',
+            'YOU',
+            'Changed files and lines appear for the selected copy.',
+            'Tap the worktree, then read its diff.',
+            0),
+           ('Merge or leave',
+            'YOU',
+            'The branch stays separate until you choose to merge it.',
+            'Merge the branch, or leave it as it is.',
+            1)],
+ 'install': [('Install',
+              'YOU',
+              'An installed Hub opens a first-run setup wizard.',
+              'Choose your system and run the installer.',
+              0),
+             ('Choose tools',
+              'YOU → SETUP',
+              'Setup asks which optional tools to prepare.',
+              'Choose what you need; read each setup prompt.',
+              0),
+             ('Connect privately',
+              'YOU · TAILSCALE',
+              'Your PC and phone join the same private network.',
+              'Join the same private Tailscale network.',
+              0),
+             ('Open the Hub',
+              'YOU',
+              'The browser reaches your PC through that private network.',
+              'Save the Hub address to your home screen.',
+              0)],
+ 'skills': [('Choose a skill',
+             'YOU',
+             "A skill supplies instructions for an agent's work.",
+             'Open SKILLS and choose a pack of instructions.',
+             0),
+            ('Add it', 'YOU → HUB', 'The skill is made available to your agents.', 'Press ADD TO MY AGENTS.', 0),
+            ('Write your own',
+             'YOU',
+             'A SKILL.md file describes how to do the work.',
+             'Write the instructions, then add the skill.',
+             0)]}
 
 TALK_PHONE = [
     ("What's the weather in Leeds?", "A routine that worked before", "Smith answers from a saved routine. No model call, no agent started.", "Ask. That is all.", 0),
@@ -92,62 +170,79 @@ TALK_PHONE = [
 ]
 
 # image, name, one line, chips, what you do
-AGENTS = [
-    ("smith", "Agent Smith", "The voice you talk to: Talk, spoken answers, and the Hub's own commands.", ["To Router", "To Desktop agent", "To The Doctor", "To Neo"],
-     "Press TALK, then speak or type. Smith answers out loud and on screen, and hands the job to whoever should do it."),
-    ("neo", "Neo", "Designs a new agent from a plain description and hands back one ready-to-save file.", ["From Smith", "To your team"],
-     "Describe the job in plain words, read the file Neo hands back, and save it. The new agent joins your team."),
-    ("doctor", "The Doctor", "Diagnoses the Hub when something is wrong and proposes a fix as a diff in Missions. Never restarts anything.", ["From Smith", "Works in Missions"],
-     "Say “Smith, something is wrong” or press ASK THE DOCTOR on a red item. Read the diff and press APPLY. Restarting stays yours."),
-    ("desktop-agent", "Desktop agent", "Presses and types in apps on this PC for a goal, one step at a time, checking the screen after each.", ["From Smith", "Windows only"],
-     "Say what you want done. It shows each press and asks first."),
-    ("orchestrator", "orchestrator", "Asks what it must, then splits your ask into steps, independent ones side by side. Writes no code.", ["To coder", "To reviewer", "To researcher"],
-     "Answer its question if it asks one. Otherwise nothing."),
-    ("coder", "coder", "Ships the smallest change that works, in the project's own style. Leaves what you didn't ask about alone.", ["From orchestrator", "To reviewer"],
-     "Nothing. You read the result in the diff."),
-    ("reviewer", "reviewer", "The skeptic. Never edits; says ship, changes-needed or blocked, and points at the line.", ["From coder"],
-     "Read its verdict, then the diff."),
-    ("tester", "tester", "Tries to break it before you do: writes the tests, runs them, reports what failed and why.", ["From orchestrator"],
-     "Nothing. The failures show up in the review."),
-]
+AGENTS = [('smith',
+  'Agent Smith',
+  'Hears you, answers aloud and on screen, and routes requests.',
+  ['Router', 'Desktop agent', 'Neo', 'Doctor'],
+  'Press TALK or type; review any action it proposes.'),
+ ('neo',
+  'Neo',
+  'Designs one ready-to-save agent file from your description.',
+  ['From Smith', 'To your team'],
+  'Describe the job, read the persona file, then save it.'),
+ ('doctor',
+  'The Doctor',
+  'Reads Hub facts and proposes a repair in a private copy of the Hub repo.',
+  ['Mission', 'Checks', 'Your APPLY'],
+  'Review the checked diff and press APPLY. Restarting is yours.'),
+ ('desktop-agent',
+  'Desktop agent',
+  'Finds app controls by name and checks each approved action.',
+  ['Windows only', 'Unit-tested'],
+  'Read the proposed press and approve or refuse it.'),
+ ('orchestrator',
+  'orchestrator',
+  'Plans the mission and assigns briefs to worker agents. Writes no code.',
+  ['To coder', 'To reviewer', 'To researcher'],
+  'Answer its question if it asks one. Otherwise nothing.'),
+ ('coder',
+  'coder',
+  "Ships the smallest change that works, in the project's own style. Leaves what you didn't ask about alone.",
+  ['From orchestrator', 'To reviewer'],
+  'Nothing. You read the result in the diff.'),
+ ('reviewer',
+  'reviewer',
+  'The skeptic. Never edits; says ship, changes-needed or blocked, and points at the line.',
+  ['From coder'],
+  'Read its verdict, then the diff.'),
+ ('tester',
+  'tester',
+  'Tries to break it before you do: writes the tests, runs them, reports what failed and why.',
+  ['From orchestrator'],
+  'Nothing. The failures show up in the review.')]
 
 
 def chips(items):
     return "".join('<span class="chip %s">%s%s</span>' % ("tested" if n != "Live" else "", escape(n), (" · " + escape(note)) if note else "") for n, note in items)
 
 
-def slab(inner, cls="", z=20, d=36):
-    """A glass slab: the front face plus a five-sided volume behind it, the way the dashboard draws a block in 3D."""
-    return ('<div class="slabbox %s" style="--z:%dpx;--d:%dpx"><i class="vol" aria-hidden="true"><b class="back"></b><b class="left"></b><b class="right"></b><b class="top"></b><b class="bottom"></b></i>%s</div>'
-            % (cls, z, d, inner))
+def slab(inner, cls="", z=12, d=0):
+    """Dashboard GLASS is a flat, double-sided sheet; no solid volume faces."""
+    return '<div class="slabbox %s" style="--z:%dpx">%s</div>' % (cls, min(z, 16), inner)
 
 
 def small_blocks(chips_, line, runs, runs_line):
     a = ('<button class="blk small-block" type="button" aria-expanded="false" data-more><span class="label">Status</span>%s<span class="line">%s</span><span class="more">%s</span></button>'
          % (chips(chips_), escape(line), escape(LEGEND)))
     b = ('<button class="blk small-block" type="button" aria-expanded="false" data-more><span class="label">Runs on</span><span class="line strong">%s</span><span class="line">%s</span>'
-         '<span class="more">Everything runs on your own PC and your own network: no cloud, no account.</span></button>' % (escape(runs), escape(runs_line)))
+         '<span class="more">Reach this PC from your other devices over your private network.</span></button>' % (escape(runs), escape(runs_line)))
     return '<aside class="side-blocks">%s%s</aside>' % (slab(a, "side s1", 48, 22), slab(b, "side s2", 48, 22))
 
 
 def _auto_wrap(lis, with_downloads=False):
     dl = ""
     if with_downloads:
-        dl = ('<div class="downloads"><a class="action" href="%s/releases/latest/download/Agent-Hub-Setup.exe">Windows</a>'
-              '<a class="action" href="%s/releases/latest/download/Agent-Hub-macOS.dmg">macOS</a>'
-              '<a class="action" href="%s/releases/latest/download/Agent-Hub-Linux.tar.gz">Linux</a></div>' % (REPO, REPO, REPO))
-    return ('<div class="auto" data-auto><ol class="auto-steps">%s</ol><div class="auto-detail">%s<img class="pic" alt="" hidden><p class="kicker"></p><h3></h3><p class="d"></p>'
-            '<div class="you"><span class="yl">What you do</span><p></p></div><div class="chips-row"></div><span class="bar" aria-hidden="true"></span></div></div>' % (lis, dl))
+        dl = '<div class="downloads">' + ''.join('<a class="action" href="%s/releases/latest/download/%s"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="3" width="18" height="13"/><path d="M12 16v5M7 21h10"/></svg>%s</a>' % (REPO, f, n) for n, f in [("Windows", "Agent-Hub-Setup.exe"),("macOS", "Agent-Hub-macOS.dmg"),("Linux", "Agent-Hub-Linux.tar.gz")]) + '</div>'
+    return ('<div class="auto" data-auto><ol class="auto-steps" aria-label="How it works">%s</ol><div class="auto-detail">'
+            '<div class="you"><span class="yl">YOU DO</span><p></p></div><div class="detail-copy"><p class="kicker"></p><h3></h3><p class="d"></p></div>'
+            '<div class="visual" data-visual aria-label="Illustrated handoff"></div>%s<img class="pic" alt="" hidden><div class="chips-row"></div><span class="bar" aria-hidden="true"></span></div></div>' % (lis, dl))
 
 
 def auto(steps, with_downloads=False):
-    lis = []
-    for i, (t, em, d, you, gate) in enumerate(steps):
-        lis.append('<li><button class="st%s" type="button" data-t="%s" data-k="%s" data-d="%s" data-you="%s"%s><span class="num">%d</span><span class="sb"><b>%s</b><em>%s</em></span></button>'
-                   '<p class="more-static">%s <b>You:</b> %s</p></li>'
-                   % (" gate" if gate else "", escape(t, True), escape(em, True), escape(d, True), escape(you, True), ' aria-pressed="true"' if i == 0 else ' aria-pressed="false"',
-                      i + 1, escape(t), escape(em), escape(d), escape(you)))
-    return _auto_wrap("".join(lis), with_downloads)
+    lis=[]
+    for i,(title,who,does,you,gate) in enumerate(steps):
+        lis.append('<li><button class="st%s" type="button" data-t="%s" data-k="%s" data-d="%s" data-you="%s" aria-pressed="%s"><span class="num">%d</span><span class="sb"><b>%s</b><em>%s</em></span></button><p class="more-static">%s <b>You do:</b> %s</p></li>' % (" gate" if gate else "",escape(title,True),escape(who,True),escape(does,True),escape(you,True),"true" if i==0 else "false",i+1,escape(title),escape(who),escape(does),escape(you)))
+    return _auto_wrap(''.join(lis),with_downloads)
 
 
 def agents_body() -> str:
@@ -160,6 +255,9 @@ def agents_body() -> str:
                    % (escape(name, True), kind, escape(role, True), escape(you, True), AG, img, escape("|".join(ch), True), ' aria-pressed="true"' if i == 0 else ' aria-pressed="false"',
                       AG, img, escape(name), escape(role), escape(you)))
     agents = _auto_wrap("".join(lis)).replace('class="auto"', 'class="auto agents-auto"', 1)
+    flows = '<div class="agency-flows"><button type="button" data-agent-jump="neo"><b>NEO</b><span>YOU describe → Neo designs → YOU read and save → orchestrator can pick</span></button><button type="button" data-agent-jump="doctor"><b>THE DOCTOR</b><span>YOU ask → Hub facts → private Hub copy → checks → YOU APPLY · restart is yours</span></button></div>'
+    agents += flows
+
     skills = auto(STEPS["skills"])
     return ('<div class="agency"><div class="tabs" role="tablist"><button class="tab" role="tab" type="button" aria-selected="true" data-tab="agents">AGENTS</button>'
             '<button class="tab" role="tab" type="button" aria-selected="false" data-tab="skills">SKILLS</button></div>'
@@ -173,28 +271,51 @@ def scene(sid, label, headline, chips_, line, runs, runs_line, body, wide=False,
             % (sid, sid, " wide" if wide else "", slab(main, "main", 20, 36), "" if wide else small_blocks(chips_, line, runs, runs_line)))
 
 
+# Ordered stories. Each row separates the responsible actor, the result and the user's action.
+
+STORY = {
+ "talk": ("Press TALK or type: save this video as audio.","Smith routes it to media; the result appears on your PC.","Typed: Live. Voice: Unit-tested, not seen running."),
+ "missions": ("Add a dark-mode toggle to settings.","A mission, its private branch and a diff waiting for you.","OpenCode, Claude Code or configured local models. APPLY is yours."),
+ "pc": ("Open Apple Music and play my liked songs.","A proposed press, your approval, then a checked result.","Windows only · Unit-tested. Shell, registry, file and process tools off."),
+ "media": ("Save this video as audio.","A download, a conversion and a file in your chosen folder.","Your PC does the download and conversion; it must stay on."),
+ "graph": ("What did the agents change?", "A project map, its working branch and the changed lines.","Reads local git projects. You choose whether to merge."),
+ "agents": ("Make an agent that reviews my writing.","Neo gives you a persona file to read and save.","The Doctor proposes a diff. APPLY and restarting stay yours."),
+ "install": ("Choose your system, then open the first-run wizard.","Tool choices, private-device access and a Hub bookmark.","Unsigned macOS builds. Desktop control is Windows only.")}
+
+# Keep the short card summaries distinct from the explicit handoff flows.
+
+def story(sid, body):
+    ask,seen,limits=STORY[sid]
+    return '<div class="story">%s<footer class="story-foot"><div class="try-panel"><h3>TRY IT · YOU</h3><p>%s</p><p class="expect"><b>You see:</b> %s</p></div><button type="button" class="limit-panel" data-limit aria-expanded="false"><span class="limit-title">LIMITS · DETAILS</span><span>%s</span><span class="limit-more">Live means seen running. Unit-tested means logic tested, not yet seen running. Built, not tried means tested without the real hardware.</span></button></footer></div>' % (body,escape(ask),escape(seen),escape(limits))
+
+def talk_table():
+    destinations=["Saved routine","Mission","Desktop agent","Media tools","Git Graph","Scheduled mission"]
+    rows=''.join('<tr><td>%s</td><td>%s</td><td>%s</td></tr>' % (escape(t[0]),dest,escape(result)) for t,dest,result in zip(TALK_PHONE,destinations,['Answer aloud and on screen','Private-copy mission and review diff','Proposed press for your approval','Saved audio file on your PC','Project map and changed lines','Scheduled run, stopped at review']))
+    return '<table class="say-table"><caption>YOU SAY → SMITH SENDS IT → YOU GET</caption><thead><tr><th>You say</th><th>Smith sends it to</th><th>You get / you do</th></tr></thead><tbody>'+rows+'</tbody></table>'
+
+
 def build() -> str:
     machine = (Path(__file__).resolve().parent / "site_parts" / "machine.html").read_text(encoding="utf-8")
-    machine = machine.replace("You say", "You say it to Smith").replace("The hub decides", "Smith decides")
+    machine = machine.replace("You say", "You say it to Smith").replace("The hub decides", "Smith decides").replace("split into briefs, run side by side", "split into briefs for worker agents")
     parts = []
     for sid, door, label, headline, ch, line, runs, runs_line in SCENES:
         if sid == "talk":
-            smith = '<span class="smith-card"><img src="%ssmith.png" alt="Agent Smith" width="44" height="44"><span>Press TALK, or type. Smith answers out loud and on screen.</span></span>' % AG
-            body = ('<div class="talk-desktop"><div class="fit"><div class="flow">%s</div></div></div><div class="talk-phone">%s</div>' % (machine, auto(TALK_PHONE)))
+            smith = '<span class="smith-card"><img src="%ssmith.png" alt="Agent Smith" width="44" height="44"><span>Smith · speak or type</span></span>' % AG
+            body = story(sid, '<div class="talk-desktop"><div class="fit"><div class="flow">%s</div></div>%s</div><div class="talk-phone">%s</div>' % (machine, talk_table(), auto(TALK_PHONE)))
             parts.append(scene(sid, label, headline, ch, line, runs, runs_line, body, wide=True, extra_head=smith))
         elif sid == "agents":
-            parts.append(scene(sid, label, headline, ch, line, runs, runs_line, agents_body()))
+            parts.append(scene(sid, label, headline, ch, line, runs, runs_line, story(sid, agents_body())))
         elif sid == "architecture":
-            body = ('<button class="arch-open" type="button" data-zoom aria-label="Enlarge the architecture diagram"><picture class="architecture-picture"><source media="(max-width:650px) and (orientation:portrait)" srcset="architecture-tall.svg">'
-                    '<img src="architecture.svg" alt="Agent Hub architecture: devices reach the Hub over a private network; Agent Smith hears you and routes the ask; Neo designs new agents; the Doctor repairs the Hub; missions, PC control, media and the git graph" width="1120" height="760"></picture></button>'
-                    '<div class="zoom" hidden><button class="zoom-x" type="button" data-zoom-close>Close ✕</button><div class="zoom-scroll"><picture><source media="(max-width:650px) and (orientation:portrait)" srcset="architecture-tall.svg">'
-                    '<img src="architecture.svg" alt="" width="1120" height="760"></picture></div></div>')
+            from build_architecture import diagram
+            body = diagram() + ('<div class="zoom" role="dialog" aria-modal="true" aria-label="Enlarged architecture" hidden><div class="zoom-tools"><button class="zoom-x" type="button" data-zoom-close>Close ✕</button><button type="button" data-zoom-in aria-label="Zoom in">+</button><button type="button" data-zoom-out aria-label="Zoom out">−</button></div><div class="zoom-scroll"><img src="architecture.svg" alt="Expanded Hub architecture" width="1440" height="1040"></div></div>')
+
             enlarge = '<button class="enlarge" type="button" data-zoom>ENLARGE ⤢</button>'
             parts.append(scene(sid, label, headline, ch, line, runs, runs_line, body, wide=True, extra_head=enlarge))
         elif sid == "install":
-            parts.append(scene(sid, label, headline, ch, line, runs, runs_line, auto(STEPS[sid], with_downloads=True)))
+            download_buttons = '<div class="downloads">' + ''.join('<a class="action" href="%s/releases/latest/download/%s"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="3" width="18" height="13"/><path d="M12 16v5M7 21h10"/></svg>%s</a>' % (REPO, f, n) for n, f in [("Windows", "Agent-Hub-Setup.exe"),("macOS", "Agent-Hub-macOS.dmg"),("Linux", "Agent-Hub-Linux.tar.gz")]) + '</div>'
+            parts.append(scene(sid, label, headline, ch, line, runs, runs_line, story(sid, auto(STEPS[sid])), extra_head=download_buttons))
         else:
-            parts.append(scene(sid, label, headline, ch, line, runs, runs_line, auto(STEPS[sid])))
+            parts.append(scene(sid, label, headline, ch, line, runs, runs_line, story(sid, auto(STEPS[sid]))))
     tiles = [s for s in SCENES if s[0] in ("missions", "pc", "media", "graph")]
     doors = "".join(slab('<a class="door blk" href="#%s">%s</a>' % (sid, escape(door)), "doorbox", 40, 34) for sid, door, *_ in tiles)
     smith_btn = slab('<a class="smith-btn blk" href="#talk" aria-label="Talk to Agent Smith"><img src="%ssmith.png" alt="" width="52" height="52"><span><b>TALK</b><em>Agent Smith</em></span></a>' % AG, "smithbox", 50, 30)
@@ -208,12 +329,12 @@ def build() -> str:
     landing = (
         '<section class="scene landing active" id="landing" aria-labelledby="landing-title"><canvas id="hub-grid" aria-hidden="true"></canvas><div class="tilt-layer" data-tilt>'
         '<h1 class="hero-title" id="landing-title" tabindex="-1">Agent Hub</h1>'
-        '<div class="mark-host" id="hero-mark" role="img" aria-label="Agent Hub globe and crystalline core"><noscript><img src="assets/agent-hub-mark.png" alt="" width="256" height="256"></noscript></div>'
+        '<div class="mark-host" id="hero-mark" role="img" aria-label="Agent Hub globe and crystalline core"><noscript>Agent Hub</noscript></div>'
         '<p class="tagline">Your most powerful PC tools at your fingertips, any device.</p>'
         '<div class="actions"><a class="action primary" href="#install">DOWNLOAD</a><a class="action" href="%s">SOURCE ↗</a></div>'
         '<nav class="more-links" aria-label="More"><a href="#agents">AGENTS + SKILLS</a><a href="#architecture">ARCHITECTURE</a></nav>'
         '%s<nav class="doors" aria-label="The tools">%s</nav></div></section>' % (REPO, smith_btn, doors))
-    body = ('<body><header class="site-header"><a class="brand" href="#" data-home aria-label="Agent Hub — return to landing"><img src="assets/agent-hub-mark.png" alt="" width="44" height="44">AGENT HUB</a>'
+    body = ('<body><header class="site-header"><a class="brand" href="#" data-home aria-label="Agent Hub — return to landing"><svg class="header-mark" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="18"/><ellipse cx="22" cy="22" rx="9" ry="18"/><path d="M4 22h36M8 12h28M8 32h28M22 6l11 25-11-6-11 6Z"/></svg>AGENT HUB</a>'
             '<a class="projects" href="https://infernalzeus.github.io/">← PROJECTS</a></header><main class="stage">%s%s</main>'
             '<script src="assets/agent-hub-mark.min.js?v=20261105b" defer></script><script src="assets/depth-lift-site.js?v=%s" defer></script>'
             '<script src="assets/site.js?v=%s" defer></script></body></html>\n' % (landing, "".join(parts), V, V))

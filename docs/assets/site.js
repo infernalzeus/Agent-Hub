@@ -4,6 +4,7 @@
  let active=document.getElementById('landing'),busy=false,mark=null,stopToggle=null,shell=true,permission='unknown',pose=null,hasOrientation=false,pendingRoute=null;
  try{permission=sessionStorage.getItem('site:orientation')||'unknown';}catch(error){}
  const route=()=>document.getElementById(location.hash.slice(1))?.matches('.scene')?location.hash.slice(1):'landing';
+ const MAX_TILT=10, MOUSE_TILT=6, LANDING_MOUSE_TILT=4.5, PHONE_TILT=10, PERSPECTIVE=1600;
  const STEP=4200;
 
  /* ---------- auto-playing step lists: they advance by themselves; a tap or hover pins one ---------- */
@@ -21,7 +22,7 @@
   a.i=(i+a.btns.length)%a.btns.length;const b=a.btns[a.i];
   a.btns.forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false'));
   a.detail.dataset.n=a.i+1;a.kicker.textContent=b.dataset.k;a.h3.textContent=b.dataset.t;a.d.textContent=b.dataset.d;a.you.textContent=b.dataset.you||'';a.detail.querySelector('.you').hidden=!b.dataset.you;if(b.dataset.img){a.pic.src=b.dataset.img;a.pic.hidden=false;}else a.pic.hidden=true;a.chips.textContent='';(b.dataset.chips||'').split('|').filter(Boolean).forEach(c=>{const i=document.createElement('span');i.className='chip';i.textContent=c;a.chips.appendChild(i);});
-  a.el.classList.remove('playing');void a.el.offsetWidth;if(!a.pinned&&!reduced.matches&&a.live)a.el.classList.add('playing');
+  detailSymbol(a);drawVisual(a);a.el.classList.remove('playing');void a.el.offsetWidth;if(!a.pinned&&!reduced.matches&&a.live)a.el.classList.add('playing');
  }
  function play(a){clearTimeout(a.timer);if(!a.live||a.pinned||reduced.matches)return;a.el.style.setProperty('--step',STEP+'ms');a.el.classList.add('playing');a.timer=setTimeout(()=>{select(a,a.i+1);play(a);},STEP);}
  function pin(a,i,ms){a.pinned=true;clearTimeout(a.timer);clearTimeout(a.resume);select(a,i);a.el.classList.remove('playing');a.resume=setTimeout(()=>{a.pinned=false;play(a);},ms);}
@@ -32,25 +33,35 @@
  /* the Agents / Skills tabs */
  document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{const ag=t.closest('.agency');ag.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));ag.querySelectorAll('.tabpanel').forEach(p=>p.hidden=p.dataset.panel!==t.dataset.tab);stopAutos();startAutos(active);}));
 
+ document.querySelectorAll('[data-limit]').forEach(b=>b.addEventListener('click',()=>b.setAttribute('aria-expanded',String(b.getAttribute('aria-expanded')!=='true'))));
+ document.querySelectorAll('[data-agent-jump]').forEach(b=>b.addEventListener('click',()=>{const a=autos.find(a=>a.scene.id==='agents'&&a.el.classList.contains('agents-auto'));if(a){const i=a.btns.findIndex(x=>(x.dataset.img||'').endsWith('/'+b.dataset.agentJump+'.png'));if(i>=0)pin(a,i,10000);}}));
  /* small glass blocks open to show more */
  document.querySelectorAll('[data-more]').forEach(b=>b.addEventListener('click',()=>b.setAttribute('aria-expanded',b.getAttribute('aria-expanded')==='true'?'false':'true')));
 
  /* the animated machine on the TALK scene is drawn at one size and scaled to the room it has */
- function fit(){const w=active.querySelector('.fit');if(!w||!w.offsetParent)return;const f=w.firstElementChild,s=Math.min(w.clientWidth/1060,w.clientHeight/f.offsetHeight,1.05);f.style.setProperty('--s',s.toFixed(3));}
+ function fit(){const w=active.querySelector('.fit');if(w&&w.offsetParent){const f=w.firstElementChild,s=Math.min(w.clientWidth/1060,w.clientHeight/f.offsetHeight,1.2);f.style.setProperty('--s',s.toFixed(3));}autos.filter(a=>a.live).forEach(drawVisual);drawArchitecture();fitTilt();}
  addEventListener('resize',()=>{fit();sizeGrid();});
  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{fit();sizeGrid();});
 
  /* architecture: tap to enlarge */
- const zoomOf=()=>active.querySelector('.zoom');
- document.querySelectorAll('[data-zoom]').forEach(b=>b.addEventListener('click',()=>{const z=b.closest('.scene').querySelector('.zoom');z.hidden=false;z.querySelector('[data-zoom-close]').focus();}));
- document.querySelectorAll('[data-zoom-close]').forEach(b=>b.addEventListener('click',()=>{b.closest('.zoom').hidden=true;}));
+ const zoom=document.querySelector('#architecture .zoom');if(zoom)document.body.appendChild(zoom);
+ const zoomOf=()=>zoom;
+ let zoomWidth=1440;
+ document.querySelectorAll('[data-zoom]').forEach(b=>b.addEventListener('click',()=>{zoom.hidden=false;zoomWidth=Math.max(1440,innerWidth);zoom.querySelector('img').style.width=zoomWidth+'px';zoom.querySelector('[data-zoom-close]').focus();}));
+ zoom?.querySelector('[data-zoom-close]').addEventListener('click',()=>{zoom.hidden=true;document.querySelector('.enlarge').focus();});
+ zoom?.querySelector('[data-zoom-in]').addEventListener('click',()=>{zoomWidth=Math.min(4000,zoomWidth*1.25);zoom.querySelector('img').style.width=zoomWidth+'px';});
+ zoom?.querySelector('[data-zoom-out]').addEventListener('click',()=>{zoomWidth=Math.max(600,zoomWidth/1.25);zoom.querySelector('img').style.width=zoomWidth+'px';});
+ let pan=null;const scroll=zoom?.querySelector('.zoom-scroll');
+ scroll?.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse')return;pan={x:e.clientX,y:e.clientY,left:scroll.scrollLeft,top:scroll.scrollTop};scroll.setPointerCapture(e.pointerId);e.preventDefault();});
+ scroll?.addEventListener('pointermove',e=>{if(pan){scroll.scrollLeft=pan.left+pan.x-e.clientX;scroll.scrollTop=pan.top+pan.y-e.clientY;}});
+ scroll?.addEventListener('pointerup',()=>{pan=null;});scroll?.addEventListener('pointercancel',()=>{pan=null;});
 
  /* ---------- the mark: the real animated core fades in once the turn has finished; the picture is only a last resort ---------- */
  const markHost=document.getElementById('hero-mark');
  function mountMark(){
   if(mark||!markHost)return;
   try{if(window.AgentHubMark){mark=AgentHubMark.mount(markHost,{state:'live',mode:'crystal',shell,touchLock:true,reducedMotion:reduced.matches});if(mark)stopToggle=AgentHubMark.tapToToggle(document.getElementById('landing'),mark,markHost,{rippleIn:document.getElementById('landing'),onToggle:value=>{shell=value;}});}}catch(error){mark=null;}
-  if(!mark&&!markHost.firstElementChild){const img=new Image();img.src='assets/agent-hub-mark.png';img.alt='';img.width=img.height=256;markHost.appendChild(img);}
+  // Never substitute a stored picture for the live core. GPU failure leaves the title and doors readable.
   requestAnimationFrame(()=>setTimeout(()=>markHost.classList.add('on'),140));
  }
  function unmountMark(){if(!markHost)return;if(stopToggle){stopToggle();stopToggle=null;}if(mark){mark.destroy();mark=null;}markHost.classList.remove('on');markHost.textContent='';}
@@ -76,10 +87,74 @@
  function startGrid(){if(!graf&&!reduced.matches)graf=requestAnimationFrame(gridFrame);}
  if(markHost)markHost.addEventListener('click',()=>{gclick=performance.now();if(reduced.matches)drawGrid(performance.now());});
 
+/* Explanatory diagrams, not recordings of completed work. All geometry uses the available panel. */
+function detailSymbol(a){
+ if(!['media','install'].includes(a.scene.id))return;const host=a.detail.querySelector('.detail-copy');if(host.querySelector('.detail-symbol'))return;
+ const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.classList.add('detail-symbol');svg.setAttribute('viewBox','0 0 64 64');svg.setAttribute('aria-label',a.scene.id==='media'?'Your media folder':'Your PC and phone');svg.setAttribute('role','img');
+ svg.innerHTML=a.scene.id==='media'?'<path d="M7 18h19l6 7h25v28H7zM7 18v-7h19l6 7h25v7M26 32l14 8-14 8z"/>':'<rect x="5" y="7" width="42" height="32"/><path d="M18 39v9M11 48h25"/><rect x="43" y="29" width="16" height="28"/><path d="M48 51h6"/>';
+ host.append(svg);
+}
+function drawVisual(a){
+ const host=a.detail.querySelector('[data-visual]');if(!host||!host.offsetParent)return;
+ const w=host.clientWidth,h=host.clientHeight;if(w<80||h<60)return;
+ const sid=a.scene.id,svgNS='http://www.w3.org/2000/svg',svg=document.createElementNS(svgNS,'svg');
+ svg.setAttribute('viewBox',`0 0 ${w} ${h}`);svg.setAttribute('role','img');svg.setAttribute('aria-label',`${sid}: an illustration of the handoff and the decision you make`);
+ function node(tag,attrs,text){const n=document.createElementNS(svgNS,tag);Object.entries(attrs).forEach(([k,v])=>n.setAttribute(k,v));if(text)n.textContent=text;svg.append(n);return n;}
+ const text=(x,y,t,size=13,color='#d9ffe9')=>node('text',{x,y,fill:color,'font-size':size,'font-family':'Outfit,system-ui,sans-serif'},t);
+ const line=(x,y,xx,yy)=>node('path',{d:`M${x} ${y}L${xx} ${yy}`,stroke:'#41ebff','stroke-opacity':'.65','stroke-width':1.5,fill:'none','marker-end':'url(#arrow-'+sid+')'});
+ const defs=node('defs',{});const marker=document.createElementNS(svgNS,'marker');marker.setAttribute('id','arrow-'+sid);marker.setAttribute('viewBox','0 0 10 10');marker.setAttribute('refX','9');marker.setAttribute('refY','5');marker.setAttribute('markerWidth','5');marker.setAttribute('markerHeight','5');marker.setAttribute('orient','auto');const tip=document.createElementNS(svgNS,'path');tip.setAttribute('d','M0 0L10 5L0 10');tip.setAttribute('fill','#41ebff');marker.append(tip);defs.append(marker);
+ const box=(x,y,bw,bh,title,note,color='#00e676')=>{node('rect',{x,y,width:bw,height:bh,fill:'#080c28','fill-opacity':'.36',stroke:color,'stroke-opacity':'.45'});text(x+12,y+24,title,Math.max(11,Math.min(15,w/30)),color);if(note)text(x+12,y+45,note,Math.max(10,Math.min(13,w/36)));};
+ text(10,18,'ILLUSTRATION · '+({missions:'PRIVATE COPY → YOUR REVIEW',pc:'YOUR APPROVAL COMES FIRST',media:'FROM LINK TO YOUR FILE',graph:'PROJECT → BRANCH → DIFF',agents:'A HANDOFF YOU CAN READ',install:'YOUR DEVICES, YOUR PC',talk:'SMITH HANDS THE REQUEST ON'}[sid]||'HOW IT WORKS'),Math.min(11,w/37),'#9dcbb7');
+ if(w<220){
+  svg.replaceChildren();const titles={pc:['YOU approve','MCP acts'],media:['YOU choose','PC saves'],graph:['YOU inspect','YOU decide'],missions:['Agent copy','YOU review'],talk:['YOU ask','Smith routes'],install:['YOU install','YOU connect'],agents:['Neo drafts','YOU save']}[sid]||['YOU ask','HUB acts'];
+  const bh=Math.max(24,(h-16)/2-6);titles.forEach((t,i)=>{node('rect',{x:4,y:4+i*(bh+12),width:w-8,height:bh,fill:'#0a1632',stroke:'#41ebff','stroke-opacity':'.45'});text(10,4+i*(bh+12)+bh/2+4,t,11,i?'#00e676':'#d9ffe9');});line(w/2,bh+4,w/2,bh+15);host.replaceChildren(svg);return;
+ }
+ if(['missions','pc','talk'].includes(sid))node('image',{href:'assets/agents/smith.png',x:w-36,y:0,width:30,height:30});
+ const top=34,gap=18,third=(w-20-gap*2)/3;
+ if(sid==='graph'){
+  const cx=w*.26,cy=h*.47;node('path',{d:`M${cx} ${cy}L${w*.58} ${h*.3}L${w*.82} ${h*.62}M${cx} ${cy}L${w*.53} ${h*.78}`,stroke:'#41ebff','stroke-width':2,fill:'none'});
+  [[cx,cy,'Your project'],[w*.58,h*.3,'Agent branch'],[w*.82,h*.62,'Diff'],[w*.53,h*.78,'Main branch']].forEach(([x,y,t])=>{node('circle',{cx:x,cy:y,r:Math.min(16,h*.06),fill:'#0d2040',stroke:'#00e676','stroke-width':2});text(Math.max(10,x-45),y+Math.min(37,h*.13),t,13);});
+  text(10,h-12,'YOU: tap a dot · inspect the changed lines · merge or leave',Math.min(13,w/42));
+ }else{
+  let rows={missions:[['Your project','Untouched'],['Agent copy','Code changes'],['Your review','APPLY / DISCARD']],pc:[['Agent looks','Finds Play'],['YOU APPROVE','Yes or no'],['MCP acts','Checks the window']],media:[['Your link','yt-dlp'],['Your format','ffmpeg'],['Your folder','Browse / receive']],agents:[['YOU describe','One job'],['Neo designs','One persona file'],['YOU save','Agent can be picked']],install:[['Your PC','Install the Hub'],['Private network','Tailscale'],['Your phone','Open the address']],talk:[['YOU ask','Speak or type'],['Smith routes','Tool or agent'],['YOU receive','Answer / review']]}[sid]||[];
+  if(sid==='agents'){
+   const name=a.btns[a.i].dataset.t;
+   if(!a.el.classList.contains('agents-auto'))rows=[['YOU choose','Skill instructions'],['HUB adds','Agent skill folders'],['Agents use','OpenCode / Claude']];
+   else if(name==='The Doctor')rows=[['YOU ask','Hub facts'],['Doctor mission','Private Hub copy'],['YOU APPLY','Restart is yours']];
+   else if(name==='Agent Smith')rows=[['YOU ask','Speak or type'],['Smith routes','Tool or agent'],['YOU receive','Answer / review']];
+   else if(name!=='Neo')rows=[['Planner briefs','One role'],['Agent delivers','Private copy'],['YOU review','Apply or discard']];
+  }
+  const bh=Math.max(54,Math.min(76,h*.29));rows.forEach(([t,n],i)=>{const xx=10+i*(third+gap);box(xx,top,third,bh,t,n,i===2?'#41ebff':'#00e676');if(i<2)line(xx+third,top+bh/2,xx+third+gap,top+bh/2);});
+  const y=top+bh+18,remaining=h-y-8;
+  if(remaining>50){
+   node('rect',{x:10,y,width:w-20,height:remaining,fill:'#050a20','fill-opacity':'.5',stroke:'#41ebff','stroke-opacity':'.2'});
+   if(sid==='missions'){
+    text(24,y+23,'settings.css · example diff',13,'#a8cbb9');text(24,y+Math.min(52,remaining*.48),'− color-scheme: light;',14,'#ffb0ae');text(24,y+Math.min(80,remaining*.75),'+ color-scheme: dark;',14,'#00e676');
+   }else{
+    const notes={pc:['ASK FIRST is the gate.','Shell · registry · file · process tools are off.'],media:['The PC downloads and converts.','The saved result is yours to browse or copy.'],agents:['Neo: describe → design → read → save.','Doctor: ask → facts → mission → checks → YOU apply.'],install:['First run: choose the optional tools to prepare.','Then bookmark the private address on your device.'],talk:['Smith can hand work to the router and desktop agent.','Neo designs agents; the Doctor proposes Hub repairs.']}[sid]||[];
+    notes.forEach((t,i)=>text(24,y+Math.min(28+i*26,remaining-10),t,Math.min(14,w/41)));
+   }
+  }
+ }
+ host.replaceChildren(svg);
+}
+
+function drawArchitecture(){
+ const map=document.querySelector('.scene.active .arch-map');if(!map)return;const svg=map.querySelector('.arch-connectors');const r=map.getBoundingClientRect();
+ // Offsets avoid feeding the board's current rotation back into diagram layout.
+ const w=map.clientWidth,h=map.clientHeight;svg.setAttribute('viewBox',`0 0 ${w} ${h}`);svg.innerHTML='<defs><marker id="arch-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10" fill="#41ebff"/></marker></defs>';
+ const location=e=>{let x=0,y=0,n=e;while(n&&n!==map){x+=n.offsetLeft;y+=n.offsetTop;n=n.offsetParent;}return {x,y,w:e.offsetWidth,h:e.offsetHeight};};
+ const connect=(from,to)=>{const a=location(map.querySelector(`[data-node="${from}"]`)),b=location(map.querySelector(`[data-node="${to}"]`));const n=document.createElementNS('http://www.w3.org/2000/svg','path');let d;if(to.startsWith('lane')){const x=a.x+a.w/2,y=a.y+a.h,xx=b.x+b.w/2,yy=b.y;d=`M${x} ${y}L${x} ${y+10}L${xx} ${y+10}L${xx} ${yy}`;}else d=`M${a.x+a.w} ${a.y+a.h/2}L${b.x} ${b.y+b.h/2}`;n.setAttribute('d',d);n.setAttribute('fill','none');n.setAttribute('stroke',from==='smith'?'#00e676':'#41ebff');n.setAttribute('stroke-opacity','.45');n.setAttribute('stroke-width','1.5');n.setAttribute('marker-end','url(#arch-arrow)');svg.append(n);};
+ [['devices','network'],['network','smith'],['smith','router']].forEach(([a,b])=>connect(a,b));map.querySelectorAll('[data-from]').forEach(n=>connect(n.dataset.from,n.dataset.node));
+}
+
+
+ let settleTimer=0;
  /* ---------- navigation ---------- */
  function enter(scene){
+  clearTimeout(settleTimer);scenes.forEach(s=>s.classList.remove('settling'));if(!reduced.matches){scene.classList.add('settling');settleTimer=setTimeout(()=>scene.classList.remove('settling'),1200);}
   active=scene;scenes.forEach(s=>{s.classList.remove('leaving');s.classList.toggle('active',s===active);s.setAttribute('aria-hidden',s===active?'false':'true');s.inert=s!==active;});
-  stopAutos();fit();startAutos(active);if(active.id==='landing'){mountMark();sizeGrid();startGrid();}else unmountMark();
+  stopAutos();startAutos(active);fit();requestAnimationFrame(fit);if(active.id==='landing'){mountMark();sizeGrid();startGrid();}else unmountMark();
  }
  async function navigate(id,push=true){
   if(busy)return;const next=document.getElementById(id)||scenes[0];if(next===active)return;
@@ -109,7 +184,7 @@
  new MutationObserver(()=>{if(!busy&&pendingRoute!==null){const p=pendingRoute;pendingRoute=null;navigate(p,false);}}).observe(document.body,{attributes:true,attributeFilter:['data-turning']});
  document.addEventListener('keydown',e=>{
   if(busy){if(['Escape','ArrowLeft','ArrowRight','Enter',' '].includes(e.key))e.preventDefault();return;}
-  const z=zoomOf();if(e.key==='Escape'&&z&&!z.hidden){e.preventDefault();z.hidden=true;return;}
+  const z=zoomOf();if(z&&!z.hidden){if(e.key==='Escape'){e.preventDefault();z.hidden=true;document.querySelector('.enlarge').focus();}if(e.key==='Tab'){const bs=[...z.querySelectorAll('button')],i=bs.indexOf(document.activeElement);e.preventDefault();bs[(i+(e.shiftKey?-1:1)+bs.length)%bs.length].focus();}return;}
   if(active.id==='landing'&&e.key.toLowerCase()==='g'&&!e.ctrlKey&&!e.metaKey&&mark){shell=!mark.isShell();mark.setShell(shell);}
   if(e.key==='Escape'){e.preventDefault();navigate('landing');}
   if((e.key==='ArrowLeft'||e.key==='ArrowRight')&&!e.target.matches('input,textarea,select')){e.preventDefault();stepActive(e.key==='ArrowRight'?1:-1);}
@@ -118,14 +193,31 @@
  /* ---------- tilt: pointer on a computer, the phone's gravity sensor on a phone, a finger drag as the fallback ---------- */
  let targetX=0,targetY=0,x=0,y=0,raf=0,last=0,lastMove=0,drag=null;
  const tiltEl=()=>active.querySelector('[data-tilt]');
- const maxFor=(el,kind)=>el&&el.classList.contains('tilt-layer')?(kind==='phone'?9:4.5):(kind==='phone'?18:9);
+ const maxFor=(el,kind)=>kind==='phone'?PHONE_TILT:el?.classList.contains('tilt-layer')?LANDING_MOUSE_TILT:MOUSE_TILT;
+
+ function fitTilt(){
+  const b=tiltEl();if(!b)return;
+  // Reserve a safe box below the header, then project its corners at every permitted extreme.
+  // A single outer scale accounts for perspective and the shallow child translateZ, without cursor feedback.
+  const oldX=b.style.getPropertyValue('--rx'),oldY=b.style.getPropertyValue('--ry');
+  b.style.setProperty('--rx','0deg');b.style.setProperty('--ry','0deg');b.style.setProperty('--fit','1');
+  const r=b.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+  const top=document.querySelector('.site-header').getBoundingClientRect().bottom+10,inset=12;
+  let scale=1;const rad=MAX_TILT*Math.PI/180;
+  for(const ax of [-rad,rad])for(const ay of [-rad,rad])for(const px of [-r.width/2,r.width/2])for(const py of [-r.height/2,r.height/2])for(const depth of [0,22]){
+   const xx=px*Math.cos(ay)+depth*Math.sin(ay),zz=-px*Math.sin(ay)+depth*Math.cos(ay);
+   const yy=py*Math.cos(ax)-zz*Math.sin(ax),z=py*Math.sin(ax)+zz*Math.cos(ax),persp=1/(1-z/PERSPECTIVE),dx=xx*persp,dy=yy*persp;
+   scale=Math.min(scale,dx>0?(innerWidth-inset-cx)/dx:(cx-inset)/-dx,dy>0?(innerHeight-inset-cy)/dy:(cy-top)/-dy);
+  }
+  b.style.setProperty('--fit',Math.max(.72,Math.min(1,scale*.995)).toFixed(4));b.style.setProperty('--rx',oldX||'0deg');b.style.setProperty('--ry',oldY||'0deg');
+ }
  function animate(now){
   raf=0;if(document.hidden||reduced.matches||busy)return;const b=tiltEl();if(!b)return;
   const dt=last?Math.min(60,now-last):16;last=now;const ease=1-Math.exp(-dt/110);x+=(targetX-x)*ease;y+=(targetY-y)*ease;
   b.style.setProperty('--rx',x.toFixed(3)+'deg');b.style.setProperty('--ry',y.toFixed(3)+'deg');
   if(now-lastMove<2000||Math.abs(x-targetX)+Math.abs(y-targetY)>.01)raf=requestAnimationFrame(animate);
  }
- function move(a,b){if(busy||document.hidden||reduced.matches)return;targetX=a;targetY=b;lastMove=performance.now();if(!raf){last=0;raf=requestAnimationFrame(animate);}}
+ function move(a,b){if(busy||document.hidden||reduced.matches)return;targetX=Math.max(-MAX_TILT,Math.min(MAX_TILT,a));targetY=Math.max(-MAX_TILT,Math.min(MAX_TILT,b));lastMove=performance.now();if(!raf){last=0;raf=requestAnimationFrame(animate);}}
  function resetTilt(){cancelAnimationFrame(raf);raf=0;targetX=targetY=x=y=0;document.querySelectorAll('[data-tilt]').forEach(b=>{b.style.setProperty('--rx','0deg');b.style.setProperty('--ry','0deg');});}
  const clamp=(v,m)=>Math.max(-m,Math.min(m,v));
  // The pointer is read against the scene, which never rotates. (Reading it against the board that is turning made the board chase the
@@ -136,13 +228,13 @@
    if(busy||sc!==active||!drag||drag.id!==e.pointerId)return;const b=el();if(!b)return;drag.dx=e.clientX-drag.x;drag.dy=e.clientY-drag.y;const p=maxFor(b,'phone');
    if(permission!=='granted'||!hasOrientation)move(clamp(-drag.dy*.14,p),clamp(drag.dx*.14,p));
   });
-  sc.addEventListener('pointerdown',e=>{if(busy||sc!==active||e.target.closest('button,a,.zoom'))return;drag={id:e.pointerId,x:e.clientX,y:e.clientY,dx:0,dy:0};try{sc.setPointerCapture(e.pointerId);}catch(error){}});
+  sc.addEventListener('pointerdown',e=>{if(busy||sc!==active||e.target.closest('button,a,.zoom,.mark-host'))return;drag={id:e.pointerId,x:e.clientX,y:e.clientY,dx:0,dy:0};try{if(e.pointerType!=='mouse')sc.setPointerCapture(e.pointerId);}catch(error){}});
   function end(e){if(!drag||drag.id!==e.pointerId)return;const d=drag;drag=null;if(Math.abs(d.dx)>70&&Math.abs(d.dx)>Math.abs(d.dy)*1.5)stepActive(d.dx<0?1:-1);move(0,0);}
   sc.addEventListener('pointerup',end);sc.addEventListener('pointercancel',()=>{drag=null;move(0,0);});
  });
  // A mouse anywhere in the window steers the tilt (the header is part of the window, so crossing it no longer resets it).
  document.addEventListener('pointermove',e=>{
-  if(busy||e.pointerType!=='mouse'||drag)return;const b=tiltEl();if(!b)return;const r=active.getBoundingClientRect(),m=maxFor(b,'mouse');
+  if(busy||e.pointerType!=='mouse'||drag||e.buttons)return;if(e.target.closest('a,button')){cancelAnimationFrame(raf);raf=0;targetX=x;targetY=y;return;}const b=tiltEl();if(!b)return;const r=active.getBoundingClientRect(),m=maxFor(b,'mouse');
   move(clamp(-((e.clientY-r.top)/r.height-.5)*2*m,m),clamp(((e.clientX-r.left)/r.width-.5)*2*m,m));
  });
  document.documentElement.addEventListener('mouseleave',()=>{if(!drag)move(0,0);});

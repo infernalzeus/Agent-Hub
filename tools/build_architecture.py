@@ -166,7 +166,46 @@ def tall() -> str:
     return svg(W, int(yy + 24), "".join(b))
 
 
+# This file is merged into the architecture generator before its entry point.
+def diagram():
+    """A reflowing HTML diagram; the connector SVG follows the measured nodes."""
+    nodes=[('devices','YOUR DEVICES','Phone · tablet · laptop'),('network','PRIVATE NETWORK','Tailscale to your PC'),('smith','AGENT SMITH','Hears you · sends the ask'),('router','ROUTER','Chooses the route')]
+    top=''.join('<div class="arch-node" data-node="%s"><b>%s</b><span>%s</span></div>' % n for n in nodes)
+    cards=[]
+    for i,(title,caption,boxes,source) in enumerate(LANES):
+        content=''.join('<li><b>%s</b><span>%s</span></li>' % (escape(t),escape(note)) for t,note in boxes)
+        cards.append('<article class="arch-lane" data-node="lane-%d" data-from="%s"><header><span class="caller">FROM %s</span><h3>%s</h3></header><ol>%s</ol><p>%s</p></article>' % (i,source,source.upper(),escape(title),content,escape(caption)))
+    return '<div class="arch-map"><svg class="arch-connectors" aria-label="Directed handoffs between devices, Smith, the router and tool lanes"></svg><div class="arch-top">'+top+'</div><div class="arch-lanes">'+''.join(cards)+'</div><div class="arch-legend"><b>HOW IT WORKS</b><span>→ request / handoff</span><span>YOU approve a mission diff</span><span>TRY IT: follow a handoff</span><span>LIMIT: desktop control is Windows only</span></div></div>'
+
+
+
+def export_diagram(tall_layout=False):
+    width=540 if tall_layout else 1440
+    cols=1 if tall_layout else 3
+    card_w=(width-40-(cols-1)*20)/cols
+    card_h=250 if tall_layout else 300
+    top_h=210 if tall_layout else 130
+    rows=(len(LANES)+cols-1)//cols
+    height=top_h+rows*(card_h+20)+55
+    parts=[]
+    front=[("YOUR DEVICES","phone · tablet · laptop"),("PRIVATE NETWORK","Tailscale reaches your PC"),("AGENT SMITH","hears you · routes your ask"),("ROUTER","chooses the right tool")]
+    fw=(width-40)/ (2 if tall_layout else 4)
+    for i,(title,note) in enumerate(front):
+        x=20+(i% (2 if tall_layout else 4))*fw;y=20+(i//2)*80 if tall_layout else 20
+        parts.append('<rect x="%s" y="%s" width="%s" height="68" fill="#0b2037" stroke="#41ebff66"/>' % (x,y,fw-12))
+        parts.append(t(x+10,y+24,title,14,GREEN,OUT,"700"));parts.append(t(x+10,y+46,note,12,MUTE,OUT))
+    for i,(title,caption,boxes,source) in enumerate(LANES):
+        x=20+(i%cols)*(card_w+20);y=top_h+(i//cols)*(card_h+20)
+        parts.append('<rect x="%s" y="%s" width="%s" height="%s" fill="#0b162c" stroke="#00e67666"/>'%(x,y,card_w,card_h))
+        parts.append(t(x+14,y+24,'FROM '+source.upper(),12,'#41ebff',OUT,"700"));parts.append(t(x+14,y+49,title,15,GREEN,OUT,"700"))
+        for j,(name,note) in enumerate(boxes):
+            yy=y+76+j*34
+            parts.append(t(x+18,yy,name+' → '+note,13,MUTE,OUT))
+        parts.append(t(x+14,y+card_h-22,'YOU approve changes · no automatic merge',12,GREEN,OUT))
+    parts.append(t(20,height-20,'→ Request / handoff · Smith calls Neo and the Doctor · Desktop control: Windows only',11,MUTE,OUT))
+    return svg(width,int(height),''.join(parts))
+
 if __name__ == "__main__":
-    (DOCS / "architecture.svg").write_text(wide(), encoding="utf-8")
-    (DOCS / "architecture-tall.svg").write_text(tall(), encoding="utf-8")
+    (DOCS / "architecture.svg").write_text(export_diagram(), encoding="utf-8")
+    (DOCS / "architecture-tall.svg").write_text(export_diagram(True), encoding="utf-8")
     print("wrote architecture.svg and architecture-tall.svg")
