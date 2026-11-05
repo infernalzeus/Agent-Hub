@@ -6,7 +6,8 @@
 .talk-btn::before,.talk-btn::after{content:"";position:absolute;inset:-1px;border-radius:12px;border:1.5px solid rgba(0,230,118,.6);opacity:0;pointer-events:none;animation:talkWave 2.8s ease-out infinite}
 .talk-btn::after{animation-delay:1.4s}
 .talk-btn:hover{box-shadow:inset 0 1px 0 rgba(210,225,255,.5),0 2px 6px rgba(0,0,0,.5),0 0 14px rgba(0,230,118,.55)}
-.talk-btn.on{box-shadow:inset 0 1px 0 rgba(210,225,255,.5),0 0 18px rgba(0,230,118,.75)}
+.talk-btn.on{box-shadow:inset 0 1px 0 rgba(210,225,255,.5),0 0 0 2px #00e676,0 0 18px rgba(0,230,118,.75)}
+.v-bubble{position:fixed;z-index:2147483000;max-width:min(320px,calc(100vw - 24px));padding:10px 12px;border:1px solid #00e676;border-radius:10px;background:rgba(8,12,40,.96);color:#d6f5e6;font:13px/1.4 Outfit,system-ui,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.6);cursor:pointer}.v-bubble[hidden]{display:none}
 .talk-btn.on::before,.talk-btn.on::after{animation-duration:1.15s}.talk-btn.on::after{animation-delay:.55s}
 @keyframes talkWave{0%{transform:scale(1);opacity:.75}100%{transform:scale(1.75);opacity:0}}
 @media (prefers-reduced-motion:reduce){.talk-btn::before,.talk-btn::after{animation:none}}

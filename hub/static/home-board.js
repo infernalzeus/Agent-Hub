@@ -106,7 +106,7 @@
     function syncModal(){if(!host)return;var v=document.getElementById('voice'),g=Array.from(document.querySelectorAll('.hb-glass-panel,.hands-setup,.hb-session-detail')).find(function(n){return !n.hasAttribute('hidden');});var on=!!((v&&!v.hasAttribute('hidden'))||(g&&!g.hasAttribute('hidden')));host.classList.toggle('hb-modal-open',on);document.documentElement.classList.toggle('hub-modal-open',on);}
     function glassPage(url,title){
       closeOtherPopups(null);var old=host.querySelector('.hb-glass-panel');if(old)old.remove();var voice=document.getElementById('voice');if(voice&&!voice.hidden)document.getElementById('v-close').click();
-      var pane=fadePanel(el('section','hb-glass-panel')),head=el('div','hb-glass-head'),close=el('button','hb-btn','');pane.setAttribute('role','dialog');pane.setAttribute('aria-label',title);close.type='button';close.title='Close '+title;close.setAttribute('aria-label','Close '+title);close.appendChild(svg(ICON.x));close.onclick=function(){pane.remove();};head.append(el('h2','',title),close);var fr=el('iframe','hb-glass-frame');fr.title=title;fr.src=embedUrl(url);fr.onload=function(){try{fr.contentDocument.addEventListener('keydown',function(e){if(e.key==='Escape')pane.remove();});}catch(e){}};pane.append(head,fr);host.appendChild(pane);pane._fadeOpen();close.focus({preventScroll:true});
+      var pane=fadePanel(el('section','hb-glass-panel')),head=el('div','hb-glass-head'),close=el('button','hb-btn','');pane.setAttribute('role','dialog');pane.setAttribute('aria-label',title);close.type='button';close.title='Close '+title;close.setAttribute('aria-label','Close '+title);close.appendChild(svg(ICON.x));close.onclick=function(){pane.remove();};head.append(el('h2','',title),close);var fr=el('iframe','hb-glass-frame');fr.title=title;fr.src=embedUrl(url);fr.onload=function(){try{fr.contentDocument.addEventListener('keydown',function(e){if(e.key==='Escape')pane.remove();});}catch(e){}hookFrame(fr,null);};pane.append(head,fr);host.appendChild(pane);pane._fadeOpen();close.focus({preventScroll:true});
     }
     var graphicsNotice=null,graphicsDismissed=false;
     var view = null, L = {}, hid = {}, touched = false, data = null, V = { x: 0, y: 0, k: 1 }, focusId = null, zTop = 2, blocks = {}, nav = null, alive = true, dragCleanups = [];
@@ -157,7 +157,7 @@
     var fitBtn = el('button', 'hb-btn', 'FIT'), tidyBtn = el('button', 'hb-btn', 'TIDY'), zin = el('button', 'hb-btn', '+'), zout = el('button', 'hb-btn', '−');
     fitBtn.type = tidyBtn.type = zin.type = zout.type = 'button'; tidyBtn.title = 'Neaten the blocks where they are: line them up and clear overlaps. Nothing else moves'; tidyBtn.setAttribute('aria-label', 'Organise the board'); fitBtn.title = 'Fit every block in view'; zin.title = 'Zoom in (Ctrl + wheel)'; zout.title = 'Zoom out (Ctrl + wheel)';
     var hint = el('span', 'hb-z hint', ''); hint.style.cssText = 'margin-right:8px;opacity:.7'; hint.style.transition = 'opacity .7s'; hint.textContent = matchMedia('(pointer:coarse)').matches ? 'DRAG TO MOVE · PINCH TO ZOOM · DRAG A TITLE TO MOVE A BLOCK · TAP AN APP TO OPEN IT HERE' : 'WHEEL MOVES · CTRL + WHEEL ZOOMS · DRAG A BLOCK TO MOVE IT · CLICK AN APP TO OPEN IT HERE';
-    var blocksBtn = el('button', 'hb-btn', 'BLOCKS'), ingestBtn = el('button', 'hb-btn', '+ INGEST APP'), talkBtn = el('button', 'hb-btn', 'TALK'), pcBtn = el('button', 'hb-btn off', 'PC CONTROL');
+    var blocksBtn = el('button', 'hb-btn', 'BLOCKS'), ingestBtn = el('button', 'hb-btn', '+ INGEST APP'), talkBtn = el('button', 'hb-btn', 'TALK'), pcBtn = el('button', 'hb-btn hb-pc off', 'PC CONTROL');
     blocksBtn.type = ingestBtn.type = talkBtn.type = pcBtn.type = 'button'; blocksBtn.title = 'Every block, shown or hidden (Ctrl + K)'; ingestBtn.title = 'Teach the Hub another app'; talkBtn.title = 'Talk to the Hub'; pcBtn.title = 'PC control';
     // Home is board-only; legacy cards remain hidden control hosts, never a navigation option.
     var setupHome = setupCard && { parent: setupCard.parentNode, next: setupCard.nextSibling };   // the first-time notice lives in the bar, where it can never sit over a block
@@ -311,12 +311,23 @@
     function embedUrl(url) { var u = new URL(url, location.href); if (['/missions', '/agents', '/graph', '/yard', '/chats', '/support'].indexOf(u.pathname) >= 0) u.searchParams.set('embed', '1'); return u.href; }
     // A block's own page is a separate document: events inside it never reach the board. These hooks hand the few that matter across: the pressed wheel (orbit or pan,
     // even when the pointer is over a window), Alt or Ctrl with the wheel (tilt, zoom), and a press anywhere in a window brings that window to the front.
+    // In 3D the board is tilted by CSS 3D transforms and the browser's own wheel scrolling stops working inside it (a window's page, or a list in a block), so the wheel scrolls the nearest scrollable thing by hand.
+    function scrollByHand(e, doc) {
+      var cs, n = e.target && e.target.nodeType === 1 ? e.target : null, dy = e.deltaMode === 1 ? e.deltaY * 32 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY, win = doc.defaultView;
+      for (; n; n = n.parentElement) {
+        cs = win.getComputedStyle(n);
+        if ((cs.overflowY === 'auto' || cs.overflowY === 'scroll') && n.scrollHeight > n.clientHeight + 1 && (dy < 0 ? n.scrollTop > 0 : n.scrollTop + n.clientHeight < n.scrollHeight - 1)) { n.scrollTop += dy; return true; }
+      }
+      var se = doc.scrollingElement; if (se && se.scrollHeight > se.clientHeight + 1 && (dy < 0 ? se.scrollTop > 0 : se.scrollTop + se.clientHeight < se.scrollHeight - 1)) { se.scrollTop += dy; return true; }
+      return false;
+    }
     function hookFrame(f, id) {
       try {
         var w = f.contentWindow; if (!w || !w.document) return;
         w.document.addEventListener('mousedown', function (e) { if (e.button === 1) e.preventDefault(); }, true);
         w.addEventListener('pointerdown', function (e) { if (id && L[id]) { L[id].z = ++zTop; applyBlock(id); if (stackDepth) stackDepth(); } if (view && e.button === 1) view.drag(e, w); }, true);
         w.addEventListener('wheel', function (e) {
+          if (view && view.mode() === '3d' && !e.altKey && !e.ctrlKey && !e.shiftKey && e.deltaY && scrollByHand(e, w.document)) { e.preventDefault(); return; }
           if (!view || !(e.altKey || e.ctrlKey)) return; e.preventDefault();
           var r = f.getBoundingClientRect(), k = (r.width / (f.clientWidth || r.width)) || 1;
           host.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaX: e.deltaX, deltaY: e.deltaY, deltaMode: e.deltaMode, ctrlKey: e.ctrlKey, altKey: e.altKey, shiftKey: e.shiftKey, clientX: r.left + e.clientX * k, clientY: r.top + e.clientY * k }));
@@ -523,7 +534,7 @@
       return null;
     }
     function onWheel(e) {
-      if (!e.ctrlKey && !e.shiftKey && !e.altKey && e.deltaY && innerScroller(e.target, e.deltaY)) return;
+      if (!e.ctrlKey && !e.shiftKey && !e.altKey && e.deltaY && innerScroller(e.target, e.deltaY)) { if (view && view.mode() === '3d') { var sc = innerScroller(e.target, e.deltaY); e.preventDefault(); sc.scrollTop += e.deltaMode === 1 ? e.deltaY * 32 : e.deltaY; } return; }
       e.preventDefault(); hideHint(); touched = true; var target = physics.target() || { x: V.x, y: V.y, k: V.k }; stopCam(); if (focusId) { focusId = null; undim(); }
       var r = host.getBoundingClientRect();
       if (view && view.wheel(e, target, r, function (t) { physics.aim(t); })) return;
@@ -621,7 +632,7 @@
     talkBtn.removeAttribute('onclick');talkBtn.setAttribute('data-talk','');talkBtn.title='Talk to the Hub\nAlt-click to open chat';
     pcBtn.onclick = function () { var w = document.getElementById('mcp-wire'); if (w) w.click(); };
     blocksBtn.onclick = function () { if(typeof closeMore==='function')closeMore();if (nav && nav.toggle) nav.toggle(); };
-    function legacy() { var w = document.getElementById('mcp-wire'); if (w) { pcBtn.className = 'hb-btn ' + (w.classList.contains('off') ? 'off' : 'on'); pcBtn.title = w.title || 'PC control'; pcBtn.disabled = !!w.disabled; pcBtn.setAttribute('aria-label','PC control');pcBtn.setAttribute('aria-pressed',String(!w.classList.contains('off'))); } talkBtn.hidden = !document.querySelector('[data-talk]'); ingestBtn.hidden = !document.querySelector('.ingest-card'); pcBtn.hidden = !w; var issues = document.querySelectorAll('#setup-banner .setup-issue').length; setupBtn.hidden = !issues; setupBtn.textContent = 'SETUP · ' + issues; }
+    function legacy() { var w = document.getElementById('mcp-wire'); if (w) { pcBtn.className = 'hb-btn hb-pc ' + (w.classList.contains('off') ? 'off' : 'on'); pcBtn.title = w.title || 'PC control'; pcBtn.disabled = !!w.disabled; pcBtn.setAttribute('aria-label','PC control');pcBtn.setAttribute('aria-pressed',String(!w.classList.contains('off'))); } talkBtn.hidden = !document.querySelector('[data-talk]'); ingestBtn.hidden = !document.querySelector('.ingest-card'); pcBtn.hidden = !w; var issues = document.querySelectorAll('#setup-banner .setup-issue').length; setupBtn.hidden = !issues; setupBtn.textContent = 'SETUP · ' + issues; }
     zin.onclick = function () { touched = true; stopCam(); var r = host.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1.25); };
     zout.onclick = function () { touched = true; stopCam(); var r = host.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 0.8); };
     fitBtn.onclick = function () { focusId = null; undim(); fit(true); };

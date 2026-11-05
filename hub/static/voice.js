@@ -64,7 +64,17 @@
       sessionStorage.setItem(k, JSON.stringify(a.slice(0, 80)));
     } catch (e) {}
   }
-  function hint(t) { $('v-hint').textContent = t || ''; $('v-hint').hidden = !t; if (t) hubLog('hub', t); }
+  // With the chat window closed (a plain click on TALK no longer opens it) a short note under the button says what happened: listening, stopped, or why not.
+  let BUBBLE = null, BUBBLE_T = 0;
+  function bubble(text, ms) {
+    if (!$('voice').hidden) return;
+    const btn = Array.prototype.find.call(talkBtns(), (b) => b.getBoundingClientRect().width > 0); if (!btn) return;
+    if (!BUBBLE) { BUBBLE = document.createElement('div'); BUBBLE.className = 'v-bubble'; BUBBLE.setAttribute('role', 'status'); BUBBLE.onclick = () => { BUBBLE.hidden = true; open(false); }; document.body.appendChild(BUBBLE); }
+    BUBBLE.textContent = text; BUBBLE.hidden = false;
+    const r = btn.getBoundingClientRect(); BUBBLE.style.left = Math.max(8, Math.min(r.left, innerWidth - 336)) + 'px'; BUBBLE.style.top = (r.bottom + 8) + 'px';
+    clearTimeout(BUBBLE_T); BUBBLE_T = setTimeout(() => { if (BUBBLE) BUBBLE.hidden = true; }, ms || 7000);
+  }
+  function hint(t) { $('v-hint').textContent = t || ''; $('v-hint').hidden = !t; if (t) { hubLog('hub', t); bubble(t, 9000); } }
   function log(role, text, tag) {
     const d = document.createElement('div'); d.className = 'v-msg ' + role; d.append(document.createTextNode(text)); if (tag) { const b = document.createElement('span'); b.className = 'v-tag'; b.textContent = tag; d.appendChild(b); } $('v-log').appendChild(d); $('v-log').scrollTop = $('v-log').scrollHeight;
     hubLog('chat', (role === 'you' ? 'You: ' : 'Smith: ') + text);
@@ -395,7 +405,7 @@
 
   // ---- open / close / wiring
   function open(autoStart) {
-    $('voice').hidden = false;
+    $('voice').hidden = false; if (BUBBLE) BUBBLE.hidden = true;
     if (window.ThinkingOrbs) window.ThinkingOrbs.mountAll($('voice'), '#00e676');
     paintOn(); layout(); recPaint();
     if (!RECPOLL) RECPOLL = setInterval(recPaint, 1500);
@@ -424,7 +434,7 @@
     // TALK: a plain click turns listening on or off without putting a window up; Alt-click, the wheel button or a right click opens or closes the chat window.
     const talkTarget = (e) => (e.target && e.target.closest ? e.target.closest('[data-talk]') : null);
     const chatToggle = () => { unlockAudio(); $('voice').hidden ? open(false) : close(); };
-    document.addEventListener('click', (e) => { if (!talkTarget(e)) return; e.preventDefault(); e.stopPropagation(); if (e.altKey) chatToggle(); else { unlockAudio(); toggle(); } }, true);
+    document.addEventListener('click', (e) => { if (!talkTarget(e)) return; e.preventDefault(); e.stopPropagation(); if (e.altKey) chatToggle(); else { unlockAudio(); toggle(); hubLog('hub', S.on ? 'Listening on' : 'Listening off'); bubble(S.on ? 'Listening. Speak now. Click TALK again to stop; Alt-click opens the chat.' : 'Stopped listening.', S.on ? 4500 : 2200); } }, true);
     document.addEventListener('auxclick', (e) => { if (!talkTarget(e) || e.button !== 1) return; e.preventDefault(); e.stopPropagation(); chatToggle(); }, true);
     document.addEventListener('mousedown', (e) => { if (talkTarget(e) && e.button === 1) e.preventDefault(); }, true);
     document.addEventListener('contextmenu', (e) => { if (!talkTarget(e)) return; e.preventDefault(); e.stopPropagation(); chatToggle(); }, true);

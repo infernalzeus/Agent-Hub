@@ -18,3 +18,13 @@ def test_agent_icon_contract(icon_id):
         assert alpha.getextrema()[0] == 0, 'Must contain fully transparent pixels'
         assert alpha.getbbox() is not None, 'Icon must contain visible artwork'
         image.load()
+
+
+def test_every_agent_picture_has_the_same_look():
+    """Same cyan, same line brightness, same stroke width (tools/normalize_agent_icons.py --check): no picture is brighter or heavier than the rest."""
+    import importlib.util
+    root = Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location('normalize_agent_icons', root / 'tools' / 'normalize_agent_icons.py')
+    m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+    assert (m.ICONS / 'smith.png').is_file() and (m.ICONS / 'neo.png').is_file()
+    assert m.main(True) == 0

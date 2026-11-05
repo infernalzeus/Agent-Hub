@@ -682,7 +682,7 @@ async function jget(u){ const r=await fetch(u,{cache:'no-store'}); if(!r.ok) thr
 async function jpost(u,b){ const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});
   const t=await r.text(); let j; try{j=JSON.parse(t)}catch(e){j={raw:t}} if(!r.ok) throw new Error(j.raw||t); return j; }
 let DATA = null, RECS = {}, PROFILES = {};
-const SMITH_A = 'data:image/png;base64,__SMITH_A_B64__';
+const SMITH_A = '/static/agent-icons/smith.png';
 
 async function load(){
   DATA = await jget('/api/agents');
@@ -1083,9 +1083,9 @@ load();
 _HTML = (_HTML
     .replace("__NEO_ICON_BIG__", '<img class="smith-lg" src="/static/agent-icons/neo.png" alt="">')
     .replace("__NEO_ICON__", '<img class="smith" src="/static/agent-icons/neo.png" alt="" style="object-fit:contain">')
-    .replace("__SMITH_ICON__", f'<img class="smith" src="data:image/png;base64,{_SMITH_D_B64}" alt="">')
+    .replace("__SMITH_ICON__", '<img class="smith" src="/static/agent-icons/smith.png" alt="" style="object-fit:contain">')
     .replace("__SMITH_A_B64__", _SMITH_B64)
-    .replace("__SMITH_ICON_BIG__", f'<img class="smith-lg" src="data:image/png;base64,{_SMITH_D_B64}" alt="">')
+    .replace("__SMITH_ICON_BIG__", '<img class="smith-lg" src="/static/agent-icons/smith.png" alt="">')
 )
 
 

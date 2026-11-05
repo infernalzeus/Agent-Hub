@@ -138,7 +138,7 @@ def test_blocks_menu_names_are_plain_sentences_and_a_minimised_block_opens_when_
     assert 'Needs attention' in names and 'Claude Code usage' in names and 'Runs' in names, names
     assert not [n for n in names if n==n.upper() and len(n)>3 and n not in ('Auto-LLM',)], names
     page.keyboard.press('Escape');page.wait_for_timeout(300)
-    page.evaluate("()=>{let s=__hubBoard.active.state();s.L.hlt.min=1;let e=document.querySelector('.hk[data-id=hlt]');e.classList.add('min');e.style.height='32px'}")
+    page.evaluate("()=>{let s=__hubBoard.active.state();s.hid.hlt=0;Object.assign(s.L.hlt,{x:200,y:120,u:1,min:1});let e=document.querySelector('.hk[data-id=hlt]');e.hidden=false;e.style.left='200px';e.style.top='120px';e.classList.add('min');e.style.height='32px'}")
     t=page.locator('.hk[data-id=hlt] .hk-h .t');r=t.bounding_box()
     page.mouse.move(r['x']+r['width']/2,r['y']+r['height']/2);page.mouse.down();page.wait_for_timeout(80);page.mouse.up();page.wait_for_timeout(500)
     assert not state(page)['L']['hlt'].get('min')                           # a click on a minimised block opens it again, even with nothing inside to open

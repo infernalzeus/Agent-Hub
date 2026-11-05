@@ -196,3 +196,4 @@ hub/model_outcomes.json
 # the Hub's own record of its choices (R1): this PC's data, never committed
 hub/choices.jsonl
 hub/choices.jsonl.1
+hub/board_prefs.json

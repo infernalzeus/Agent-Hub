@@ -335,7 +335,7 @@ def test_the_hand_log_is_one_small_tab_that_pulls_up_and_records_what_happened(p
  page.evaluate('feedWith((x,y)=>closeFrame(x,y,.1,0),still(560,445,8))');page.evaluate('feedWith(openFrame,still(560,445,8))')       # a tap
  page.locator('.hl-head').click();page.wait_for_timeout(300)
  assert 'TAP' in page.inner_text('.hl-rows')
- box=page.locator('.hands-log').bounding_box();vw=page.evaluate('innerWidth');assert box['x']+box['width']<=vw-100          # clear of the right panel
+ box=page.locator('.hl-body').bounding_box();vw=page.evaluate('innerWidth');assert box['x']+box['width']<=vw-100          # the opened log stays clear of the right panel
  page.locator('.hl-head').click();assert page.locator('.hands-log.open').count()==0
 
 
