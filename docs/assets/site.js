@@ -4,7 +4,7 @@
  let active=document.getElementById('landing'),busy=false,mark=null,stopToggle=null,shell=true,permission='unknown',pose=null,hasOrientation=false,pendingRoute=null;
  try{permission=sessionStorage.getItem('site:orientation')||'unknown';}catch(error){}
  const route=()=>document.getElementById(location.hash.slice(1))?.matches('.scene')?location.hash.slice(1):'landing';
- const MAX_TILT=10, REST_X=-3, REST_Y=3.5, MOUSE_TILT=6, LANDING_MOUSE_TILT=4.5, PHONE_TILT=10, PERSPECTIVE=1600;
+ const MAX_TILT=10, REST_X=-3, REST_Y=3.5, MOUSE_DEVICE=matchMedia('(hover:hover) and (pointer:fine)').matches, MOUSE_TILT=6, LANDING_MOUSE_TILT=4.5, PHONE_TILT=10, PERSPECTIVE=1600;
  const STEP=4200;
 
  /* ---------- auto-playing step lists: they advance by themselves; a tap or hover pins one ---------- */
@@ -247,7 +247,7 @@ function drawArchitecture(){
   b.style.setProperty('--rx',x.toFixed(3)+'deg');b.style.setProperty('--ry',y.toFixed(3)+'deg');
   if(now-lastMove<2000||Math.abs(x-targetX)+Math.abs(y-targetY)>.01)raf=requestAnimationFrame(animate);
  }
- function move(a,b){if(busy||document.hidden||reduced.matches)return;targetX=Math.max(-MAX_TILT,Math.min(MAX_TILT,a+REST_X));targetY=Math.max(-MAX_TILT,Math.min(MAX_TILT,b+REST_Y));lastMove=performance.now();if(!raf){last=0;raf=requestAnimationFrame(animate);}}
+ function move(a,b){if(busy||document.hidden||reduced.matches)return;targetX=Math.max(-MAX_TILT,Math.min(MAX_TILT,a+(MOUSE_DEVICE?REST_X:0)));targetY=Math.max(-MAX_TILT,Math.min(MAX_TILT,b+(MOUSE_DEVICE?REST_Y:0)));lastMove=performance.now();if(!raf){last=0;raf=requestAnimationFrame(animate);}}
  function resetTilt(){cancelAnimationFrame(raf);raf=0;targetX=targetY=x=y=0;document.querySelectorAll('[data-tilt]').forEach(b=>{b.style.setProperty('--rx','0deg');b.style.setProperty('--ry','0deg');});}
  const clamp=(v,m)=>Math.max(-m,Math.min(m,v));
  // The pointer is read against the scene, which never rotates. (Reading it against the board that is turning made the board chase the

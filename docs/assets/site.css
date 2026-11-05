@@ -347,11 +347,13 @@ body[data-turning] .site-header{pointer-events:none}
 .js .tabpanel{flex:1;min-height:0;display:flex;flex-direction:column}
 .js .tabpanel[hidden]{display:none}
 .js .tabpanel>.auto{flex:1;min-height:0}
-.js .agents-auto .auto-steps{grid-auto-rows:minmax(0,1fr);overflow:hidden;align-content:stretch}
+@media(min-width:651px) and (min-height:541px){.js .agents-auto .auto-steps{grid-auto-rows:minmax(0,1fr);overflow:hidden;align-content:stretch}
 .js .agents-auto .auto-steps li{min-height:0;min-width:0;display:flex}
-.js .agents-auto .st.card{flex-direction:row;justify-content:flex-start;gap:8px;padding:3px 8px;min-height:0;width:100%;height:100%;text-align:left}
+.js .agents-auto .st.card{flex-direction:row;justify-content:flex-start;gap:8px;padding:3px 8px;min-height:0;width:100%;height:100%;text-align:left}}
 .js .agents-auto .st.card .av{width:min(34px,100%);height:min(34px,100%);flex:none}
 .js .agents-auto .st.card .sb b{text-align:left;font-size:clamp(9px,.85vw,12px);overflow-wrap:anywhere}
 .js .agents-auto{overflow:hidden}.js .agents-auto .auto-detail{overflow:hidden;min-height:0}
 @container (max-height:470px){.js .agents-auto .visual{display:none}.js .agents-auto .auto-detail{grid-template-rows:auto auto minmax(0,1fr) auto}.js .agents-auto .auto-detail .d{font-size:clamp(12px,1.05vw,15px)}.agency-flows button{min-height:34px;padding:3px 8px}}
 .js .agents-auto .st.card .sb b{overflow-wrap:normal;word-break:keep-all;font-size:clamp(8px,.78vw,11px);letter-spacing:.04em}
+@container (max-height:470px){.js .agents-auto .chips-row{display:none}}
+@container (max-height:470px){.js .agents-auto .auto-detail{gap:6px;padding:8px 12px}.js .agents-auto .auto-detail h3{font-size:clamp(17px,1.7vw,24px);margin-bottom:2px}.js .agents-auto .auto-detail .you{padding:5px 9px}}
