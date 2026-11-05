@@ -15,7 +15,7 @@ from html import escape
 from pathlib import Path
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
-V = "20261105r2-final"
+V = "20261105r3-scenes"
 REPO = "https://github.com/infernalzeus/Agent-Hub"
 AG = "assets/agents/"
 LEGEND = "Live: seen running on a real machine. Unit-tested: the logic is tested, not yet seen running. Built, not tried: built and tested without the real hardware."
@@ -34,8 +34,10 @@ SCENES = [
      "Project status and worktree diffs.", "Windows · macOS · Linux", "Reads your local git projects."),
     ("agents", "AGENTS + SKILLS", "AGENTS + SKILLS", "A team you can read and extend.", [("Live", "")],
      "Roles, handoffs, skills and repairs you approve.", "Your Hub, any device", "Manage the team from your browser."),
+    ("hands", "HAND CONTROL", "HAND CONTROL", "Your hands move the Hub board.", [("Built, not tried", "gestures")],
+     "Camera recognition seen running; physical board gestures still need a hardware trial.", "Camera + browser", "Explicit camera start; board controls only."),
     ("architecture", "ARCHITECTURE", "ARCHITECTURE", "How it fits together.", [("Live", "")],
-     "Drawn from the Hub as it is built today: Smith, Neo and the Doctor included.", "Windows · macOS · Linux", "Desktop control is Windows only."),
+     "Your devices reach one Hub, with PC tools and helpers behind it.", "Windows · macOS · Linux", "Desktop control is Windows only."),
     ("install", "GET STARTED", "GET STARTED", "Your PC, within reach.", [("Live", "")],
      "Install, connect, bookmark.", "Windows · macOS · Linux", "macOS builds are unsigned."),
 ]
@@ -285,6 +287,15 @@ STORY = {
  "agents": ("Make an agent that reviews my writing.","Neo gives you a persona file to read and save.","The Doctor proposes a diff. APPLY and restarting stay yours."),
  "install": ("Choose your system, then open the first-run wizard.","Tool choices, private-device access and a Hub bookmark.","Unsigned macOS builds. Desktop control is Windows only.")}
 
+STEPS["hands"] = [
+ ("Start", "YOU", "Choose HANDS to start the camera; nothing starts on this website.", "In the Hub, choose HANDS when you are ready.", 1),
+ ("Point", "BROWSER CURSOR", "An index finger moves the cursor over the board.", "Point at a board control.", 0),
+ ("Pinch", "BOARD POINTER", "A quick thumb-index pinch presses; hold and move to drag.", "Pinch to press, or keep pinched and move a block.", 0),
+ ("Zoom", "BOARD VIEW", "Two index pinches change the board zoom.", "Pinch with both hands and move them apart.", 0),
+ ("Turn", "3D BOARD", "A fist turns the board while its 3D view is enabled.", "Switch to 3D view, then turn with a fist.", 0),
+ ("Fit / stop", "YOU", "An open hand held briefly fits the board. Escape stops the camera.", "Hold an open hand to fit; press Escape to stop.", 1)]
+STORY["hands"] = ("Choose HANDS in the Hub, then point at the board.", "Cursor, drag, zoom, turn and fit controls in the browser.", "Illustrated demo only; no camera access here. Physical gesture actions still need a hardware trial.")
+
 # Keep the short card summaries distinct from the explicit handoff flows.
 
 def story(sid, body):
@@ -331,14 +342,14 @@ def build() -> str:
         '<title>Agent Hub — InfernalZeus</title><link rel="icon" href="assets/favicon-32.png" sizes="32x32"><link rel="icon" href="assets/favicon.ico" sizes="any">'
         '<link rel="apple-touch-icon" href="assets/favicon-180.png"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
         '<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">'
-        '<link rel="stylesheet" href="assets/flow.css?v=%s"><link rel="stylesheet" href="assets/site.css?v=%s"></head>\n' % (V, V))
+        '<link rel="stylesheet" href="assets/flow.css?v=%s"><link rel="stylesheet" href="assets/site.css?v=%s"><link rel="stylesheet" href="assets/site-demos.css?v=%s"></head>\n' % (V, V, V))
     landing = (
         '<section class="scene landing active" id="landing" aria-labelledby="landing-title"><canvas id="hub-grid" aria-hidden="true"></canvas><div class="tilt-layer" data-tilt>'
         '<h1 class="hero-title" id="landing-title" tabindex="-1">Agent Hub</h1>'
         '<div class="mark-host" id="hero-mark" role="img" aria-label="Agent Hub globe and crystalline core"><noscript>Agent Hub</noscript></div>'
         '<p class="tagline">Your most powerful PC tools at your fingertips, any device.</p>'
         '<div class="actions"><a class="action primary" href="#install">DOWNLOAD</a><a class="action" href="%s">SOURCE ↗</a></div>'
-        '<nav class="more-links" aria-label="More"><a href="#agents">AGENTS + SKILLS</a><a href="#architecture">ARCHITECTURE</a></nav>'
+        '<nav class="more-links" aria-label="More"><a href="#agents">AGENTS + SKILLS</a><a href="#architecture">ARCHITECTURE</a><a href="#hands">HAND CONTROL</a></nav>'
         '%s<nav class="doors" aria-label="The tools">%s</nav></div></section>' % (REPO, smith_btn, doors))
     body = ('<body><header class="site-header"><a class="brand" href="#" data-home aria-label="Agent Hub — return to landing"><img src="assets/agent-hub-mark.png" alt="" width="44" height="44">AGENT HUB</a>'
             '<a class="projects" href="https://infernalzeus.github.io/" data-projects>← PROJECTS</a></header><main class="stage">%s%s</main>'

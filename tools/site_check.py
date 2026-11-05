@@ -5,7 +5,7 @@ from site_pw import serve, browser
 from playwright.sync_api import sync_playwright
 
 SIZES = [(1280, 720), (1440, 900), (1920, 1080), (2560, 1440), (820, 1180), (1180, 820), (393, 852), (852, 393), (360, 640)]
-SCENES = ["landing", "talk", "missions", "pc", "media", "graph", "agents", "architecture", "install"]
+SCENES = ["landing", "talk", "missions", "pc", "media", "graph", "agents", "architecture", "install", "hands"]
 SHOTS = {(1440, 900), (1920, 1080), (820, 1180), (393, 852), (852, 393)} if "shots" in sys.argv else set()
 import os
 S = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".internal", "website-review")
@@ -25,6 +25,8 @@ PROBE = """(touch)=>{
  for(const e of sc.querySelectorAll('.blk-b,.small-block,.blk-h')){if(e.closest('.flow'))continue;if(e.scrollHeight>e.clientHeight+2&&getComputedStyle(e).overflow!=='visible')bad.push('clipped '+e.className);}
  const d=sc.querySelector('.auto-detail');
  if(d&&d.offsetParent){const dr=d.getBoundingClientRect(),last=[...d.children].filter(c=>c.offsetParent&&!c.classList.contains('bar')).pop();if(last){const lr=last.getBoundingClientRect();if(lr.bottom>dr.bottom+2)bad.push('detail text overflows its panel by '+Math.round(lr.bottom-dr.bottom));}}
+ for(const v of sc.querySelectorAll('[data-visual]')){if(!v.offsetParent)continue;if(v.clientHeight<70||!v.querySelector('svg'))bad.push('blank or undersized demonstration');}
+ const sheet=sc.querySelector('.blk');if(sheet){const c=getComputedStyle(sheet);if(c.backdropFilter==='none'||c.backgroundImage==='none')bad.push('glass material missing');}
  return bad;}"""
 
 
@@ -48,6 +50,11 @@ def main():
                     pg.evaluate("(i)=>{const b=document.querySelectorAll('.scene.active .st')[i];if(b&&b.offsetParent)b.click()}", i)
                     pg.wait_for_timeout(60)
                     bad += [x for x in pg.evaluate(PROBE, touch) if x not in bad]
+                if sid == "agents":
+                    pg.locator('[data-tab=skills]').click()
+                    for i in range(pg.locator('[data-panel=skills] .st').count()):
+                        pg.locator('[data-panel=skills] .st').nth(i).evaluate('e=>e.click()')
+                        bad += [x for x in pg.evaluate(PROBE, touch) if x not in bad]
                 if (w, h) in SHOTS:
                     pg.wait_for_timeout(800)
                     pg.screenshot(path=os.path.join(S, "c-%s-%dx%d.png" % (sid, w, h)))
@@ -62,6 +69,7 @@ def main():
     srv.shutdown()
     srv.server_close()
     print(json.dumps(problems, indent=1)[:6000] if problems else "ALL CLEAN", len(problems), "problem combinations")
+    if problems: raise SystemExit(1)
 
 
 if __name__ == "__main__":

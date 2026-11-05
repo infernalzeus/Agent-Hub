@@ -1,0 +1,101 @@
+/* The public site owns this material. Keep it visible at rest, on hover and on focus.
+   Blur belongs on each sheet, never on the preserve-3d board or its depth wrapper. */
+.js .blk,.js .agents-auto .st.card{
+ --glass-edge:rgba(170,255,236,.5);
+ border:1px solid var(--glass-edge);border-radius:0;
+ background-color:rgba(7,17,40,.19);
+ background-image:linear-gradient(130deg,rgba(192,255,246,.17),rgba(98,192,220,.035) 28%,rgba(8,18,45,.2) 64%,rgba(42,232,180,.09));
+ -webkit-backdrop-filter:blur(14px) saturate(155%);backdrop-filter:blur(14px) saturate(155%);
+ box-shadow:inset 0 1px 0 rgba(235,255,251,.52),inset 1px 0 0 rgba(213,255,249,.22),inset 0 -2px 0 rgba(91,206,212,.23),0 1px 0 rgba(164,246,237,.23),0 18px 38px rgba(0,0,0,.32);
+ transition:border-color .2s,box-shadow .2s,background-color .2s;
+}
+.js .blk:hover,.js .blk:focus-within,.js .blk[aria-expanded=true],.js .agents-auto .st.card:hover,.js .agents-auto .st.card[aria-pressed=true]{
+ border-color:rgba(184,255,245,.78);background-color:rgba(18,55,70,.18);
+ background-image:linear-gradient(130deg,rgba(212,255,250,.22),rgba(100,208,229,.065) 28%,rgba(8,18,45,.17) 64%,rgba(42,232,180,.12));
+ box-shadow:inset 0 1px 0 rgba(246,255,253,.7),inset 1px 0 0 rgba(213,255,249,.3),inset 0 -2px 0 rgba(91,226,222,.3),0 0 0 1px rgba(65,235,255,.12),0 0 20px rgba(65,235,255,.1),0 20px 40px rgba(0,0,0,.34);
+}
+.js .main-block::before,.js .small-block::before,.js .door::before,.js .smith-btn::before{
+ content:'';position:absolute;inset:0;pointer-events:none;z-index:0;
+ background:linear-gradient(117deg,transparent 3%,rgba(225,255,252,.055) 3.5%,transparent 4%,transparent 36%,rgba(222,255,250,.07) 36.5%,transparent 37.2%),radial-gradient(ellipse at var(--light-x,36%) var(--light-y,22%),rgba(172,255,239,.1),transparent 68%);
+}
+.js .main-block>*,.js .small-block>*,.js .door>*,.js .smith-btn>*{position:relative;z-index:1}
+/* The backdrop gives the transparent sheets a visible depth reference. */
+.js .scene:not(.landing){background:radial-gradient(ellipse at 24% 38%,rgba(0,168,148,.16),transparent 48%),radial-gradient(ellipse at 85% 76%,rgba(53,104,191,.2),transparent 48%),linear-gradient(145deg,#070a25,#101442)}
+.js .scene:not(.landing)::before{opacity:1;background-image:linear-gradient(rgba(64,218,202,.13) 1px,transparent 1px),linear-gradient(90deg,rgba(64,218,202,.13) 1px,transparent 1px)}
+/* Keep the contents transparent too; opaque inner frames can hide the material. */
+.js .auto-detail{background:rgba(5,16,35,.12)}
+.js .scene.turning .blk{-webkit-backdrop-filter:none;backdrop-filter:none}
+@media(pointer:coarse){.js .blk,.js .agents-auto .st.card{-webkit-backdrop-filter:blur(8px) saturate(145%);backdrop-filter:blur(8px) saturate(145%)}}
+
+/* Every viewport presents the same scenario; smaller screens shorten the copy. */
+.js .auto-detail,.js .agents-auto .auto-detail{display:grid;grid-template-columns:1fr;grid-template-rows:auto auto minmax(100px,1fr);gap:8px;overflow:hidden;padding:12px}
+.js .auto-detail .detail-copy{padding-right:0!important;grid-column:1;grid-row:2}
+.js .auto-detail .you{grid-column:1;grid-row:1}
+.js .auto-detail h3{font-size:clamp(18px,2vw,28px);margin:0 0 4px}
+.js .auto-detail .d{font-size:clamp(12px,1vw,16px);line-height:1.35}
+.js .auto-detail .chips-row{display:none!important}
+.js .auto-detail .visual,.js #agents .auto-detail .visual,.js #install .auto-detail .visual{display:flex!important;flex-direction:column;grid-column:1;grid-row:3;min-height:0;overflow:hidden}
+.visual>svg{flex:1;min-height:0;width:100%;height:0;overflow:visible}
+.demo-toolbar{display:flex;align-items:center;gap:5px;flex:none;min-height:44px;border-bottom:1px solid #41ebff25}
+.demo-toolbar>span{flex:1;font:600 9px Orbitron,system-ui;letter-spacing:.1em;color:#90c9be}
+.demo-toolbar button,.demo-choices button{min-width:44px;min-height:44px;padding:5px 10px;border:1px solid #41ebff55;background:#05132780;color:#d4fff0;font-size:14px}
+.demo-toolbar button:hover,.demo-choices button:hover{background:#0c4b5580;border-color:#afffe9}
+.demo-choices{display:flex;gap:6px;justify-content:center;flex:none}.demo-choices button{font-size:11px}
+.demo-node{animation:demoReveal .65s both}.demo-node.stage-1{animation-delay:.35s}.demo-node.stage-2{animation-delay:.7s}
+.demo-packet{animation:demoPacket 2.6s ease-in-out 2 both}
+.demo-line{stroke-dasharray:7 5;animation:demoLine 2s linear 3}
+.demo-orbit,.demo-press{animation:demoGlow 1.3s ease-in-out 4 alternate}
+.demo-progress{transform-origin:left;animation:demoProgress 2.4s ease both}
+.demo-cursor{animation:demoDrag 2.4s ease both}.demo-drag{animation:demoDrag 2.4s ease both}
+.demo-zoom{transform-origin:center;animation:demoZoom 2.4s ease both}
+.demo-tilt{transform-origin:center;animation:demoTilt 2.4s ease both}
+.demo-avatar{filter:drop-shadow(0 3px 12px #00e67630)}
+.say-table .example-active{background:#00e67618;color:#d6fff0}.say-table .example-active td:first-child{border-left:2px solid #00e676}
+.js .small-block .context-line{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.js .more,.js .limit-more{display:none!important}
+.insight-dialog{position:fixed;inset:0;margin:auto;width:min(560px,calc(100vw - 32px));max-height:calc(100dvh - 40px);padding:30px;color:#d9ffe9;background:linear-gradient(140deg,#123542eb,#080e29f5);border:1px solid #afffe9;box-shadow:0 20px 100px #0009;backdrop-filter:blur(20px);overflow:auto}
+.insight-dialog::backdrop{background:#03091bbd;backdrop-filter:blur(6px)}
+.insight-dialog h2{font-size:26px;line-height:1.2;margin:18px 40px 20px 0}.insight-copy{font-size:17px;line-height:1.6;white-space:pre-line}
+.insight-close{position:absolute;right:8px;top:8px;width:44px;height:44px;font-size:28px;background:#41ebff10;border:1px solid #41ebff55;color:#d9ffe9}
+.js .limit-panel{overflow:hidden}.js .limit-panel>span:not(.limit-title):not(.limit-more){display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.js .agency-flows{display:none}.js .agents-auto .auto-detail .detail-copy .d{display:none}
+@keyframes demoReveal{from{opacity:.2;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes demoPacket{0%{opacity:0;transform:translate(0,0)}15%{opacity:1}85%{opacity:1}100%{opacity:0;transform:translate(var(--dx),var(--dy))}}
+@keyframes demoLine{to{stroke-dashoffset:-36}}
+@keyframes demoGlow{to{filter:drop-shadow(0 0 7px #41ebff)}}
+@keyframes demoProgress{from{transform:scaleX(.05)}to{transform:scaleX(1)}}
+@keyframes demoDrag{to{transform:translate(24px,-12px)}}
+@keyframes demoZoom{to{transform:scale(1.12)}}
+@keyframes demoTilt{to{transform:skewY(-8deg) scaleX(.9)}}
+@media(max-width:650px) and (orientation:portrait){
+ .js .auto-detail,.js .agents-auto .auto-detail,.js #install .auto-detail{grid-template-columns:1fr;grid-template-rows:auto auto minmax(90px,1fr);gap:4px;padding:6px}
+ .js .auto-detail .d{display:none}.js .auto-detail h3{font-size:17px;margin:0}.js .auto-detail .kicker{display:none}
+ .js .auto-detail .you{padding:4px 6px}.js .you p{font-size:11px;line-height:1.25}
+ .demo-toolbar{min-height:44px}.demo-toolbar>span{font-size:8px;letter-spacing:.02em}
+ .js .story-foot .expect{display:none}.js .story-foot>div{justify-content:flex-start}.js .story-foot p{font-size:10px}
+ .js .more-links{flex-wrap:wrap;justify-content:center;gap:10px}.js .more-links a{font-size:9px}
+ .js .agents-auto .auto-detail .detail-copy{display:none}.js .agents-auto .auto-detail{grid-template-rows:auto minmax(90px,1fr)}.js #agents .agents-auto .auto-detail .visual{grid-row:2}
+ .insight-dialog{padding:22px}.insight-copy{font-size:15px}
+}
+@media(max-height:540px) and (orientation:landscape){
+ .js .auto:not(.agents-auto) .auto-detail,.js .agents-auto .auto-detail{grid-template-columns:minmax(100px,32%) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:4px;padding:5px}
+ .js .auto-detail .you{grid-column:1;grid-row:1}.js .auto-detail .detail-copy{grid-column:1;grid-row:2}.js .auto-detail .detail-copy .d{display:none}
+ .js .auto-detail .visual,.js #agents .auto-detail .visual,.js #install .auto-detail .visual{grid-column:2;grid-row:1/3;display:flex!important}
+ .demo-toolbar>span{font-size:7px}.js .auto-detail h3{font-size:15px}.js .auto-detail .kicker{display:none}
+ .demo-toolbar button{padding:2px}.demo-toolbar{gap:3px}
+}
+@media(prefers-reduced-motion:reduce){.visual svg *{animation:none!important}.demo-node{opacity:1}.demo-packet{display:none}}
+
+.js .scene .auto .auto-detail .visual{display:flex!important;flex-direction:column;overflow:hidden}
+.js .scene .auto .auto-detail .visual>svg{flex:1;min-height:0;height:0!important;overflow:hidden}
+
+@media(max-height:540px) and (orientation:landscape){
+ .js .scene .auto .auto-detail{display:flex!important;flex-direction:column}
+ .js .scene .auto .auto-detail>.you,.js .scene .auto .auto-detail>.detail-copy{display:none}
+ .js .scene .auto .auto-detail .visual{flex:1;min-height:0}
+ .demo-toolbar>span{font-size:8px}
+}
+
+@media(max-width:650px) and (orientation:portrait){
+ .js #agents .auto:not(.agents-auto) .auto-detail{grid-template-rows:auto auto minmax(90px,1fr)}
+}

@@ -199,3 +199,6 @@ hub/choices.jsonl.1
 hub/board_prefs.json
 # Everything the hub creates by default (mission working copies, downloads, inbox, outputs, new projects) lives here, never outside the hub folder.
 /data/
+
+# Public website glass and scenario styles.
+!/docs/assets/site-demos.css
