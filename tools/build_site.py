@@ -9,6 +9,8 @@ agent), no version numbers or counts, no claims about cloud, accounts or auto-up
 """
 from __future__ import annotations
 
+import re
+
 from html import escape
 from pathlib import Path
 
@@ -216,9 +218,10 @@ def chips(items):
     return "".join('<span class="chip %s">%s%s</span>' % ("tested" if n != "Live" else "", escape(n), (" · " + escape(note)) if note else "") for n, note in items)
 
 
-def slab(inner, cls="", z=12, d=0):
-    """Dashboard GLASS is a flat, double-sided sheet; no solid volume faces."""
-    return '<div class="slabbox %s" style="--z:%dpx">%s</div>' % (cls, min(z, 16), inner)
+def slab(inner, cls="", z=20, d=36):
+    """A thick glass slab, drawn like the dashboard's SLAB surface: the front face plus a five-sided volume behind it."""
+    return ('<div class="slabbox %s" style="--z:%dpx;--d:%dpx"><i class="vol" aria-hidden="true"><b class="back"></b><b class="left"></b><b class="right"></b><b class="top"></b><b class="bottom"></b></i>%s</div>'
+            % (cls, z, d, inner))
 
 
 def small_blocks(chips_, line, runs, runs_line):
@@ -226,7 +229,7 @@ def small_blocks(chips_, line, runs, runs_line):
          % (chips(chips_), escape(line), escape(LEGEND)))
     b = ('<button class="blk small-block" type="button" aria-expanded="false" data-more><span class="label">Runs on</span><span class="line strong">%s</span><span class="line">%s</span>'
          '<span class="more">Reach this PC from your other devices over your private network.</span></button>' % (escape(runs), escape(runs_line)))
-    return '<aside class="side-blocks">%s%s</aside>' % (slab(a, "side s1", 48, 22), slab(b, "side s2", 48, 22))
+    return '<aside class="side-blocks">%s%s</aside>' % (slab(a, "side s1", 48, 40), slab(b, "side s2", 48, 40))
 
 
 def _auto_wrap(lis, with_downloads=False):
@@ -268,7 +271,7 @@ def scene(sid, label, headline, chips_, line, runs, runs_line, body, wide=False,
     main = ('<article class="blk main-block"><header class="blk-h"><p class="label">%s</p><h2 id="%s-title" tabindex="-1">%s</h2><span class="hchips">%s</span>%s</header><div class="blk-b">%s</div></article>'
             % (escape(label), sid, escape(headline), chips(chips_), extra_head, body))
     return ('<section class="scene" id="%s" aria-labelledby="%s-title"><div class="board%s" data-tilt>%s%s</div></section>'
-            % (sid, sid, " wide" if wide else "", slab(main, "main", 20, 36), "" if wide else small_blocks(chips_, line, runs, runs_line)))
+            % (sid, sid, " wide" if wide else "", slab(main, "main", 20, 72), "" if wide else small_blocks(chips_, line, runs, runs_line)))
 
 
 # Ordered stories. Each row separates the responsible actor, the result and the user's action.
@@ -306,8 +309,11 @@ def build() -> str:
         elif sid == "agents":
             parts.append(scene(sid, label, headline, ch, line, runs, runs_line, story(sid, agents_body())))
         elif sid == "architecture":
-            from build_architecture import diagram
-            body = diagram() + ('<div class="zoom" role="dialog" aria-modal="true" aria-label="Enlarged architecture" hidden><div class="zoom-tools"><button class="zoom-x" type="button" data-zoom-close>Close ✕</button><button type="button" data-zoom-in aria-label="Zoom in">+</button><button type="button" data-zoom-out aria-label="Zoom out">−</button></div><div class="zoom-scroll"><img src="architecture.svg" alt="Expanded Hub architecture" width="1440" height="1040"></div></div>')
+            import build_architecture as ba
+            wide_svg = re.sub(r'<rect width="\d+" height="\d+" fill="#[0-9a-fA-F]+"/>', '', ba.wide().replace('<svg ', '<svg class="arch-svg wide" ', 1), count=1)
+            tall_svg = re.sub(r'<rect width="\d+" height="\d+" fill="#[0-9a-fA-F]+"/>', '', ba.tall().replace('<svg ', '<svg class="arch-svg tall" ', 1), count=1).replace('id="ah"', 'id="aht"').replace('url(#ah)', 'url(#aht)')
+            body = ('<button class="arch-open" type="button" data-zoom aria-label="Enlarge the architecture diagram">%s%s</button>' % (wide_svg, tall_svg)
+                    + '<div class="zoom" role="dialog" aria-modal="true" aria-label="Enlarged architecture" hidden><div class="zoom-tools"><button class="zoom-x" type="button" data-zoom-close>Close ✕</button><button type="button" data-zoom-in aria-label="Zoom in">+</button><button type="button" data-zoom-out aria-label="Zoom out">−</button></div><div class="zoom-scroll"><img src="architecture.svg" alt="Expanded Hub architecture" width="1440" height="1040"></div></div>')
 
             enlarge = '<button class="enlarge" type="button" data-zoom>ENLARGE ⤢</button>'
             parts.append(scene(sid, label, headline, ch, line, runs, runs_line, body, wide=True, extra_head=enlarge))
@@ -317,7 +323,7 @@ def build() -> str:
         else:
             parts.append(scene(sid, label, headline, ch, line, runs, runs_line, story(sid, auto(STEPS[sid]))))
     tiles = [s for s in SCENES if s[0] in ("missions", "pc", "media", "graph")]
-    doors = "".join(slab('<a class="door blk" href="#%s">%s</a>' % (sid, escape(door)), "doorbox", 40, 34) for sid, door, *_ in tiles)
+    doors = "".join(slab('<a class="door blk" href="#%s">%s</a>' % (sid, escape(door)), "doorbox", 40, 52) for sid, door, *_ in tiles)
     smith_btn = slab('<a class="smith-btn blk" href="#talk" aria-label="Talk to Agent Smith"><img src="%ssmith.png" alt="" width="52" height="52"><span><b>TALK</b><em>Agent Smith</em></span></a>' % AG, "smithbox", 50, 30)
     head = (
         '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
@@ -334,8 +340,8 @@ def build() -> str:
         '<div class="actions"><a class="action primary" href="#install">DOWNLOAD</a><a class="action" href="%s">SOURCE ↗</a></div>'
         '<nav class="more-links" aria-label="More"><a href="#agents">AGENTS + SKILLS</a><a href="#architecture">ARCHITECTURE</a></nav>'
         '%s<nav class="doors" aria-label="The tools">%s</nav></div></section>' % (REPO, smith_btn, doors))
-    body = ('<body><header class="site-header"><a class="brand" href="#" data-home aria-label="Agent Hub — return to landing"><svg class="header-mark" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="18"/><ellipse cx="22" cy="22" rx="9" ry="18"/><path d="M4 22h36M8 12h28M8 32h28M22 6l11 25-11-6-11 6Z"/></svg>AGENT HUB</a>'
-            '<a class="projects" href="https://infernalzeus.github.io/">← PROJECTS</a></header><main class="stage">%s%s</main>'
+    body = ('<body><header class="site-header"><a class="brand" href="#" data-home aria-label="Agent Hub — return to landing"><img src="assets/agent-hub-mark.png" alt="" width="44" height="44">AGENT HUB</a>'
+            '<a class="projects" href="https://infernalzeus.github.io/" data-projects>← PROJECTS</a></header><main class="stage">%s%s</main>'
             '<script src="assets/agent-hub-mark.min.js?v=20261105b" defer></script><script src="assets/depth-lift-site.js?v=%s" defer></script>'
             '<script src="assets/site.js?v=%s" defer></script></body></html>\n' % (landing, "".join(parts), V, V))
     return head + body

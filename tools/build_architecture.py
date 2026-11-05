@@ -39,9 +39,12 @@ LABEL = ("Agent Hub drawn as a circuit board. Phone, tablet and laptop reach the
          "From the router: autonomous LLM missions (missions, dispatch, a private worktree, review, apply), PC control through Windows MCP, the media vault, and the git graph.")
 
 
+K = 1.0
+
+
 def t(x, y, s, size, fill, font, weight="400", ls="0", anchor="start", op="1"):
     return ('<text x="%.1f" y="%.1f" fill="%s" fill-opacity="%s" font-family="%s" font-size="%s" font-weight="%s" letter-spacing="%s" text-anchor="%s">%s</text>'
-            % (x, y, fill, op, font, size, weight, ls, anchor, escape(s)))
+            % (x, y, fill, op, font, round(size * K, 2), weight, ls, anchor, escape(s)))
 
 
 def box(x, y, w, h, title, note, strong=False):
@@ -59,12 +62,12 @@ def frame(x, y, w, h, label):
 
 
 def arrow(x1, y1, x2, y2, dashed=False):
-    return ('<path d="M%.1f %.1f L%.1f %.1f" stroke="%s" stroke-opacity=".6" stroke-width="1.2" fill="none"%s marker-end="url(#ah)"/>'
+    return ('<path class="fl" d="M%.1f %.1f L%.1f %.1f" stroke="%s" stroke-opacity=".6" stroke-width="1.2" fill="none"%s marker-end="url(#ah)"/>'
             % (x1, y1, x2, y2, GREEN, ' stroke-dasharray="4 3"' if dashed else ""))
 
 
 def line(x1, y1, x2, y2, dashed=False):
-    return ('<path d="M%.1f %.1f L%.1f %.1f" stroke="%s" stroke-opacity=".55" stroke-width="1.2" fill="none"%s/>' % (x1, y1, x2, y2, GREEN, ' stroke-dasharray="4 3"' if dashed else ""))
+    return ('<path class="fl" d="M%.1f %.1f L%.1f %.1f" stroke="%s" stroke-opacity=".55" stroke-width="1.2" fill="none"%s/>' % (x1, y1, x2, y2, GREEN, ' stroke-dasharray="4 3"' if dashed else ""))
 
 
 def svg(w, h, body):
@@ -74,7 +77,9 @@ def svg(w, h, body):
 
 
 def wide() -> str:
-    W, H = 1120, 760
+    global K
+    K = 1.22
+    W, H = 1200, 760
     b = []
     b.append(frame(18, 200, 250, 190, "ACCESS"))
     for i, d in enumerate(DEVICES):
@@ -83,7 +88,7 @@ def wide() -> str:
     b.append(box(160, 265, 96, 60, "TAILSCALE", "private network", True))
     b.append(t(34, 382, "Nothing is exposed to the internet.", 8.5, MUTE, OUT, op=".7"))
     b.append(arrow(256, 295, 318, 295))
-    b.append(frame(318, 40, 786, 700, "THE HUB ON YOUR PC"))
+    b.append(frame(318, 40, 866, 700, "THE HUB ON YOUR PC"))
     fx = 338
     fy = [190, 300, 410]                       # BOARD, SMITH, ROUTER
     for (n, s), y in zip(FRONT, fy):
@@ -107,15 +112,17 @@ def wide() -> str:
         b.append(t(x0, y + 12, title, 8.5, GREEN, ORB, "700", "1.6", op=".85"))
         b.append(t(x0, y + 24, cap, 7.8, MUTE, OUT, op=".75"))
         for i, (n, s) in enumerate(boxes):
-            bx = x0 + i * 106
-            b.append(box(bx, y + 32, 92, 44, n, s))
+            bx = x0 + i * 122
+            b.append(box(bx, y + 30, 110, 50, n, s))
             if i:
-                b.append(arrow(bx - 14, y + 54, bx, y + 54))
-    b.append(t(x0 + 3 * 106 + 46, 64 + 100, "re-plan if the review asks for it", 7.4, MUTE, OUT, anchor="middle", op=".7"))
+                b.append(arrow(bx - 12, y + 55, bx, y + 55))
+    b.append(t(x0 + 3 * 122 + 55, 64 + 100, "re-plan if the review asks for it", 7.4, MUTE, OUT, anchor="middle", op=".7"))
     return svg(W, H, "".join(b))
 
 
 def tall() -> str:
+    global K
+    K = 1.0
     W = 360
     b = []
     y = 16
@@ -166,46 +173,7 @@ def tall() -> str:
     return svg(W, int(yy + 24), "".join(b))
 
 
-# This file is merged into the architecture generator before its entry point.
-def diagram():
-    """A reflowing HTML diagram; the connector SVG follows the measured nodes."""
-    nodes=[('devices','YOUR DEVICES','Phone · tablet · laptop'),('network','PRIVATE NETWORK','Tailscale to your PC'),('smith','AGENT SMITH','Hears you · sends the ask'),('router','ROUTER','Chooses the route')]
-    top=''.join('<div class="arch-node" data-node="%s"><b>%s</b><span>%s</span></div>' % n for n in nodes)
-    cards=[]
-    for i,(title,caption,boxes,source) in enumerate(LANES):
-        content=''.join('<li><b>%s</b><span>%s</span></li>' % (escape(t),escape(note)) for t,note in boxes)
-        cards.append('<article class="arch-lane" data-node="lane-%d" data-from="%s"><header><span class="caller">FROM %s</span><h3>%s</h3></header><ol>%s</ol><p>%s</p></article>' % (i,source,source.upper(),escape(title),content,escape(caption)))
-    return '<div class="arch-map"><svg class="arch-connectors" aria-label="Directed handoffs between devices, Smith, the router and tool lanes"></svg><div class="arch-top">'+top+'</div><div class="arch-lanes">'+''.join(cards)+'</div><div class="arch-legend"><b>HOW IT WORKS</b><span>→ request / handoff</span><span>YOU approve a mission diff</span><span>TRY IT: follow a handoff</span><span>LIMIT: desktop control is Windows only</span></div></div>'
-
-
-
-def export_diagram(tall_layout=False):
-    width=540 if tall_layout else 1440
-    cols=1 if tall_layout else 3
-    card_w=(width-40-(cols-1)*20)/cols
-    card_h=250 if tall_layout else 300
-    top_h=210 if tall_layout else 130
-    rows=(len(LANES)+cols-1)//cols
-    height=top_h+rows*(card_h+20)+55
-    parts=[]
-    front=[("YOUR DEVICES","phone · tablet · laptop"),("PRIVATE NETWORK","Tailscale reaches your PC"),("AGENT SMITH","hears you · routes your ask"),("ROUTER","chooses the right tool")]
-    fw=(width-40)/ (2 if tall_layout else 4)
-    for i,(title,note) in enumerate(front):
-        x=20+(i% (2 if tall_layout else 4))*fw;y=20+(i//2)*80 if tall_layout else 20
-        parts.append('<rect x="%s" y="%s" width="%s" height="68" fill="#0b2037" stroke="#41ebff66"/>' % (x,y,fw-12))
-        parts.append(t(x+10,y+24,title,14,GREEN,OUT,"700"));parts.append(t(x+10,y+46,note,12,MUTE,OUT))
-    for i,(title,caption,boxes,source) in enumerate(LANES):
-        x=20+(i%cols)*(card_w+20);y=top_h+(i//cols)*(card_h+20)
-        parts.append('<rect x="%s" y="%s" width="%s" height="%s" fill="#0b162c" stroke="#00e67666"/>'%(x,y,card_w,card_h))
-        parts.append(t(x+14,y+24,'FROM '+source.upper(),12,'#41ebff',OUT,"700"));parts.append(t(x+14,y+49,title,15,GREEN,OUT,"700"))
-        for j,(name,note) in enumerate(boxes):
-            yy=y+76+j*34
-            parts.append(t(x+18,yy,name+' → '+note,13,MUTE,OUT))
-        parts.append(t(x+14,y+card_h-22,'YOU approve changes · no automatic merge',12,GREEN,OUT))
-    parts.append(t(20,height-20,'→ Request / handoff · Smith calls Neo and the Doctor · Desktop control: Windows only',11,MUTE,OUT))
-    return svg(width,int(height),''.join(parts))
-
 if __name__ == "__main__":
-    (DOCS / "architecture.svg").write_text(export_diagram(), encoding="utf-8")
-    (DOCS / "architecture-tall.svg").write_text(export_diagram(True), encoding="utf-8")
+    (DOCS / "architecture.svg").write_text(wide(), encoding="utf-8")
+    (DOCS / "architecture-tall.svg").write_text(tall(), encoding="utf-8")
     print("wrote architecture.svg and architecture-tall.svg")

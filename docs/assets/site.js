@@ -4,7 +4,7 @@
  let active=document.getElementById('landing'),busy=false,mark=null,stopToggle=null,shell=true,permission='unknown',pose=null,hasOrientation=false,pendingRoute=null;
  try{permission=sessionStorage.getItem('site:orientation')||'unknown';}catch(error){}
  const route=()=>document.getElementById(location.hash.slice(1))?.matches('.scene')?location.hash.slice(1):'landing';
- const MAX_TILT=10, MOUSE_TILT=6, LANDING_MOUSE_TILT=4.5, PHONE_TILT=10, PERSPECTIVE=1600;
+ const MAX_TILT=10, REST_X=-3, REST_Y=3.5, MOUSE_TILT=6, LANDING_MOUSE_TILT=4.5, PHONE_TILT=10, PERSPECTIVE=1600;
  const STEP=4200;
 
  /* ---------- auto-playing step lists: they advance by themselves; a tap or hover pins one ---------- */
@@ -112,9 +112,37 @@ function drawVisual(a){
  if(['missions','pc','talk'].includes(sid))node('image',{href:'assets/agents/smith.png',x:w-36,y:0,width:30,height:30});
  const top=34,gap=18,third=(w-20-gap*2)/3;
  if(sid==='graph'){
-  const cx=w*.26,cy=h*.47;node('path',{d:`M${cx} ${cy}L${w*.58} ${h*.3}L${w*.82} ${h*.62}M${cx} ${cy}L${w*.53} ${h*.78}`,stroke:'#41ebff','stroke-width':2,fill:'none'});
-  [[cx,cy,'Your project'],[w*.58,h*.3,'Agent branch'],[w*.82,h*.62,'Diff'],[w*.53,h*.78,'Main branch']].forEach(([x,y,t])=>{node('circle',{cx:x,cy:y,r:Math.min(16,h*.06),fill:'#0d2040',stroke:'#00e676','stroke-width':2});text(Math.max(10,x-45),y+Math.min(37,h*.13),t,13);});
-  text(10,h-12,'YOU: tap a dot · inspect the changed lines · merge or leave',Math.min(13,w/42));
+  const step=a.i||0,fs=Math.max(10,Math.min(13,w/44)),G='#00e676',C='#41ebff',R='#ff8f8f';
+  const at=(tag,attrs,text,delay,cls)=>{const n=node(tag,attrs,text);n.setAttribute('class',cls||'gv-fade');n.style.animationDelay=(delay||0)+'s';return n;};
+  const draw=(d,delay,col,wd)=>at('path',{d,pathLength:1,stroke:col||C,'stroke-width':wd||2,fill:'none','stroke-linecap':'round'},'',delay,'gv-draw');
+  const dot=(x,y,r,delay,col,fill)=>at('circle',{cx:x,cy:y,r,fill:fill||'#0d2040',stroke:col||G,'stroke-width':2},'',delay,'gv-pop');
+  const mx=w*.08,mxe=w*.92,my=h*.38,fx=w*.3,by=h*.7,bxe=w*.7;
+  if(step===0){
+   const names=[['agent-hub',.5,.34],['wiki',.22,.58],['clipper',.74,.6],['cadenza',.3,.28],['mri-sim',.82,.3]];
+   names.forEach(([n,px,py],i)=>{const x=w*px,y=h*py+8;dot(x,y,Math.min(15,h*.055),i*.22,i===0?C:G);at('text',{x:x-n.length*3.2,y:y+Math.min(34,h*.12),fill:'#d9ffe9','font-size':fs,'font-family':'Outfit,system-ui,sans-serif'},n,i*.22+.2);});
+   const x0=w*.5,y0=h*.34+8;[0,1].forEach(k=>{const c=at('circle',{cx:x0,cy:y0,r:Math.min(15,h*.055),fill:'none',stroke:C,'stroke-width':2},'',k*.9+1.1,'gv-ring');});
+   text(10,h-14,'YOU: choose a project dot — one dot per repo, found in your folders',Math.min(13,w/42),'#d9ffe9');
+  }else if(step===1){
+   draw(`M${mx} ${my}L${mxe} ${my}`,0,G,3);[.12,.3,.5,.72,.92].forEach((q,i)=>dot(w*q,my,5,.25+i*.18,G,G));
+   draw(`M${fx} ${my}C${fx+30} ${my} ${fx+24} ${by} ${fx+60} ${by}L${bxe} ${by}`,1,C,3);[.46,.58,.7].forEach((q,i)=>dot(w*q,by,5,1.5+i*.2,C,C));
+   at('text',{x:mx,y:my-14,fill:G,'font-size':fs,'font-family':'Outfit,system-ui,sans-serif'},'main · your code, untouched',.4);
+   at('text',{x:fx+60,y:by+24,fill:C,'font-size':fs,'font-family':'Outfit,system-ui,sans-serif'},'agent copy · 3 files changed',2.1);
+   at('text',{x:mx,y:h-14,fill:'#d9ffe9','font-size':Math.min(13,w/42),'font-family':'Outfit,system-ui,sans-serif'},'HUB reads this straight from git — nothing is stored elsewhere',2.6);
+  }else if(step===2){
+   const lw=w*.4;draw(`M${mx} ${my}L${lw} ${my}`,0,G,3);draw(`M${w*.2} ${my}C${w*.22} ${my} ${w*.2} ${by} ${w*.26} ${by}L${lw} ${by}`,.2,C,3);[.14,.3].forEach((q,i)=>dot(w*q,my,5,.2,G,G));[.3,.38].forEach((q,i)=>dot(w*q,by,5,.4,C,C));
+   const px=w*.46,pw=w*.5,py=18,ph=h-44;node('rect',{x:px,y:py,width:pw,height:ph,fill:'#050a20','fill-opacity':'.6',stroke:C,'stroke-opacity':'.4'});
+   at('text',{x:px+12,y:py+22,fill:C,'font-size':fs,'font-family':'Outfit,system-ui,sans-serif'},'settings.css  +1 −1',.2);
+   [['  .page {',null],['−   color-scheme: light;',R],['+   color-scheme: dark;',G],['    background: #070a25;',null],['  }',null]].forEach(([t,c],i)=>at('text',{x:px+14,y:py+50+i*Math.max(18,ph*.11),fill:c||'#a8cbb9','font-size':fs,'font-family':'Consolas,monospace'},t,.7+i*.45));
+   at('text',{x:mx,y:h-14,fill:'#d9ffe9','font-size':Math.min(13,w/42),'font-family':'Outfit,system-ui,sans-serif'},'YOU: read every changed line before deciding',1.5);
+  }else{
+   draw(`M${mx} ${my}L${mxe} ${my}`,0,G,3);[.12,.3,.5,.72].forEach(q=>dot(w*q,my,5,0,G,G));
+   draw(`M${fx} ${my}C${fx+30} ${my} ${fx+24} ${by} ${fx+60} ${by}L${bxe} ${by}`,0,C,3);[.46,.58,.7].forEach(q=>dot(w*q,by,5,0,C,C));
+   const m=at('path',{d:`M${bxe} ${by}C${bxe+50} ${by} ${bxe+60} ${my} ${w*.86} ${my}`,pathLength:1,stroke:'#ffd36a','stroke-width':3,fill:'none','stroke-linecap':'round'},'',.3,'gv-merge');
+   dot(w*.86,my,6,2.2,'#ffd36a','#ffd36a');
+   const bw=Math.min(120,w*.26),bh=34,bx=w*.18,byb=h-bh-34;
+   [['MERGE',G,0],['LEAVE IT',C,bw+16]].forEach(([t,c,o],i)=>{const r=at('rect',{x:bx+o,y:byb,width:bw,height:bh,fill:'#0a1632',stroke:c,'stroke-width':2},'',.2,i?'gv-fade':'gv-press');at('text',{x:bx+o+bw/2,y:byb+22,'text-anchor':'middle',fill:c,'font-size':fs+1,'font-family':'Orbitron,Outfit,sans-serif'},t,.3);});
+   at('text',{x:mx,y:h-12,fill:'#d9ffe9','font-size':Math.min(13,w/42),'font-family':'Outfit,system-ui,sans-serif'},'Nothing merges until YOU press MERGE. LEAVE IT keeps it separate.',.6);
+  }
  }else{
   let rows={missions:[['Your project','Untouched'],['Agent copy','Code changes'],['Your review','APPLY / DISCARD']],pc:[['Agent looks','Finds Play'],['YOU APPROVE','Yes or no'],['MCP acts','Checks the window']],media:[['Your link','yt-dlp'],['Your format','ffmpeg'],['Your folder','Browse / receive']],agents:[['YOU describe','One job'],['Neo designs','One persona file'],['YOU save','Agent can be picked']],install:[['Your PC','Install the Hub'],['Private network','Tailscale'],['Your phone','Open the address']],talk:[['YOU ask','Speak or type'],['Smith routes','Tool or agent'],['YOU receive','Answer / review']]}[sid]||[];
   if(sid==='agents'){
@@ -155,6 +183,8 @@ function drawArchitecture(){
   clearTimeout(settleTimer);scenes.forEach(s=>s.classList.remove('settling'));if(!reduced.matches){scene.classList.add('settling');settleTimer=setTimeout(()=>scene.classList.remove('settling'),1200);}
   active=scene;scenes.forEach(s=>{s.classList.remove('leaving');s.classList.toggle('active',s===active);s.setAttribute('aria-hidden',s===active?'false':'true');s.inert=s!==active;});
   stopAutos();startAutos(active);fit();requestAnimationFrame(fit);if(active.id==='landing'){mountMark();sizeGrid();startGrid();}else unmountMark();
+  setTimeout(()=>move(0,0),60);
+  const back=document.querySelector('[data-projects]');if(back){const home=scene.id==='landing';back.textContent=home?'← PROJECTS':'← AGENT HUB';back.setAttribute('href',home?'https://infernalzeus.github.io/':'#');back.setAttribute('aria-label',home?'Back to the projects page':'Back to the Agent Hub landing page');}
  }
  async function navigate(id,push=true){
   if(busy)return;const next=document.getElementById(id)||scenes[0];if(next===active)return;
@@ -204,7 +234,7 @@ function drawArchitecture(){
   const r=b.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
   const top=document.querySelector('.site-header').getBoundingClientRect().bottom+10,inset=12;
   let scale=1;const rad=MAX_TILT*Math.PI/180;
-  for(const ax of [-rad,rad])for(const ay of [-rad,rad])for(const px of [-r.width/2,r.width/2])for(const py of [-r.height/2,r.height/2])for(const depth of [0,22]){
+  for(const ax of [-rad,rad])for(const ay of [-rad,rad])for(const px of [-r.width/2,r.width/2])for(const py of [-r.height/2,r.height/2])for(const depth of [-72,0,22]){
    const xx=px*Math.cos(ay)+depth*Math.sin(ay),zz=-px*Math.sin(ay)+depth*Math.cos(ay);
    const yy=py*Math.cos(ax)-zz*Math.sin(ax),z=py*Math.sin(ax)+zz*Math.cos(ax),persp=1/(1-z/PERSPECTIVE),dx=xx*persp,dy=yy*persp;
    scale=Math.min(scale,dx>0?(innerWidth-inset-cx)/dx:(cx-inset)/-dx,dy>0?(innerHeight-inset-cy)/dy:(cy-top)/-dy);
@@ -217,7 +247,7 @@ function drawArchitecture(){
   b.style.setProperty('--rx',x.toFixed(3)+'deg');b.style.setProperty('--ry',y.toFixed(3)+'deg');
   if(now-lastMove<2000||Math.abs(x-targetX)+Math.abs(y-targetY)>.01)raf=requestAnimationFrame(animate);
  }
- function move(a,b){if(busy||document.hidden||reduced.matches)return;targetX=Math.max(-MAX_TILT,Math.min(MAX_TILT,a));targetY=Math.max(-MAX_TILT,Math.min(MAX_TILT,b));lastMove=performance.now();if(!raf){last=0;raf=requestAnimationFrame(animate);}}
+ function move(a,b){if(busy||document.hidden||reduced.matches)return;targetX=Math.max(-MAX_TILT,Math.min(MAX_TILT,a+REST_X));targetY=Math.max(-MAX_TILT,Math.min(MAX_TILT,b+REST_Y));lastMove=performance.now();if(!raf){last=0;raf=requestAnimationFrame(animate);}}
  function resetTilt(){cancelAnimationFrame(raf);raf=0;targetX=targetY=x=y=0;document.querySelectorAll('[data-tilt]').forEach(b=>{b.style.setProperty('--rx','0deg');b.style.setProperty('--ry','0deg');});}
  const clamp=(v,m)=>Math.max(-m,Math.min(m,v));
  // The pointer is read against the scene, which never rotates. (Reading it against the board that is turning made the board chase the
