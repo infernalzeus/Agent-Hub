@@ -8,6 +8,8 @@ and NO training: the answer path pays one appended line (`note`, measured under 
     route  binning.decide / refine             the bins (launch_app, mission_ask…)  utterance_decisions.jsonl (+ outcome and verdict lines)
     model  missions, the desktop task agent    local and cloud models              model_outcomes.json, and `note` for desktop tasks
     rung   pc_control.after                    saved routine, local agent, cloud    `note`  (choices.jsonl)
+    persona the orchestrator's plan             which agent gets each step           `note` when you APPLY or DISCARD the mission (recorded only)
+    fix    the Doctor                           applied or discarded                 `note` when you APPLY or DISCARD the fix (recorded only)
 
 An event: {kind, context, chosen, options, by, ok, ms, at}. `ok` is True only on evidence (the project's checks passed, Windows says it
 is playing, the person said thanks), False only on evidence (a failed check, a correction), None otherwise: an unlabelled event is
@@ -33,7 +35,7 @@ routes = web.RouteTableDef()
 
 CHOICES = STATE / "choices.jsonl"
 MAX_BYTES = 5 * 1024 * 1024
-KINDS = ("route", "model", "rung")
+KINDS = ("route", "model", "rung", "persona", "fix")      # persona and fix are recorded only: no learner reads them yet
 NEEDS = {"R3": ("model", 30, "labelled model events, across at least two models"),
          "R4": ("rung", 30, "labelled rung events, across at least two ways"),
          "R5": ("route", 100, "labelled route decisions")}

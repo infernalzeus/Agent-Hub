@@ -127,7 +127,7 @@ button.i{width:26px;height:26px;padding:0;border-radius:50%;font:700 13px Outfit
   async function poll(){try{const j=await (await fetch('/api/yard/status',{cache:'no-store'})).json();if(!progress(j.progress)){clearInterval(timer);timer=0;paint(j);}}catch(e){}}
   async function status(){try{const j=await (await fetch('/api/learning/status',{cache:'no-store'})).json();
     const k=$('kinds');head(k,['Kind of choice','Recorded','With an exact label','Only a hint']);
-    for(const [n,v] of Object.entries(j.per_kind||{})){const r=el('tr');r.append(el('td',null,({route:'what you asked for (routing)',model:'which model did a mission',rung:'how a PC task was done'})[n]||n),el('td',null,v.events),el('td',null,v.labelled),el('td',null,v.weak||0));k.append(r);}
+    for(const [n,v] of Object.entries(j.per_kind||{})){const r=el('tr');r.append(el('td',null,({route:'what you asked for (routing)',model:'which model did a mission',rung:'how a PC task was done',persona:'which agent got a step (recorded only)',fix:'Doctor fixes you applied or discarded (recorded only)'})[n]||n),el('td',null,v.events),el('td',null,v.labelled),el('td',null,v.weak||0));k.append(r);}
     $('statsub').textContent='Nothing learns from this live yet: it is recorded, and used to decide when a learner is ready.';
     const nd=$('needs');head(nd,['Step','Needs','Have','Want','Ready?']);
     for(const [n,v] of Object.entries(j.needs||{})){const r=el('tr');r.append(el('td',null,n),el('td','mute',v.needs),el('td',null,v.have),el('td',null,v.want),el('td',v.ready?'yes':'mute',v.ready?'yes':'not yet'));nd.append(r);}

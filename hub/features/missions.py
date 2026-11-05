@@ -2902,8 +2902,25 @@ async def apply(mid: str) -> dict:
     if res.get("ok"):
         m.status = "applied"
         DEC.record_outcome(_decision_log(), m.id, "applied")
+        _learn_verdict(m, True)
         S.save(m)
     return res
+
+
+def _learn_verdict(m: "Mission", ok: bool) -> None:
+    """The person's APPLY or DISCARD is an exact label for two choices that nothing recorded before (recording only; nothing learns from it yet):
+    which agent the plan gave each step to (`persona`), and whether a Doctor fix was wanted (`fix`)."""
+    try:
+        from . import learning as LRN
+        if str(m.brief or "").startswith("You are the doctor for Agent Hub"):
+            LRN.note("fix", "doctor", f"{getattr(m, 'runtime', '') or 'opencode'}:{getattr(m, 'model', '') or 'default'}", ["applied", "discarded"],
+                     ok=ok, by="owner", mission=m.id)
+        pool = _allowed_agents(m)
+        for st in (m.plan or []):
+            if st.get("agent"):
+                LRN.note("persona", getattr(m, "profile", "") or "code", st["agent"], pool, ok=ok, by="orchestrator", mission=m.id)
+    except Exception as exc:  # noqa: BLE001 - recording must never break applying
+        logger.info("missions: could not record the verdict for learning: %s", exc)
 
 
 def _force_remove(path: Path) -> bool:
@@ -2970,6 +2987,7 @@ async def discard(mid: str, record: bool = True) -> None:
     # measure whether the independent check agrees with the person.
     if record and not decided:
         DEC.record_outcome(_decision_log(), m.id, "discarded")
+        _learn_verdict(m, False)
     m.ended = m.ended or time.time()
     S.save(m)
 

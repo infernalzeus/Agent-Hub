@@ -22,9 +22,10 @@ def test_coverage_has_no_stale_entries_and_edges_join_real_nodes():
     assert ("orchestrator", "coder") in pairs and ("recorder", "bandit-model") in pairs
 
 
-def test_the_known_gaps_are_named_not_hidden():
+def test_no_decision_is_left_unrecorded_and_a_new_gap_would_be_named():
     m = M.build()
-    assert {g["id"] for g in m["gaps"]} == {"doctor", "orchestrator"}
+    assert m["gaps"] == []                                              # since 5 Nov every decision is at least recorded; a new gap must be named in COVERAGE
+    assert M.COVERAGE["doctor"]["state"] == "logged" and M.COVERAGE["orchestrator"]["state"] == "logged"
     assert all(c["state"] in ("learned", "logged", "gap", "by-design") and c["note"] for c in m["coverage"].values())
 
 

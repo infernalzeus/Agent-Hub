@@ -539,6 +539,15 @@ def model_chain(primary: str | None, workspace_model: str | None = None, brief: 
     return [m for m in out if m == primary or not MS.broken(m)]
 
 
+def _model_pick(own: dict) -> dict:
+    """An agent with its own model keeps it; every other agent follows the one default for all agents (the model policy), and says so."""
+    if own.get("source") != "default":
+        return own
+    pol = model_policy()
+    return {"value": resolved_default_model(), "source": "all",
+            "note": "the default for all agents" + ("" if pol == "auto" else f" (policy: {pol})")}
+
+
 def effective_settings(name: str) -> dict:
     """The LLM knobs actually in effect for a persona: user override → persona
     frontmatter → sensible default. Never blank, so the settings UI can show real
@@ -554,7 +563,7 @@ def effective_settings(name: str) -> dict:
         return {"value": dflt, "source": "default", "note": dflt_note}
 
     return {
-        "model": pick("model", None, "workspace default (opencode.json)"),
+        "model": _model_pick(pick("model", None, "")),
         "temperature": pick("temperature", None, "model default (~0.7)"),
         "top_p": pick("top_p", None, "model default"),
         "variant": pick("variant", None, "model default"),

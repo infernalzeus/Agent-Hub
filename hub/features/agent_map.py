@@ -28,15 +28,15 @@ COVERAGE: "dict[str, dict]" = {
     "bandit-model": {"decides": "which model runs a mission", "kind": "model", "state": "learned", "note": "A tally per (model, size of brief); silent until two models have three exact results each."},
     "bandit-rung": {"decides": "replay or try afresh, per app", "kind": "rung", "state": "learned", "note": "Same table as the desktop agent's rung."},
     "recorder": {"decides": "nothing: it only writes down the others' choices", "kind": "none", "state": "by-design", "note": "The source of every other learner."},
-    "doctor": {"decides": "what is wrong and what to change; the owner applies or discards the result", "kind": "outcome", "state": "gap",
-               "note": "Applied or discarded is a clean exact label, but it is not written to the learning log yet. Add one event kind before any learner is built on it."},
+    "doctor": {"decides": "what is wrong and what to change; the owner applies or discards the result", "kind": "fix", "state": "logged",
+               "note": "Your APPLY or DISCARD is written to the learning log as an exact label (kind fix, since 5 Nov). Nothing learns from it yet."},
     "neo": {"decides": "how a new or edited agent is written", "kind": "none", "state": "by-design",
             "note": "A drafted agent has no outcome that can be marked right or wrong in a short time, so it is not learned. The owner reads every draft before saving."},
-    "orchestrator": {"decides": "which agent does which step of a plan", "kind": _P, "state": "gap",
-                     "note": "The plan is saved with the mission but the choice of agent per step is not an event in the learning log. The persona choice is the one real gap before R3/R5 style learning can cover it."},
+    "orchestrator": {"decides": "which agent does which step of a plan", "kind": _P, "state": "logged",
+                     "note": "When you APPLY or DISCARD a mission, each step's agent is written to the learning log with that verdict (kind persona, since 5 Nov). Nothing learns from it yet."},
 }
 _PERSONA_DEFAULT = {"decides": "nothing alone: it is chosen by the orchestrator and runs on a model the model bandit picks", "kind": "model", "state": "logged",
-                    "note": "Its model is logged with the mission result; which persona was picked is the orchestrator's gap."}
+                    "note": "Its model is logged with the mission result; which persona was picked is logged with your verdict."}
 _UTILITY = {"scout": {"decides": "what an unfamiliar repo needs to be fronted by the Hub", "kind": "none", "state": "by-design",
                       "note": "Runs once per app; the manifest it writes is read and checked by a person."}}
 
