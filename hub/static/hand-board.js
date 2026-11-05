@@ -256,7 +256,7 @@ SOFTWARE.
       if(!document.hasFocus()||document.hidden){if(presses.size)cancelAll();if(status&&!hint)status.textContent='CLICK THE HUB WINDOW ONCE SO HANDS CAN ACT ON IT';else if(status)say('CLICK THE HUB WINDOW ONCE SO HANDS CAN ACT ON IT');return;}
       const processingAt=performance.now();
       const output=engine.update(result,now,innerWidth,innerHeight,meta.cam);if(output.stale)return;counts.frames++;pointerUi(output.hands,now);paint(output.hands);
-      if(confLive.length&&now-(feed.cl||0)>150){feed.cl=now;const h=output.hands[0];for(const c of confLive){if(!c.cell.isConnected)continue;try{c.cell.textContent=h?c.fn(h):'no hand';}catch(_){}}}
+      if(confLive.length&&now-(feed.cl||0)>150){feed.cl=now;const h=output.hands[0];for(const c of confLive){if(!c.cell.isConnected)continue;try{c.cell.textContent=h?c.fn(h):'no hand';c.fill.style.width=h?Math.round(c.v(h)*100)+'%':'0';}catch(_){}}}
       for(const h of output.hands)if(!h.rpinched)rWas.delete(h.id);
       for(const h of output.hands){const on=h.pinched||h.rpinched||h.triple;if(on&&!detected.has(h.id)){detected.add(h.id);counts.detectedPinches++;}if(!on)detected.delete(h.id);}
       for(const h of output.lost)detected.delete(h.id);
@@ -301,7 +301,7 @@ SOFTWARE.
             const at=posOf(p,hand);p.travel=Math.max(p.travel,G.distance(p.down,at));
             if(!p.moved&&p.travel<Math.max(24,innerWidth*.02)){p.last=p.down;}else{p.moved=true;p.last=at;}                 // a dead band: tremor and a still hand move nothing
             emit(p,'pointermove',hand.id,p.last.x,p.last.y,true);
-            if(p.size&&hand.depth){p.sm=p.sm*.8+hand.depth*.2;const r=Math.log(p.sm/p.size);if(Math.abs(r)>.04){p.size=p.sm;host.dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,ctrlKey:true,deltaY:-r*900,deltaMode:0,clientX:p.last.x,clientY:p.last.y}));}}      // toward the camera = bigger hand = zoom in; only a real change of 8 % or more counts
+            if(p.size&&hand.depth){p.sm=p.sm*.8+hand.depth*.2;const r=Math.log(p.sm/p.size);if(Math.abs(r)>engine.tuning.depthStep){p.size=p.sm;host.dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,ctrlKey:true,deltaY:-r*900,deltaMode:0,clientX:p.last.x,clientY:p.last.y}));}}      // toward the camera = bigger hand = zoom in; only a real change of 8 % or more counts
             continue;
           }
           const done=p.mode==='left'?!hand.pinched:!hand.rpinched;
@@ -349,7 +349,7 @@ SOFTWARE.
     // ---- setup: nothing to save by hand; a choice or a calibration is kept in this browser at once
     function saveProfile(){cancelAll();engine.reset();engine.options.fistGrab=!!profile.fist;engine.tuning.pinchOn=G.TUNING.pinchOn;engine.tuning.pinchOff=G.TUNING.pinchOff;
       if(Number.isFinite(profile.pinchOn)&&profile.pinchOn>.05&&profile.pinchOff>profile.pinchOn&&profile.pinchOff<1.2){engine.tuning.pinchOn=profile.pinchOn;engine.tuning.pinchOff=profile.pinchOff;}
-      profile.v=PROFILE_VERSION;try{localStorage.setItem('hub-hands-profile',JSON.stringify(profile));}catch(_){}interlock=true;}
+      Object.assign(engine.tuning,profile.tuning||{});profile.v=PROFILE_VERSION;try{localStorage.setItem('hub-hands-profile',JSON.stringify(profile));}catch(_){}interlock=true;}
     saveProfile();
     function closeX(onclose){const b=document.createElement('button');b.type='button';b.className='hb-btn hs-x';b.setAttribute('aria-label','Close');b.title='Close';b.innerHTML='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';b.onclick=onclose;return b;}
     const GESTURES=[['Point','Aim with your index fingertip; hold still over a control to click.'],['Thumb + index','Quick pinch: tap. Hold and move: drag a block or scroll a panel.'],['Thumb + middle','Keep the index away; pinch to open the right-click menu.'],['Thumb + index + middle','Hold together and move your hand up or down to zoom.'],['Fist · 3D','Tilt and turn the board in VIEW 3D.'],['Open hand','Hold for one second to fit the board.'],['Flat palm','Optional pan and push/pull zoom; turn it on below.'],['Escape','Immediately stop hand control and release the camera.']];
@@ -376,18 +376,33 @@ SOFTWARE.
         {cells:['Fist in VIEW 3D','Tilt and turn the board.','']},
         {cells:['Flat palm','Pan and push/pull zoom (turn it on above).','']},
         {cells:['Escape','Stop hand control and release the camera.','']}],'hs-gestures');
-      // CONFIDENCE: what each gesture needs to start and to stop, and how close the hand is to it right now (0 to 100). The live column moves while the camera is on.
-      const T=engine.tuning,pc=x=>Math.round(x*100)+'%',row=(name,rule,fn)=>({name,rule,fn});
-      const defs=[row('Hand seen','model score at least '+pc(T.minScore)+'; present '+T.presentFrames+' frames',h=>pc(h.conf)),
-        row('Point (index)','index out, others curled',h=>h.fingers.index&&!h.fingers.middle?'YES':'no'),
-        row('Thumb + index pinch','starts under '+T.pinchOn+', ends over '+T.pinchOff+' (x hand size)',h=>pc(h.closeness)),
-        row('Thumb + middle pinch','starts under '+T.pinchOnM+', ends over '+T.pinchOffM+'; index away',h=>pc(h.closenessM)),
-        row('Open hand','4 or 5 fingers extended',h=>pc(h.openScore)),
-        row('Flat palm (pan)','fingers together: spread under '+T.flatOn+' held '+T.flatHoldMs+' ms',h=>pc(h.flatScore)),
-        row('Fist (3D tilt)','four fingertips pulled to the palm',h=>pc(h.fistScore)),
-        row('Depth (push / pull zoom)','hand size in the picture; moves of 4 % or more zoom',h=>h.depth.toFixed(0)+' px')];
-      const conf=tableOf('CONFIDENCE (live while the camera is on)',['Gesture','Rule (fractions of hand size)','Right now'],defs.map(d=>({cells:[d.name,d.rule,'-']})),'hs-gestures hs-conf');
-      confLive=defs.map((d,i)=>({cell:conf.rows[i+1].cells[2],fn:d.fn}));
+      // CONFIDENCE AND THRESHOLDS: every number that decides a gesture, editable. A change applies to the next frame and is kept in this browser.
+      // `live` is how close the hand is to that gesture right now (0 to 100 %), moving while the camera is on.
+      const D=G.TUNING,T=engine.tuning,pc=x=>Math.round(x*100)+'%';
+      const defs=[
+        {n:'Hand seen',d:'Lowest model score a hand needs, and frames it must be present before it counts.',live:h=>h.conf,k:[['minScore','min score',.05,0,1],['presentFrames','frames',1,1,10]]},
+        {n:'Thumb + index pinch',d:'Starts under ON, ends over OFF (fractions of your hand size). Smaller ON = firmer pinch needed.',live:h=>h.closeness,k:[['pinchOn','ON',.01,.05,.6],['pinchOff','OFF',.01,.1,.9],['confirmMs','hold ms',10,0,400]]},
+        {n:'Thumb + middle pinch',d:'Right click. Same idea with the middle finger; the index finger must stay away.',live:h=>h.closenessM,k:[['pinchOnM','ON',.01,.05,.6],['pinchOffM','OFF',.01,.1,.9],['rightIndexAway','index away',.01,.1,.9]]},
+        {n:'Open hand',d:'How many fingers must be out is fixed at 4. Hold time before it counts as an open hand.',live:h=>h.openScore,k:[['poseHoldMs','hold ms',20,0,800]]},
+        {n:'Flat palm (pan)',d:'Fingers together: finger spread under ON, released over OFF. Hold time before a pan can start.',live:h=>h.flatScore,k:[['flatOn','ON',.05,.8,2.5],['flatOff','OFF',.05,.9,3],['flatHoldMs','hold ms',50,0,1500]]},
+        {n:'Fist (3D tilt)',d:'Fingertips closer to the palm than this fraction of hand size. Bigger = easier to make a fist.',live:h=>h.fistScore,k:[['fistDist','distance',.01,.3,1.2]]},
+        {n:'Depth (push / pull zoom)',d:'Zoom when the hand size changes by this much. Smaller = more sensitive.',live:h=>h.depth/100,liveText:h=>h.depth.toFixed(0)+' px',k:[['depthStep','change',.01,.01,.3]]}];
+      const conf=document.createElement('table');conf.className='hs-table hs-conf';conf.createCaption().textContent='THRESHOLDS AND LIVE CONFIDENCE (change a number: it applies at once)';
+      const hr=conf.insertRow();['Gesture','Right now','Thresholds'].forEach(x=>{const th=document.createElement('th');th.textContent=x;hr.appendChild(th);});
+      confLive=[];
+      for(const d of defs){
+        const tr=conf.insertRow(),c0=tr.insertCell(),c1=tr.insertCell(),c2=tr.insertCell();
+        const b=document.createElement('b');b.textContent=d.n;const sm=document.createElement('div');sm.className='hs-why';sm.textContent=d.d;c0.append(b,sm);
+        const bar=document.createElement('div');bar.className='hs-bar';const fill=document.createElement('i');bar.appendChild(fill);const num=document.createElement('span');num.textContent='no hand';c1.append(num,bar);
+        confLive.push({cell:num,fill,fn:h=>d.liveText?d.liveText(h):pc(d.live(h)),v:h=>Math.max(0,Math.min(1,d.live(h)))});
+        for(const [key,label,step,lo,hi] of d.k){
+          const w=document.createElement('label');w.className='hs-field';w.append(label+' ');
+          const inp=document.createElement('input');inp.type='number';inp.step=step;inp.min=lo;inp.max=hi;inp.value=+(+T[key]).toFixed(3);
+          inp.onchange=()=>{let v=parseFloat(inp.value);if(!Number.isFinite(v))v=D[key];v=Math.max(lo,Math.min(hi,v));inp.value=v;T[key]=v;profile.tuning={...(profile.tuning||{}),[key]:v};try{localStorage.setItem('hub-hands-profile',JSON.stringify(profile));}catch(_){}p.textContent=d.n+': '+label+' = '+v+' (saved)';};
+          inp.onkeydown=e=>e.stopPropagation();w.append(inp);c2.append(w);
+        }
+        const rs=document.createElement('button');rs.type='button';rs.className='hb-btn hs-reset';rs.textContent='DEFAULT';rs.onclick=()=>{for(const [key] of d.k){T[key]=D[key];if(profile.tuning)delete profile.tuning[key];}try{localStorage.setItem('hub-hands-profile',JSON.stringify(profile));}catch(_){}repaint();};c2.append(rs);
+      }
       return [controlsTable,gestures,conf];
     }
     // ONE hands menu (right-click on the hand; also under HANDS in the log): the controls and the gestures, as tables

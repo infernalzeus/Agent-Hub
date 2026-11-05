@@ -29,7 +29,7 @@ SOFTWARE.
   // pinchOn / pinchOff are fractions of the hand's own size (wrist to the middle finger's knuckle), measured in the camera's own space and
   // including depth, so two fingertips that merely overlap in the picture but sit at different depths are not a pinch. 0.22 is about 2 cm on an
   // adult hand and 0.34 about 3.5 cm: a pinch starts below the first and ends above the second.
-  const TUNING=Object.freeze({pinchOn:.22,pinchOff:.34,pinchOnM:.26,pinchOffM:.38,tripleOn:.28,tripleOff:.40,tripleHoldMs:260,tripleTips:.30,rightIndexAway:.30,flatOn:1.45,flatOff:1.7,flatHoldMs:400,confirmMs:70,settleMs:220,poseHoldMs:200,aimLagMs:190,trailMs:500,clickSlop:20,fitHoldMs:1000,maxJump:.28,idleMs:60000,minScore:.6,minSize:.05,maxSize:.5,presentFrames:3});
+  const TUNING=Object.freeze({pinchOn:.22,pinchOff:.34,pinchOnM:.26,pinchOffM:.38,tripleOn:.28,tripleOff:.40,tripleHoldMs:260,tripleTips:.30,rightIndexAway:.30,flatOn:1.45,flatOff:1.7,flatHoldMs:400,confirmMs:70,settleMs:220,poseHoldMs:200,aimLagMs:190,trailMs:500,clickSlop:20,fitHoldMs:1000,maxJump:.28,idleMs:60000,minScore:.6,minSize:.05,maxSize:.5,presentFrames:3,fistDist:.75,depthStep:.04});
   const CAMERA={w:640,h:480};
   const PALM=[0,5,9,13,17];
   class LowPass{constructor(){this.last=null;}filter(x,a){this.last=this.last===null?x:a*x+(1-a)*this.last;return this.last;}}
@@ -70,7 +70,7 @@ SOFTWARE.
         const rawSize=d3(0,9),size=Math.max(1e-6,rawSize),gap=d3(4,8)/size,gapM=d3(4,12)/size,tips=d3(8,12)/size,spread=(d3(8,12)+d3(12,16)+d3(16,20))/size,span=Math.max(1,distance(points[0],points[9]));
         // a fist is four fingertips pulled in to the palm; a pinch with the other fingers curled is NOT one (the index fingertip stays about a hand-size from the palm)
         const pc=[0,1,2].map(k=>PALM.reduce((a,j)=>a+P[j][k],0)/PALM.length),dp=i=>Math.hypot(P[i][0]-pc[0],P[i][1]-pc[1],P[i][2]-pc[2]);
-        const fistShape=[8,12,16,20].every(i=>dp(i)<.75*size);
+        const fistShape=[8,12,16,20].every(i=>dp(i)<t.fistDist*size);
         const fist=this.options.fistGrab&&s.pinched&&[[8,6],[12,10],[16,14],[20,18]].every(([a,b])=>d3(a,0)<d3(b,0)*1.05);
         let wantsI=fist||(s.pinched?gap<t.pinchOff:gap<t.pinchOn),wantsM=(s.rpinched?gapM<t.pinchOffM:gapM<t.pinchOnM)&&(s.rpinched||(gap>=t.rightIndexAway&&(d3(16,0)>d3(14,0)*1.12||d3(20,0)>d3(18,0)*1.12)));      // a right press is the thumb on the middle fingertip with the index finger away; with the index finger touching too it is the zoom hold
         // pointing with the MIDDLE finger (index, ring and little finger curled in) tucks the thumb against the curled index finger, which measures
