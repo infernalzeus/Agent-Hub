@@ -47,7 +47,7 @@ SOFTWARE.
     // what each pointing / pinching gesture does can be chosen in the hands menu; these are the defaults
     const ACTIONS=[['left','Left click'],['right','Right click'],['back','Back: close the open menu, else fit'],['fit','Fit the board'],['tidy','Tidy'],['view','Switch 2D / 3D'],['none','Nothing']];
     const act=()=>({point:'left',middle:'right',mpinch:'back',open:'none',...(profile.act||{})}),actName=k=>(ACTIONS.find(a=>a[0]===k)||ACTIONS[6])[1],rWas=new Set();
-    const engine=new G.Engine({tripleZoom:profile.triple===true}),detected=new Set(),presses=new Map(),btn=document.createElement('button');
+    const engine=new G.Engine({tripleZoom:profile.triple===true,tuning:profile.tuning||{}}),detected=new Set(),presses=new Map(),btn=document.createElement('button');
     btn.type='button';btn.className='hb-btn hb-hands';btn.innerHTML=ICON+'<span>HANDS</span><i aria-hidden="true"></i>';btn.title='Optional local webcam hand control';btn.setAttribute('aria-pressed','false');bar.appendChild(btn);
     const setup=document.createElement('section');setup.className='hands-setup';setup.hidden=true;setup.setAttribute('role','dialog');setup.setAttribute('aria-label','Set up hand control');document.body.appendChild(setup);
     const configure=document.createElement('button');configure.type='button';configure.className='hb-btn';configure.textContent='HAND SETUP';configure.onclick=()=>calibrationPanel();bar.appendChild(configure);
