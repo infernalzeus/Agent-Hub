@@ -33,7 +33,7 @@ def test_controls_and_each_open_list_have_separate_lanes(page,size):
   press(page,selector);assert clear_chrome_overlaps(page)==[],(size,selector,clear_chrome_overlaps(page))
   visible=page.locator('.hb-more-menu:not([hidden]),.hb-tray-list:not([hidden]),.hb-layer-menu:not([hidden])');assert visible.count()==1
   box=visible.bounding_box();stage=page.evaluate('__hubBoard.active.stage()');assert box['x']>=stage['left']-1 and box['y']>=stage['top']-1;assert box['x']+box['width']<=stage['right']+1 and box['y']+box['height']<=stage['bottom']+1
- press(page,'[aria-label="R Learning"]');assert clear_chrome_overlaps(page)==[]
+ press(page,'[aria-label="Reinforcement learning"]');assert clear_chrome_overlaps(page)==[]
  assert page.evaluate("(window.__hubStreams||[]).flatMap(s=>s.getTracks()).length")==0
 
 
@@ -47,9 +47,9 @@ def test_view_panel_grouping_hide_show_and_memory(page):
 
 
 def test_r_learning_glass_close_and_escape(page):
- press(page,'[aria-label="R Learning"]');pane=page.locator('.hb-glass-panel');assert pane.is_visible();assert '/yard?embed=1' in pane.locator('iframe').get_attribute('src');r=pane.bounding_box();assert abs(r['x']+r['width']/2-640)<2
- press(page,'[aria-label="Close R LEARNING"]');assert page.locator('.hb-glass-panel').count()==0
- press(page,'[aria-label="R Learning"]');page.keyboard.press('Escape');page.wait_for_timeout(900);assert page.locator('.hb-glass-panel').count()==0
+ press(page,'[aria-label="Reinforcement learning"]');pane=page.locator('.hb-glass-panel');assert pane.is_visible();assert '/yard?embed=1' in pane.locator('iframe').get_attribute('src');r=pane.bounding_box();assert abs(r['x']+r['width']/2-640)<2
+ press(page,'[aria-label="Close REINFORCEMENT LEARNING"]');assert page.locator('.hb-glass-panel').count()==0
+ press(page,'[aria-label="Reinforcement learning"]');page.keyboard.press('Escape');page.wait_for_timeout(900);assert page.locator('.hb-glass-panel').count()==0
  assert page.locator('.hk[data-id="card:oc"]').count()==1
 
 
@@ -75,9 +75,9 @@ def test_numbered_tray_restores_hidden_and_updates_outside_list(page):
 
 
 def test_fades_ignore_software_flag_but_respect_reduced_motion(page):
- page.evaluate('DepthLift.software=true');e=page.locator('[aria-label="R Learning"]');r=e.bounding_box();page.mouse.click(r['x']+r['width']/2,r['y']+r['height']/2)
+ page.evaluate('DepthLift.software=true');e=page.locator('[aria-label="Reinforcement learning"]');r=e.bounding_box();page.mouse.click(r['x']+r['width']/2,r['y']+r['height']/2)
  assert page.locator('.hb-glass-panel').evaluate('e=>e.getAnimations().some(a=>a.effect.getTiming().duration===180)')
- page.wait_for_timeout(220);press(page,'[aria-label="Close R LEARNING"]');page.emulate_media(reduced_motion='reduce');press(page,e);assert page.locator('.hb-glass-panel').evaluate('e=>e.getAnimations().length')==0
+ page.wait_for_timeout(220);press(page,'[aria-label="Close REINFORCEMENT LEARNING"]');page.emulate_media(reduced_motion='reduce');press(page,e);assert page.locator('.hb-glass-panel').evaluate('e=>e.getAnimations().length')==0
 
 
 def test_the_doctor_picture_is_on_the_tile_title_session_row_and_support_header(page,hub):
@@ -91,7 +91,7 @@ def test_the_doctor_picture_is_on_the_tile_title_session_row_and_support_header(
 def test_remount_preserves_panel_fades_and_releases_effects(page):
  chat(page,'[aria-label="Talk to the Hub"]');press(page,'#v-close')
  page.evaluate("async()=>{let root=document.querySelector('.hb').parentElement;let b=__hubBoard.mount(root);b.update(await(await fetch('/api/home/state')).json())}");page.wait_for_timeout(650)
- press(page,'[aria-label="R Learning"]');press(page,'[aria-label="Close R LEARNING"]');assert page.locator('.hb-glass-panel').count()==0
+ press(page,'[aria-label="Reinforcement learning"]');press(page,'[aria-label="Close REINFORCEMENT LEARNING"]');assert page.locator('.hb-glass-panel').count()==0
  chat(page,'[aria-label="Talk to the Hub"]');press(page,'#v-close');assert page.locator('#voice').is_hidden()
  assert page.evaluate("document.getElementById('voice').getAnimations().length")==0
 

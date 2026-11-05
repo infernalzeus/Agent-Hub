@@ -13,7 +13,7 @@ routes = web.RouteTableDef()
 
 _HTML = """<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><meta name="color-scheme" content="dark">
-<title>AGENT HUB - R learning</title>
+<title>AGENT HUB - Reinforcement learning</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--accent:#00e676;--text:rgba(214,245,230,.92);--mute:rgba(214,245,230,.58);--amber:#e0a53c;--red:#ff5c5c;--blue:#3ba7ff;--border:rgba(0,230,118,.22);--panel:rgba(8,12,40,.88)}
@@ -36,7 +36,7 @@ td{padding:6px 10px;border-bottom:1px solid rgba(0,230,118,.08);vertical-align:t
 .mute{color:var(--mute)}.no{color:var(--red)}.yes{color:var(--accent)}
 code{background:rgba(0,230,118,.08);border-radius:4px;padding:0 4px}
 #msg{color:var(--amber);min-height:20px}
-header.top{margin-bottom:4px}
+header.top{margin-bottom:4px}html.hub-embed header.top h1{display:none}
 .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
 .flow{display:flex;gap:6px;align-items:stretch;flex-wrap:wrap;margin:14px 0 6px}
 .step{flex:1 1 130px;min-width:120px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 12px;position:relative}
@@ -52,7 +52,7 @@ button.i{width:26px;height:26px;padding:0;border-radius:50%;font:700 13px Outfit
 .prog{display:none;margin:6px 0}.prog.on{display:block}.prog .track{height:8px;border-radius:4px;background:rgba(0,230,118,.12);overflow:hidden}.prog .fill{height:100%;background:var(--accent);width:0}
 .stop{border-color:var(--red);color:var(--red)}iframe.teach{width:100%;height:68vh;min-height:420px;border:1px solid var(--border);border-radius:10px;background:#080c28}
 </style></head><body><main>
-<header class="top"><h1>R LEARNING</h1><p class="sub">The Hub learns to make better choices from results. It only ever proposes; nothing it learns acts until you say yes.</p></header>
+<header class="top"><h1>REINFORCEMENT LEARNING</h1><p class="sub">The Hub learns to make better choices from results. It only ever proposes; nothing it learns acts until you say yes.</p></header>
 <div class="tabs" role="tablist"><button type="button" data-tab="overview" class="on">OVERVIEW</button><button type="button" data-tab="practice">YARD</button><button type="button" data-tab="teach">TEACH</button><button type="button" data-tab="status">STATUS</button></div>
 <section id="tab-overview">
 <div class="flow" id="flow"></div>

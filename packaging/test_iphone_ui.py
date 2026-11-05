@@ -89,7 +89,7 @@ def test_touch_chrome_stays_in_viewport_and_has_separate_lanes(phone,size):
 def test_each_auto_llm_tab_can_be_tapped_and_has_reachable_page(phone,mode):
  p,_,_=phone;p.evaluate('(m)=>__hubBoard.active.view().setMode(m)',mode);p.wait_for_timeout(500)
  p.evaluate("__hubBoard.open('/missions')");p.wait_for_selector('.hk-tabs');p.wait_for_timeout(700)
- for label,path in [('MISSIONS','/missions'),('GRAPH','/graph'),('R LEARNING','/yard'),('AGENCY','/agents'),('CHATS','/chats')]:
+ for label,path in [('MISSIONS','/missions'),('GRAPH','/graph'),('REINFORCEMENT LEARNING','/yard'),('AGENCY','/agents'),('CHATS','/chats')]:
   p.locator('.hk-tabs button').filter(has_text=label).tap();p.wait_for_timeout(500)
   f=p.locator('.hk[data-id="card:oc"] iframe').content_frame
   assert path in f.locator('html').evaluate('(e)=>location.pathname')
@@ -119,7 +119,7 @@ def test_glass_panel_and_mission_form_have_scrollable_visible_area(phone,size):
  p.locator('.hb-learning').tap();p.wait_for_timeout(200)
  r=p.locator('.hb-glass-panel').bounding_box();fr=p.locator('.hb-glass-frame').bounding_box()
  assert r['y']>=0 and r['y']+r['height']<=size[1]+1 and fr['height']>100
- p.get_by_role('button',name='Close R LEARNING',exact=True).tap();p.wait_for_timeout(250)
+ p.get_by_role('button',name='Close REINFORCEMENT LEARNING',exact=True).tap();p.wait_for_timeout(250)
  p.goto(hub+'/missions');p.locator('#btn-new').tap();p.wait_for_timeout(250)
  modal=p.locator('.modal.open').last;r=modal.bounding_box()
  assert r['y']>=0 and r['y']+r['height']<=size[1]+1

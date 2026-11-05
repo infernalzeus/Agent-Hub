@@ -24,6 +24,30 @@ BIN_HELP = {
 }
 
 
+GRADES = ("right", "partly", "wrong")
+# WHY a thing went wrong. "heard", "app" and "steps" are not the router's fault, so they must not be counted against it: a garbled transcript is a
+# speech-to-text lesson, an app that changed is a routine lesson. Only "hub" (and "wording", which asks the Hub to ask back) blame the decision itself.
+CAUSES = {"hub": "the Hub chose badly", "heard": "it heard me wrongly (speech to text)", "wording": "I said it badly / it was unclear",
+          "app": "the app or page was not as expected", "steps": "right choice, a step in it failed", "other": "something else"}
+NOT_THE_ROUTERS_FAULT = ("heard", "app", "steps")
+
+
+def _grade(b: dict) -> "tuple[str, bool | None, str | None]":
+    """(grade, ok-for-the-router, cause). `ok` stays None (no exact label) for a partial result or a fault that was not the router's."""
+    g = b.get("grade")
+    if g not in GRADES:
+        ok = b.get("ok")
+        if not isinstance(ok, bool):
+            raise web.HTTPBadRequest(text='send "grade": right|partly|wrong (or "ok": true|false)')
+        g = "right" if ok else "wrong"
+    cause = b.get("cause") if b.get("cause") in CAUSES else None
+    if g == "right":
+        return g, True, None
+    if g == "partly":
+        return g, None, cause
+    return g, (None if cause in NOT_THE_ROUTERS_FAULT else False), cause
+
+
 def _unlabelled(limit: int = 100) -> "tuple[list[dict], int]":
     from ..features import binning as BIN, learning as LRN
     labelled = {e["at"] for e in LRN._route_events() if e["ok"] is not None}
@@ -38,7 +62,7 @@ def _unlabelled(limit: int = 100) -> "tuple[list[dict], int]":
 async def api_items(request: web.Request) -> web.Response:
     from ..features import binning as BIN
     items, left = _unlabelled()
-    return web.json_response({"items": items, "left": left, "bins": [{"id": b, "help": BIN_HELP.get(b, "")} for b in BIN.BINS]})
+    return web.json_response({"items": items, "left": left, "bins": [{"id": b, "help": BIN_HELP.get(b, "")} for b in BIN.BINS], "causes": CAUSES})
 
 
 @routes.post("/api/learning/teach")
@@ -46,17 +70,23 @@ async def api_tap(request: web.Request) -> web.Response:
     from ..features import binning as BIN
     try:
         b = await request.json()
-        of, ok = float(b["of"]), b["ok"]
+        of = float(b["of"])
     except Exception:  # noqa: BLE001
-        raise web.HTTPBadRequest(text='send {"of": the decision id, "ok": true|false, "correct": optional bin}')
-    if not isinstance(ok, bool):
-        raise web.HTTPBadRequest(text="ok must be true or false")
+        raise web.HTTPBadRequest(text='send {"of": the decision id, "grade": "right|partly|wrong", "cause": optional, "correct": optional bin, "note": optional}')
+    grade, ok, cause = _grade(b)
     if not any(r.get("at") == of and r.get("kind") not in ("outcome", "verdict") for r in BIN._rows()):
         raise web.HTTPNotFound(text="no such decision")
-    row = {"kind": "verdict", "at": round(time.time(), 1), "of": of, "ok": ok, "by": "teach"}
+    row = {"kind": "verdict", "at": round(time.time(), 1), "of": of, "grade": grade, "by": "teach"}
+    if ok is not None:
+        row["ok"] = ok
+    if cause:
+        row["cause"] = cause
     correct = b.get("correct")
-    if not ok and isinstance(correct, str) and correct in BIN.BINS:
+    if grade != "right" and isinstance(correct, str) and correct in BIN.BINS and ok is not None:
         row["correct"] = correct
+    step = b.get("step")
+    if isinstance(step, int) and 0 < step < 100:
+        row["failed_step"] = step                              # which step of a multi-step task went wrong
     note = b.get("note")
     if isinstance(note, str) and note.strip():
         row["note"] = note.strip()[:300]                      # why it was wrong, in your words
@@ -82,6 +112,28 @@ def _missions(limit: int = 12) -> "list[dict]":
     return out
 
 
+@routes.get("/api/learning/teach/summary")
+async def api_summary(request: web.Request) -> web.Response:
+    """How the person has graded things, and WHY it went wrong: the numbers the Doctor and the learner read."""
+    from ..features import binning as BIN, learning as LRN
+    grades: dict = {}
+    causes: dict = {}
+    for r in BIN._rows():
+        if r.get("kind") == "verdict" and r.get("by") == "teach":
+            g = r.get("grade") or ("right" if r.get("ok") else "wrong")
+            grades[g] = grades.get(g, 0) + 1
+            if r.get("cause"):
+                causes[r["cause"]] = causes.get(r["cause"], 0) + 1
+    for v in LRN._jsonl_dict(LRN.MISSION_LABELS).values():
+        if isinstance(v, dict):
+            g = v.get("grade") or ("right" if v.get("ok") else "wrong")
+            grades["mission " + g] = grades.get("mission " + g, 0) + 1
+            if v.get("cause"):
+                causes[v["cause"]] = causes.get(v["cause"], 0) + 1
+    return web.json_response({"grades": grades, "causes": causes, "cause_help": CAUSES,
+                              "not_the_routers_fault": list(NOT_THE_ROUTERS_FAULT)})
+
+
 @routes.get("/api/learning/teach/missions")
 async def api_missions(request: web.Request) -> web.Response:
     return web.json_response({"missions": await asyncio.get_running_loop().run_in_executor(None, _missions)})
@@ -93,15 +145,18 @@ async def api_mission_tap(request: web.Request) -> web.Response:
     from ..runtime import write_json
     try:
         b = await request.json()
-        mid, ok = str(b["id"])[:40], b["ok"]
+        mid = str(b["id"])[:40]
     except Exception:  # noqa: BLE001
-        raise web.HTTPBadRequest(text='send {"id": mission id, "ok": true|false}')
-    if not isinstance(ok, bool):
-        raise web.HTTPBadRequest(text="ok must be true or false")
+        raise web.HTTPBadRequest(text='send {"id": mission id, "grade": "right|partly|wrong"}')
+    grade, ok, cause = _grade(b)
     if mid not in {m["id"] for m in _missions(200)}:
         raise web.HTTPNotFound(text="no such mission")
     labels = LRN._jsonl_dict(LRN.MISSION_LABELS)
-    labels[mid] = {"ok": ok, "at": time.time()}
+    labels[mid] = {"grade": grade, "at": time.time()}
+    if ok is not None:
+        labels[mid]["ok"] = ok
+    if cause:
+        labels[mid]["cause"] = cause
     note = b.get("note")
     if isinstance(note, str) and note.strip():
         labels[mid]["note"] = note.strip()[:300]
@@ -117,13 +172,13 @@ _HTML = """<!DOCTYPE html>
 :root{--accent:#00e676;--text:rgba(214,245,230,.92);--mute:rgba(214,245,230,.58);--amber:#e0a53c;--red:#ff5c5c;--border:rgba(0,230,118,.25);--panel:rgba(8,12,40,.9)}
 body{background:#080c28;color:var(--text);font:15px/1.5 Outfit,system-ui,sans-serif;padding:18px max(16px,env(safe-area-inset-left)) 40px}
 main{max-width:640px;margin:0 auto}
-h1{font:800 20px Orbitron,system-ui,sans-serif;letter-spacing:.08em;color:var(--accent)}
+html.hub-embed h1{display:none}h1{font:800 20px Orbitron,system-ui,sans-serif;letter-spacing:.08em;color:var(--accent)}
 p.sub{color:var(--mute);margin:6px 0 14px;font-size:13px}
 .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;margin:12px 0}
 .said{font-size:20px;line-height:1.35;margin-bottom:10px}.bin{color:var(--accent);font-weight:600}.mute{color:var(--mute);font-size:13px}
 .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
 button,select{font:700 13px Orbitron,system-ui,sans-serif;letter-spacing:.06em;border-radius:8px;padding:11px 18px;border:1px solid var(--accent);background:var(--panel);color:var(--accent);cursor:pointer;min-height:44px}
-button.no{border-color:var(--red);color:var(--red)}button.skip{border-color:var(--border);color:var(--mute)}
+button.no{border-color:var(--red);color:var(--red)}button.part{border-color:var(--amber);color:var(--amber)}input.step{width:130px;font:14px Outfit,system-ui,sans-serif;color:var(--text);background:rgba(8,12,40,.9);border:1px solid var(--border);border-radius:8px;padding:8px 10px}button.skip{border-color:var(--border);color:var(--mute)}
 select{font-weight:400;letter-spacing:0;max-width:100%}
 textarea{width:100%;font:14px Outfit,system-ui,sans-serif;color:var(--text);background:rgba(8,12,40,.9);border:1px solid var(--border);border-radius:8px;padding:8px 10px;resize:vertical}
 .count{color:var(--amber);font-size:13px}
@@ -138,11 +193,24 @@ textarea{width:100%;font:14px Outfit,system-ui,sans-serif;color:var(--text);back
 </main>
 <script>
 (function(){
-  let items=[],bins=[],i=0,left=0;
+  let items=[],bins=[],causes={},i=0,left=0;
   const $=id=>document.getElementById(id),el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;};
-  async function load(){const r=await fetch('/api/learning/teach',{cache:'no-store'});const j=await r.json();items=j.items;bins=j.bins;left=j.left;i=0;show();}
+  async function load(){const r=await fetch('/api/learning/teach',{cache:'no-store'});const j=await r.json();items=j.items;bins=j.bins;causes=j.causes||{};left=j.left;i=0;show();}
   function help(b){const x=bins.find(y=>y.id===b);return x&&x.help?x.help:b;}
-  async function tap(ok,correct,note){const it=items[i];try{await fetch('/api/learning/teach',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({of:it.of,ok:ok,correct:correct||undefined,note:note||undefined})});}catch(e){}left=Math.max(0,left-1);i++;show();}
+  async function send(url,body,next){try{await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});}catch(e){}next();}
+  // PARTLY and WRONG ask what actually happened: whose fault it was (a garbled transcript is not the router's), which step, and your own words
+  function detail(row,grade,withBins,it,save){
+    row.replaceChildren();
+    const why=el('select');const o0=el('option',null,'Why was it '+(grade==='partly'?'only partly right':'wrong')+'?');o0.value='';why.appendChild(o0);
+    Object.keys(causes).forEach(k=>{const o=el('option',null,causes[k]);o.value=k;why.appendChild(o);});
+    row.appendChild(why);
+    let sel=null;if(withBins){sel=el('select');const s0=el('option',null,'It should have been...');s0.value='';sel.appendChild(s0);bins.filter(b=>b.id!==it.chosen).forEach(b=>{const o=el('option',null,b.help||b.id);o.value=b.id;sel.appendChild(o);});row.appendChild(sel);}
+    const step=el('input','step');step.type='number';step.min=1;step.max=99;step.placeholder='Failed step #';step.title='For a task with several steps: which one went wrong (optional)';row.appendChild(step);
+    const note=el('textarea');note.placeholder='In your own words (optional): what you said, what you saw, what you think went wrong. If the transcript was nonsense, say so.';note.rows=3;note.maxLength=300;row.appendChild(note);
+    const done=el('button',grade==='partly'?'part':'no','SAVE '+(grade==='partly'?'PARTLY':'WRONG'));
+    done.onclick=()=>save({grade:grade,cause:why.value||undefined,correct:sel&&sel.value||undefined,step:step.value?parseInt(step.value,10):undefined,note:note.value||undefined});
+    row.appendChild(done);
+  }
   function show(){
     const c=$('card');c.replaceChildren();$('count').textContent=left?left+' still without a label':'';
     const it=items[i];
@@ -150,13 +218,12 @@ textarea{width:100%;font:14px Outfit,system-ui,sans-serif;color:var(--text);back
     const card=el('div','card');card.appendChild(el('div','said','“'+it.text+'”'));
     const p=el('div','mute','The Hub took that as: ');p.appendChild(el('span','bin',help(it.chosen)));card.appendChild(p);
     if(it.said)card.appendChild(el('div','mute','It said: '+it.said));
-    const row=el('div','row'),yes=el('button',null,'RIGHT'),no=el('button','no','WRONG'),skip=el('button','skip','SKIP');
-    yes.onclick=()=>tap(true);skip.onclick=()=>{i++;show();};
-    no.onclick=()=>{row.replaceChildren();const sel=el('select');const o0=el('option',null,'It should have been...');o0.value='';sel.appendChild(o0);
-      bins.filter(b=>b.id!==it.chosen).forEach(b=>{const o=el('option',null,b.help||b.id);o.value=b.id;sel.appendChild(o);});
-      const why=el('textarea');why.placeholder='Why was it wrong? (optional, in your own words)';why.rows=2;why.maxLength=300;
-      const done=el('button','no','SAVE WRONG');done.onclick=()=>tap(false,sel.value,why.value);row.append(sel,why,done);};
-    row.append(yes,no,skip);card.appendChild(row);c.appendChild(card);
+    const row=el('div','row'),yes=el('button',null,'RIGHT'),part=el('button','part','PARTLY'),no=el('button','no','WRONG'),skip=el('button','skip','SKIP');
+    const save=(g)=>send('/api/learning/teach',Object.assign({of:it.of},g),()=>{left=Math.max(0,left-1);i++;show();});
+    yes.onclick=()=>save({grade:'right'});skip.onclick=()=>{i++;show();};
+    part.onclick=()=>detail(row,'partly',false,it,save);
+    no.onclick=()=>detail(row,'wrong',true,it,save);
+    row.append(yes,part,no,skip);card.appendChild(row);c.appendChild(card);
   }
   async function missions(){const c=$('card');c.replaceChildren();$('count').textContent='Newest first. APPLY already counts as a yes and DISCARD as a no; tap for the rest.';
     let j;try{j=await (await fetch('/api/learning/teach/missions',{cache:'no-store'})).json();}catch(e){c.textContent='Could not read the missions: '+e.message;return;}
@@ -166,11 +233,10 @@ textarea{width:100%;font:14px Outfit,system-ui,sans-serif;color:var(--text);back
       if(m.checks!==null)meta.append(el('span','chip '+(m.checks?'ok':'no'),m.checks?'its checks passed':'its checks failed'));
       if(m.verdict!==null&&m.verdict!==undefined)meta.append(el('span','chip '+(m.verdict?'ok':'no'),(m.verdict?'good':'bad')+' ('+m.decided_by+')'));
       card.appendChild(meta);
-      const row=el('div','row'),g=el('button',null,'GOOD'),b=el('button','no','BAD');
-      const tap=async(ok,note)=>{try{await fetch('/api/learning/teach/mission',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:m.id,ok:ok,note:note||undefined})});}catch(e){}missions();};
-      g.onclick=()=>tap(true);
-      b.onclick=()=>{row.replaceChildren();const why=el('textarea');why.placeholder='Why was it bad? (optional, in your own words)';why.rows=2;why.maxLength=300;const done=el('button','no','SAVE BAD');done.onclick=()=>tap(false,why.value);row.append(why,done);};
-      row.append(g,b);card.appendChild(row);c.appendChild(card);});}
+      const row=el('div','row'),g=el('button',null,'GOOD'),pt=el('button','part','PARTLY'),b=el('button','no','BAD');
+      const save=(x)=>send('/api/learning/teach/mission',Object.assign({id:m.id},x),missions);
+      g.onclick=()=>save({grade:'right'});pt.onclick=()=>detail(row,'partly',false,null,save);b.onclick=()=>detail(row,'wrong',false,null,save);
+      row.append(g,pt,b);card.appendChild(row);c.appendChild(card);});}
   $('s-req').onclick=()=>{$('s-req').classList.add('on');$('s-mis').classList.remove('on');show();};
   $('s-mis').onclick=()=>{$('s-mis').classList.add('on');$('s-req').classList.remove('on');missions();};
   load().catch(e=>{$('card').textContent='Could not read the decision log: '+e.message;});

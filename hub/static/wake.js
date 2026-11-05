@@ -101,6 +101,10 @@
 
   // ---- blocks around the ring
   var blocks = [];
+  // Moving between the landing page and the Hub belongs in the log too: each page is a fresh load, so the row is written straight into the session's log.
+  function navNote(t) { try { var LK = 'agenthub:log', la = JSON.parse(sessionStorage.getItem(LK) || '[]'); la.unshift({ at: Date.now(), kind: 'hub', t: t, err: false }); sessionStorage.setItem(LK, JSON.stringify(la.slice(0, 300))); } catch (e) {} }
+  navNote('Landing page opened');
+  enterBtn.addEventListener('click', function () { navNote('Left the landing page for the Hub'); try { sessionStorage.setItem('agenthub:from', 'landing'); } catch (e) {} }, true);
   if (window.HubBlocks) { HubBlocks.edge(stage); enterBtn.addEventListener('click', function () { if (enterBtn.dataset.s === 'enter') HubBlocks.remember(blocks); }, true); }
   function center() { var r = (globe || document.body).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, R: r.width / 2 }; }
   // Blocks stand in two columns either side of the ring and stack by their real heights (and their real widths), so a long
@@ -328,6 +332,14 @@
       S.on = true; S.run++; try { localStorage.setItem(KEY, '1'); } catch (e) {} setState('wake'); pulse(); loop(S.run);
     });
   }
+  // LISTENING means "in a conversation, no wake word needed". When the conversation window has run out the label must go back to LISTENING FOR SMITH;
+  // nothing used to do that, so after any reply the landing page stayed on LISTENING for good. THINKING has a ceiling too (the longest request is 60 s).
+  var thinkSince = 0;
+  setInterval(function () {
+    if (!S.on) { thinkSince = 0; return; }
+    if (S.state === 'convo' && !S.pending && Date.now() >= S.convoUntil) setState('wake');
+    if (S.state === 'think') { if (!thinkSince) thinkSince = Date.now(); else if (Date.now() - thinkSince > 75000 && !S.speaking) { thinkSince = 0; setState('wake'); } } else thinkSince = 0;
+  }, 500);
   btn.onclick = function () { if (S.on) stopAll(); else start(); };
   // It keeps listening when another window comes in front (opening an app by voice used to switch it off); only leaving the page ends it.
   addEventListener('pagehide', function () { if (S.on) stopAll(); });

@@ -68,9 +68,14 @@ SOFTWARE.
         const fistShape=[8,12,16,20].every(i=>dp(i)<.75*size);
         const fist=this.options.fistGrab&&s.pinched&&[[8,6],[12,10],[16,14],[20,18]].every(([a,b])=>d3(a,0)<d3(b,0)*1.05);
         let wantsI=fist||(s.pinched?gap<t.pinchOff:gap<t.pinchOn),wantsM=(s.rpinched?gapM<t.pinchOffM:gapM<t.pinchOnM)&&(s.rpinched||(gap>=t.rightIndexAway&&(d3(16,0)>d3(14,0)*1.12||d3(20,0)>d3(18,0)*1.12)));      // a right press is the thumb on the middle fingertip with the index finger away; with the index finger touching too it is the zoom hold
+        // pointing with the MIDDLE finger (index, ring and little finger curled in) tucks the thumb against the curled index finger, which measures
+        // as a thumb-to-index pinch. Traced 5 Nov: 44 frames of it read as left presses. That posture (middle clearly out, the other three clearly in)
+        // is never a pinch; a pinch already held keeps going.
+        const mx=(a,b)=>d3(a,0)/Math.max(1e-6,d3(b,0)),midStrict=mx(12,10)>1.25&&mx(8,6)<1&&mx(16,14)<1&&mx(20,18)<1;
+        if(midStrict&&!s.pinched&&!s.rpinched){wantsI=false;wantsM=false;}
         // thumb, index and middle fingertips all together is a third thing, the zoom hold: it is neither of the two single pinches
         // (stricter than a single pinch: with the index finger resting beside the middle one, a thumb-to-middle pinch is also fairly close to the index tip)
-        let wantsT=(s.triple?(gap<t.tripleOff&&gapM<t.tripleOff):(gap<t.tripleOn&&gapM<t.tripleOn))&&(s.triple||tips<t.tripleTips);
+        let wantsT=this.options.tripleZoom===true&&(s.triple?(gap<t.tripleOff&&gapM<t.tripleOff):(gap<t.tripleOn&&gapM<t.tripleOn))&&(s.triple||tips<t.tripleTips);
         // the zoom hold takes over only after it has been held a moment: a quick left pinch made with the middle finger resting beside the index finger must stay a click
         if(wantsT&&!s.triple){if(s.tSince==null)s.tSince=now;}else if(!wantsT)s.tSince=null;
         if(s.triple?wantsT:wantsT&&now-s.tSince>=t.tripleHoldMs){wantsI=false;wantsM=false;}

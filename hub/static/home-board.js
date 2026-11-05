@@ -292,7 +292,7 @@
       if (d.card) {
         var c = d.card, bx2 = el('div', 'hk-app'), g2 = el('div', 'gi'); g2.appendChild(cardIcon(c[2])||appTile({id:c[0]}));g2.dataset.applet=c[0];
         var nm2 = el('div'); nm2.appendChild(el('b', '', c[1])); nm2.appendChild(el('small', '', 'OPEN')); bx2.append(g2, nm2); inn.appendChild(bx2);
-        e._spec = c[0] === 'oc' ? { tabs: [['MISSIONS', '/missions'], ['GRAPH', '/graph'], ['R LEARNING', '/yard'], ['AGENCY', '/agents'], ['CHATS', '/chats']], w: 860, h: 600 } : { move: c[0] === 'ytdl' ? 'ytdl-app-area' : 'yt-app-area', toggle: c[3], w: 560, h: 620 };
+        e._spec = c[0] === 'oc' ? { tabs: [['MISSIONS', '/missions'], ['GRAPH', '/graph'], ['REINFORCEMENT LEARNING', '/yard'], ['AGENCY', '/agents'], ['CHATS', '/chats']], w: 860, h: 600 } : { move: c[0] === 'ytdl' ? 'ytdl-app-area' : 'yt-app-area', toggle: c[3], w: 560, h: 620 };
         e._open = function () { expand(id); };
       }
       e.setAttribute('aria-label', e._name); blocks[id] = e; world.append(solid,e); applyBlock(id); return e;
@@ -457,6 +457,7 @@
       a.classList.toggle('amber', nA > 0); a.classList.toggle('red', data.attention.some(function (x) { return x.level === 'red'; }));
       var up=data.health&&data.health.uptime_s;if(typeof up==='number'){var boot=Math.round(Date.now()/1000-up),prevBoot=0;try{prevBoot=Number(localStorage.getItem('agenthub:hub:boot'))||0;localStorage.setItem('agenthub:hub:boot',String(boot));}catch(e){}
         if(prevBoot&&Math.abs(boot-prevBoot)>15)hubNote('Hub restarted: it was turned off and on again');else if(!prevBoot)hubNote('Hub is on');}
+      if(!window.__hubOpenNoted){window.__hubOpenNoted=1;var fromLanding='';try{fromLanding=sessionStorage.getItem('agenthub:from')||'';sessionStorage.removeItem('agenthub:from');}catch(e){}hubNote(fromLanding==='landing'?'Hub opened from the landing page':'Hub opened');}
       var runIds={};data.runs.forEach(function(m){runIds[m.id]=m.brief||m.id;});
       if(paint._runs){Object.keys(runIds).forEach(function(k){if(!(k in paint._runs))hubNote('Mission started: '+runIds[k]);});Object.keys(paint._runs).forEach(function(k){if(!(k in runIds))hubNote('Mission finished or stopped: '+paint._runs[k]);});}paint._runs=runIds;
       var attIds={};data.attention.forEach(function(x){if(x.kind!=='session')attIds[x.id||x.title]=x.title;});if(paint._att){Object.keys(attIds).forEach(function(k){if(!(k in paint._att))hubNote('Needs you: '+attIds[k]);});}paint._att=attIds;
@@ -849,7 +850,7 @@
     talkBtn.textContent='';talkBtn.classList.add('talk-btn');talkBtn.setAttribute('aria-label','Talk to the Hub');var smith=el('img');smith.src='/smith-icon.png';smith.alt='';talkBtn.appendChild(smith);
     pcBtn.textContent='';var wire=document.querySelector('#mcp-wire svg');if(wire)pcBtn.appendChild(wire.cloneNode(true));pcBtn.setAttribute('aria-label','PC control');
     if(hands){hands.button.setAttribute('aria-label','Hand control');hands.button.title='Hand control';hands.button.querySelectorAll('span').forEach(function(n){n.remove();});Array.from(hands.button.childNodes).forEach(function(n){if(n.nodeType===3)n.textContent='';});}
-    var learning=el('button','hb-btn hb-learning','R');learning.type='button';learning.title='R Learning';learning.setAttribute('aria-label','R Learning');learning.onclick=function(){glassPage('/yard','R LEARNING');};bar.appendChild(learning);
+    var learning=el('button','hb-btn hb-learning','R');learning.type='button';learning.title='Reinforcement learning';learning.setAttribute('aria-label','Reinforcement learning');learning.onclick=function(){glassPage('/yard','REINFORCEMENT LEARNING');};bar.appendChild(learning);
     setupBtn.hidden=true;setupBtn.classList.add('hb-setup-secondary');
     var gizmo=host.querySelector('.hb-gizmo');if(gizmo)rightScroll.appendChild(gizmo);
     // LOG is a per-device presentation choice; recording its lines remains active.

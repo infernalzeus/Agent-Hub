@@ -383,14 +383,21 @@ async def _attempt(goal: str, app: str, decide, *, tree=None, media=None, click=
             ident = {"name": node["name"], "control": node["control"], "window": node["window"], "path": c["path"]}
             steps.append({"tool": "Type" if act["do"] == "type" else "Click",
                           "args": {"text": act["text"], "clear": True} if act["do"] == "type" else {"button": "left", "clicks": 1},
-                          "target": ident})
+                          "target": ident, "_changed": changed})
         if music:
             # The evidence decides, not the model: a small model read "NOW PLAYING" and pressed Play twice more.
             now_media = await media()
             if _outcome(goal, app, before_media, now_media, pressed_play):
                 trace[-1]["verified"] = True
-                return {"ok": True, "verified": True, "say": "Done.", "steps": steps, "trace": trace, "first": first,
-                        "playing": playing_now(now_media, app)}
+                playing = playing_now(now_media, app)
+                missing = _unfound_target(goal, steps, playing)
+                if missing:
+                    # 5 Nov: "play the robelec speedplay list" clicked DarkSynth, then an artist, pressed Play and called it Done (and saved that as a routine).
+                    # Something played, but not what was asked for: say so, and do not keep it as a way to do this.
+                    trace[-1]["verified"] = False
+                    return {"ok": True, "verified": False, "say": f"I could not find “{missing}” in {PC.display_app_name(app)}, so I played something else instead.",
+                            "steps": steps, "trace": trace, "first": first, "playing": playing, "unfound": missing}
+                return {"ok": True, "verified": True, "say": "Done.", "steps": steps, "trace": trace, "first": first, "playing": playing}
     return {"ok": False, "say": f"It used all {max_steps} steps without reaching the goal.", "steps": steps, "trace": trace}
 
 
@@ -482,12 +489,45 @@ def _log_run(goal: str, app: str, tried: dict) -> None:
         logger.info("desktop_agent: could not log the run: %s", exc)
 
 
+_GOAL_FILLER = {"play", "something", "some", "from", "the", "playlist", "list", "music", "song", "songs", "open", "apple", "a", "an", "my", "on", "in", "to", "and",
+                "me", "please", "can", "you", "i", "of", "for", "with", "by", "track", "tracks", "album", "radio", "station", "start", "put", "listen", "app"}
+
+
+def _unfound_target(goal: str, steps: "list[dict]", playing: "dict | None") -> str:
+    """The words in the goal that name a thing (a playlist, an artist) when NONE of them shows up in anything that was pressed or is now playing.
+    Empty when the goal names nothing, or when at least one of its words was found. Matching is on whole-word prefixes, so 'adhd' finds 'ADHD'."""
+    words = [w for w in re.findall(r"[\w']+", goal.casefold()) if w not in _GOAL_FILLER and len(w) > 1]
+    if not words:
+        return ""
+    seen = " ".join(str(v) for st in steps for v in (st.get("target") or {}).values()).casefold()
+    seen += " " + " ".join(str(v) for v in (playing or {}).values()).casefold()
+    if any(re.search(r"\b" + re.escape(w[:max(3, len(w) - 1)]), seen) for w in words):
+        return ""
+    return " ".join(words)
+
+
+def _trim(steps: "list[dict]") -> "list[dict]":
+    """What is worth replaying: the last step always (the Play), steps that changed the screen, and no loops. A detour that comes back to a control
+    already pressed is cut out, so a way that wandered (Playlists, a Home tile, Playlists again) replays as the short way."""
+    keep = [s for i, s in enumerate(steps) if s.get("_changed", True) or i == len(steps) - 1]
+    key = lambda s: json.dumps(s.get("target"), sort_keys=True)
+    out: "list[dict]" = []
+    for s in keep:
+        k = key(s)
+        for j, o in enumerate(out):
+            if key(o) == k:
+                out = out[:j]                                          # came back to a control it had pressed before: everything since was a detour
+                break
+        out.append(s)
+    return [{k: v for k, v in s.items() if not k.startswith("_")} for s in out]
+
+
 def _save(goal: str, app: str, got: dict) -> "dict | None":
     first = got.get("first") or []
     window = next((n["window"] for n in first if n["control"] == "window" and PC.canonical_app_name(app) in n["name"].casefold()), "")
     if not window:
         return None
-    steps = [s for s in got["steps"] if s["tool"] in ("Click", "Type", "Shortcut")]
+    steps = _trim([s for s in got["steps"] if s["tool"] in ("Click", "Type", "Shortcut")])
     try:
         row = PC.save_ui_routine(PC.do_intent(app, goal), f"{PC.display_app_name(app)}: {goal}".strip(), window, steps,
                                  PC.ui_signature(PC.flatten(first), window))

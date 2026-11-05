@@ -160,9 +160,9 @@ def test_shadow_costs_the_agent_under_five_milliseconds_a_step(shadowed):
 def test_the_practice_page_is_served_and_the_board_offers_it_as_a_tab(hub):
     import urllib.request
     html = urllib.request.urlopen(hub + "/yard").read().decode()
-    assert "R LEARNING" in html and "/api/yard/practice" in html and "/api/yard/status" in html
+    assert "REINFORCEMENT LEARNING" in html and "/api/yard/practice" in html and "/api/yard/status" in html
     board = (Path(__file__).resolve().parents[1] / "hub" / "static" / "home-board.js").read_text(encoding="utf-8")
-    assert "['R LEARNING', '/yard']" in board
+    assert "['REINFORCEMENT LEARNING', '/yard']" in board
 
 
 def test_the_practice_tab_opens_the_page_inside_the_board_and_a_run_fills_its_tables(hub):
@@ -176,7 +176,7 @@ def test_the_practice_tab_opens_the_page_inside_the_board_and_a_run_fills_its_ta
         pg.wait_for_function("!!(window.__hubBoard && __hubBoard.active)")
         assert pg.evaluate("__hubBoard.open('/yard')")
         pg.wait_for_function("[...document.querySelectorAll('.hk-fr')].some(f => f.src.includes('/yard'))")
-        assert "R LEARNING" in pg.inner_text(".hk[data-id='card:oc']")
+        assert "REINFORCEMENT LEARNING" in pg.inner_text(".hk[data-id='card:oc']")
         page = b.new_context(service_workers="block").new_page()
         page.on("pageerror", lambda e: errors.append(str(e)))
         page.goto(hub + "/yard")

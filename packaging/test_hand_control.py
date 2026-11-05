@@ -188,7 +188,7 @@ def test_thumb_to_middle_is_only_a_right_click_and_never_turns_the_board(page):
 
 
 def test_three_fingertips_together_zoom_with_one_hand_up_in_and_down_out(page):
- page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable()')
+ page.wait_for_timeout(600);page.evaluate('__hubHands.testEnable({triple:true})')           # opt-in since 5 Nov: it cancelled 10 of 15 real left presses
  page.evaluate("window.tripleFrame=(x,y)=>{const a=handFrame(x,y,1,true);const m={x:(a[8].x+a[12].x)/2,y:(a[8].y+a[12].y)/2,z:0};a[4]=m;return a;}")
  k0=page.evaluate('__hubBoard.active.state().V.k')
  page.evaluate('feedWith(openFrame,still(700,500,20))')

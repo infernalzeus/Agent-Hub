@@ -26,5 +26,5 @@ def test_chats_page_shows_the_talk_lines_the_quick_chat_button_and_sessions(hub)
 def test_auto_llm_tabs_are_named_in_the_new_order():
     src = (os.path.join(os.path.dirname(__file__), "..", "hub", "static", "home-board.js"))
     s = open(src, encoding="utf-8").read()
-    want = "[['MISSIONS', '/missions'], ['GRAPH', '/graph'], ['R LEARNING', '/yard'], ['AGENCY', '/agents'], ['CHATS', '/chats']]"
+    want = "[['MISSIONS', '/missions'], ['GRAPH', '/graph'], ['REINFORCEMENT LEARNING', '/yard'], ['AGENCY', '/agents'], ['CHATS', '/chats']]"
     assert want in s and "QUICK CHAT" not in s

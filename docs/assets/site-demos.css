@@ -1,32 +1,4 @@
-/* The public site owns this material. Keep it visible at rest, on hover and on focus.
-   Blur belongs on each sheet, never on the preserve-3d board or its depth wrapper. */
-.js .blk,.js .agents-auto .st.card{
- --glass-edge:rgba(170,255,236,.5);
- border:1px solid var(--glass-edge);border-radius:0;
- background-color:rgba(7,17,40,.19);
- background-image:linear-gradient(130deg,rgba(192,255,246,.17),rgba(98,192,220,.035) 28%,rgba(8,18,45,.2) 64%,rgba(42,232,180,.09));
- -webkit-backdrop-filter:blur(14px) saturate(155%);backdrop-filter:blur(14px) saturate(155%);
- box-shadow:inset 0 1px 0 rgba(235,255,251,.52),inset 1px 0 0 rgba(213,255,249,.22),inset 0 -2px 0 rgba(91,206,212,.23),0 1px 0 rgba(164,246,237,.23),0 18px 38px rgba(0,0,0,.32);
- transition:border-color .2s,box-shadow .2s,background-color .2s;
-}
-.js .blk:hover,.js .blk:focus-within,.js .blk[aria-expanded=true],.js .agents-auto .st.card:hover,.js .agents-auto .st.card[aria-pressed=true]{
- border-color:rgba(184,255,245,.78);background-color:rgba(18,55,70,.18);
- background-image:linear-gradient(130deg,rgba(212,255,250,.22),rgba(100,208,229,.065) 28%,rgba(8,18,45,.17) 64%,rgba(42,232,180,.12));
- box-shadow:inset 0 1px 0 rgba(246,255,253,.7),inset 1px 0 0 rgba(213,255,249,.3),inset 0 -2px 0 rgba(91,226,222,.3),0 0 0 1px rgba(65,235,255,.12),0 0 20px rgba(65,235,255,.1),0 20px 40px rgba(0,0,0,.34);
-}
-.js .main-block::before,.js .small-block::before,.js .door::before,.js .smith-btn::before{
- content:'';position:absolute;inset:0;pointer-events:none;z-index:0;
- background:linear-gradient(117deg,transparent 3%,rgba(225,255,252,.055) 3.5%,transparent 4%,transparent 36%,rgba(222,255,250,.07) 36.5%,transparent 37.2%),radial-gradient(ellipse at var(--light-x,36%) var(--light-y,22%),rgba(172,255,239,.1),transparent 68%);
-}
-.js .main-block>*,.js .small-block>*,.js .door>*,.js .smith-btn>*{position:relative;z-index:1}
-/* The backdrop gives the transparent sheets a visible depth reference. */
-.js .scene:not(.landing){background:radial-gradient(ellipse at 24% 38%,rgba(0,168,148,.16),transparent 48%),radial-gradient(ellipse at 85% 76%,rgba(53,104,191,.2),transparent 48%),linear-gradient(145deg,#070a25,#101442)}
-.js .scene:not(.landing)::before{opacity:1;background-image:linear-gradient(rgba(64,218,202,.13) 1px,transparent 1px),linear-gradient(90deg,rgba(64,218,202,.13) 1px,transparent 1px)}
-/* Keep the contents transparent too; opaque inner frames can hide the material. */
-.js .auto-detail{background:rgba(5,16,35,.12)}
-.js .scene.turning .blk{-webkit-backdrop-filter:none;backdrop-filter:none}
-@media(pointer:coarse){.js .blk,.js .agents-auto .st.card{-webkit-backdrop-filter:blur(8px) saturate(145%);backdrop-filter:blur(8px) saturate(145%)}}
-
+/* The glass material lives in site.css (the thick dashboard slabs). This file only styles the scenario content. */
 /* Every viewport presents the same scenario; smaller screens shorten the copy. */
 .js .auto-detail,.js .agents-auto .auto-detail{display:grid;grid-template-columns:1fr;grid-template-rows:auto auto minmax(100px,1fr);gap:8px;overflow:hidden;padding:12px}
 .js .auto-detail .detail-copy{padding-right:0!important;grid-column:1;grid-row:2}
