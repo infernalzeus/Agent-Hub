@@ -452,3 +452,24 @@ html.hub-legend-on .hands-log .hl-legend{display:block!important;opacity:1!impor
 .hs-table td:nth-child(2){white-space:nowrap}
 .hs-table tr.hs-act{cursor:pointer}.hs-table tr.hs-act td:last-child{color:#00e676;font:700 9px Orbitron,monospace;letter-spacing:.8px;white-space:nowrap}
 .hs-table tr.hs-act:hover,.hs-table tr.hs-act:focus-visible{background:#00e67614;outline:none}
+
+/* Round 14: hands tables stay on one line where they can, the log shows no empty tool row. */
+.hands-setup{width:min(860px,calc(100vw - 24px))!important;max-width:calc(100vw - 24px)}
+.hs-table td:nth-child(2){white-space:normal}
+.hs-controls td,.hs-controls th{white-space:nowrap}
+.hs-gestures td:first-child,.hs-gestures th{white-space:nowrap}
+.hs-gestures td:last-child{white-space:normal}
+.hs-table td:last-child{padding-right:10px}
+.hands-log .hl-tools:empty{display:none}
+.hands-log .hl-rows .hs-table{margin:4px 0 12px}.hands-log .hl-rows .hs-note{margin:0 0 6px;color:#bfeaf4;font:12px/1.5 Outfit,system-ui,sans-serif}
+.hands-log .hl-rows .hs-table td,.hands-log .hl-rows .hs-table th{border-bottom:1px solid #41ebff1f;padding:5px 8px}
+.hands-log .hl-rows div{padding:0}
+.hands-log .hl-body{width:min(760px,calc(100vw - 188px))!important}
+/* log rows: the words on the left, time and the log it belongs to on the right (the full date shows on hover) */
+.hands-log .hl-rows .hl-row{display:flex;align-items:baseline;gap:12px;padding:3px 0;border-bottom:1px solid rgba(0,230,118,.08)}
+.hands-log .hl-rows .hl-text{flex:1;min-width:0;overflow-wrap:anywhere}
+.hands-log .hl-rows .hl-meta{flex:none;display:flex;align-items:baseline;gap:8px;color:#8fcfb2;cursor:default;white-space:nowrap}
+.hands-log .hl-rows .hl-meta time{margin:0;font-size:11px;font-variant-numeric:tabular-nums}
+.hands-log .hl-rows .hl-meta b{min-width:0;margin:0;font:700 8px Orbitron,monospace;letter-spacing:1px;color:#41ebff}
+.hands-log .hl-rows .k-chat .hl-meta b{color:#00e676}
+.hands-log .hl-smith{margin:2px 0 8px;width:100%;min-height:34px;font-size:9px;letter-spacing:1px;pointer-events:auto}

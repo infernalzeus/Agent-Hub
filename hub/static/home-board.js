@@ -338,6 +338,8 @@
       } catch (err) { /* a page from another origin keeps its own events */ }
     }
     function hubNote(t){try{window.dispatchEvent(new CustomEvent('hub-log',{detail:{kind:'hub',text:String(t)}}));}catch(e){}}
+    // The Hub is not answering for a while: it was turned off. When it answers again: on. A changed start time means it was restarted.
+    setInterval(function(){if(!alive||document.hidden)return;if(paint._at&&Date.now()-paint._at>25000&&!paint._offNoted){paint._offNoted=true;hubNote('Hub not answering: it may have been turned off');}},5000);
     var stackDepth = null;
     // Several windows of one tool: another block of the same tool, offset a little, allowed to overlap its siblings, in front of them in 3D.
     stackDepth = function () {
@@ -455,6 +457,9 @@
       });
       if(setupCard)a._in.appendChild(setupCard);blockActions(a._in,[['SETUP','/setup']]);
       a.classList.toggle('amber', nA > 0); a.classList.toggle('red', data.attention.some(function (x) { return x.level === 'red'; }));
+      var up=data.health&&data.health.uptime_s;if(typeof up==='number'){var boot=Math.round(Date.now()/1000-up),prevBoot=0;try{prevBoot=Number(localStorage.getItem('agenthub:hub:boot'))||0;localStorage.setItem('agenthub:hub:boot',String(boot));}catch(e){}
+        if(prevBoot&&Math.abs(boot-prevBoot)>15)hubNote('Hub restarted: it was turned off and on again');else if(!prevBoot)hubNote('Hub is on');}
+      if(paint._offNoted){hubNote('Hub answering again: it is on');paint._offNoted=false;}paint._at=Date.now();
       var runIds={};data.runs.forEach(function(m){runIds[m.id]=m.brief||m.id;});
       if(paint._runs){Object.keys(runIds).forEach(function(k){if(!(k in paint._runs))hubNote('Mission started: '+runIds[k]);});Object.keys(paint._runs).forEach(function(k){if(!(k in runIds))hubNote('Mission finished or stopped: '+paint._runs[k]);});}paint._runs=runIds;
       var attIds={};data.attention.forEach(function(x){if(x.kind!=='session')attIds[x.id||x.title]=x.title;});if(paint._att){Object.keys(attIds).forEach(function(k){if(!(k in paint._att))hubNote('Needs you: '+attIds[k]);});}paint._att=attIds;
@@ -669,20 +674,22 @@
     function arrangeLayerBands(minimise){
       if(settlePack)settlePack();
       stopCam();touched=true;focusId=null;undim();var ids=Object.keys(blocks).filter(function(id){return !isHidden(id);});
+      if(!ids.length)return;
       ids.sort(function(a,b){return L[a].y-L[b].y||L[a].x-L[b].x;});
       var from={},to={},unit=16;
       ids.forEach(function(id){var l=L[id];from[id]={x:l.x,y:l.y};if(minimise!==null)l.min=minimise?1:0;});
-      var r=stageRect(),total=ids.reduce(function(n,id){return n+L[id].w*bh(L[id]);},0),width=Math.max(400,Math.sqrt(total*r.width/Math.max(1,r.height))),y=0;
-      (layerState.invert?layerState.order.slice():layerState.order.slice().reverse()).forEach(function(layer){
-        var band=ids.filter(function(id){return layerOf(id)===layer;});if(!band.length)return;
-        var x=0,row=0;
-        band.forEach(function(id){var l=L[id];if(x&&x+l.w>width){x=0;y+=Math.ceil((row+GAP)/unit)*unit;row=0;}
-          l.x=x;l.y=y;l.u=1;to[id]={x:x,y:y};x+=Math.ceil((l.w+GAP)/unit)*unit;row=Math.max(row,bh(l));});
-        y+=Math.ceil((row+GAP*2)/unit)*unit;
-      });
+      // One band per layer, in the order of the layer list (front layer first; INVERT flips it). Rows are as wide as the window allows:
+      // try a range of widths and keep the one that lets the whole board be shown largest.
+      var r=stageRect(),order=layerState.invert?layerState.order.slice():layerState.order.slice().reverse();
+      function packAt(width){var y=0,pos={};order.forEach(function(layer){var band=ids.filter(function(id){return layerOf(id)===layer;});if(!band.length)return;var x=0,row=0;
+        band.forEach(function(id){var l=L[id];if(x&&x+l.w>width){x=0;y+=Math.ceil((row+GAP)/unit)*unit;row=0;}pos[id]={x:x,y:y};x+=Math.ceil((l.w+GAP)/unit)*unit;row=Math.max(row,bh(l));});y+=Math.ceil((row+GAP*2)/unit)*unit;});
+        var W=0;ids.forEach(function(id){W=Math.max(W,pos[id].x+L[id].w);});return {pos:pos,W:W,H:y};}
+      var minW=0,sumW=0;ids.forEach(function(id){minW=Math.max(minW,L[id].w);sumW+=L[id].w+GAP;});
+      var best=null;for(var wi=0;wi<=18;wi++){var wd=minW+(sumW-minW)*Math.pow(wi/18,1.6),pk=packAt(wd),kk=Math.min((r.width-16)/Math.max(1,pk.W),(r.height-16)/Math.max(1,pk.H));if(!best||kk>=best.k-1e-6)best={k:kk,pk:pk};}
+      ids.forEach(function(id){var l=L[id],q=best.pk.pos[id];l.x=q.x;l.y=q.y;l.u=1;to[id]={x:q.x,y:q.y};});
       // The 3D fit solver measures DOM bounds, so measure the destination layout,
       // then restore it synchronously before the first animated paint.
-      ids.forEach(applyBlock);
+      ids.forEach(applyBlock);if(stackDepth)stackDepth();
       var cto=cameraFor(ids,1.2);
       if(reducedMotion.matches){ids.forEach(applyBlock);if(cto){V=cto;place();}save();trayDraw();return;}
       ids.forEach(function(id){L[id].x=from[id].x;L[id].y=from[id].y;applyBlock(id);});
@@ -759,15 +766,14 @@
     var rightPanel=fadePanel(el('aside','hb-right-panel')),ingestDock=el('div','hb-ingest-dock'),rightScroll=el('div','hb-right-scroll'),viewBar=el('div','hb-viewbar'),zoomRow=el('div','hb-zoomrow');viewBar.setAttribute('role','group');viewBar.setAttribute('aria-label','View controls');zoomRow.append(zout,zin);viewBar.append(zh);if(view)viewBar.append(view.btn,view.gizmoBtn);viewBar.append(fitBtn,tidyBtn,blocksBtn,zoomRow);rightScroll.appendChild(viewBar);rightPanel.appendChild(rightScroll);ingestDock.classList.add('hb-top-tools');host.append(ingestDock,rightPanel);
     var controls={readout:zh,view:view&&view.btn,axis:view&&view.gizmoBtn,zoom:zoomRow,fit:fitBtn,blocks:blocksBtn,tidy:tidyBtn,talk:talkBtn,pc:pcBtn,ingest:ingestBtn,setup:setupBtn,hands:hands&&hands.button};
     Array.from(bar.children).forEach(function(b){if(b.textContent==='HAND SETUP')controls.handSetup=b;if(b.textContent==='SAVE TRACE')controls.saveTrace=b;});
-    var legend=el('button','hb-btn','HANDS MENU');legend.type='button';controls.legend=legend;
+    var legend=el('button','hb-btn','HANDS MENU');legend.type='button';
     legend.onclick=function(){openHandControls();};
     var handMenuButton=el('button','hb-btn','HAND CONTROLS');handMenuButton.type='button';handMenuButton.onclick=function(){openHandControls(false);};
     var logPending=[];function toLog(node){if(node===controls.handSetup||node===controls.saveTrace){node.remove();return;}var t=document.querySelector('.hands-log .hl-tools');if(t){if(node.parentNode!==t)t.appendChild(node);}else if(logPending.indexOf(node)<0)logPending.push(node);}function onLogReady(){var all=logPending.slice();[controls.legend].forEach(function(n){if(n&&all.indexOf(n)<0)all.push(n);});all.forEach(toLog);logPending=[];}window.addEventListener('hub-log-ready',onLogReady);
     function placeControl(key,node){if(!node)return;var home=CONTROL_HOME[key];if(home==='hands')toLog(node);else if(home==='health'){if(node.parentNode!==blocks.hlt._in)blocks.hlt._in.appendChild(node);}else if(home==='ingest')ingestDock.appendChild(node);else if(home==='view')viewBar.appendChild(node);else bar.appendChild(node);}
     Object.keys(controls).forEach(function(k){placeControl(k,controls[k]);});if(view)viewBar.append(view.btn);viewBar.append(fitBtn,tidyBtn,blocksBtn);if(view)viewBar.append(view.gizmoBtn);viewBar.append(zoomRow);zoomRow.dataset.only3d='1';zh.dataset.only3d='1';hint.hidden=true;menu.appendChild(hint);more.hidden=true;
     var layerButton=el('button','hb-btn','LAYERS'),layerMenu=el('div','hb-layer-menu');layerButton.type='button';layerButton.dataset.layers='1';layerButton.setAttribute('aria-expanded','false');layerMenu.hidden=true;layerMenu.setAttribute('aria-label','Layers');host.appendChild(layerMenu);placeControl('layers',layerButton);
-    var layerFitTimer=0;
-    function commitLayers(){host.classList.add('hb-layer-moving');saveLayers();refreshLayers();setTimeout(function(){host.classList.remove('hb-layer-moving');},350);clearTimeout(layerFitTimer);layerFitTimer=setTimeout(function(){if(alive)fit(true);},420);}
+    function commitLayers(quiet){host.classList.add('hb-layer-moving');saveLayers();refreshLayers();setTimeout(function(){host.classList.remove('hb-layer-moving');},350);if(!quiet)arrangeLayerBands(null);}
     // The layer list: drag a layer by its grip to put it in front of or behind another, drag an app onto a layer to move it there,
     // fold a layer so its apps are out of the way, and (in 3D) choose whether layers sit apart in depth, in height or both.
     function dragThing(grip,source,kind,done){
@@ -794,7 +800,7 @@
     function drawLayers(){
       var keep=layerMenu.scrollTop;layerMenu.replaceChildren();
       var is3d=host.classList.contains('hb-3d');
-      var add=el('form','hb-layer-add'),name=el('input'),create=el('button','hb-btn','ADD LAYER');name.placeholder='Layer name';name.maxLength=40;name.setAttribute('aria-label','New layer name');create.type='submit';create.disabled=layerState.order.length>=32;add.append(name,create);add.onsubmit=function(e){e.preventDefault();var label=name.value.trim();if(!label||layerState.order.length>=32)return;var key='layer-'+Date.now().toString(36);while(layerState.order.includes(key))key+='x';layerState.order.push(key);layerState.labels[key]=label;commitLayers();};
+      var add=el('form','hb-layer-add'),name=el('input'),create=el('button','hb-btn','ADD LAYER');name.placeholder='Layer name';name.maxLength=40;name.setAttribute('aria-label','New layer name');create.type='submit';create.disabled=layerState.order.length>=32;add.append(name,create);add.onsubmit=function(e){e.preventDefault();var label=name.value.trim();if(!label||layerState.order.length>=32)return;var key='layer-'+Date.now().toString(36);while(layerState.order.includes(key))key+='x';layerState.order.push(key);layerState.labels[key]=label;commitLayers(true);};
       layerMenu.append(add);
       if(is3d){
         var axisRow=el('div','hb-layer-axis');axisRow.appendChild(el('span','','LAYERS SIT APART IN'));
@@ -811,7 +817,7 @@
         fold.onclick=function(){layerState.collapsed=layerState.collapsed||{};layerState.collapsed[key]=!folded;saveLayers();drawLayers();};
         var nameEl=el('b','',layerName(key)+' · '+ids.length);nameEl.title='Double-click to rename';
         function rename(){var inp=el('input');inp.className='hb-layer-name';inp.value=layerName(key);inp.maxLength=40;inp.setAttribute('aria-label','Layer name');nameEl.replaceWith(inp);inp.focus();inp.select();var done=false;
-          function finish(ok){if(done)return;done=true;var v=inp.value.trim();if(ok&&v&&v!==layerName(key)){layerState.labels[key]=v;hubNote('Layer renamed to '+v);commitLayers();}else drawLayers();}
+          function finish(ok){if(done)return;done=true;var v=inp.value.trim();if(ok&&v&&v!==layerName(key)){layerState.labels[key]=v;hubNote('Layer renamed to '+v);commitLayers(true);}else drawLayers();}
           inp.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();finish(true);}else if(e.key==='Escape'){e.preventDefault();finish(false);}};inp.onblur=function(){finish(true);};}
         nameEl.ondblclick=rename;row.classList.toggle('off',!!layerState.hidden[key]);row.append(grip,fold,nameEl);
         function action(label,path,fn,disabled){var btn=el('button','hb-btn');btn.type='button';btn.title=label;btn.setAttribute('aria-label',label+' '+layerName(key));btn.appendChild(svg(path));btn.disabled=!!disabled;btn.onclick=fn;row.appendChild(btn);return btn;}

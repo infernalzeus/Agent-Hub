@@ -154,9 +154,11 @@ SOFTWARE.
     function paintLog(){
       if(!rowsEl||!logBox||!logBox.classList.contains('open'))return;
       rowsEl.replaceChildren();
+      if(logFilter==='hands'){const note=document.createElement('p');note.className='hs-note';note.textContent=enabled?'Camera on. Tracking stays on this device.':'Camera off. Press a row to change it; choices save at once.';rowsEl.append(note,...handsTables(paintLog,note));}
+      if(logFilter==='chat'){const open=document.createElement('button');open.type='button';open.className='hb-btn hl-smith';open.textContent='CHAT WITH AGENT SMITH';open.onclick=()=>{try{window.HubVoice&&window.HubVoice.open&&window.HubVoice.open(false);}catch(_){}};rowsEl.append(open);}
       const rows=logRows.filter(r=>logFilter==='all'||r.kind===logFilter).slice(0,30);
       if(!rows.length){const d=document.createElement('div');d.className='hl-empty';d.textContent=logFilter==='hands'?'Nothing yet. Turn HANDS on and use a gesture; each press, tap, scroll and error appears here.':'Nothing yet. Your chat with Smith, hand gestures and Hub messages appear here.';rowsEl.append(d);return;}
-      rows.forEach(r=>{const d=document.createElement('div');d.className='hl-row k-'+r.kind+(r.err?' hl-err':'');const tm=document.createElement('time');tm.textContent=new Date(r.at).toLocaleTimeString([],{hour12:false});const kd=document.createElement('b');kd.textContent=(r.kind||'').toUpperCase();d.append(tm,kd,document.createTextNode(r.t));rowsEl.append(d);});
+      rows.forEach(r=>{const d=document.createElement('div');d.className='hl-row k-'+r.kind+(r.err?' hl-err':'');const tx=document.createElement('span');tx.className='hl-text';tx.textContent=r.t;const meta=document.createElement('span');meta.className='hl-meta';meta.title=new Date(r.at).toLocaleString([],{dateStyle:'full',timeStyle:'medium'});const tm=document.createElement('time');tm.dateTime=new Date(r.at).toISOString();tm.textContent=new Date(r.at).toLocaleTimeString([],{hour12:false});const kd=document.createElement('b');kd.textContent=(r.kind||'').toUpperCase();meta.append(tm,kd);d.append(tx,meta);rowsEl.append(d);});
     }
     function logAdd(kind,t,err){if(logRows.length&&logRows[0].t===t&&logRows[0].kind===kind)return;logRows.unshift({at:Date.now(),kind,t,err:!!err});if(logRows.length>80)logRows.pop();try{sessionStorage.setItem(LOGKEY,JSON.stringify(logRows.slice(0,80)));}catch(_){}paintLog();updateHead();}
     function logLine(t,err){logAdd('hands',t,err);}
@@ -323,23 +325,27 @@ SOFTWARE.
     saveProfile();
     function closeX(onclose){const b=document.createElement('button');b.type='button';b.className='hb-btn hs-x';b.setAttribute('aria-label','Close');b.title='Close';b.innerHTML='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';b.onclick=onclose;return b;}
     const GESTURES=[['Point','Aim with your index fingertip; hold still over a control to click.'],['Thumb + index','Quick pinch: tap. Hold and move: drag a block or scroll a panel.'],['Thumb + middle','Keep the index away; pinch to open the right-click menu.'],['Thumb + index + middle','Hold together and move your hand up or down to zoom.'],['Fist · 3D','Tilt and turn the board in VIEW 3D.'],['Open hand','Hold for one second to fit the board.'],['Flat palm','Optional pan and push/pull zoom; turn it on below.'],['Escape','Immediately stop hand control and release the camera.']];
-    function tableOf(caption,heads,rows){const tb=document.createElement('table');tb.className='hs-table';tb.createCaption().textContent=caption;const hr=tb.insertRow();heads.forEach(x=>{const th=document.createElement('th');th.textContent=x;hr.appendChild(th);});
+    function tableOf(caption,heads,rows,cls){const tb=document.createElement('table');tb.className='hs-table '+(cls||'');tb.createCaption().textContent=caption;const hr=tb.insertRow();heads.forEach(x=>{const th=document.createElement('th');th.textContent=x;hr.appendChild(th);});
       rows.forEach(r=>{const tr=tb.insertRow();r.cells.forEach(c=>{tr.insertCell().textContent=c;});if(r.fn){tr.className='hs-act';tr.tabIndex=0;tr.setAttribute('role','button');tr.onclick=r.fn;tr.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();r.fn();}};}});return tb;}
-    // ONE hands menu (right-click on the hand, or HANDS MENU in the log): the controls and the gestures, as tables
+    // The two tables of the hands menu. The same ones are in the dialog and under HANDS in the log; `repaint` redraws whichever is showing.
+    function handsTables(repaint,p){
+      const onoff=v=>v?'ON':'OFF',flip=v=>v?'TURN OFF':'TURN ON';
+      const controlsTable=tableOf('CONTROLS',['Control','Now','Press the row to'],[
+        {cells:['Camera and hand tracking',onoff(enabled),flip(enabled)],fn:()=>{btn.onclick();setTimeout(repaint,900);}},
+        {cells:['Fist tilts the board in VIEW 3D',onoff(profile.orbit),flip(profile.orbit)],fn:()=>{profile.orbit=!profile.orbit;saveProfile();repaint();}},
+        {cells:['Flat palm pan and zoom',onoff(profile.palm),flip(profile.palm)],fn:()=>{profile.palm=!profile.palm;saveProfile();repaint();}},
+        {cells:['Last minute of tracking','','SAVE'],fn:()=>{if(!enabled){p.textContent='Turn the camera on, use your hands for a minute, then come back here (or press SAVE TRACE in the bar).';return;}saveTrace('free',p);}},
+        {cells:['Hand trace (about 32 seconds)','','RECORD'],fn:()=>{if(!enabled){p.textContent='Turn the camera on explicitly, then return here to record.';return;}p.textContent='Recording about 32 seconds. Follow the prompts at the top left; this panel closes so you can see them.';setup.hidden=true;startTrace(p);}},
+        {cells:['Everything above','','RESET TO DEFAULTS'],fn:()=>{profile={v:PROFILE_VERSION,fist:false,orbit:true,palm:false};saveProfile();repaint();}}],'hs-controls');
+      return [controlsTable,tableOf('GESTURES',['Gesture','What it does'],GESTURES.map(g=>({cells:g})),'hs-gestures')];
+    }
+    // ONE hands menu (right-click on the hand; also under HANDS in the log): the controls and the gestures, as tables
     function calibrationPanel(){
       cancelAll();diagnostic=true;setup.replaceChildren();setup.hidden=false;
       const head=document.createElement('div');head.className='hb-glass-head';const h2=document.createElement('h2');h2.textContent='HANDS';
       head.append(h2,closeX(()=>{calibration=null;diagnostic=false;engine.reset();interlock=true;setup.hidden=true;}));
       const p=document.createElement('p');p.className='hs-note';p.textContent=enabled?'Camera on. Tracking stays on this device.':'Camera off. Nothing watches until you turn it on. Choices save here at once; the defaults need no calibration.';
-      const onoff=v=>v?'ON':'OFF',flip=v=>v?'TURN OFF':'TURN ON';
-      const controlsTable=tableOf('CONTROLS',['Control','Now','Press the row to'],[
-        {cells:['Camera and hand tracking',onoff(enabled),flip(enabled)],fn:()=>{btn.onclick();setTimeout(()=>{if(!setup.hidden&&setup.querySelector('.hs-table'))calibrationPanel();},900);}},
-        {cells:['Fist tilts the board in VIEW 3D',onoff(profile.orbit),flip(profile.orbit)],fn:()=>{profile.orbit=!profile.orbit;saveProfile();calibrationPanel();}},
-        {cells:['Flat palm pan and zoom',onoff(profile.palm),flip(profile.palm)],fn:()=>{profile.palm=!profile.palm;saveProfile();calibrationPanel();}},
-        {cells:['Last minute of tracking','','SAVE'],fn:()=>{if(!enabled){p.textContent='Turn the camera on, use your hands for a minute, then come back here (or press SAVE TRACE in the bar).';return;}saveTrace('free',p);}},
-        {cells:['Hand trace (about 32 seconds)','','RECORD'],fn:()=>{if(!enabled){p.textContent='Turn the camera on explicitly, then return here to record.';return;}p.textContent='Recording about 32 seconds. Follow the prompts at the top left; this panel closes so you can see them.';setup.hidden=true;startTrace(p);}},
-        {cells:['Everything above','','RESET TO DEFAULTS'],fn:()=>{profile={v:PROFILE_VERSION,fist:false,orbit:true,palm:false};saveProfile();calibrationPanel();}}]);
-      setup.append(head,p,controlsTable,tableOf('GESTURES',['Gesture','What it does'],GESTURES.map(g=>({cells:g}))));
+      setup.append(head,p,...handsTables(()=>{if(!setup.hidden&&setup.querySelector('.hs-table'))calibrationPanel();},p));
     }
     function setupPanel(manifest){
       setup.replaceChildren();setup.hidden=false;const title=document.createElement('strong');title.textContent=manifest.ready?'HAND CONTROL READY':'HAND TRACKING NOT INSTALLED';
