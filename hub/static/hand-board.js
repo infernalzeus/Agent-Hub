@@ -117,7 +117,7 @@ SOFTWARE.
     function clearOverlay(){clearTimeout(legendTimer);legendTimer=0;canvas?.remove();canvas=ctx=null;updateHead();}
     // ---- LOG: one small tab at the bottom, always there. Everything that happens lands here, newest first: your chat with Smith (also what was said on
     // the landing page), hand gestures and their errors, and the Hub's own messages. Pull it up to read, filter, open the chat, or set up the hands.
-    const LOGKEY='agenthub:log',KINDS=[['all','ALL'],['chat','CHAT'],['hands','HANDS'],['hub','HUB']];
+    const LOGKEY='agenthub:log',KINDS=[['all','ALL'],['chat','CHAT'],['hands','HANDS']];
     let logBox=null,rowsEl=null,toolsEl=null,headEl=null,logFilter='all',logUnhook=null;
     function logOff(){if(logUnhook){logUnhook();logUnhook=null;}}
     const loadLog=()=>{try{const a=JSON.parse(sessionStorage.getItem(LOGKEY)||'[]');return Array.isArray(a)?a:[];}catch(_){return [];}};
@@ -136,7 +136,7 @@ SOFTWARE.
       const chips=document.createElement('div');chips.className='hl-filters';
       KINDS.forEach(([k,t])=>{const b=document.createElement('button');b.type='button';b.textContent=t;b.dataset.kind=k;b.className=k===logFilter?'on':'';b.onclick=()=>{logFilter=k;chips.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.kind===k));paintLog();};chips.append(b);});
       toolsEl=document.createElement('div');toolsEl.className='hl-tools';
-      const chat=document.createElement('button');chat.type='button';chat.textContent='OPEN CHAT';chat.onclick=()=>{try{window.HubVoice&&window.HubVoice.open&&window.HubVoice.open(false);}catch(_){}};toolsEl.append(chat);
+      
       top.append(chips,toolsEl);
       rowsEl=document.createElement('div');rowsEl.className='hl-rows';legend=document.createElement('div');legend.className='hl-legend';legend.textContent=LEGEND;
       body.append(top,rowsEl,legend);logBox.append(body,headEl);document.body.appendChild(logBox);

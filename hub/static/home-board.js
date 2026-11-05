@@ -186,8 +186,8 @@
     // then the most recently used); every other block that is in the way goes to the nearest free spot, so a shove never ping-pongs.
     var GAP = 14;
     function validLayers(ls){return !!(ls&&Array.isArray(ls.order)&&ls.order.length&&ls.order.length<=32&&ls.order.every(function(k,i,a){return typeof k==='string'&&/^[a-z0-9-]{1,64}$/.test(k)&&a.indexOf(k)===i;}));}
-    function normalLayers(ls){return {order:ls.order.slice(),hidden:ls.hidden||{},members:ls.members||{},labels:ls.labels||{},collapsed:ls.collapsed||{},axis:(ls.axis==='height'||ls.axis==='both')?ls.axis:'depth'};}
-    var layerState={order:['system','tools','apps'],hidden:{},members:{},labels:{},collapsed:{},axis:'depth'};
+    function normalLayers(ls){return {order:ls.order.slice(),hidden:ls.hidden||{},members:ls.members||{},labels:ls.labels||{},collapsed:ls.collapsed||{},invert:!!ls.invert,axis:(ls.axis==='height'||ls.axis==='both')?ls.axis:'depth'};}
+    var layerState={order:['system','tools','apps'],hidden:{},members:{},labels:{},collapsed:{},invert:false,axis:'depth'};
     try{var ls=JSON.parse(localStorage.getItem('agenthub:board:layers'));if(validLayers(ls))layerState=normalLayers(ls);}catch(e){}
     function layerName(k){return layerState.labels[k]||k.toUpperCase();}
     function layerOf(id){var base=id.split('#')[0],k=layerState.members[base]||(P[base]?'system':base.indexOf('act:')===0?'apps':base.indexOf('app:')===0&&!['app:movie-clipper','app:file-browser'].includes(base)?'apps':'tools');return layerState.order.indexOf(k)>=0?k:layerState.order[0];}
@@ -341,8 +341,21 @@
     // Several windows of one tool: another block of the same tool, offset a little, allowed to overlap its siblings, in front of them in 3D.
     stackDepth = function () {
       var groups={};Object.keys(blocks).forEach(function(id){var key=layerOf(id);(groups[key]=groups[key]||[]).push(id);});
+      var axis=layerState.axis||'depth',n=layerState.order.length,lift={};
+      // Apart in HEIGHT: the layer at the top of the list is at the top, then the next one below it, each placed under the one above using the
+      // real size of its blocks (never a fixed step), so two layers cannot overlap. INVERT puts the deepest layer at the top instead.
+      if(axis!=='depth'){
+        var topFirst=layerState.invert?layerState.order.slice():layerState.order.slice().reverse(),cursor=null;
+        topFirst.forEach(function(key){
+          var ids=(groups[key]||[]).filter(function(id){return !isHidden(id);});if(!ids.length){lift[key]=0;return;}
+          var lo=Infinity,hi=-Infinity;ids.forEach(function(id){var l=L[id];lo=Math.min(lo,l.y);hi=Math.max(hi,l.y+bh(l));});
+          if(cursor===null){lift[key]=0;cursor=hi+56;}else{lift[key]=cursor-lo;cursor+=(hi-lo)+56;}
+        });
+      }
       Object.keys(groups).forEach(function(key){var bases={};groups[key].forEach(function(id){var base=id.split('#')[0];if(L[id].exp&&!isHidden(id))(bases[base]=bases[base]||[]).push(id);});
-        groups[key].forEach(function(id){var siblings=bases[id.split('#')[0]]||[];siblings.sort(function(a,b){return (L[a].z||0)-(L[b].z||0);});var step=siblings.length>1?(siblings.indexOf(id)-siblings.length+1)*90:0;var n=layerState.order.length,idx=layerState.order.indexOf(key),axis=layerState.axis||'depth',z=(axis==='height'?0:idx*Math.min(140,280/Math.max(1,n-1)))+step,dy=axis==='depth'?0:-(idx-(n-1)/2)*Math.min(130,320/Math.max(1,n-1));[blocks[id],blocks[id]._solid].forEach(function(e){if(e){e.style.setProperty('--hb-dz',z+'px');e.style.setProperty('--hb-dy',dy+'px');}});});
+        groups[key].forEach(function(id){var siblings=bases[id.split('#')[0]]||[];siblings.sort(function(a,b){return (L[a].z||0)-(L[b].z||0);});var step=siblings.length>1?(siblings.indexOf(id)-siblings.length+1)*90:0;
+          var idx=layerState.order.indexOf(key),rank=layerState.invert?(n-1-idx):idx,z=(axis==='height'?0:rank*Math.min(140,280/Math.max(1,n-1)))+step,dy=axis==='depth'?0:(lift[key]||0);
+          [blocks[id],blocks[id]._solid].forEach(function(e){if(e){e.style.setProperty('--hb-dz',z+'px');e.style.setProperty('--hb-dy',dy+'px');}});});
       });
     };
     function duplicate(srcId) {
@@ -659,7 +672,7 @@
       var from={},to={},unit=16;
       ids.forEach(function(id){var l=L[id];from[id]={x:l.x,y:l.y};if(minimise!==null)l.min=minimise?1:0;});
       var r=stageRect(),total=ids.reduce(function(n,id){return n+L[id].w*bh(L[id]);},0),width=Math.max(400,Math.sqrt(total*r.width/Math.max(1,r.height))),y=0;
-      layerState.order.forEach(function(layer){
+      (layerState.invert?layerState.order.slice():layerState.order.slice().reverse()).forEach(function(layer){
         var band=ids.filter(function(id){return layerOf(id)===layer;});if(!band.length)return;
         var x=0,row=0;
         band.forEach(function(id){var l=L[id];if(x&&x+l.w>width){x=0;y+=Math.ceil((row+GAP)/unit)*unit;row=0;}
@@ -674,7 +687,7 @@
       ids.forEach(function(id){L[id].x=from[id].x;L[id].y=from[id].y;applyBlock(id);});
       var cf={x:V.x,y:V.y,k:V.k},tok=++camTok,t0=performance.now();
       var finished=false;
-      function finishPack(){if(finished)return;finished=true;settlePack=null;ids.forEach(function(id){if(L[id]){L[id].x=to[id].x;L[id].y=to[id].y;applyBlock(id);}});if(alive){save();trayDraw();}}
+      function finishPack(){if(finished)return;finished=true;settlePack=null;ids.forEach(function(id){if(L[id]){L[id].x=to[id].x;L[id].y=to[id].y;applyBlock(id);}});if(alive){if(stackDepth)stackDepth();save();trayDraw();}}
       settlePack=finishPack;
       (function s(n){if(finished)return;if(!alive||tok!==camTok){finishPack();return;}
         var u=Math.min(1,(n-t0)/620),e=1-Math.pow(1-u,3.4);
@@ -712,7 +725,7 @@
       ids.forEach(function(id){L[id].u=1;});
       if(reducedMotion.matches){ids.forEach(function(id){L[id].x=to[id].x;L[id].y=to[id].y;applyBlock(id);});save();trayDraw();return;}
       var tok=++camTok,t0=performance.now(),finished=false;
-      function finishPack(){if(finished)return;finished=true;settlePack=null;ids.forEach(function(id){if(L[id]){L[id].x=to[id].x;L[id].y=to[id].y;applyBlock(id);}});if(alive){save();trayDraw();}}
+      function finishPack(){if(finished)return;finished=true;settlePack=null;ids.forEach(function(id){if(L[id]){L[id].x=to[id].x;L[id].y=to[id].y;applyBlock(id);}});if(alive){if(stackDepth)stackDepth();save();trayDraw();}}
       settlePack=finishPack;
       (function step(n){if(finished)return;if(!alive||tok!==camTok){finishPack();return;}
         var u=Math.min(1,(n-t0)/420),e=1-Math.pow(1-u,3.4);
@@ -746,9 +759,9 @@
     var controls={readout:zh,view:view&&view.btn,axis:view&&view.gizmoBtn,zoom:zoomRow,fit:fitBtn,blocks:blocksBtn,tidy:tidyBtn,talk:talkBtn,pc:pcBtn,ingest:ingestBtn,setup:setupBtn,hands:hands&&hands.button};
     Array.from(bar.children).forEach(function(b){if(b.textContent==='HAND SETUP')controls.handSetup=b;if(b.textContent==='SAVE TRACE')controls.saveTrace=b;});
     var legend=el('button','hb-btn','GESTURE LEGEND');legend.type='button';controls.legend=legend;
-    legend.onclick=function(){openHandControls(true);};
+    legend.setAttribute('aria-pressed','false');legend.onclick=function(){var on=document.documentElement.classList.toggle('hub-legend-on');legend.setAttribute('aria-pressed',String(on));};
     var handMenuButton=el('button','hb-btn','HAND CONTROLS');handMenuButton.type='button';handMenuButton.onclick=function(){openHandControls(false);};
-    var logPending=[];function toLog(node){if(node===controls.handSetup||node===controls.saveTrace){node.remove();return;}var t=document.querySelector('.hands-log .hl-tools');if(t){if(node.parentNode!==t)t.appendChild(node);}else if(logPending.indexOf(node)<0)logPending.push(node);}function onLogReady(){var all=logPending.slice();[handMenuButton,controls.legend].forEach(function(n){if(n&&all.indexOf(n)<0)all.push(n);});all.forEach(toLog);logPending=[];}window.addEventListener('hub-log-ready',onLogReady);
+    var logPending=[];function toLog(node){if(node===controls.handSetup||node===controls.saveTrace){node.remove();return;}var t=document.querySelector('.hands-log .hl-tools');if(t){if(node.parentNode!==t)t.appendChild(node);}else if(logPending.indexOf(node)<0)logPending.push(node);}function onLogReady(){var all=logPending.slice();[controls.legend].forEach(function(n){if(n&&all.indexOf(n)<0)all.push(n);});all.forEach(toLog);logPending=[];}window.addEventListener('hub-log-ready',onLogReady);
     function placeControl(key,node){if(!node)return;var home=CONTROL_HOME[key];if(home==='hands')toLog(node);else if(home==='health'){if(node.parentNode!==blocks.hlt._in)blocks.hlt._in.appendChild(node);}else if(home==='ingest')ingestDock.appendChild(node);else if(home==='view')viewBar.appendChild(node);else bar.appendChild(node);}
     Object.keys(controls).forEach(function(k){placeControl(k,controls[k]);});if(view)viewBar.append(view.btn);viewBar.append(fitBtn,tidyBtn,blocksBtn);if(view)viewBar.append(view.gizmoBtn);viewBar.append(zoomRow);zoomRow.dataset.only3d='1';zh.dataset.only3d='1';hint.hidden=true;menu.appendChild(hint);more.hidden=true;
     var layerButton=el('button','hb-btn','LAYERS'),layerMenu=el('div','hb-layer-menu');layerButton.type='button';layerButton.dataset.layers='1';layerButton.setAttribute('aria-expanded','false');layerMenu.hidden=true;layerMenu.setAttribute('aria-label','Layers');host.appendChild(layerMenu);placeControl('layers',layerButton);
@@ -784,6 +797,7 @@
       if(is3d){
         var axisRow=el('div','hb-layer-axis');axisRow.appendChild(el('span','','LAYERS SIT APART IN'));
         [['depth','DEPTH','Front to back'],['height','HEIGHT','Top to bottom'],['both','BOTH','Diagonal']].forEach(function(o){var b=el('button','hb-btn',o[1]);b.type='button';b.title=o[2];b.setAttribute('aria-pressed',String((layerState.axis||'depth')===o[0]));b.onclick=function(){layerState.axis=o[0];commitLayers();};axisRow.appendChild(b);});
+        var inv=el('button','hb-btn','INVERT');inv.type='button';inv.title='Put the deepest layer at the front or the top instead';inv.setAttribute('aria-pressed',String(!!layerState.invert));inv.onclick=function(){layerState.invert=!layerState.invert;commitLayers();};axisRow.appendChild(inv);
         layerMenu.appendChild(axisRow);
       }
       layerMenu.appendChild(el('small','','Top of the list is in front. Drag a layer by its grip to reorder it; drag an app onto a layer to move it. TIDY packs each layer into its own band.'));

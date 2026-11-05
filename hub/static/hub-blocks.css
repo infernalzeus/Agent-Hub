@@ -420,3 +420,16 @@ html:root:root{--hb-logbtn:34px;--hb-log:var(--hb-logbtn)!important}
 /* a short screen cannot spare a row for the LOG button: it sits beside the minimap instead */
 @media(max-height:700px){html:root:root{--hb-logbtn:0px;--hb-log:0px!important}.hb .hb-log-toggle{width:72px;right:calc(max(12px,env(safe-area-inset-right)) + 144px)}}
 @media(max-height:700px) and (max-width:720px){.hb .hb-log-toggle{right:calc(max(8px,env(safe-area-inset-right)) + 96px)}}
+
+/* Round 12: the controls along the bottom and the right never hide the dashboard behind them; the log has one hand button and a legend that toggles. */
+.hb .hb-right-panel,.hb .hb-right-scroll,.hb .hb-ingest-dock,.hb .hb-tray,.hb .hb-batch-controls,.hb .hb-map,.hb .hb-panel-show,.hb .hb-panel-hide{background:transparent!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+.hb .hb-right-panel>*,.hb .hb-viewbar,.hb .hb-zoomrow,.hb .hb-gizmo{background:transparent!important;box-shadow:none!important}
+.hb .hb-right-panel button,.hb .hb-right-panel .hb-btn,.hb .hb-batch-controls .hb-btn,.hb .hb-tray-count,.hb .hb-log-toggle,.hb .hb-panel-show,.hb .hb-panel-hide{background:rgba(6,10,36,.16)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+.hb .hb-right-panel button:hover,.hb .hb-batch-controls .hb-btn:hover,.hb .hb-log-toggle:hover{background:rgba(0,230,118,.14)!important}
+.hb .hb-map{border-color:rgba(0,230,118,.3)}
+.hands-log .hl-body{background:rgba(8,12,40,.52)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;box-shadow:none!important;border-color:rgba(101,118,183,.45)}
+/* the log's tools: only GESTURE LEGEND, and it shows or hides the legend in the log */
+html.hub-board-on .hands-log .hl-tools button[data-log-kind]{display:inline-flex!important}
+.hands-log .hl-legend{display:none!important}
+html.hub-legend-on .hands-log .hl-legend{display:block!important;opacity:1!important}
+.hands-log .hl-tools button[aria-pressed=true]{border-color:#41ebff;color:#41ebff;background:#41ebff12}
