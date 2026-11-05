@@ -1,5 +1,5 @@
 /* Depth Lift site adapter. Renderer/shaders ported from hub/static/depth-lift.js.
- * Free Scatter: 70% spread, two-cell lift, 2000ms; original render-budget guard.
+ * Free Scatter: 70% spread, two-cell lift, 1500ms; original render-budget guard.
  * Only navigation/lifecycle changes: sibling DOM scenes, no Hub views or state. */
 (function(){'use strict';
 var pending=null;
@@ -143,7 +143,7 @@ function go(from,to,reverse){
   function tick(now){
    if(document.hidden||reduce.matches||r.v.w!==innerWidth||r.v.h!==innerHeight){finish();return;}
    if(!start)start=now;if(prev)deltas.push(now-prev);prev=now;
-   var p=Math.min(1,(now-start)/2000);
+   var p=Math.min(1,(now-start)/1500);
    try{r.draw(reverse?1-p:p);}catch(error){failed=error.message;finish();return;}
    if(p<1)raf=requestAnimationFrame(tick);else finish();
   }

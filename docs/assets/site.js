@@ -9,7 +9,7 @@
  /* ---------- auto-playing step lists: they advance by themselves; a tap or hover pins one ---------- */
  const autos=[...document.querySelectorAll('[data-auto]')].map(el=>{
   const a={el,scene:el.closest('.scene'),btns:[...el.querySelectorAll('.st')],detail:el.querySelector('.auto-detail'),i:0,pinned:false,timer:0,resume:0};
-  a.kicker=a.detail.querySelector('.kicker');a.h3=a.detail.querySelector('h3');a.d=a.detail.querySelector('.d');
+  a.kicker=a.detail.querySelector('.kicker');a.h3=a.detail.querySelector('h3');a.d=a.detail.querySelector('.d');a.you=a.detail.querySelector('.you p');a.pic=a.detail.querySelector('.pic');a.chips=a.detail.querySelector('.chips-row');
   a.btns.forEach((b,i)=>{
    b.addEventListener('click',()=>{pin(a,i,8000);});
    b.addEventListener('pointerenter',e=>{if(e.pointerType==='mouse')pin(a,i,3500);});
@@ -20,7 +20,7 @@
  function select(a,i){
   a.i=(i+a.btns.length)%a.btns.length;const b=a.btns[a.i];
   a.btns.forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false'));
-  a.detail.dataset.n=a.i+1;a.kicker.textContent=b.dataset.k;a.h3.textContent=b.dataset.t;a.d.textContent=b.dataset.d;
+  a.detail.dataset.n=a.i+1;a.kicker.textContent=b.dataset.k;a.h3.textContent=b.dataset.t;a.d.textContent=b.dataset.d;a.you.textContent=b.dataset.you||'';a.detail.querySelector('.you').hidden=!b.dataset.you;if(b.dataset.img){a.pic.src=b.dataset.img;a.pic.hidden=false;}else a.pic.hidden=true;a.chips.textContent='';(b.dataset.chips||'').split('|').filter(Boolean).forEach(c=>{const i=document.createElement('span');i.className='chip';i.textContent=c;a.chips.appendChild(i);});
   a.el.classList.remove('playing');void a.el.offsetWidth;if(!a.pinned&&!reduced.matches&&a.live)a.el.classList.add('playing');
  }
  function play(a){clearTimeout(a.timer);if(!a.live||a.pinned||reduced.matches)return;a.el.style.setProperty('--step',STEP+'ms');a.el.classList.add('playing');a.timer=setTimeout(()=>{select(a,a.i+1);play(a);},STEP);}
@@ -28,6 +28,9 @@
  function startAutos(scene){autos.filter(a=>a.scene===scene).forEach(a=>{a.live=!!a.el.offsetParent;a.pinned=false;clearTimeout(a.resume);if(a.live){select(a,0);play(a);}});}
  function stopAutos(){autos.forEach(a=>{a.live=false;clearTimeout(a.timer);clearTimeout(a.resume);a.el.classList.remove('playing');});}
  function stepActive(delta){const a=autos.find(x=>x.scene===active&&x.live);if(a)pin(a,a.i+delta,8000);}
+
+ /* the Agents / Skills tabs */
+ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{const ag=t.closest('.agency');ag.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));ag.querySelectorAll('.tabpanel').forEach(p=>p.hidden=p.dataset.panel!==t.dataset.tab);stopAutos();startAutos(active);}));
 
  /* small glass blocks open to show more */
  document.querySelectorAll('[data-more]').forEach(b=>b.addEventListener('click',()=>b.setAttribute('aria-expanded',b.getAttribute('aria-expanded')==='true'?'false':'true')));
@@ -75,12 +78,13 @@
 
  /* ---------- navigation ---------- */
  function enter(scene){
-  active=scene;scenes.forEach(s=>{s.classList.toggle('active',s===active);s.setAttribute('aria-hidden',s===active?'false':'true');s.inert=s!==active;});
+  active=scene;scenes.forEach(s=>{s.classList.remove('leaving');s.classList.toggle('active',s===active);s.setAttribute('aria-hidden',s===active?'false':'true');s.inert=s!==active;});
   stopAutos();fit();startAutos(active);if(active.id==='landing'){mountMark();sizeGrid();startGrid();}else unmountMark();
  }
  async function navigate(id,push=true){
   if(busy)return;const next=document.getElementById(id)||scenes[0];if(next===active)return;
   busy=true;resetTilt();pose=null;stopAutos();
+  if(!reduced.matches&&!document.hidden){active.classList.add('leaving');await new Promise(r=>setTimeout(r,270));}
   if(push)history.pushState(null,'',id==='landing'?location.pathname+location.search:'#'+id);
   next.setAttribute('aria-hidden','false');next.inert=true;
   const previous=active;

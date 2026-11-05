@@ -3,3 +3,5 @@
 !assets/site.js
 !assets/depth-lift-site.js
 !assets/flow.css
+!assets/agents/
+!assets/agents/*.png

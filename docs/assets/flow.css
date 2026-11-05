@@ -299,3 +299,5 @@
 .flow .resB1{animation:hw_resB1 54s linear infinite both}
 
 .flow .resB2{animation:hw_resB2 54s linear infinite both}
+/* square corners, as on the dashboard */
+.flow *{border-radius:0!important}.flow .chip{border-radius:99px!important}
