@@ -42,7 +42,7 @@ SOFTWARE.
   function mount({host,bar,fitButton}){
     styles();
     let typedAt=-Infinity,lastAction=-Infinity,alive=true,enabled=false,canvas=null,ctx=null,legend=null,status=null,legendTimer=0,used=false,zooming=false,interlock=false,cooldown=0,diagnostic=false,measurementLabel='MEASURING',hint='',hintAt=0,calibration=null;
-    let profile={v:PROFILE_VERSION,fist:false,orbit:true,palm:false};
+    let confLive=[];let profile={v:PROFILE_VERSION,fist:false,orbit:true,palm:false};
     try{const saved=JSON.parse(localStorage.getItem('hub-hands-profile')||'null');if(saved&&saved.v===PROFILE_VERSION)profile={...profile,...saved};}catch(_){}      // an older profile was measured in other units: start again
     // what each pointing / pinching gesture does can be chosen in the hands menu; these are the defaults
     const ACTIONS=[['left','Left click'],['right','Right click'],['back','Back: close the open menu, else fit'],['fit','Fit the board'],['tidy','Tidy'],['view','Switch 2D / 3D'],['none','Nothing']];
@@ -98,7 +98,7 @@ SOFTWARE.
       presses.set(id,p);emit(p,'pointerdown',id,from.x,from.y,true);counts.pinches++;mark('begin-'+mode,{x:Math.round(from.x),y:Math.round(from.y),target:String(r.el.className||r.el.tagName).slice(0,30)});lastAction=performance.now();firstPinch();return true;
     }
     function beginPan(id,hand){
-      const from={x:hand.palm.x,y:hand.palm.y},p={target:host,k:1,ox:0,oy:0,mode:'pan',button:0,down:{...from},last:{...from},palm0:{...hand.palm},roll0:hand.roll,travel:0,size:hand.hsize,sm:hand.hsize,moved:false};
+      const from={x:hand.palm.x,y:hand.palm.y},p={target:host,k:1,ox:0,oy:0,mode:'pan',button:0,down:{...from},last:{...from},palm0:{...hand.palm},roll0:hand.roll,travel:0,size:hand.depth,sm:hand.depth,moved:false};
       presses.set(id,p);emit(p,'pointerdown',id,from.x,from.y,true);counts.pans++;mark('begin-pan');firstPinch();
     }
     function release(id,cancel=true,hand){
@@ -256,6 +256,7 @@ SOFTWARE.
       if(!document.hasFocus()||document.hidden){if(presses.size)cancelAll();if(status&&!hint)status.textContent='CLICK THE HUB WINDOW ONCE SO HANDS CAN ACT ON IT';else if(status)say('CLICK THE HUB WINDOW ONCE SO HANDS CAN ACT ON IT');return;}
       const processingAt=performance.now();
       const output=engine.update(result,now,innerWidth,innerHeight,meta.cam);if(output.stale)return;counts.frames++;pointerUi(output.hands,now);paint(output.hands);
+      if(confLive.length&&now-(feed.cl||0)>150){feed.cl=now;const h=output.hands[0];for(const c of confLive){if(!c.cell.isConnected)continue;try{c.cell.textContent=h?c.fn(h):'no hand';}catch(_){}}}
       for(const h of output.hands)if(!h.rpinched)rWas.delete(h.id);
       for(const h of output.hands){const on=h.pinched||h.rpinched||h.triple;if(on&&!detected.has(h.id)){detected.add(h.id);counts.detectedPinches++;}if(!on)detected.delete(h.id);}
       for(const h of output.lost)detected.delete(h.id);
@@ -300,7 +301,7 @@ SOFTWARE.
             const at=posOf(p,hand);p.travel=Math.max(p.travel,G.distance(p.down,at));
             if(!p.moved&&p.travel<Math.max(24,innerWidth*.02)){p.last=p.down;}else{p.moved=true;p.last=at;}                 // a dead band: tremor and a still hand move nothing
             emit(p,'pointermove',hand.id,p.last.x,p.last.y,true);
-            if(p.size&&hand.hsize){p.sm=p.sm*.85+hand.hsize*.15;const r=Math.log(p.sm/p.size);if(Math.abs(r)>.08){p.size=p.sm;host.dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,ctrlKey:true,deltaY:-r*500,deltaMode:0,clientX:p.last.x,clientY:p.last.y}));}}      // toward the camera = bigger hand = zoom in; only a real change of 8 % or more counts
+            if(p.size&&hand.depth){p.sm=p.sm*.8+hand.depth*.2;const r=Math.log(p.sm/p.size);if(Math.abs(r)>.04){p.size=p.sm;host.dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,ctrlKey:true,deltaY:-r*900,deltaMode:0,clientX:p.last.x,clientY:p.last.y}));}}      // toward the camera = bigger hand = zoom in; only a real change of 8 % or more counts
             continue;
           }
           const done=p.mode==='left'?!hand.pinched:!hand.rpinched;
@@ -308,7 +309,7 @@ SOFTWARE.
           const at=posOf(p,hand);p.travel=Math.max(p.travel,G.distance(p.down,at));
           if(p.mode==='left'&&p.scroller&&p.travel>=dead()){const k=p.k||1;p.scroller.scrollTop-=(at.y-p.sy)/k;p.scroller.scrollLeft-=(at.x-p.sx)/k;p.sy=at.y;p.sx=at.x;p.scrolled=true;p.last=at;continue;}      // touch-style scrolling
           p.last=p.travel<(p.mode==='left'?dead():slop())?p.down:at;emit(p,'pointermove',hand.id,p.last.x,p.last.y,true);
-        }else if(profile.palm&&hand.flat&&!hand.pinched&&!hand.rpinched&&!hand.triple&&hand.sincePinch>500){beginPan(hand.id,hand);}
+        }else if(profile.palm&&hand.flat&&!hand.pinched&&!hand.rpinched&&!hand.triple&&hand.sincePinch>1200){beginPan(hand.id,hand);}
         else if(hand.pinched)begin(hand.id,hand,'left');
         else if(hand.rpinched){if(act().mpinch==='right')begin(hand.id,hand,'right');else if(!rWas.has(hand.id)){rWas.add(hand.id);const a=act().mpinch;if(a!=='none'){doAction(a);mark('mpinch-action',{action:a});}lastAction=performance.now();}}
         else if(profile.orbit&&hand.gesture==='fist'&&hand.sincePinch>700){const v=boardView();if(v&&v.mode()==='3d')begin(hand.id,hand,'orbit');else say('FIST TILTS THE BOARD IN VIEW 3D: choose VIEW, then 3D');}
@@ -375,7 +376,19 @@ SOFTWARE.
         {cells:['Fist in VIEW 3D','Tilt and turn the board.','']},
         {cells:['Flat palm','Pan and push/pull zoom (turn it on above).','']},
         {cells:['Escape','Stop hand control and release the camera.','']}],'hs-gestures');
-      return [controlsTable,gestures];
+      // CONFIDENCE: what each gesture needs to start and to stop, and how close the hand is to it right now (0 to 100). The live column moves while the camera is on.
+      const T=engine.tuning,pc=x=>Math.round(x*100)+'%',row=(name,rule,fn)=>({name,rule,fn});
+      const defs=[row('Hand seen','model score at least '+pc(T.minScore)+'; present '+T.presentFrames+' frames',h=>pc(h.conf)),
+        row('Point (index)','index out, others curled',h=>h.fingers.index&&!h.fingers.middle?'YES':'no'),
+        row('Thumb + index pinch','starts under '+T.pinchOn+', ends over '+T.pinchOff+' (x hand size)',h=>pc(h.closeness)),
+        row('Thumb + middle pinch','starts under '+T.pinchOnM+', ends over '+T.pinchOffM+'; index away',h=>pc(h.closenessM)),
+        row('Open hand','4 or 5 fingers extended',h=>pc(h.openScore)),
+        row('Flat palm (pan)','fingers together: spread under '+T.flatOn+' held '+T.flatHoldMs+' ms',h=>pc(h.flatScore)),
+        row('Fist (3D tilt)','four fingertips pulled to the palm',h=>pc(h.fistScore)),
+        row('Depth (push / pull zoom)','hand size in the picture; moves of 4 % or more zoom',h=>h.depth.toFixed(0)+' px')];
+      const conf=tableOf('CONFIDENCE (live while the camera is on)',['Gesture','Rule (fractions of hand size)','Right now'],defs.map(d=>({cells:[d.name,d.rule,'-']})),'hs-gestures hs-conf');
+      confLive=defs.map((d,i)=>({cell:conf.rows[i+1].cells[2],fn:d.fn}));
+      return [controlsTable,gestures,conf];
     }
     // ONE hands menu (right-click on the hand; also under HANDS in the log): the controls and the gestures, as tables
     function calibrationPanel(){

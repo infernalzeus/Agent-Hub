@@ -110,6 +110,8 @@ SOFTWARE.
         s.rollU=s.rollRaw===null?rr:s.rollU+wrap(rr-s.rollRaw);s.rollRaw=rr;const roll=s.rollF.filter(s.rollU,now/1000);
         // Turning the forearm (how a fist is naturally rotated) barely moves the knuckle line in the picture but tips the knuckles in depth:
         // the index knuckle comes forward as the little-finger knuckle goes back. 5 Nov trace: this swings 15 degrees where the image roll swings 4.
+        // Depth: the hand's size in the picture from its flat knuckle line and wrist-to-knuckle length (2D only: the camera's z estimate is noisy and made push/pull jitter). Bigger = nearer.
+        if(!s.depthF)s.depthF=new OneEuro(.5,.004);const d2=(a,b)=>Math.hypot((raw[a].x-raw[b].x)*cw,(raw[a].y-raw[b].y)*ch),depth=s.depthF.filter(Math.sqrt(d2(0,9)*Math.max(1,d2(5,17))),now/1000);
         if(!s.twistF)s.twistF=new OneEuro(.8,.01);const twist=s.twistF.filter(Math.atan2(raw[17].z-raw[5].z,Math.max(1e-4,Math.abs(raw[17].x-raw[5].x))),now/1000);
         // a fist is four fingertips pulled in to the palm; a pinch with the other fingers curled is NOT one (the index fingertip stays about a
         // hand-size away from the palm), and neither is anything where the thumb touches a fingertip, so a pinch can never start a tilt
@@ -123,7 +125,7 @@ SOFTWARE.
         const flat=flatShape&&(s.flat||now-s.flatSince>=t.flatHoldMs);s.flat=flat;
         s.pinched=pinched;s.rpinched=rpinched;s.triple=triple;
         s.out={id,...pos,aimX:s.aim.x,aimY:s.aim.y,pinched,rpinched,triple,flat,hsize:rawSize,spread,sincePinch:s.lastPinchAt==null?1e9:now-s.lastPinchAt,gesture:s.held,points,span,fingers,pointerFinger:useMid?'middle':'index',handedness:label,palm,roll,twist,
-               closeness:clamp(1-(gap-t.pinchOn)/(t.pinchOff-t.pinchOn),0,1),closenessM:clamp(1-(gapM-t.pinchOnM)/(t.pinchOffM-t.pinchOnM),0,1),gap,gapM};
+               depth,conf:typeof conf==='number'?conf:1,openScore:up/5,flatScore:clamp(1-(spread-t.flatOn)/(t.flatOff-t.flatOn),0,1),fistScore:clamp(1-([8,12,16,20].reduce((a,i)=>a+dp(i),0)/4/size-.35)/(.75-.35),0,1),closeness:clamp(1-(gap-t.pinchOn)/(t.pinchOff-t.pinchOn),0,1),closenessM:clamp(1-(gapM-t.pinchOnM)/(t.pinchOffM-t.pinchOnM),0,1),gap,gapM};
         out.push(s.out);
       }
       for(const [id,s]of this.hands)if(!seen.has(id)){if(s.out)lost.push(s.out);this.hands.delete(id);}
