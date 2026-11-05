@@ -297,11 +297,14 @@ SOFTWARE.
             const v=boardView();if(v)v.orbitBy((hand.palm.x-p.prev.x)+(hand.roll-p.roll)*ROLL_PX+((hand.twist||0)-(p.twist==null?hand.twist||0:p.twist))*ROLL_PX*(profile.twistSign===-1?-1:1),hand.palm.y-p.prev.y);p.prev={...hand.palm};p.roll=hand.roll;p.twist=hand.twist;continue;
           }
           if(p.mode==='pan'){
-            if(!hand.flat||hand.pinched||hand.rpinched||hand.triple){release(hand.id,false,hand);continue;}
+            if(hand.pinched||hand.rpinched||hand.triple){release(hand.id,false,hand);continue;}
+            if(!hand.flat){p.lf=p.lf||now;if(now-p.lf>350){release(hand.id,false,hand);continue;}}else p.lf=0;      // a flicker of the flat reading for under 350 ms no longer ends (and restarts) the pan
             const at=posOf(p,hand);p.travel=Math.max(p.travel,G.distance(p.down,at));
             if(!p.moved&&p.travel<Math.max(24,innerWidth*.02)){p.last=p.down;}else{p.moved=true;p.last=at;}                 // a dead band: tremor and a still hand move nothing
             emit(p,'pointermove',hand.id,p.last.x,p.last.y,true);
-            if(p.size&&hand.depth){p.sm=p.sm*.8+hand.depth*.2;const r=Math.log(p.sm/p.size);if(Math.abs(r)>engine.tuning.depthStep){p.size=p.sm;host.dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,ctrlKey:true,deltaY:-r*900,deltaMode:0,clientX:p.last.x,clientY:p.last.y}));}}      // toward the camera = bigger hand = zoom in; only a real change of 8 % or more counts
+            if(profile.depthZoom===true&&p.size&&hand.depth){const nt=performance.now(),dt=Math.max(16,nt-(p.zt||nt)),sp=p.zp?G.distance(p.zp,hand.palm)/dt*1000:0;p.zp={...hand.palm};p.zt=nt;p.sm=p.sm*.8+hand.depth*.2;
+              if(sp>engine.tuning.depthStill)p.size=p.sm;      // the hand is travelling: its size is a new baseline, never a zoom (this was the zoom in / out flapping while panning)
+              else{const r=Math.log(p.sm/p.size);if(Math.abs(r)>engine.tuning.depthStep){p.size=p.sm;host.dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,ctrlKey:true,deltaY:Math.max(-150,Math.min(150,-r*900)),deltaMode:0,clientX:p.last.x,clientY:p.last.y}));}}}
             continue;
           }
           const done=p.mode==='left'?!hand.pinched:!hand.rpinched;
@@ -347,7 +350,7 @@ SOFTWARE.
     }
 
     // ---- setup: nothing to save by hand; a choice or a calibration is kept in this browser at once
-    function saveProfile(){cancelAll();engine.reset();engine.options.fistGrab=!!profile.fist;engine.tuning.pinchOn=G.TUNING.pinchOn;engine.tuning.pinchOff=G.TUNING.pinchOff;
+    function saveProfile(){cancelAll();engine.reset();engine.options.fistGrab=!!profile.fist;engine.options.tripleZoom=profile.triple===true;engine.tuning.pinchOn=G.TUNING.pinchOn;engine.tuning.pinchOff=G.TUNING.pinchOff;
       if(Number.isFinite(profile.pinchOn)&&profile.pinchOn>.05&&profile.pinchOff>profile.pinchOn&&profile.pinchOff<1.2){engine.tuning.pinchOn=profile.pinchOn;engine.tuning.pinchOff=profile.pinchOff;}
       Object.assign(engine.tuning,profile.tuning||{});profile.v=PROFILE_VERSION;try{localStorage.setItem('hub-hands-profile',JSON.stringify(profile));}catch(_){}interlock=true;}
     saveProfile();
@@ -357,53 +360,50 @@ SOFTWARE.
       rows.forEach(r=>{const tr=tb.insertRow();r.cells.forEach(c=>{tr.insertCell().textContent=c;});if(r.fn){tr.className='hs-act';tr.tabIndex=0;tr.setAttribute('role','button');tr.onclick=r.fn;tr.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();r.fn();}};}});return tb;}
     // The two tables of the hands menu. The same ones are in the dialog and under HANDS in the log; `repaint` redraws whichever is showing.
     function handsTables(repaint,p){
-      const onoff=v=>v?'ON':'OFF',flip=v=>v?'TURN OFF':'TURN ON';
-      const controlsTable=tableOf('CONTROLS',['Control','Now','Press the row to'],[
-        {cells:['Camera and hand tracking',onoff(enabled),flip(enabled)],fn:()=>{btn.onclick();setTimeout(repaint,900);}},
-        {cells:['Fist tilts the board in VIEW 3D',onoff(profile.orbit),flip(profile.orbit)],fn:()=>{profile.orbit=!profile.orbit;saveProfile();repaint();}},
-        {cells:['Flat palm pan and zoom',onoff(profile.palm),flip(profile.palm)],fn:()=>{profile.palm=!profile.palm;saveProfile();repaint();}},
-        {cells:['Last minute of tracking','','SAVE'],fn:()=>{if(!enabled){p.textContent='Turn the camera on, use your hands for a minute, then come back here (or press SAVE TRACE in the bar).';return;}saveTrace('free',p);}},
-        {cells:['Hand trace (about 32 seconds)','','RECORD'],fn:()=>{if(!enabled){p.textContent='Turn the camera on explicitly, then return here to record.';return;}p.textContent='Recording about 32 seconds. Follow the prompts at the top left; this panel closes so you can see them.';setup.hidden=true;startTrace(p);}},
-        {cells:['Everything above','','RESET TO DEFAULTS'],fn:()=>{profile={v:PROFILE_VERSION,fist:false,orbit:true,palm:false};saveProfile();repaint();}}],'hs-controls');
-      const choose=(key)=>()=>{const i=ACTIONS.findIndex(x=>x[0]===act()[key]);profile.act={...act(),[key]:ACTIONS[(i+1)%ACTIONS.length][0]};saveProfile();repaint();};
-      const gestures=tableOf('GESTURES (press a row to change what it does)',['Gesture','Does','Press the row to'],[
-        {cells:['Point with the index finger, hold still',actName(act().point),'CHANGE'],fn:choose('point')},
-        {cells:['Point with the middle finger, hold still',actName(act().middle),'CHANGE'],fn:choose('middle')},
-        {cells:['Thumb + middle pinch',actName(act().mpinch),'CHANGE'],fn:choose('mpinch')},
-        {cells:['Open hand, hold 1 second',actName(act().open),'CHANGE'],fn:choose('open')},
-        {cells:['Thumb + index pinch','Quick pinch: tap. Hold and move: drag a block or scroll a panel.','']},
-        {cells:['Thumb + index + middle','Hold together and move your hand up or down to zoom.','']},
-        {cells:['Fist in VIEW 3D','Tilt and turn the board.','']},
-        {cells:['Flat palm','Pan and push/pull zoom (turn it on above).','']},
-        {cells:['Escape','Stop hand control and release the camera.','']}],'hs-gestures');
-      // CONFIDENCE AND THRESHOLDS: every number that decides a gesture, editable. A change applies to the next frame and is kept in this browser.
-      // `live` is how close the hand is to that gesture right now (0 to 100 %), moving while the camera is on.
-      const D=G.TUNING,T=engine.tuning,pc=x=>Math.round(x*100)+'%';
-      const defs=[
-        {n:'Hand seen',d:'Lowest model score a hand needs, and frames it must be present before it counts.',live:h=>h.conf,k:[['minScore','min score',.05,0,1],['presentFrames','frames',1,1,10]]},
-        {n:'Thumb + index pinch',d:'Starts under ON, ends over OFF (fractions of your hand size). Smaller ON = firmer pinch needed.',live:h=>h.closeness,k:[['pinchOn','ON',.01,.05,.6],['pinchOff','OFF',.01,.1,.9],['confirmMs','hold ms',10,0,400]]},
-        {n:'Thumb + middle pinch',d:'Right click. Same idea with the middle finger; the index finger must stay away.',live:h=>h.closenessM,k:[['pinchOnM','ON',.01,.05,.6],['pinchOffM','OFF',.01,.1,.9],['rightIndexAway','index away',.01,.1,.9]]},
-        {n:'Open hand',d:'How many fingers must be out is fixed at 4. Hold time before it counts as an open hand.',live:h=>h.openScore,k:[['poseHoldMs','hold ms',20,0,800]]},
-        {n:'Flat palm (pan)',d:'Fingers together: finger spread under ON, released over OFF. Hold time before a pan can start.',live:h=>h.flatScore,k:[['flatOn','ON',.05,.8,2.5],['flatOff','OFF',.05,.9,3],['flatHoldMs','hold ms',50,0,1500]]},
-        {n:'Fist (3D tilt)',d:'Fingertips closer to the palm than this fraction of hand size. Bigger = easier to make a fist.',live:h=>h.fistScore,k:[['fistDist','distance',.01,.3,1.2]]},
-        {n:'Depth (push / pull zoom)',d:'Zoom when the hand size changes by this much. Smaller = more sensitive.',live:h=>h.depth/100,liveText:h=>h.depth.toFixed(0)+' px',k:[['depthStep','change',.01,.01,.3]]}];
-      const conf=document.createElement('table');conf.className='hs-table hs-conf';conf.createCaption().textContent='THRESHOLDS AND LIVE CONFIDENCE (change a number: it applies at once)';
-      const hr=conf.insertRow();['Gesture','Right now','Thresholds'].forEach(x=>{const th=document.createElement('th');th.textContent=x;hr.appendChild(th);});
+      // ONE table: a row per gesture with its ON / OFF, what it does, a live meter with the thresholds marked on it, and the editable numbers.
+      const D=G.TUNING,T=engine.tuning,save=()=>{try{localStorage.setItem('hub-hands-profile',JSON.stringify(profile));}catch(_){}};
+      const tog=(key,on)=>()=>{profile[key]=!on();saveProfile();repaint();};
+      const rows=[
+        {n:'Hand seen',d:'A hand counts only above this model score, after this many frames.',m:{v:h=>h.conf,max:1,tk:[['minScore','min']],f:h=>Math.round(h.conf*100)+'%'},k:[['minScore','min score',.05,0,1],['presentFrames','frames',1,1,10]]},
+        {n:'Point with index finger',d:'Aim; hold still over a control.',act:'point'},
+        {n:'Point with middle finger',d:'Aim with the middle finger instead.',act:'middle'},
+        {n:'Thumb + index pinch',d:'Click / drag / scroll. Bar SHORTER than ON = pinching; stays until it passes OFF.',m:{v:h=>h.gap,max:.8,tk:[['pinchOn','ON'],['pinchOff','OFF']],f:h=>h.gap.toFixed(2)},k:[['pinchOn','ON',.01,.05,.6],['pinchOff','OFF',.01,.1,.9],['confirmMs','hold ms',10,0,400]]},
+        {n:'Thumb + middle pinch',d:'Right click (index finger away). Same bar idea.',act:'mpinch',m:{v:h=>h.gapM,max:.8,tk:[['pinchOnM','ON'],['pinchOffM','OFF']],f:h=>h.gapM.toFixed(2)},k:[['pinchOnM','ON',.01,.05,.6],['pinchOffM','OFF',.01,.1,.9],['rightIndexAway','index away',.01,.1,.9]]},
+        {n:'Thumb + index + middle',d:'One-hand zoom: hold the three together, move up / down.',on:()=>profile.triple===true,flip:tog('triple',()=>profile.triple===true),m:{v:h=>Math.max(h.gap,h.gapM),max:.8,tk:[['tripleOn','ON'],['tripleOff','OFF']],f:h=>Math.max(h.gap,h.gapM).toFixed(2)},k:[['tripleOn','ON',.01,.05,.6],['tripleOff','OFF',.01,.1,.9],['tripleHoldMs','hold ms',20,0,800]]},
+        {n:'Open hand',d:'Hold open: runs the action.',act:'open',m:{v:h=>h.openScore,max:1,tk:[],f:h=>Math.round(h.openScore*5)+' of 5 fingers'},k:[['poseHoldMs','hold ms',20,0,800]]},
+        {n:'Flat palm: pan the board',d:'Fingers together, hand moves, board follows. Spread bar under ON = flat.',on:()=>profile.palm===true,flip:tog('palm',()=>profile.palm===true),m:{v:h=>h.spread,max:3,tk:[['flatOn','ON'],['flatOff','OFF']],f:h=>h.spread.toFixed(2)},k:[['flatOn','ON',.05,.8,2.5],['flatOff','OFF',.05,.9,3],['flatHoldMs','hold ms',50,0,1500]]},
+        {n:'Push / pull: zoom (needs flat palm)',d:'Only while the hand is nearly still. A moving hand never zooms.',on:()=>profile.depthZoom===true,flip:tog('depthZoom',()=>profile.depthZoom===true),m:{v:h=>h.depth,max:120,tk:[],f:h=>h.depth.toFixed(0)+' px'},k:[['depthStep','change',.01,.01,.3],['depthStill','still under px/s',25,25,1000]]},
+        {n:'Fist: tilt the board (VIEW 3D)',d:'Fingertips close to the palm. Bar under the mark = fist.',on:()=>profile.orbit!==false,flip:tog('orbit',()=>profile.orbit!==false),m:{v:h=>h.fistRatio,max:1.2,tk:[['fistDist','max']],f:h=>h.fistRatio.toFixed(2)},k:[['fistDist','distance',.01,.3,1.2]]}];
+      const tb=document.createElement('table');tb.className='hs-table hs-conf';tb.createCaption().textContent='HANDS · one table: ON / OFF, what it does, live meter, thresholds (a number applies at once; DEFAULT resets the row)';
+      const hr=tb.insertRow();['Gesture','On','Does','Live meter','Thresholds'].forEach(x=>{const th=document.createElement('th');th.textContent=x;hr.appendChild(th);});
       confLive=[];
-      for(const d of defs){
-        const tr=conf.insertRow(),c0=tr.insertCell(),c1=tr.insertCell(),c2=tr.insertCell();
-        const b=document.createElement('b');b.textContent=d.n;const sm=document.createElement('div');sm.className='hs-why';sm.textContent=d.d;c0.append(b,sm);
-        const bar=document.createElement('div');bar.className='hs-bar';const fill=document.createElement('i');bar.appendChild(fill);const num=document.createElement('span');num.textContent='no hand';c1.append(num,bar);
-        confLive.push({cell:num,fill,fn:h=>d.liveText?d.liveText(h):pc(d.live(h)),v:h=>Math.max(0,Math.min(1,d.live(h)))});
-        for(const [key,label,step,lo,hi] of d.k){
+      for(const r of rows){
+        const tr=tb.insertRow(),c=[0,1,2,3,4].map(()=>tr.insertCell());
+        const b=document.createElement('b');b.textContent=r.n;c[0].append(b);
+        if(r.flip){const bt=document.createElement('button');bt.type='button';bt.className='hb-btn hs-tog'+(r.on()?' on':'');bt.textContent=r.on()?'ON':'OFF';bt.onclick=r.flip;c[1].append(bt);}else c[1].textContent='always';
+        if(r.act){const bt=document.createElement('button');bt.type='button';bt.className='hb-btn hs-tog on';bt.textContent=actName(act()[r.act]);bt.title='Press to change what it does';bt.onclick=()=>{const i=ACTIONS.findIndex(x=>x[0]===act()[r.act]);profile.act={...act(),[r.act]:ACTIONS[(i+1)%ACTIONS.length][0]};saveProfile();repaint();};c[2].append(bt,' ',document.createTextNode(r.d));}
+        else c[2].textContent=r.d;
+        if(r.m){
+          const m=document.createElement('div'),fill=document.createElement('i'),num=document.createElement('span');m.className='hs-meter';m.append(fill);
+          const ticks=r.m.tk.map(([key,lab])=>{const t=document.createElement('u');t.dataset.l=lab;m.append(t);return {t,key};});
+          const place=()=>ticks.forEach(({t,key})=>{t.style.left=Math.min(100,T[key]/r.m.max*100)+'%';});place();num.textContent='no hand';c[3].append(num,m);
+          r.place=place;confLive.push({cell:num,fill,fn:r.m.f,v:h=>Math.max(0,Math.min(1,r.m.v(h)/r.m.max))});
+        }
+        for(const [key,label,step,lo,hi] of r.k||[]){
           const w=document.createElement('label');w.className='hs-field';w.append(label+' ');
           const inp=document.createElement('input');inp.type='number';inp.step=step;inp.min=lo;inp.max=hi;inp.value=+(+T[key]).toFixed(3);
-          inp.onchange=()=>{let v=parseFloat(inp.value);if(!Number.isFinite(v))v=D[key];v=Math.max(lo,Math.min(hi,v));inp.value=v;T[key]=v;profile.tuning={...(profile.tuning||{}),[key]:v};try{localStorage.setItem('hub-hands-profile',JSON.stringify(profile));}catch(_){}p.textContent=d.n+': '+label+' = '+v+' (saved)';};
-          inp.onkeydown=e=>e.stopPropagation();w.append(inp);c2.append(w);
+          inp.onchange=()=>{let v=parseFloat(inp.value);if(!Number.isFinite(v))v=D[key];v=Math.max(lo,Math.min(hi,v));inp.value=v;T[key]=v;profile.tuning={...(profile.tuning||{}),[key]:v};save();if(r.place)r.place();p.textContent=r.n+': '+label+' = '+v+' (saved)';};
+          inp.onkeydown=e=>e.stopPropagation();w.append(inp);c[4].append(w);
         }
-        const rs=document.createElement('button');rs.type='button';rs.className='hb-btn hs-reset';rs.textContent='DEFAULT';rs.onclick=()=>{for(const [key] of d.k){T[key]=D[key];if(profile.tuning)delete profile.tuning[key];}try{localStorage.setItem('hub-hands-profile',JSON.stringify(profile));}catch(_){}repaint();};c2.append(rs);
+        if(r.k){const rs=document.createElement('button');rs.type='button';rs.className='hb-btn hs-reset';rs.textContent='DEFAULT';rs.onclick=()=>{for(const [key] of r.k){T[key]=D[key];if(profile.tuning)delete profile.tuning[key];}save();repaint();};c[4].append(rs);}
       }
-      return [controlsTable,gestures,conf];
+      const tools=document.createElement('div');tools.className='hs-tools';
+      const tb2=(t,fn)=>{const x=document.createElement('button');x.type='button';x.className='hb-btn';x.textContent=t;x.onclick=fn;tools.append(x);};
+      tb2(enabled?'CAMERA: ON (turn off)':'CAMERA: OFF (turn on)',()=>{btn.onclick();setTimeout(repaint,900);});
+      tb2('SAVE LAST MINUTE',()=>{if(!enabled){p.textContent='Turn the camera on, use your hands for a minute, then come back here.';return;}saveTrace('free',p);});
+      tb2('RECORD A TRACE (32 s)',()=>{if(!enabled){p.textContent='Turn the camera on first.';return;}p.textContent='Recording about 32 seconds. Follow the prompts at the top left.';setup.hidden=true;startTrace(p);});
+      tb2('RESET EVERYTHING',()=>{profile={v:PROFILE_VERSION,fist:false,orbit:true,palm:false};saveProfile();for(const k of Object.keys(D))engine.tuning[k]=D[k];repaint();});
+      return [tools,tb];
     }
     // ONE hands menu (right-click on the hand; also under HANDS in the log): the controls and the gestures, as tables
     function calibrationPanel(){
