@@ -765,7 +765,6 @@
     Array.from(bar.children).forEach(function(b){if(b.textContent==='HAND SETUP')controls.handSetup=b;if(b.textContent==='SAVE TRACE')controls.saveTrace=b;});
     var legend=el('button','hb-btn','HAND CONTROLS');legend.type='button';controls.legend=legend;
     legend.onclick=function(){var d=document.querySelector('.hands-setup');if(d&&!d.hidden&&d.querySelector('.hs-table')){var x=d.querySelector('.hs-x');if(x)x.click();}else openHandControls();};
-    var handMenuButton=el('button','hb-btn','HAND CONTROLS');handMenuButton.type='button';handMenuButton.onclick=function(){openHandControls(false);};
     var logPending=[];function toLog(node){if(node===controls.handSetup||node===controls.saveTrace){node.remove();return;}var t=document.querySelector('.hands-log .hl-tools');if(t){if(node.parentNode!==t)t.appendChild(node);}else if(logPending.indexOf(node)<0)logPending.push(node);}function onLogReady(){var all=logPending.slice();[controls.legend].forEach(function(n){if(n&&all.indexOf(n)<0)all.push(n);});all.forEach(toLog);logPending=[];}window.addEventListener('hub-log-ready',onLogReady);
     function placeControl(key,node){if(!node)return;var home=CONTROL_HOME[key];if(home==='hands')toLog(node);else if(home==='health'){if(node.parentNode!==blocks.hlt._in)blocks.hlt._in.appendChild(node);}else if(home==='ingest')ingestDock.appendChild(node);else if(home==='view')viewBar.appendChild(node);else bar.appendChild(node);}
     Object.keys(controls).forEach(function(k){placeControl(k,controls[k]);});if(view)viewBar.append(view.btn);viewBar.append(fitBtn,tidyBtn,blocksBtn);if(view)viewBar.append(view.gizmoBtn);viewBar.append(zoomRow);zoomRow.dataset.only3d='1';zh.dataset.only3d='1';hint.hidden=true;menu.appendChild(hint);more.hidden=true;
@@ -871,7 +870,7 @@
     function logContextClick(e){if(e.target.closest('.hl-filters button'))paintLogContext();}
     document.addEventListener('click',logContextClick);
     if(hands){hands.button.onclick=handsToggle;hands.button.addEventListener('contextmenu',openHandsLog);hands.button.title='Left-click: start/stop hand tracking. Right-click: controls and gesture guide.';}
-    var contextWatch=new MutationObserver(paintLogContext);if(hands)contextWatch.observe(hands.button,{attributes:true,attributeFilter:['class','title','aria-busy']});paintLogContext();toLog(handMenuButton);
+    var contextWatch=new MutationObserver(paintLogContext);if(hands)contextWatch.observe(hands.button,{attributes:true,attributeFilter:['class','title','aria-busy']});paintLogContext();
     // A separate 500-message, per-tab archive lives inside Talk; it never changes model context.
     var chatKey='agenthub:chat:history:v1',chatArchive={rows:[],after:0},chatWatch=null,originalLog=window.__hubLogAdd,archiveLog=null;
     try{var ca=JSON.parse(sessionStorage.getItem(chatKey)||'null');if(ca&&Array.isArray(ca.rows))chatArchive=ca;}catch(e){}
