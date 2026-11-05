@@ -425,12 +425,31 @@ def _page_open(nodes: "list[dict]", goal: str, app: str) -> bool:
                and all(w in (n.get("name") or "").casefold() for w in want) for n in nodes)
 
 
+MODEL_FILE = STATE / "desktop_agent_model.json"
+
+
+def chosen_model() -> str:
+    """The model you picked for the desktop agent on the Agency page, or '' to follow the Hub's own order."""
+    try:
+        return str(json.loads(MODEL_FILE.read_text(encoding="utf-8")).get("model") or "")[:80]
+    except (OSError, ValueError, AttributeError):
+        return ""
+
+
+def set_chosen_model(name: str) -> None:
+    MODEL_FILE.parent.mkdir(parents=True, exist_ok=True)
+    MODEL_FILE.write_text(json.dumps({"model": (name or "")[:80]}), encoding="utf-8")
+
+
 def ladder() -> "list[str]":
     """Models to try, quickest first: the ones on this PC that load fast, then the cloud one."""
     from .. import agent_knowledge
     chain = [m.split("/", 1)[1] for m in agent_knowledge.model_chain(None, None) if m.startswith("ollama/")]
     chain = [m for m in chain if not re.search(r"embed|^tev|nomic", m)]          # classifiers and embedders cannot chat
     chain.sort(key=lambda m: (":cloud" in m, "32k" not in m and "e4b" not in m and "e2b" not in m))
+    mine = chosen_model()
+    if mine:
+        chain = [mine] + [m for m in chain if m != mine]        # your pick goes first; the rest stay as the fall-back order
     return chain
 
 

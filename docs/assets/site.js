@@ -4,7 +4,7 @@
  let active=document.getElementById('landing'),busy=false,mark=null,stopToggle=null,shell=true,permission='unknown',pose=null,hasOrientation=false,pendingRoute=null;
  try{permission=sessionStorage.getItem('site:orientation')||'unknown';}catch(error){}
  const route=()=>document.getElementById(location.hash.slice(1))?.matches('.scene')?location.hash.slice(1):'landing';
- const MAX_TILT=10, REST_X=-3, REST_Y=3.5, MOUSE_DEVICE=matchMedia('(hover:hover) and (pointer:fine)').matches, MOUSE_TILT=6, LANDING_MOUSE_TILT=4.5, PHONE_TILT=10, PERSPECTIVE=1600;
+ const MAX_TILT=4, REST_X=0, REST_Y=0, MOUSE_DEVICE=matchMedia('(hover:hover) and (pointer:fine)').matches, MOUSE_TILT=1.5, LANDING_MOUSE_TILT=2, PHONE_TILT=4, PERSPECTIVE=1600;
  const STEP=4200;
 
  /* ---------- auto-playing step lists: they advance by themselves; a tap or hover pins one ---------- */
@@ -34,10 +34,8 @@
  /* the Agents / Skills tabs */
  document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{const ag=t.closest('.agency');ag.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));ag.querySelectorAll('.tabpanel').forEach(p=>p.hidden=p.dataset.panel!==t.dataset.tab);stopAutos();startAutos(active);}));
 
- document.querySelectorAll('[data-limit]').forEach(b=>b.addEventListener('click',()=>b.setAttribute('aria-expanded',String(b.getAttribute('aria-expanded')!=='true'))));
  document.querySelectorAll('[data-agent-jump]').forEach(b=>b.addEventListener('click',()=>{const a=autos.find(a=>a.scene.id==='agents'&&a.el.classList.contains('agents-auto'));if(a){const i=a.btns.findIndex(x=>(x.dataset.img||'').endsWith('/'+b.dataset.agentJump+'.png'));if(i>=0)pin(a,i,10000);}}));
  /* small glass blocks open to show more */
- document.querySelectorAll('[data-more]').forEach(b=>b.addEventListener('click',()=>b.setAttribute('aria-expanded',b.getAttribute('aria-expanded')==='true'?'false':'true')));
 
  /* the animated machine on the TALK scene is drawn at one size and scaled to the room it has */
  function fit(){const w=active.querySelector('.fit');if(w&&w.offsetParent){const f=w.firstElementChild,s=Math.min(w.clientWidth/1060,w.clientHeight/f.offsetHeight,1.2);f.style.setProperty('--s',s.toFixed(3));}autos.filter(a=>a.live).forEach(drawVisual);drawArchitecture();fitTilt();}
@@ -95,112 +93,85 @@ function detailSymbol(a){
  svg.innerHTML=a.scene.id==='media'?'<path d="M7 18h19l6 7h25v28H7zM7 18v-7h19l6 7h25v7M26 32l14 8-14 8z"/>':'<rect x="5" y="7" width="42" height="32"/><path d="M18 39v9M11 48h25"/><rect x="43" y="29" width="16" height="28"/><path d="M48 51h6"/>';
  host.append(svg);
 }
-/* One scenario model drives the illustration, footer and insight cards on every viewport. */
-const DEMO_OUTCOMES={
- missions:['A request enters the mission inbox.','The router chooses a code mission.','Briefs are assigned to the team.','A private worktree changes; main stays still.','The mission waits for your answer.','The changed lines are ready to read.','The private branch waits for your decision.'],
- pc:['Smith hands the goal to desktop control.','The Play control is located by name.','The proposed press waits at the approval gate.','The approved press reaches the app.','The agent checks the changed window.','A successful run becomes a candidate routine.'],
- media:['The example link becomes a PC download.','The source file passes through ffmpeg.','The result appears in the chosen folder.','A phone transfer appears in the PC inbox.'],
- graph:['Demo projects appear with related-project links.','The selected project opens its working branches.','The selected branch opens its changed-file diff.','Merge and leave remain your choices.'],
- install:['The installer opens its first-run choices.','Selected tools enter the setup queue.','PC and phone join the same private network.','The saved bookmark opens the Hub.'],
- hands:['HANDS starts only after you choose it.','The index-finger cursor follows the hand.','A pinch presses; movement drags the block.','Two pinches change the board zoom.','A fist turns the board in its 3D view.','An open hand fits the board; Escape stops the camera.'],
- talk:['Smith returns a routine answer.','Smith sends the code request to a mission.','Smith hands the app task to desktop control.','Smith sends the link to media tools.','Smith opens project status and the diff.','A scheduled mission stops at review.']
-};
-function demoModel(a){
- const b=a.btns[a.i],sid=a.scene.id,skill=sid==='agents'&&!a.el.classList.contains('agents-auto');
- let key=sid,outcome=(DEMO_OUTCOMES[sid]||[])[a.i]||b.dataset.d,guard=a.scene.querySelector('[data-limit]')?.querySelector('span:not(.limit-title):not(.limit-more)')?.textContent||'Review the result before applying it.';
- if(sid==='agents'){key=skill?'skills':(b.dataset.img||'').split('/').pop().replace('.png','');outcome={smith:'Smith routes the request to the right tool.',neo:'A persona draft is ready for you to read and save.',doctor:'A checked repair diff waits for your APPLY.',orchestrator:'The plan hands one brief to a named worker.',coder:'The change stays in the private working copy.',reviewer:'A verdict returns to the mission review.',tester:'Test results return to the review.',skills:'Instructions become available to the agents.'}[key]||b.dataset.d;}
- if(sid==='graph'&&a.i===3&&a.demoChoice)outcome=a.demoChoice==='merge'?'DEMO: the branch merged after your choice.':'DEMO: the branch stays separate; main is unchanged.';
- if(sid==='missions'&&a.i===6&&a.demoChoice)outcome=a.demoChoice==='apply'?'DEMO: the approved change reached main.':'DEMO: the private copy was discarded.';
- const ask=b.dataset.you||'Choose a step to follow the demonstration.';
- return {sid,key,title:b.dataset.t,actor:b.dataset.k,ask,outcome,guard,image:b.dataset.img||(['talk','missions','pc'].includes(sid)?'assets/agents/smith.png':null),step:a.i};
-}
-function updateInsights(a,model,phase){
- const sc=a.scene,foot=sc.querySelector('.story-foot');if(foot){const p=foot.querySelector('.try-panel>p');if(p)p.textContent=model.ask;const e=foot.querySelector('.expect');if(e)e.textContent=(phase===2?'RESULT · ':'FOLLOW · ')+model.outcome;foot.dataset.step=model.key+'-'+model.step;}
- const small=sc.querySelectorAll('.small-block');if(small[0]){small[0].dataset.detail=model.actor+' — '+model.title+'. '+model.outcome;small[0].querySelector('.label').textContent='THIS STEP';const line=small[0].querySelector('.line');if(line){line.textContent=model.actor;line.classList.add('context-line');}}
- if(small[1]){small[1].dataset.detail=(model.sid==='hands'?'Camera gestures control the Hub board in your browser. They do not control the operating system.':model.sid==='pc'?'This step uses Windows MCP on the host PC. Approval is required before the press.':'The Hub runs this step on your PC. Your other devices reach its browser interface through your private network.')+' '+model.outcome;const label=small[1].querySelector('.label');label.textContent='WHERE IT RUNS';}
- if(a.scene.id==='talk'){a.scene.querySelectorAll('.say-table tbody tr').forEach((r,i)=>r.classList.toggle('example-active',i===a.i));}
-}
+/* Dashboard-shaped previews. Camera, downloads and PC actions are never invoked here. */
+const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function stopDemo(a){(a.demoTimers||[]).forEach(clearTimeout);a.demoTimers=[];}
-function animateDemo(a,host,model){
- stopDemo(a);host.dataset.phase=reduced.matches?'2':'0';updateInsights(a,model,reduced.matches?2:0);
- if(!a.live||reduced.matches||document.hidden)return;
- [1,2].forEach((phase,i)=>a.demoTimers.push(setTimeout(()=>{if(a.live){host.dataset.phase=String(phase);updateInsights(a,model,phase);}},850+i*850)));
-}
-function syncTalk(a){
- if(a.scene.id!=='talk')return;const machine=a.scene.querySelector('.machine');if(!machine)return;
- const animations=machine.getAnimations({subtree:true});animations.forEach(x=>{x.currentTime=a.i*9000+100;x.playbackRate=2;if(reduced.matches)x.pause();else x.play();});
- if(!reduced.matches)a.demoTimers.push(setTimeout(()=>animations.forEach(x=>x.pause()),3950));
-}
+function demoModel(a){const b=a.btns[a.i];return {sid:a.scene.id,title:b.dataset.t,actor:b.dataset.k,ask:b.dataset.you,description:b.dataset.d,image:b.dataset.img,key:(b.dataset.img||'').split('/').pop()?.replace('.png',''),step:a.i};}
+function updateInsights(a,m){const f=a.scene.querySelector('.story-foot');if(f){f.querySelector('.try-panel>p').textContent=m.ask||'';f.querySelector('.expect').textContent=m.description||'';f.dataset.step=m.sid+'-'+m.step;}if(m.sid==='talk')a.scene.querySelectorAll('.say-table tbody tr').forEach((r,i)=>r.classList.toggle('example-active',i===a.i));}
+function syncTalk(a){if(a.scene.id!=='talk')return;const machine=a.scene.querySelector('.machine');if(!machine)return;const animations=machine.getAnimations({subtree:true});animations.forEach(x=>{x.currentTime=a.i*9000+100;x.playbackRate=2;if(reduced.matches)x.pause();else x.play();});if(!reduced.matches)a.demoTimers.push(setTimeout(()=>animations.forEach(x=>x.pause()),3950));}
 function drawVisual(a){
- const host=a.detail.querySelector('[data-visual]'),model=demoModel(a);updateInsights(a,model,0);
- if(!host||!host.offsetParent){stopDemo(a);syncTalk(a);return;}
- const w=host.clientWidth,h=host.clientHeight;if(w<70||h<70)return;
- const compact=w<360||h<180||(innerHeight<540&&innerWidth>innerHeight),W=compact?360:720,H=compact?(h<230?Math.max(160,Math.min(220,(h-44)*360/w)):220):320;
- const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.setAttribute('role','img');svg.setAttribute('aria-label','Illustrative demonstration: '+model.outcome);svg.dataset.scenario=model.key+'-'+model.step;
- const make=(tag,attrs={},text,parent=svg)=>{const e=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));if(text!==undefined)e.textContent=text;parent.append(e);return e;};
- const txt=(x,y,t,size=compact?13:16,color='#d9ffe9',parent=svg)=>make('text',{x,y,fill:color,'font-size':size,'font-family':'Outfit,system-ui,sans-serif'},t,parent);
- const path=(d,cls='',color='#41ebff')=>make('path',{d,fill:'none',stroke:color,'stroke-width':2.2,class:cls});
- const box=(x,y,bw,bh,title,note,stage=0)=>{const g=make('g',{class:'demo-node stage-'+stage});make('rect',{x,y,width:bw,height:bh,fill:'#07162c','fill-opacity':'.5',stroke:'#41ebff','stroke-opacity':'.6'},undefined,g);const fs=compact?11:17,limit=Math.floor((bw-16)/(fs*.52)),words=title.split(' '),lines=[''];words.forEach(word=>{let i=lines.length-1;if((lines[i]+' '+word).trim().length>limit&&lines[i])lines.push(word);else lines[i]=(lines[i]+' '+word).trim();});lines.slice(0,2).forEach((t,i)=>txt(x+8,y+20+i*(fs+2),t,fs,'#00e676',g));if(note&&(!compact||lines.length===1)){const n=note.length>limit?note.slice(0,limit-1)+'…':note;txt(x+8,y+bh-10,n,compact?10:14,'#b4d1c4',g);}return g;};
- const packet=(x,y,dx,dy,delay=0)=>make('circle',{cx:x,cy:y,r:5,fill:'#afffe9',class:'demo-packet',style:`--dx:${dx}px;--dy:${dy}px;animation-delay:${delay}s`});
- const branch=(x1,y1,x2,y2)=>path(`M${x1} ${y1}C${x1+35} ${y1} ${x2-35} ${y2} ${x2} ${y2}`,'demo-line');
- const status=(text)=>{if(compact&&text.length>57){const cut=text.lastIndexOf(' ',57);txt(12,H-24,text.slice(0,cut),11,'#a8cbb9');txt(12,H-10,text.slice(cut+1),11,'#a8cbb9');}else txt(12,H-10,text,compact?11:14,'#a8cbb9');};
- if(model.sid==='graph'){
-  if(model.step===0){
-   const nodes=[['Lantern App',W*.22,H*.36],['Harbor API',W*.75,H*.3],['Field Notes',W*.58,H*.72]];
-   [[0,1],[0,2],[1,2]].forEach(([i,j])=>{path(`M${nodes[i][1]} ${nodes[i][2]}L${nodes[j][1]} ${nodes[j][2]}`,'demo-line demo-related','#b590ff');packet(nodes[i][1],nodes[i][2],nodes[j][1]-nodes[i][1],nodes[j][2]-nodes[i][2],i*.2);});
-   nodes.forEach(([name,x,y],i)=>{make('circle',{cx:x,cy:y,r:compact?17:24,fill:'#0c2643',stroke:i?'#00e676':'#41ebff','stroke-width':2,class:'demo-orbit'});txt(x-name.length*(compact?3:4),y+43,name);});status('Purple links: related projects from project notes');
-  }else{
-   const x1=24,x2=W-24,y=H*.3,by=H*.66;path(`M${x1} ${y}H${x2}`,'demo-line','#00e676');txt(x1,y-17,'Lantern App · main',compact?12:16,'#00e676');[.16,.36,.58,.86].forEach(q=>make('circle',{cx:W*q,cy:y,r:6,fill:'#00e676'}));branch(W*.28,y,W*.45,by);path(`M${W*.45} ${by}H${W*.79}`,'demo-line');txt(W*.42,by+27,'feature / night-mode',compact?11:15);make('circle',{cx:W*.77,cy:by,r:7,fill:'#41ebff',class:'demo-orbit'});
-   if(model.step===1){box(W*.48,H*.03,W*.45,48,'Private worktree','Agent edits stay here',1);packet(W*.28,y,W*.4,by-y);status('Select a branch to inspect its working copy');}
-   if(model.step===2){make('rect',{x:W*.43,y:18,width:W*.54,height:H-48,fill:'#08172e',stroke:'#41ebff'});txt(W*.46,45,'theme.css · demo diff',compact?12:17);txt(W*.46,82,'− color-scheme: light;',compact?11:16,'#ffb0ae');txt(W*.46,117,'+ color-scheme: dark;',compact?11:16,'#00e676');status('Click a project → inspect a branch → read the diff');}
-   if(model.step===3){if(a.demoChoice==='merge'){branch(W*.77,by,W*.9,y);packet(W*.77,by,W*.13,y-by);status('DEMO: selected branch merged after your choice');}else if(a.demoChoice==='leave')status('DEMO: branch kept separate; main is unchanged');else status('The branch stays separate until you choose');}
-  }
- }else if(model.sid==='missions'){
-  const s=model.step;
-  if(s<3){const names=['Request inbox','Route: code mission','Planner briefs'];names.forEach((t,i)=>box(12+i*(W/3),H*.32,W/3-22,65,t,['Your sentence','Named worker','Private worktree'][i],i));path(`M${W*.2} ${H*.65}H${W*.82}`,'demo-line');packet(W*.15,H*.65,W*.68,0);status(['A sentence enters the inbox','A code request becomes a mission','The planner assigns the next brief'][s]);}
-  else{box(14,H*.1,W*.42,H*.68,'main','Your project stays still');box(W*.55,H*.1,W*.42,H*.68,'private worktree',s===3?'Agent writes the change':s===4?'Question: which theme?':s===5?'Diff ready to review':'Waiting for your choice',1);branch(W*.44,H*.42,W*.55,H*.42);if(s===3){txt(W*.58,H*.48,'+ dark theme',compact?13:21,'#00e676');make('rect',{x:W*.58,y:H*.6,width:W*.32,height:8,fill:'#00e676',class:'demo-progress'});}if(s===5){txt(W*.58,H*.5,'− light',16,'#ffb0ae');txt(W*.58,H*.63,'+ dark',16,'#00e676');}if(s===6&&a.demoChoice==='apply'){branch(W*.55,H*.65,W*.3,H*.65);packet(W*.55,H*.65,-W*.25,0);}status(s===6?(a.demoChoice==='apply'?'DEMO: approved change applied':a.demoChoice==='discard'?'DEMO: private copy discarded':'APPLY and DISCARD are your decisions'):s===4?'A blocked mission waits for your answer':'Review happens before main changes');}
- }else if(model.sid==='pc'){
-  const x=W*.12,y=H*.15;box(x,y,W*.76,H*.65,'Demo music player','Windows MCP reads named controls');make('rect',{x:W*.38,y:H*.45,width:W*.24,height:48,fill:'#0e3643',stroke:model.step>=2?'#ffd080':'#41ebff','stroke-width':2,class:model.step>=3?'demo-press':''});txt(W*.43,H*.45+30,model.step>=3?'Playing':'Play',compact?15:20);make('path',{d:`M${W*.24} ${H*.7}l18 -32 9 40-13-6-7 12z`,fill:'#afffe9',class:'demo-cursor'});if(model.step===2)box(W*.52,12,W*.43,60,'ASK FIRST','You approve or refuse',1);if(model.step>=4)txt(W*.19,H*.7,'✓ Window changed',compact?14:20,'#00e676');if(model.step===0){box(12,8,W*.65,62,'You → Smith','Open the player and play liked songs',1);packet(W*.22,72,W*.28,H*.24);}if(model.step===1){make('rect',{x:W*.34,y:H*.4,width:W*.32,height:65,fill:'none',stroke:'#00e676','stroke-width':3,class:'demo-press'});txt(W*.18,H*.88,'Control name: Play',compact?12:17,'#00e676');}if(model.step===5){box(W*.22,H*.25,W*.62,H*.45,'Candidate routine','Checked run → saved for next time',2);make('path',{d:`M${W*.72} ${H*.44}l12 12 22-25`,fill:'none',stroke:'#00e676','stroke-width':4,class:'demo-line'});}status(['Smith hands over the app task','Control found: Play','No press before your approval','The approved press reaches the app','The result is checked, not assumed','A verified run is saved as a candidate'][model.step]);
- }else if(model.sid==='media'){
-  const s=model.step,names=s===0?['Video link','yt-dlp','Source file']:s===1?['Source file','ffmpeg','Audio file']:s===2?['Audio file','Save','Chosen folder']:['Phone','Private transfer','PC inbox'];
-  names.forEach((t,i)=>box(12+i*(W/3),H*.25,W/3-22,70,t,i===1?'Runs on your PC':i===2?'Your file':'Demo source',i));path(`M${W*.15} ${H*.7}H${W*.85}`,'demo-line');packet(W*.16,H*.7,W*.68,0);make('rect',{x:W*.1,y:H*.82,width:W*.8,height:9,fill:'#00e676',class:'demo-progress'});status(['Download progresses to a local source file','Conversion creates the selected format','The file lands in your chosen folder','A received file appears in the inbox'][s]);
- }else if(model.sid==='hands'){
-  const g=make('g',{class:'demo-hand'}),hx=W*.24,hy=H*.53;
-  path(`M${hx-18} ${hy+45}L${hx-33} ${hy-5}Q${hx-40} ${hy-24} ${hx-27} ${hy-23}L${hx-14} ${hy-4}V${hy-62}Q${hx-7} ${hy-73} ${hx} ${hy-62}V${hy-7}V${hy-80}Q${hx+8} ${hy-90} ${hx+14} ${hy-78}V${hy-4}V${hy-65}Q${hx+23} ${hy-77} ${hx+27} ${hy-62}V${hy+2}V${hy-42}Q${hx+37} ${hy-50} ${hx+40} ${hy-36}L${hx+36} ${hy+35}L${hx+23} ${hy+52}`,'demo-hand-line');
-  const card=box(W*.5,H*.19,W*.44,H*.6,'Hub board','Browser controls only',1);if(model.step===2)card.setAttribute('class','demo-node demo-drag');if(model.step===3)card.setAttribute('class','demo-node demo-zoom');if(model.step===4)card.setAttribute('class','demo-node demo-tilt');
-  make('circle',{cx:hx,cy:hy-60,r:13,fill:'none',stroke:'#00e676','stroke-width':2,class:'demo-orbit'});packet(hx+30,hy,W*.28,-H*.1);status(['Camera start is explicit','Point: move the board cursor','Pinch: press; keep pinched to drag','Two pinches: zoom the board','Fist: turn the board in 3D view','Open hand: fit · Escape: camera off'][model.step]);
- }else if(model.sid==='agents'){
-  const key=model.key,roles=key==='neo'?['Your job description','Neo drafts a persona','You read and save']:key==='doctor'?['Hub facts','Repair in private copy','Checks → your APPLY']:key==='skills'?['Skill instructions','Agent skill folders','Used by your agents']:key==='desktop-agent'?['Your app task','Windows desktop agent','Approved press + check']:key==='smith'?['Your request','Smith chooses a route','Tool / agent / answer']:['Mission brief',model.title,'Review the result'];
-  roles.forEach((t,i)=>box(12+i*(W/3),H*.46,W/3-22,64,t, i===2?'Your decision':'A named handoff',i));
-  if(key==='skills'){make('path',{d:`M${W*.5-24} 8h34l14 14v58h-48zM${W*.5+10} 8v16h14M${W*.5-13} 38h26M${W*.5-13} 50h26M${W*.5-13} 62h18`,fill:'none',stroke:'#41ebff','stroke-width':2,class:'demo-avatar'});}else{const image=model.image||'assets/agents/neo.png';make('image',{href:image,x:W*.5-38,y:10,width:76,height:76,preserveAspectRatio:'xMidYMid meet',class:'demo-avatar'});}path(`M${W*.15} ${H*.84}H${W*.85}`,'demo-line');packet(W*.15,H*.84,W*.7,0);status(model.outcome);
- }else if(model.sid==='install'){
-  if(model.step===0){['Windows','macOS','Linux'].forEach((t,i)=>{box(12+i*(W/3),H*.22,W/3-22,H*.48,t,i===1?'Unsigned build':'Choose this installer',i);make('path',{d:`M${24+i*(W/3)} ${H*.55}h${W/3-50}`,stroke:'#00e676','stroke-width':4,class:'demo-line'});});}else if(model.step===1){['Media tools','Git tools','Model tools'].forEach((t,i)=>{box(12,H*.06+i*(H*.28),W-24,H*.23,t,'First-run choice',i);txt(W*.83,H*.06+i*(H*.28)+28,'✓',22,'#00e676');});}else{['Your PC','Private network','Your phone'].forEach((t,i)=>box(12+i*(W/3),H*.28,W/3-22,72,t,['Hub runs here','Tailscale',model.step===3?'Saved Hub bookmark':'Join your devices'][i],i));path(`M${W*.16} ${H*.75}H${W*.85}`,'demo-line');packet(W*.16,H*.75,W*.68,0);if(model.step===3)make('rect',{x:W*.68,y:H*.19,width:W*.3,height:H*.48,fill:'none',stroke:'#00e676','stroke-width':3,class:'demo-press'});}status(model.outcome);
+ stopDemo(a);const m=demoModel(a),host=a.detail.querySelector('[data-visual]');updateInsights(a,m);
+ if(!host?.offsetParent){syncTalk(a);return;}
+ const s=m.step;host.dataset.scenario=m.sid+'-'+(m.key||'step')+'-'+s;host.dataset.phase='ready';
+ const button=(text,action,cls='')=>`<button type="button" class="ui-btn ${cls}" data-preview="${action}">${text}</button>`;
+ const row=(label,value,cls='')=>`<div class="ui-row ${cls}"><span>${label}</span><strong>${value}</strong></div>`;
+ const field=(label,value)=>`<label class="ui-field"><span>${label}</span><input value="${esc(value)}" readonly></label>`;
+ let content='',pageTitle=m.sid==='agents'?(m.key?'AGENCY':'SKILLS'):{hands:'DASHBOARD · HAND CONTROL',pc:'PC CONTROL · WINDOWS',media:'MEDIA VAULT',graph:'GIT GRAPH',missions:'MISSIONS',install:'FIRST-RUN SETUP',talk:'AGENT SMITH'}[m.sid];
+ if(m.sid==='hands'){
+  const names=['start','point','drag','zoom','turn','fit'];content=`<div class="dashboard-capture"><picture><source media="(max-width:650px) and (orientation:portrait)" srcset="assets/previews/hands-phone-${names[s]}.png"><img src="assets/previews/hands-${names[s]}.png" alt="Actual Hub dashboard in GLASS mode: ${esc(m.title)}" draggable="false"></picture><span class="capture-label">${esc(['HANDS · explicit start','POINT · choose a block','PINCH + MOVE · drag the block','TWO PINCHES · zoom the board','FIST · turn the 3D view','OPEN HAND · fit the board'][s])}</span></div>`;
+ }else if(m.sid==='pc'){
+  content=`<div class="pc-preview"><div class="ui-message"><img src="assets/agents/smith.png" alt="Agent Smith"><div><b>Agent Smith → desktop control</b><p>Play my liked songs in Apple Music.</p></div></div>`;
+  if(s===0)content+=field('Goal','Play my liked songs in Apple Music')+button('Show proposed task','next');
+  if(s===1)content+=`<div class="ui-section">NAMED CONTROLS</div>`+row('App','Apple Music')+row('Control','Play · button')+row('Next','Request permission');
+  if(s===2)content+=`<div class="ui-proposal"><b>Approve this press?</b><p>Press Play in Apple Music.</p><div class="ui-actions">${button('Yes, press Play','approve')}${button('No, leave it','refuse')}</div></div>`;
+  if(s===3)content+=`<div class="ui-section">STEP LOG</div>`+row('Permission','Approved')+row('Action','Press Play')+row('Next','Read the window again');
+  if(s===4)content+=`<div class="ui-section">RESULT CHECK</div>`+row('Before','Play')+row('After','Pause control visible')+`<p class="ui-note">The agent checks the changed window before reporting success.</p>`;
+  if(s===5)content+=`<div class="ui-section">ROUTINES</div><div class="ui-library-row"><b>Play liked songs</b><span>Candidate routine · desktop</span>${button('Read steps','routine')}</div>`;
+  content+='</div>';
+ }else if(m.sid==='media'){
+  if(s<2)content=`<div class="media-preview">${field('YouTube URL','Paste a video link in the Hub')}<label class="ui-field"><span>Format</span><div class="ui-segment">${button('VIDEO','video',s===0?'selected':'')}${button('AUDIO','audio',s===1?'selected':'')}</div></label>${s===0?button('Preview download','next'):field('Output','Audio · converted on this PC')+'<div class="ui-progress"><i></i></div><p class="ui-note">yt-dlp downloads the source; ffmpeg makes the selected format.</p>'}</div>`;
+  else content=`<div class="file-preview"><div class="ui-breadcrumb">FILES / ${s===2?'AUDIO':'INBOX'}</div><div class="file-head"><span>NAME</span><span>TYPE</span></div><div class="file-entry"><span>▧ ${s===2?'downloaded-audio.mp3':'received-file'}</span><span>${s===2?'Audio':'From phone'}</span></div><div class="ui-actions">${button(s===2?'Open file':'Receive from phone','file')}${button('Browse folders','browse')}</div><p class="ui-note">${s===2?'The output is a file in the folder you selected.':'Files received from your phone arrive in the PC inbox.'}</p></div>`;
+ }else if(m.sid==='graph'){
+  content=`<div class="graph-preview"><nav class="ui-segment">${button('Project map','map',s===0?'selected':'')}${button('Changes','changes',s>0?'selected':'')}</nav>`;
+  if(s===0)content+=`<div class="project-map"><button type="button" data-preview="changes" class="project-dot"><span></span><b>Agent Hub</b><small>Project on this PC</small></button><div class="graph-key">One project per dot. Open it to inspect its branches and changed files.</div></div>`;
+  else content+=`<div class="git-detail"><div class="git-sidebar"><b>AGENT HUB</b><span class="git-branch">⑂ master</span><button type="button" class="file-selected" data-preview="diff">docs/assets/site.js</button><span>docs/index.html</span></div><div class="git-diff"><header>docs/assets/site.js</header><code class="diff-remove">− REST_X=-3, REST_Y=3.5</code><code class="diff-add">+ REST_X=0, REST_Y=0</code><p>${s===1?'Choose a changed file to read the diff.':s===2?'Changes are reviewed inside the selected project.':'Keep reviewing; applying a mission remains your choice.'}</p>${s===3?button('Return to project map','map'):''}</div></div>`;
+  content+='</div>';
+ }else if(m.sid==='agents'&&m.key){
+  const role={orchestrator:['ORCHESTRATION','Plans and delegates','Goal → briefs → named agents','Writes no code; the result returns for review.'],smith:['HUB HELPER','Voice and chat','Your request → router → tool','Routes app, media, mission and conversation requests.'],neo:['AGENT DESIGN','Design an agent','Describe the job → persona draft → save','Hands back instructions you can read and edit.'],doctor:['HUB REPAIR','Diagnose and propose','Hub facts → private repair → your APPLY','You review the diff and decide when to restart.']}[m.key];
+  content=`<div class="agency-preview"><div class="agency-profile"><img src="${esc(m.image)}" alt="${esc(m.title)}"><div><span class="ui-section">${role[0]}</span><h4>${esc(m.title)}</h4><p>${role[1]}</p></div></div><div class="agency-about">${esc(role[3])}</div>${row('Handoff',role[2])}<p class="ui-note">${role[3]}</p><div class="ui-actions">${button('Read definition','definition')}${button('Handoffs','handoffs')}</div><div class="ui-inline-detail" hidden></div></div>`;
+ }else if(m.sid==='agents'){
+  const skills=s===0?[['debugging-methodology','Hub skill','Find the cause, reproduce it, verify the fix.'],['testing-conventions','Hub skill','Choose meaningful checks for the behavior.'],['python-aiohttp-webapp','Hub skill','Conventions for the Hub’s async web services.']]:s===1?[['frontend-design','Anthropic · Apache-2.0','Build distinctive interfaces.'],['mcp-builder','Anthropic · Apache-2.0','Build Model Context Protocol integrations.'],['webapp-testing','Anthropic · Apache-2.0','Inspect and test browser interfaces.']]:[['Launch videos · brag','latent-spaces · MIT','Create a launch video for a finished project.']];
+  if(s===3)content=`<div class="skills-preview">${field('Describe a reusable skill','Review interface changes for clarity and consistency')}<div class="skill-file"><b>SKILL.md</b><pre>name: interface-review\ndescription: Review interface changes.\n\nCheck layout, wording and keyboard access.\nReport the issue and its location.</pre></div>${button('Preview saved skill','save')}</div>`;
+  else content=`<div class="skills-preview"><div class="ui-section">${s===2?'ADD A SKILL':'SKILL LIBRARY'}</div><div class="ui-segment">${button('Hub skills','hub-skills',s===0?'selected':'')}${button('Open source','open-skills',s===1?'selected':'')}${button('New skill','new-skill')}</div>${skills.map(([name,origin,desc])=>`<button type="button" class="skill-library-row" data-preview="skill"><b>${name}</b><small>${origin}</small><span>${desc}</span></button>`).join('')}<div class="ui-inline-detail" hidden></div></div>`;
+ }else if(m.sid==='missions'){
+  content=`<div class="mission-preview"><div class="ui-section">MISSION · Add a dark-mode toggle</div><div class="mission-tabs"><span class="${s<3?'selected':''}">PLAN</span><span class="${s===3?'selected':''}">WORK</span><span class="${s>=4?'selected':''}">REVIEW</span></div>`;
+  if(s<3)content+=row('Goal','Add a dark-mode toggle to settings')+row('Planner','orchestrator')+row('Briefs','coder → tester → reviewer');
+  if(s===3)content+=row('Working copy','Private git worktree')+'<div class="ui-progress"><i></i></div>'+row('Your project','Unchanged');
+  if(s===4)content+=`<div class="ui-proposal"><b>Question from the mission</b><p>Should the toggle follow the system theme?</p>${button('Use system theme','answer')}</div>`;
+  if(s>=5)content+=`<div class="git-diff"><header>Changed lines · review</header><code class="diff-remove">− color-scheme: light;</code><code class="diff-add">+ color-scheme: light dark;</code></div>${s===6?'<div class="ui-actions">'+button('Preview APPLY','apply')+button('Preview DISCARD','discard')+'</div>':''}`;
+  content+='</div>';
+ }else if(m.sid==='install'){
+  content=`<div class="setup-preview"><div class="ui-section">${['CHOOSE YOUR SYSTEM','FIRST-RUN CHOICES','PRIVATE DEVICE ACCESS','OPEN YOUR HUB'][s]}</div>${s===0?'<div class="setup-os">Windows · macOS · Linux</div>':s===1?['Media tools','PC control · Windows','Speech','File Browser'].map(t=>`<div class="setup-option"><span>${t}</span>${button('Choose','choose')}</div>`).join(''):s===2?row('PC','Hub runs here')+row('Phone / tablet','Same private Tailscale network'):row('Browser','Open your Hub address')+row('Home screen','Save a bookmark')}<p class="ui-note">${s===0?'Choose a download above. macOS builds are unsigned.':'Choose the tools and folders you want during setup.'}</p></div>`;
  }else{
-  const targets=['Saved routine','Mission','Desktop agent','Media tools','Git Graph','Schedule'],target=targets[model.step]||'Router';box(12,H*.4,W*.27,68,'Your request','Speak or type');box(W*.37,H*.4,W*.27,68,'Agent Smith','Routes the request',1);box(W*.72,H*.4,W*.26-10,68,target,'Answer / result',2);make('image',{href:'assets/agents/smith.png',x:W*.5-35,y:10,width:70,height:70,preserveAspectRatio:'xMidYMid meet'});path(`M${W*.15} ${H*.8}H${W*.85}`,'demo-line');packet(W*.15,H*.8,W*.7,0);status(model.outcome);
+  content=`<div class="talk-preview"><div class="ui-message"><img src="assets/agents/smith.png" alt="Agent Smith"><div><b>Agent Smith</b><p>${esc(a.btns[s].dataset.t)}</p></div></div><div class="ui-proposal"><b>${esc(m.actor)}</b><p>${esc(m.description)}</p>${button('Explore this tool','tool')}</div></div>`;
  }
- const toolbar=document.createElement('div');toolbar.className='demo-toolbar';const label=document.createElement('span');label.textContent='ILLUSTRATED DEMO · '+model.title;toolbar.append(label);
- function control(text,action){const b=document.createElement('button');b.type='button';b.textContent=text;b.addEventListener('click',action);toolbar.append(b);}
- control('↻',()=>{a.demoChoice=null;drawVisual(a);});toolbar.lastElementChild.setAttribute('aria-label','Replay this demonstration');
- control('Ⅱ',()=>{stopDemo(a);a.pinned=true;clearTimeout(a.timer);clearTimeout(a.resume);host.querySelectorAll('svg').forEach(s=>s.getAnimations({subtree:true}).forEach(x=>x.pause()));});toolbar.lastElementChild.setAttribute('aria-label','Pause this demonstration');
- host.replaceChildren(toolbar,svg);
- if((model.sid==='graph'&&model.step===3)||(model.sid==='missions'&&model.step===6)){const choices=document.createElement('div');choices.className='demo-choices';const items=model.sid==='graph'?[['Preview merge','merge'],['Leave branch','leave']]:[['Preview APPLY','apply'],['Preview DISCARD','discard']];items.forEach(([text,val])=>{const b=document.createElement('button');b.type='button';b.textContent=text;b.addEventListener('click',()=>{a.demoChoice=val;a.pinned=true;clearTimeout(a.timer);drawVisual(a);});choices.append(b);});host.append(choices);}
- animateDemo(a,host,model);syncTalk(a);
+ host.innerHTML=`<div class="screen-toolbar"><span>${pageTitle}</span><div><button type="button" data-preview="replay" aria-label="Replay this preview">↻</button><button type="button" data-preview="pause" aria-label="Pause this preview">Ⅱ</button><button type="button" data-preview="next" aria-label="Next preview step">›</button></div></div><div class="screen-body">${content}</div>`;
+ host.querySelectorAll('[data-preview]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const action=b.dataset.preview;clearTimeout(a.timer);clearTimeout(a.resume);a.pinned=true;
+  const jump=i=>pin(a,i,12000);
+  if(action==='next')jump(a.i+1);else if(action==='replay'){a.pinned=false;select(a,a.i);play(a);}else if(action==='pause')host.getAnimations({subtree:true}).forEach(x=>x.pause());
+  else if(action==='map')jump(0);else if(action==='changes')jump(1);else if(action==='diff')jump(2);else if(action==='audio')jump(1);else if(action==='video')jump(0);else if(action==='hub-skills')jump(0);else if(action==='open-skills')jump(1);else if(action==='new-skill')jump(3);
+  else if(action==='skill'){
+   const title=b.querySelector('b').textContent,origin=b.querySelector('small').textContent,description=b.querySelector('span').textContent,pane=host.querySelector('.skills-preview');
+   pane.classList.add('skill-reading');pane.innerHTML='<div class="skill-overview"><button type="button" class="ui-btn" data-skill-back>‹ Skill library</button><h4>'+esc(title)+'</h4><p>'+esc(description)+'</p><p class="ui-note">'+esc(origin)+' · SKILL.md</p></div>';pane.querySelector('[data-skill-back]').addEventListener('click',()=>drawVisual(a));
+  }else if(action==='approve')jump(3);else if(action==='browse')jump(s===2?3:2);else if(action==='tool')navigate(['talk','missions','pc','media','graph','missions'][s]);
+  else {const detail=host.querySelector('.ui-inline-detail'),msg={approve:'Preview: permission granted. The next step presses Play.',refuse:'Preview: declined. No press is sent.',apply:'Preview: the reviewed change is applied.',discard:'Preview: the private copy is discarded.',keep:'Preview: the branch remains separate.',answer:'Preview: your answer returns to the mission.',save:'Preview: the skill is available in the library.',file:'Preview: open the selected file in the Hub.',browse:'Preview: the File Browser opens the selected folder.',routine:'Play liked songs → find Play → ask permission → press → verify.',definition:m.description,handoffs:m.ask,skill:'This skill is in the Hub library. Read its instructions and origin before using it.'}[action]||'Preview selected.';if(detail&&m.sid==='agents'&&m.key){host.querySelector('.agency-about').textContent=msg;}else if(detail){detail.hidden=false;detail.textContent=msg;}else{a.scene.querySelector('.expect').textContent=msg;b.setAttribute('aria-pressed','true');b.textContent={refuse:'Declined · no press',apply:'Applied · preview',discard:'Discarded · preview',keep:'Branch kept separate',answer:'System theme selected',save:'Saved · preview',file:'File selected',routine:'Find Play → ask → press → check'}[action]||'Selected';}}
+ }));
+ syncTalk(a);
 }
-
-/* One modal sheet replaces every absolute-positioned insight popup. */
-const insight=document.createElement('dialog');insight.className='insight-dialog';insight.innerHTML='<button type="button" class="insight-close" aria-label="Close details">×</button><p class="label"></p><h2></h2><p class="insight-copy"></p>';
-document.body.append(insight);let insightOpener=null,insightAuto=null;
-function openInsight(button){const sc=button.closest('.scene'),a=autos.find(x=>x.scene===sc&&x.live),model=a?demoModel(a):null;insightOpener=button;insightAuto=a;if(a){a.pinned=true;clearTimeout(a.timer);clearTimeout(a.resume);}insight.querySelector('.label').textContent=sc?.querySelector('.blk-h>.label')?.textContent||'Agent Hub';insight.querySelector('h2').textContent=button.matches('[data-limit]')?'Limits for this tool':button.querySelector('.label')?.textContent||'Step details';insight.querySelector('.insight-copy').textContent=button.dataset.detail||(button.matches('[data-limit]')?(model?.guard||button.querySelector('span:not(.limit-title):not(.limit-more)')?.textContent):(button.querySelector('.more')?.textContent||''));button.setAttribute('aria-expanded','true');insight.showModal();}
-insight.querySelector('button').addEventListener('click',()=>insight.close());insight.addEventListener('close',()=>{insightOpener?.setAttribute('aria-expanded','false');insightOpener?.focus();if(insightAuto?.live){insightAuto.pinned=false;play(insightAuto);}});
-document.addEventListener('click',e=>{const b=e.target.closest('[data-more],[data-limit]');if(b){e.preventDefault();e.stopImmediatePropagation();openInsight(b);}},true);
+document.querySelectorAll('[data-talk-example]').forEach(b=>b.addEventListener('click',()=>{const a=autos.find(x=>x.scene.id==='talk');if(a)pin(a,Number(b.dataset.talkExample),12000);}));
+document.querySelectorAll('.machine .lane').forEach((lane,i)=>{lane.tabIndex=0;lane.setAttribute('role','button');lane.setAttribute('aria-label','Follow '+lane.querySelector('strong').textContent);const choose=()=>{const a=autos.find(x=>x.scene.id==='talk');if(a)pin(a,[0,1,2,3,4][i],12000);};lane.addEventListener('click',choose);lane.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();choose();}});});
+document.querySelector('.wishlist-form')?.addEventListener('submit',e=>{e.preventDefault();e.target.querySelector('button').textContent='PREVIEW ONLY';e.target.querySelector('[role=status]').textContent='Interface preview — email signup is not connected yet.';});
 
 function drawArchitecture(){
- const map=document.querySelector('.scene.active .arch-map');if(!map)return;const svg=map.querySelector('.arch-connectors');const r=map.getBoundingClientRect();
- // Offsets avoid feeding the board's current rotation back into diagram layout.
- const w=map.clientWidth,h=map.clientHeight;svg.setAttribute('viewBox',`0 0 ${w} ${h}`);svg.innerHTML='<defs><marker id="arch-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10" fill="#41ebff"/></marker></defs>';
- const location=e=>{let x=0,y=0,n=e;while(n&&n!==map){x+=n.offsetLeft;y+=n.offsetTop;n=n.offsetParent;}return {x,y,w:e.offsetWidth,h:e.offsetHeight};};
- const connect=(from,to)=>{const a=location(map.querySelector(`[data-node="${from}"]`)),b=location(map.querySelector(`[data-node="${to}"]`));const n=document.createElementNS('http://www.w3.org/2000/svg','path');let d;if(to.startsWith('lane')){const x=a.x+a.w/2,y=a.y+a.h,xx=b.x+b.w/2,yy=b.y;d=`M${x} ${y}L${x} ${y+10}L${xx} ${y+10}L${xx} ${yy}`;}else d=`M${a.x+a.w} ${a.y+a.h/2}L${b.x} ${b.y+b.h/2}`;n.setAttribute('d',d);n.setAttribute('fill','none');n.setAttribute('stroke',from==='smith'?'#00e676':'#41ebff');n.setAttribute('stroke-opacity','.45');n.setAttribute('stroke-width','1.5');n.setAttribute('marker-end','url(#arch-arrow)');svg.append(n);};
- [['devices','network'],['network','smith'],['smith','router']].forEach(([a,b])=>connect(a,b));map.querySelectorAll('[data-from]').forEach(n=>connect(n.dataset.from,n.dataset.node));
+ const host=document.querySelector('.scene.active [data-architecture]');if(!host)return;
+ const model=JSON.parse(host.dataset.architecture),svg=host.querySelector('svg'),W=host.clientWidth,H=host.clientHeight,ns='http://www.w3.org/2000/svg';svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.innerHTML='<defs><marker id="circuit-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L8 4L0 8" fill="#00e676"/></marker></defs>';
+ const pos=n=>{let x=0,y=0,e=n;while(e&&e!==host){x+=e.offsetLeft;y+=e.offsetTop;e=e.offsetParent;}return{x,y,w:n.offsetWidth,h:n.offsetHeight};};
+ model.edges.forEach(([a,b])=>{const aa=host.querySelector(`[data-arch-node="${a}"]`),bb=host.querySelector(`[data-arch-node="${b}"]`),A=pos(aa),B=pos(bb),p=document.createElementNS(ns,'path');let d;
+  if(B.x>A.x+10){const x=A.x+A.w,y=A.y+A.h/2,xx=B.x,yy=B.y+B.h/2,mid=(x+xx)/2;d=`M${x} ${y}H${mid}V${yy}H${xx}`;}
+  else{const x=A.x+A.w/2,y=A.y+A.h,xx=B.x+B.w/2,yy=B.y,mid=(y+yy)/2;d=`M${x} ${y}V${mid}H${xx}V${yy}`;}
+  p.setAttribute('d',d);p.setAttribute('class','circuit-trace'+((a==='smith'&&b!=='router')||['skills','neo','doctor'].includes(a)?' helper-trace':''));p.dataset.from=a;p.dataset.to=b;svg.append(p);
+ });
+ host.querySelectorAll('[data-arch-node]').forEach(n=>{if(n.dataset.wired)return;n.dataset.wired='1';n.addEventListener('click',()=>{const id=n.dataset.archNode;host.querySelectorAll('[data-arch-node]').forEach(x=>{x.classList.toggle('selected',x===n);x.setAttribute('aria-pressed',String(x===n));});svg.querySelectorAll('path[data-from]').forEach(p=>p.classList.toggle('selected',p.dataset.from===id||p.dataset.to===id));host.nextElementSibling.querySelector('b').textContent=n.querySelector('b').textContent;host.nextElementSibling.querySelector('p').textContent=model.nodes[id];});});
 }
 
 
@@ -211,7 +182,7 @@ function drawArchitecture(){
   active=scene;scenes.forEach(s=>{s.classList.remove('leaving');s.classList.toggle('active',s===active);s.setAttribute('aria-hidden',s===active?'false':'true');s.inert=s!==active;});
   stopAutos();startAutos(active);fit();requestAnimationFrame(fit);if(active.id==='landing'){mountMark();sizeGrid();startGrid();}else unmountMark();
   setTimeout(()=>move(0,0),60);
-  const back=document.querySelector('[data-projects]');if(back){const home=scene.id==='landing';back.textContent=home?'← PROJECTS':'← AGENT HUB';back.setAttribute('href',home?'https://infernalzeus.github.io/':'#');back.setAttribute('aria-label',home?'Back to the projects page':'Back to the Agent Hub landing page');}
+  const back=document.querySelector('[data-projects]');if(back){const home=scene.id==='landing';back.innerHTML=home?'← PROJECTS':'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';back.classList.toggle('close-scene',!home);back.setAttribute('href',home?'https://infernalzeus.github.io/':'#');back.setAttribute('aria-label',home?'Back to the projects page':'Close card and return to Agent Hub');}
  }
  async function navigate(id,push=true){
   if(busy)return;const next=document.getElementById(id)||scenes[0];if(next===active)return;
@@ -240,7 +211,6 @@ function drawArchitecture(){
  addEventListener('hashchange',()=>{if(busy){pendingRoute=route();return;}navigate(route(),false);});
  new MutationObserver(()=>{if(!busy&&pendingRoute!==null){const p=pendingRoute;pendingRoute=null;navigate(p,false);}}).observe(document.body,{attributes:true,attributeFilter:['data-turning']});
  document.addEventListener('keydown',e=>{
-  if(insight.open){if(e.key==='Escape'){e.preventDefault();insight.close();}return;}
   if(busy){if(['Escape','ArrowLeft','ArrowRight','Enter',' '].includes(e.key))e.preventDefault();return;}
   const z=zoomOf();if(z&&!z.hidden){if(e.key==='Escape'){e.preventDefault();z.hidden=true;document.querySelector('.enlarge').focus();}if(e.key==='Tab'){const bs=[...z.querySelectorAll('button')],i=bs.indexOf(document.activeElement);e.preventDefault();bs[(i+(e.shiftKey?-1:1)+bs.length)%bs.length].focus();}return;}
   if(active.id==='landing'&&e.key.toLowerCase()==='g'&&!e.ctrlKey&&!e.metaKey&&mark){shell=!mark.isShell();mark.setShell(shell);}
@@ -262,7 +232,7 @@ function drawArchitecture(){
   const r=b.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
   const top=document.querySelector('.site-header').getBoundingClientRect().bottom+10,inset=12;
   let scale=1;const rad=MAX_TILT*Math.PI/180;
-  for(const ax of [-rad,rad])for(const ay of [-rad,rad])for(const px of [-r.width/2,r.width/2])for(const py of [-r.height/2,r.height/2])for(const depth of [-72,0,22]){
+  for(const ax of [-rad,rad])for(const ay of [-rad,rad])for(const px of [-r.width/2,r.width/2])for(const py of [-r.height/2,r.height/2])for(const depth of [0,8,12]){
    const xx=px*Math.cos(ay)+depth*Math.sin(ay),zz=-px*Math.sin(ay)+depth*Math.cos(ay);
    const yy=py*Math.cos(ax)-zz*Math.sin(ax),z=py*Math.sin(ax)+zz*Math.cos(ax),persp=1/(1-z/PERSPECTIVE),dx=xx*persp,dy=yy*persp;
    scale=Math.min(scale,dx>0?(innerWidth-inset-cx)/dx:(cx-inset)/-dx,dy>0?(innerHeight-inset-cy)/dy:(cy-top)/-dy);

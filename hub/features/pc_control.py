@@ -1031,6 +1031,13 @@ async def replay_ui_routine(routine: dict, request: str = "") -> dict:
     # routine replayed while something else is in front would see an empty
     # screen and conclude its target had vanished.
     elements = await _snapshot(stored.get("window", ""))
+    # An empty tree is a window that has not drawn yet (5 Nov: the ADHD routine fell through three times because the tree was read the instant the app
+    # came forward, signature e3b0c442... = nothing). Look again a few times before deciding the screen is a different one.
+    for _ in range(4):
+        if elements:
+            break
+        await asyncio.sleep(0.6)
+        elements = await _snapshot(stored.get("window", ""))
     live = ui_signature(elements, stored.get("window", ""))
     key = "stable" if stored.get("stable") else "fingerprint"
     if live[key] != stored.get(key):

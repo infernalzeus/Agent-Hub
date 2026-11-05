@@ -202,3 +202,7 @@ hub/board_prefs.json
 
 # Public website glass and scenario styles.
 !/docs/assets/site-demos.css
+
+# Captured public dashboard previews.
+!/docs/assets/previews/
+!/docs/assets/previews/*.png

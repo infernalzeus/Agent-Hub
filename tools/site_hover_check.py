@@ -15,12 +15,12 @@ import sys
 from playwright.sync_api import sync_playwright
 from site_pw import browser, serve
 
-MAX_TILT = 10.0
+MAX_TILT = 4.0
 SIZES = [(1280, 720), (1440, 900), (1920, 1080), (2560, 1440), (820, 1180), (1180, 820), (393, 852), (852, 393), (360, 640)]
-SCENES = ["landing", "talk", "missions", "pc", "media", "graph", "agents", "architecture", "install"]
+SCENES = ["landing", "talk", "missions", "pc", "media", "graph", "agents", "architecture", "install", "hands"]
 
 BOUNDS = """()=>{const W=innerWidth,H=innerHeight,bad=[];const sc=document.querySelector('.scene.active');
- for(const e of sc.querySelectorAll('.slabbox,.blk,.door,.smith-btn,.action,.more-links a,h1,h2,.mark-host,.enlarge,.tab,.st')){
+ for(const e of sc.querySelectorAll('.slabbox,.blk,.door,.smith-btn,.action,.more-links a,h1,h2,.mark-host,.enlarge,.tab,.st,.screen-toolbar button,.ui-btn,.wishlist-form input,.wishlist-form button,.circuit-node,.skill-library-row')){
   if(e.closest('.flow,.zoom,.vol'))continue;const r=e.getBoundingClientRect();if(!r.width||!r.height)continue;const cs=getComputedStyle(e);if(cs.visibility==='hidden'||cs.display==='none')continue;
   if(r.left<-0.5||r.top<-0.5||r.right>W+0.5||r.bottom>H+0.5)bad.push(e.tagName+'.'+(e.className.baseVal||e.className)+' '+[r.left,r.top,r.right,r.bottom].map(Math.round));}
  return bad;}"""
@@ -44,6 +44,7 @@ def measure(b, w, h, out):
         for sid in SCENES:
             pg = ctx.new_page()
             pg.goto("http://127.0.0.1:8098/index.html" + ("" if sid == "landing" else "#" + sid))
+            pg.wait_for_function("window.SiteBoard")
             pg.wait_for_timeout(1700)
             for (x, y) in [(2, 2), (w - 3, 2), (w - 3, h - 3), (2, h - 3)]:
                 pg.mouse.move(x, y, steps=8)

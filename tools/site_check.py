@@ -25,9 +25,25 @@ PROBE = """(touch)=>{
  for(const e of sc.querySelectorAll('.blk-b,.small-block,.blk-h')){if(e.closest('.flow'))continue;if(e.scrollHeight>e.clientHeight+2&&getComputedStyle(e).overflow!=='visible')bad.push('clipped '+e.className);}
  const d=sc.querySelector('.auto-detail');
  if(d&&d.offsetParent){const dr=d.getBoundingClientRect(),last=[...d.children].filter(c=>c.offsetParent&&!c.classList.contains('bar')).pop();if(last){const lr=last.getBoundingClientRect();if(lr.bottom>dr.bottom+2)bad.push('detail text overflows its panel by '+Math.round(lr.bottom-dr.bottom));}}
- for(const v of sc.querySelectorAll('[data-visual]')){if(!v.offsetParent)continue;if(v.clientHeight<70||!v.querySelector('svg'))bad.push('blank or undersized demonstration');}
- const sheet=sc.querySelector('.blk');if(sheet){const c=getComputedStyle(sheet);if(c.backdropFilter==='none'||c.backgroundImage==='none')bad.push('glass material missing');}
+ for(const v of sc.querySelectorAll('[data-visual]')){if(!v.offsetParent)continue;if(v.clientHeight<70||!v.querySelector('.screen-body'))bad.push('blank or undersized demonstration');}
+ const sheet=sc.querySelector('.blk');if(sheet){const c=getComputedStyle(sheet);if(c.backgroundColor!=='rgba(8, 12, 40, 0.3)'||c.boxShadow==='none')bad.push('dashboard glass material missing');}
+ for(const e of sc.querySelectorAll('.screen-body,.ui-proposal,.screen-body>div')){if(e.offsetParent&&e.scrollHeight>e.clientHeight+3)bad.push('preview content clipped: '+e.className);}
+ if(sc.querySelector('.vol,[data-more],[data-limit]'))bad.push('obsolete slab or expanding card remains');
  return bad;}"""
+
+POSE_PROBE = """()=>{
+ const sc=document.querySelector('.scene.active'),b=sc.querySelector('[data-tilt]'),bad=[];if(!b)return bad;
+ const rx=b.style.getPropertyValue('--rx'),ry=b.style.getPropertyValue('--ry');
+ for(const x of [-4,4])for(const y of [-4,4]){
+  b.style.setProperty('--rx',x+'deg');b.style.setProperty('--ry',y+'deg');
+  for(const e of sc.querySelectorAll('.slabbox,.st,.ui-btn,.screen-toolbar button,.circuit-node,.wishlist-form,.door,.smith-btn,.enlarge')){
+   const r=e.getBoundingClientRect();if(!r.width||!r.height||!e.offsetParent)continue;
+   if(r.left<-.5||r.top<-.5||r.right>innerWidth+.5||r.bottom>innerHeight+.5)bad.push('maximum pose '+x+','+y+' off-screen '+e.className);
+  }
+ }
+ b.style.setProperty('--rx',rx);b.style.setProperty('--ry',ry);return [...new Set(bad)];}
+"""
+
 
 
 def main():
@@ -43,6 +59,7 @@ def main():
                 errs = []
                 pg.on("pageerror", lambda e: errs.append(str(e)))
                 pg.goto("http://127.0.0.1:8098/index.html" + ("" if sid == "landing" else "#" + sid))
+                pg.wait_for_function("window.SiteBoard")
                 pg.wait_for_timeout(1300)
                 bad = list(pg.evaluate(PROBE, touch))
                 n = pg.evaluate("document.querySelectorAll('.scene.active .st').length")
@@ -55,6 +72,7 @@ def main():
                     for i in range(pg.locator('[data-panel=skills] .st').count()):
                         pg.locator('[data-panel=skills] .st').nth(i).evaluate('e=>e.click()')
                         bad += [x for x in pg.evaluate(PROBE, touch) if x not in bad]
+                bad += pg.evaluate(POSE_PROBE)
                 if (w, h) in SHOTS:
                     pg.wait_for_timeout(800)
                     pg.screenshot(path=os.path.join(S, "c-%s-%dx%d.png" % (sid, w, h)))

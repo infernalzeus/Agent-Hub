@@ -30,6 +30,29 @@ def test_agency_has_real_tabs_and_a_model_selector_in_every_row(hub):
         sl.evaluate("e => { e.value = '0.7'; e.dispatchEvent(new Event('input')); e.dispatchEvent(new Event('change')); }")
         p.wait_for_function("document.querySelector('.ag-saved').textContent === 'SAVED'", timeout=8000)
         assert first.locator('.ag-sliders output').first.inner_text().startswith('0.7')
+        # the helpers that really have a model setting show a selector, and a change is kept
+        d = p.locator('[data-helper-model=desktop]')
+        assert d.count() == 1 and d.is_visible()
+        assert p.locator('[data-helper-model=router]').count() == 1
+        opts = d.locator('option').all_inner_texts()
+        assert len(opts) >= 2, opts
+        pick = d.locator('option').nth(1).get_attribute('value')
+        d.select_option(pick); p.wait_for_timeout(800)
+        assert p.locator('[data-helper-model=desktop]').input_value() == pick
         if out: p.screenshot(path=out, full_page=True)
+        assert not errs, errs
+        b.close()
+
+
+def test_skills_tab_tiles_in_a_grid(hub):
+    out = os.environ.get('SKILLS_SHOT')
+    with sync_playwright() as pw:
+        b = pw.chromium.launch(channel=os.environ.get('AGENTHUB_TEST_BROWSER', 'msedge'), headless=True)
+        p = b.new_context(service_workers='block', viewport={'width': 1280, 'height': 900}).new_page()
+        errs = []; p.on('pageerror', lambda e: errs.append(str(e)))
+        p.goto(hub + '/agents#skills'); p.wait_for_selector('#skills .skl', timeout=15000)
+        assert p.evaluate("getComputedStyle(document.getElementById('skills')).display") == 'grid'
+        assert p.locator('#skills .skl').count() >= 10
+        if out: p.screenshot(path=out, full_page=False)
         assert not errs, errs
         b.close()

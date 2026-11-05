@@ -59,7 +59,46 @@ def build() -> "list[dict]":
          "does": "Writes down every choice the Hub makes and how it turned out. This is what the learners learn from.",
          "learning": "%s choices recorded" % sum(k.get("events", 0) for k in per.values()), "where": "REINFORCEMENT LEARNING > STATUS"},
     ]
+    for r in rows:
+        m = _model_block(r["id"])
+        if m:
+            r["model"] = m
     return rows
+
+
+def _model_block(hid: str) -> "dict | None":
+    """Only helpers that really have a model setting get one: the desktop agent (which model it tries first) and the router (the small local model it may ask)."""
+    from . import desktop_agent as DA, binning as BIN
+    try:
+        options = DA.ladder()
+    except Exception:  # noqa: BLE001
+        options = []
+    if hid == "desktop":
+        cur = DA.chosen_model()
+        first = options[0] if options else ""
+        return {"current": cur, "effective": cur or first, "options": [m for m in dict.fromkeys(([cur] if cur else []) + options)], "note": "tried first; the rest stay as the fall-back order"}
+    if hid == "router":
+        loc = BIN.settings()["local"]
+        return {"current": loc["model"], "effective": loc["model"], "options": list(dict.fromkeys([loc["model"]] + options)),
+                "note": "asked only when local decisions are switched on" + ("" if loc["enabled"] else " (they are off now)")}
+    return None
+
+
+@routes.post("/api/hub/helpers/{id}/model")
+async def api_helper_model(request: web.Request) -> web.Response:
+    from . import desktop_agent as DA, binning as BIN
+    hid = request.match_info["id"]
+    try:
+        model = str((await request.json()).get("model") or "").strip()[:80]
+    except Exception:  # noqa: BLE001
+        raise web.HTTPBadRequest(text='send {"model": "name"}')
+    if hid == "desktop":
+        DA.set_chosen_model(model)
+    elif hid == "router" and model:
+        BIN.save_settings({"local": {"model": model}})
+    else:
+        raise web.HTTPNotFound(text="this helper has no model of its own")
+    return web.json_response({"ok": True, "model": _model_block(hid)})
 
 
 @routes.get("/api/hub/helpers")

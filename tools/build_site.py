@@ -15,7 +15,7 @@ from html import escape
 from pathlib import Path
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
-V = "20261105r4-glass"
+V = "20261105-dashboard-preview"
 REPO = "https://github.com/infernalzeus/Agent-Hub"
 AG = "assets/agents/"
 LEGEND = "Live: seen running on a real machine. Unit-tested: the logic is tested, not yet seen running. Built, not tried: built and tested without the real hardware."
@@ -152,17 +152,10 @@ STEPS = {'missions': [('Ask',
               'The browser reaches your PC through that private network.',
               'Save the Hub address to your home screen.',
               0)],
- 'skills': [('Choose a skill',
-             'YOU',
-             "A skill supplies instructions for an agent's work.",
-             'Open SKILLS and choose a pack of instructions.',
-             0),
-            ('Add it', 'YOU → HUB', 'The skill is made available to your agents.', 'Press ADD TO MY AGENTS.', 0),
-            ('Write your own',
-             'YOU',
-             'A SKILL.md file describes how to do the work.',
-             'Write the instructions, then add the skill.',
-             0)]}
+ 'skills': [('Bundled skills', 'HUB', "23 ship with the Hub, each a plain SKILL.md you can read.", 'Open SKILLS and read one.', 0),
+            ('Add to my agents', 'YOU → HUB', 'The skill becomes available to your agents.', 'Press ADD TO MY AGENTS.', 0),
+            ('A catalogue skill', 'HUB', 'Optional extras, such as Launch videos. Rendering stays on this PC.', 'Add only if you want it.', 0),
+            ('Write your own', 'YOU', 'A folder with a SKILL.md: name, when to use it, instructions.', 'Write the file, add the skill.', 0)]}
 
 TALK_PHONE = [
     ("What's the weather in Leeds?", "A routine that worked before", "Smith answers from a saved routine. No model call, no agent started.", "Ask. That is all.", 0),
@@ -173,66 +166,28 @@ TALK_PHONE = [
     ("Every morning, summarise new PRs", "This runs on a clock", "Ran on its clock and stopped at review. Nothing applies while you sleep.", "Review it in the morning.", 1),
 ]
 
-# image, name, one line, chips, what you do
-AGENTS = [('smith',
-  'Agent Smith',
-  'Hears you, answers aloud and on screen, and routes requests.',
-  ['Router', 'Desktop agent', 'Neo', 'Doctor'],
-  'Press TALK or type; review any action it proposes.'),
- ('neo',
-  'Neo',
-  'Designs one ready-to-save agent file from your description.',
-  ['From Smith', 'To your team'],
-  'Describe the job, read the persona file, then save it.'),
- ('doctor',
-  'The Doctor',
-  'Reads Hub facts and proposes a repair in a private copy of the Hub repo.',
-  ['Mission', 'Checks', 'Your APPLY'],
-  'Review the checked diff and press APPLY. Restarting is yours.'),
- ('desktop-agent',
-  'Desktop agent',
-  'Finds app controls by name and checks each approved action.',
-  ['Windows only', 'Unit-tested'],
-  'Read the proposed press and approve or refuse it.'),
- ('orchestrator',
-  'orchestrator',
-  'Plans the mission and assigns briefs to worker agents. Writes no code.',
-  ['To coder', 'To reviewer', 'To researcher'],
-  'Answer its question if it asks one. Otherwise nothing.'),
- ('coder',
-  'coder',
-  "Ships the smallest change that works, in the project's own style. Leaves what you didn't ask about alone.",
-  ['From orchestrator', 'To reviewer'],
-  'Nothing. You read the result in the diff.'),
- ('reviewer',
-  'reviewer',
-  'The skeptic. Never edits; says ship, changes-needed or blocked, and points at the line.',
-  ['From coder'],
-  'Read its verdict, then the diff.'),
- ('tester',
-  'tester',
-  'Tries to break it before you do: writes the tests, runs them, reports what failed and why.',
-  ['From orchestrator'],
-  'Nothing. The failures show up in the review.')]
+# image, name, what it is / does / cannot do / example, chips, what you do
+# Every line below is read from the Hub's own files (hub/agent_knowledge/agents/*.md, the router, the Doctor, the desktop agent).
+AGENTS = [('smith', 'Agent Smith', 'Hears you, answers aloud and sends each request the right way. Never acts alone.', ['Router', 'Desktop agent', 'Neo', 'Doctor'], 'Press TALK or type.'),
+ ('router', 'The router', 'Sorts a request before any model is used, and learns from your grades.', ['Routine', 'Mission', 'PC task', 'Media'], 'Grade its choices in TEACH.'),
+ ('orchestrator', 'orchestrator', 'Plans a mission as briefs for the other agents. Writes no code.', ['To coder', 'To tester', 'To reviewer'], 'Answer if it asks.'),
+ ('coder', 'coder', 'Makes the change in a private copy. Your repo stays put until APPLY.', ['From orchestrator', 'To reviewer'], 'Read the diff.'),
+ ('reviewer', 'reviewer', 'Read-only skeptic: ship, changes-needed or blocked.', ['From coder'], 'Read its verdict.'),
+ ('tester', 'tester', 'Writes and runs the tests, reports what failed.', ['From orchestrator'], 'Read the failures.'),
+ ('researcher', 'researcher', 'Reads code, docs and the web. Read-only.', ['From orchestrator'], 'Read the findings.'),
+ ('neo', 'Neo', 'Designs a new agent from a description. Ten more roles ship ready to switch on.', ['From Smith', 'To your team'], 'Describe the job, save the file.'),
+ ('doctor', 'The Doctor', 'Diagnoses the Hub and proposes a fix. You press APPLY and restart.', ['Mission', 'Checks', 'Your APPLY'], 'Review the diff.'),
+ ('desktop-agent', 'Desktop agent', 'Works inside Windows apps. Says so when it cannot find something.', ['Windows only', 'Local model'], 'Approve the press.')]
 
 
 def chips(items):
-    return "".join('<span class="chip %s">%s%s</span>' % ("tested" if n != "Live" else "", escape(n), (" · " + escape(note)) if note else "") for n, note in items)
+    return ""
 
-
-def slab(inner, cls="", z=20, d=36):
-    """A thick glass slab, drawn like the dashboard's SLAB surface: the front face plus a five-sided volume behind it."""
-    return ('<div class="slabbox %s" style="--z:%dpx;--d:%dpx"><i class="vol" aria-hidden="true"><b class="back"></b><b class="left"></b><b class="right"></b><b class="top"></b><b class="bottom"></b></i>%s</div>'
-            % (cls, z, d, inner))
-
+def slab(inner, cls="", z=8, d=0):
+    return '<div class="slabbox %s" style="--z:8px;--d:0px">%s</div>' % (cls, inner)
 
 def small_blocks(chips_, line, runs, runs_line):
-    a = ('<button class="blk small-block" type="button" aria-expanded="false" data-more><span class="label">Status</span>%s<span class="line">%s</span><span class="more">%s</span></button>'
-         % (chips(chips_), escape(line), escape(LEGEND)))
-    b = ('<button class="blk small-block" type="button" aria-expanded="false" data-more><span class="label">Runs on</span><span class="line strong">%s</span><span class="line">%s</span>'
-         '<span class="more">Reach this PC from your other devices over your private network.</span></button>' % (escape(runs), escape(runs_line)))
-    return '<aside class="side-blocks">%s%s</aside>' % (slab(a, "side s1", 48, 40), slab(b, "side s2", 48, 40))
-
+    return ""
 
 def _auto_wrap(lis, with_downloads=False):
     dl = ""
@@ -250,30 +205,25 @@ def auto(steps, with_downloads=False):
     return _auto_wrap(''.join(lis),with_downloads)
 
 
-def agents_body() -> str:
-    lis = []
-    for i, (img, name, role, ch, you) in enumerate(AGENTS):
-        kind = "Hub helper" if img in ("smith", "neo", "doctor", "desktop-agent") else "Team agent"
-        lis.append('<li><button class="st card" type="button" data-t="%s" data-k="%s" data-d="%s" data-you="%s" data-img="%s%s.png" data-chips="%s"%s>'
-                   '<img class="av" src="%s%s.png" alt="" width="40" height="40"><span class="sb"><b>%s</b></span></button>'
-                   '<p class="more-static">%s <b>You:</b> %s</p></li>'
-                   % (escape(name, True), kind, escape(role, True), escape(you, True), AG, img, escape("|".join(ch), True), ' aria-pressed="true"' if i == 0 else ' aria-pressed="false"',
-                      AG, img, escape(name), escape(role), escape(you)))
-    agents = _auto_wrap("".join(lis)).replace('class="auto"', 'class="auto agents-auto"', 1)
-    flows = '<div class="agency-flows"><button type="button" data-agent-jump="neo"><b>NEO</b><span>YOU describe → Neo designs → YOU read and save → orchestrator can pick</span></button><button type="button" data-agent-jump="doctor"><b>THE DOCTOR</b><span>YOU ask → Hub facts → private Hub copy → checks → YOU APPLY · restart is yours</span></button></div>'
-    agents += flows
-
-    skills = auto(STEPS["skills"])
-    return ('<div class="agency"><div class="tabs" role="tablist"><button class="tab" role="tab" type="button" aria-selected="true" data-tab="agents">AGENTS</button>'
-            '<button class="tab" role="tab" type="button" aria-selected="false" data-tab="skills">SKILLS</button></div>'
-            '<div class="tabpanel" data-panel="agents">%s</div><div class="tabpanel" data-panel="skills" hidden>%s</div></div>' % (agents, skills))
-
+def agents_body():
+    principal = [next(a for a in AGENTS if a[0]==key) for key in ("orchestrator","smith","neo","doctor")]
+    lis=[]
+    for i,(img,name,role,ch,you) in enumerate(principal):
+        role = {
+            'orchestrator':'Turns a goal into a plan and briefs for named agents. Plans only; it does not edit the project.',
+            'smith':'Receives spoken or typed requests, answers routine questions and hands work to the right Hub tool or agent.',
+            'neo':'Drafts an agent definition from a job description. Read and save the definition before using it.',
+            'doctor':'Reads Hub facts and proposes a repair in a private copy. Review the diff and choose APPLY; restarting remains yours.'
+        }[img]
+        lis.append('<li><button class="st card" type="button" data-t="%s" data-k="AGENCY" data-d="%s" data-you="%s" data-img="%s%s.png" aria-pressed="%s"><img class="av" src="%s%s.png" alt="" width="48" height="48"><span class="sb"><b>%s</b><em>%s</em></span></button></li>' % (escape(name,True),escape(role,True),escape(you,True),AG,img,'true' if i==0 else 'false',AG,img,escape(name),{'orchestrator':'Plans and delegates','smith':'Voice and chat','neo':'Designs agents','doctor':'Repairs the Hub'}[img]))
+    agents=_auto_wrap(''.join(lis)).replace('class="auto"','class="auto agents-auto"',1)
+    others=[a[1] for a in AGENTS if a[0] not in ('orchestrator','smith','neo','doctor','router')]
+    agents+='<p class="specific-agents"><b>Specific agents</b> '+escape(' · '.join(others))+'</p>'
+    return '<div class="agency"><div class="tabs" role="tablist" aria-label="Agency"><button class="tab" role="tab" type="button" aria-selected="true" data-tab="agents">AGENTS</button><button class="tab" role="tab" type="button" aria-selected="false" data-tab="skills">SKILLS</button></div><div class="tabpanel" data-panel="agents">%s</div><div class="tabpanel" data-panel="skills" hidden>%s</div></div>' % (agents,auto(STEPS['skills']))
 
 def scene(sid, label, headline, chips_, line, runs, runs_line, body, wide=False, extra_head=""):
-    main = ('<article class="blk main-block"><header class="blk-h"><p class="label">%s</p><h2 id="%s-title" tabindex="-1">%s</h2><span class="hchips">%s</span>%s</header><div class="blk-b">%s</div></article>'
-            % (escape(label), sid, escape(headline), chips(chips_), extra_head, body))
-    return ('<section class="scene" id="%s" aria-labelledby="%s-title"><div class="board%s" data-tilt>%s%s</div></section>'
-            % (sid, sid, " wide" if wide else "", slab(main, "main", 20, 72), "" if wide else small_blocks(chips_, line, runs, runs_line)))
+    main = ('<article class="blk main-block"><header class="blk-h"><p class="label">%s</p><h2 id="%s-title" tabindex="-1">%s</h2>%s</header><div class="blk-b">%s</div></article>' % (escape(label),sid,escape(headline),extra_head,body))
+    return '<section class="scene" id="%s" aria-labelledby="%s-title"><div class="board wide" data-tilt>%s</div></section>' % (sid,sid,slab(main,"main"))
 
 
 # Ordered stories. Each row separates the responsible actor, the result and the user's action.
@@ -296,21 +246,31 @@ STEPS["hands"] = [
  ("Fit / stop", "YOU", "An open hand held briefly fits the board. Escape stops the camera.", "Hold an open hand to fit; press Escape to stop.", 1)]
 STORY["hands"] = ("Choose HANDS in the Hub, then point at the board.", "Cursor, drag, zoom, turn and fit controls in the browser.", "Illustrated demo only; no camera access here. Physical gesture actions still need a hardware trial.")
 
+STEPS['graph'][-1] = ('Choose what next','YOU','Return to the project map or keep inspecting changed files. Mission APPLY remains a separate choice.','Choose another file, or return to the map.',0)
+STORY['talk']=("Press TALK, or choose an example below.","Smith answers or opens the tool that handles the request.","")
+STORY['hands']=("Choose HANDS in the dashboard, then point at a block.","Move the cursor, drag, zoom, turn and fit the board.","")
+STEPS['skills']=[
+ ("Hub library","SKILLS","Browse skills by topic, search for a name, and read its instructions.","Choose a topic or search the skill library.",0),
+ ("Open-source skills","ANTHROPIC","The library includes Anthropic skills such as frontend-design, mcp-builder and webapp-testing.","Open a skill to read its instructions and origin.",0),
+ ("Add a skill","CATALOGUE","Launch videos (brag) is available through the Hub catalogue from latent-spaces.","Review the skill and add it when it fits your work.",0),
+ ("Write your own","NEW SKILL","Describe a reusable task, read the drafted SKILL.md, then save it.","Describe the task and review the instructions before saving.",0)]
+
 # Keep the short card summaries distinct from the explicit handoff flows.
 
 def story(sid, body):
-    ask,seen,limits=STORY[sid]
-    return '<div class="story">%s<footer class="story-foot"><div class="try-panel"><h3>TRY IT · YOU</h3><p>%s</p><p class="expect"><b>You see:</b> %s</p></div><button type="button" class="limit-panel" data-limit aria-expanded="false"><span class="limit-title">LIMITS · DETAILS</span><span>%s</span><span class="limit-more">Live means seen running. Unit-tested means logic tested, not yet seen running. Built, not tried means tested without the real hardware.</span></button></footer></div>' % (body,escape(ask),escape(seen),escape(limits))
+    ask, seen, _ = STORY[sid]
+    return '<div class="story">%s<footer class="story-foot"><div class="try-panel"><h3>YOUR ACTION</h3><p>%s</p></div><div class="result-panel"><h3>IN THE HUB</h3><p class="expect">%s</p></div></footer></div>' % (body,escape(ask),escape(seen))
 
 def talk_table():
     destinations=["Saved routine","Mission","Desktop agent","Media tools","Git Graph","Scheduled mission"]
-    rows=''.join('<tr><td>%s</td><td>%s</td><td>%s</td></tr>' % (escape(t[0]),dest,escape(result)) for t,dest,result in zip(TALK_PHONE,destinations,['Answer aloud and on screen','Private-copy mission and review diff','Proposed press for your approval','Saved audio file on your PC','Project map and changed lines','Scheduled run, stopped at review']))
+    rows=''.join('<tr><td>%s</td><td>%s</td><td>%s</td></tr>' % ('<button type="button" data-talk-example="%s">%s</button>' % (TALK_PHONE.index(t),escape(t[0])),dest,escape(result)) for t,dest,result in zip(TALK_PHONE,destinations,['Answer aloud and on screen','Private-copy mission and review diff','Proposed press for your approval','Saved audio file on your PC','Project map and changed lines','Scheduled run, stopped at review']))
     return '<table class="say-table"><caption>YOU SAY → SMITH SENDS IT → YOU GET</caption><thead><tr><th>You say</th><th>Smith sends it to</th><th>You get / you do</th></tr></thead><tbody>'+rows+'</tbody></table>'
 
 
 def build() -> str:
     machine = (Path(__file__).resolve().parent / "site_parts" / "machine.html").read_text(encoding="utf-8")
     machine = machine.replace("You say", "You say it to Smith").replace("The hub decides", "Smith decides").replace("split into briefs, run side by side", "split into briefs for worker agents")
+    machine = re.sub(r'<span class="chip [^"]+">.*?</span>', "", machine)
     parts = []
     for sid, door, label, headline, ch, line, runs, runs_line in SCENES:
         if sid == "talk":
@@ -321,13 +281,8 @@ def build() -> str:
             parts.append(scene(sid, label, headline, ch, line, runs, runs_line, story(sid, agents_body())))
         elif sid == "architecture":
             import build_architecture as ba
-            wide_svg = re.sub(r'<rect width="\d+" height="\d+" fill="#[0-9a-fA-F]+"/>', '', ba.wide().replace('<svg ', '<svg class="arch-svg wide" ', 1), count=1)
-            tall_svg = re.sub(r'<rect width="\d+" height="\d+" fill="#[0-9a-fA-F]+"/>', '', ba.tall().replace('<svg ', '<svg class="arch-svg tall" ', 1), count=1).replace('id="ah"', 'id="aht"').replace('url(#ah)', 'url(#aht)')
-            body = ('<button class="arch-open" type="button" data-zoom aria-label="Enlarge the architecture diagram">%s%s</button>' % (wide_svg, tall_svg)
-                    + '<div class="zoom" role="dialog" aria-modal="true" aria-label="Enlarged architecture" hidden><div class="zoom-tools"><button class="zoom-x" type="button" data-zoom-close>Close ✕</button><button type="button" data-zoom-in aria-label="Zoom in">+</button><button type="button" data-zoom-out aria-label="Zoom out">−</button></div><div class="zoom-scroll"><img src="architecture.svg" alt="Expanded Hub architecture" width="1440" height="1040"></div></div>')
-
-            enlarge = '<button class="enlarge" type="button" data-zoom>ENLARGE ⤢</button>'
-            parts.append(scene(sid, label, headline, ch, line, runs, runs_line, body, wide=True, extra_head=enlarge))
+            body = ba.interactive() + '<div class="zoom" role="dialog" aria-modal="true" aria-label="Enlarged architecture" hidden><div class="zoom-tools"><button class="zoom-x" type="button" data-zoom-close>Close ×</button><button type="button" data-zoom-in aria-label="Zoom in">+</button><button type="button" data-zoom-out aria-label="Zoom out">−</button></div><div class="zoom-scroll"><img src="architecture.svg" alt="Agent Hub architecture" width="1440" height="860"></div></div>'
+            parts.append(scene(sid,label,headline,ch,line,runs,runs_line,body,wide=True,extra_head='<button class="enlarge" type="button" data-zoom>ENLARGE ⤢</button>'))
         elif sid == "install":
             download_buttons = '<div class="downloads">' + ''.join('<a class="action" href="%s/releases/latest/download/%s"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="3" width="18" height="13"/><path d="M12 16v5M7 21h10"/></svg>%s</a>' % (REPO, f, n) for n, f in [("Windows", "Agent-Hub-Setup.exe"),("macOS", "Agent-Hub-macOS.dmg"),("Linux", "Agent-Hub-Linux.tar.gz")]) + '</div>'
             parts.append(scene(sid, label, headline, ch, line, runs, runs_line, story(sid, auto(STEPS[sid])), extra_head=download_buttons))
@@ -350,6 +305,7 @@ def build() -> str:
         '<p class="tagline">Your most powerful PC tools at your fingertips, any device.</p>'
         '<div class="actions"><a class="action primary" href="#install">DOWNLOAD</a><a class="action" href="%s">SOURCE ↗</a></div>'
         '<nav class="more-links" aria-label="More"><a href="#agents">AGENTS + SKILLS</a><a href="#architecture">ARCHITECTURE</a><a href="#hands">HAND CONTROL</a></nav>'
+        '<form class="wishlist-form"><label for="wishlist-email">Learn how to build your own Agent Hub.</label><div><input id="wishlist-email" type="email" autocomplete="email" placeholder="Your email" aria-label="Email for the build guide wishlist" required><button type="submit">JOIN WISHLIST</button></div><p role="status">Signup preview</p></form>'
         '%s<nav class="doors" aria-label="The tools">%s</nav></div></section>' % (REPO, smith_btn, doors))
     body = ('<body><header class="site-header"><a class="brand" href="#" data-home aria-label="Agent Hub — return to landing"><img src="assets/agent-hub-mark.png" alt="" width="44" height="44">AGENT HUB</a>'
             '<a class="projects" href="https://infernalzeus.github.io/" data-projects>← PROJECTS</a></header><main class="stage">%s%s</main>'
