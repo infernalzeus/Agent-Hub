@@ -84,7 +84,11 @@ SOFTWARE.
         const rpinched=s.rpinched?wantsM:wantsM&&s.rSince!==null&&now-s.rSince>=t.confirmMs&&settled;
         const triple=s.triple?wantsT:wantsT&&s.tSince!=null&&now-s.tSince>=t.confirmMs&&settled;
         if(pinched||rpinched||triple)s.lastPinchAt=now;
-        const tip=points[8];
+        // pointing with the middle finger (index and the others curled) moves the cursor on the middle fingertip, held a moment so a passing pose does not jump it
+        const e2=(a,b)=>d3(a,0)>d3(b,0)*1.12,midOnly=e2(12,10)&&!e2(8,6)&&!e2(16,14)&&!e2(20,18)&&!wantsI&&!wantsM&&!s.pinched&&!s.rpinched&&!fist;
+        if(midOnly){if(s.midSince==null)s.midSince=now;}else s.midSince=null;
+        const useMid=midOnly&&(s.useMid||now-s.midSince>=t.poseHoldMs);s.useMid=useMid;
+        const tip=useMid?points[12]:points[8];
         if(fist&&!s.grabOffset)s.grabOffset={x:(s.out?.x??tip.x)-wrist.x,y:(s.out?.y??tip.y)-wrist.y};if(!fist)s.grabOffset=null;
         const pos=s.cursor.filter(fist?wrist.x+s.grabOffset.x:tip.x,fist?wrist.y+s.grabOffset.y:tip.y,now/1000);
         s.trail.push({...pos,at:now});while(s.trail.length>1&&now-s.trail[0].at>t.trailMs)s.trail.shift();
@@ -99,13 +103,13 @@ SOFTWARE.
         const ext=(a,b)=>d3(a,0)>d3(b,0)*1.12;
         const fingers={thumb:d3(4,0)>d3(2,0)*1.35||d3(4,6)>size*1.1,index:ext(8,6),middle:ext(12,10),ring:ext(16,14),pinky:ext(20,18)};
         const up=Object.values(fingers).filter(Boolean).length;
-        const pose=pinched||rpinched||triple?'pinch':up>=4?'open':fingers.index&&!fingers.middle&&!fingers.ring&&!fingers.pinky?'point':fistShape?'fist':'none';
+        const pose=pinched||rpinched||triple?'pinch':up>=4?'open':useMid?'middle':fingers.index&&!fingers.middle&&!fingers.ring&&!fingers.pinky?'point':fistShape?'fist':'none';
         if(pinched||rpinched||triple){s.held='pinch';s.pose='pinch';s.poseAt=now;}else if(s.pose!==pose){s.pose=pose;s.poseAt=now;if(s.held==='pinch')s.held='none';}else if(now-s.poseAt>=t.poseHoldMs){if(s.held!==pose&&s.held!=='pinch')s.changedAt=now;s.held=pose;}
         const flatShape=pose==='open'&&!pinched&&!rpinched&&!triple&&(s.flat?spread<t.flatOff:spread<t.flatOn);
         if(flatShape){if(s.flatSince==null)s.flatSince=now;}else s.flatSince=null;
         const flat=flatShape&&(s.flat||now-s.flatSince>=t.flatHoldMs);s.flat=flat;
         s.pinched=pinched;s.rpinched=rpinched;s.triple=triple;
-        s.out={id,...pos,aimX:s.aim.x,aimY:s.aim.y,pinched,rpinched,triple,flat,hsize:rawSize,spread,sincePinch:s.lastPinchAt==null?1e9:now-s.lastPinchAt,gesture:s.held,points,span,fingers,pointerFinger:'index',handedness:label,palm,roll,
+        s.out={id,...pos,aimX:s.aim.x,aimY:s.aim.y,pinched,rpinched,triple,flat,hsize:rawSize,spread,sincePinch:s.lastPinchAt==null?1e9:now-s.lastPinchAt,gesture:s.held,points,span,fingers,pointerFinger:useMid?'middle':'index',handedness:label,palm,roll,
                closeness:clamp(1-(gap-t.pinchOn)/(t.pinchOff-t.pinchOn),0,1),closenessM:clamp(1-(gapM-t.pinchOnM)/(t.pinchOffM-t.pinchOnM),0,1),gap,gapM};
         out.push(s.out);
       }

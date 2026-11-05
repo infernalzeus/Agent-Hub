@@ -44,6 +44,9 @@ SOFTWARE.
     let typedAt=-Infinity,lastAction=-Infinity,alive=true,enabled=false,canvas=null,ctx=null,legend=null,status=null,legendTimer=0,used=false,zooming=false,interlock=false,cooldown=0,diagnostic=false,measurementLabel='MEASURING',hint='',hintAt=0,calibration=null;
     let profile={v:PROFILE_VERSION,fist:false,orbit:true,palm:false};
     try{const saved=JSON.parse(localStorage.getItem('hub-hands-profile')||'null');if(saved&&saved.v===PROFILE_VERSION)profile={...profile,...saved};}catch(_){}      // an older profile was measured in other units: start again
+    // what each pointing / pinching gesture does can be chosen in the hands menu; these are the defaults
+    const ACTIONS=[['left','Left click'],['right','Right click'],['back','Back: close the open menu, else fit'],['fit','Fit the board'],['tidy','Tidy'],['view','Switch 2D / 3D'],['none','Nothing']];
+    const act=()=>({point:'left',middle:'right',mpinch:'back',open:'fit',...(profile.act||{})}),actName=k=>(ACTIONS.find(a=>a[0]===k)||ACTIONS[6])[1],rWas=new Set();
     const engine=new G.Engine({}),detected=new Set(),presses=new Map(),btn=document.createElement('button');
     btn.type='button';btn.className='hb-btn hb-hands';btn.innerHTML=ICON+'<span>HANDS</span><i aria-hidden="true"></i>';btn.title='Optional local webcam hand control';btn.setAttribute('aria-pressed','false');bar.appendChild(btn);
     const setup=document.createElement('section');setup.className='hands-setup';setup.hidden=true;setup.setAttribute('role','dialog');setup.setAttribute('aria-label','Set up hand control');document.body.appendChild(setup);
@@ -154,7 +157,6 @@ SOFTWARE.
     function paintLog(){
       if(!rowsEl||!logBox||!logBox.classList.contains('open'))return;
       rowsEl.replaceChildren();
-      if(logFilter==='hands'){const note=document.createElement('p');note.className='hs-note';note.textContent=enabled?'Camera on. Tracking stays on this device.':'Camera off. Press a row to change it; choices save at once.';rowsEl.append(note,...handsTables(paintLog,note));}
       if(logFilter==='chat'){const open=document.createElement('button');open.type='button';open.className='hb-btn hl-smith';open.textContent='CHAT WITH AGENT SMITH';open.onclick=()=>{try{window.HubVoice&&window.HubVoice.open&&window.HubVoice.open(false);}catch(_){}};rowsEl.append(open);}
       const rows=logRows.filter(r=>logFilter==='all'||r.kind===logFilter).slice(0,30);
       if(!rows.length){const d=document.createElement('div');d.className='hl-empty';d.textContent=logFilter==='hands'?'Nothing yet. Turn HANDS on and use a gesture; each press, tap, scroll and error appears here.':'Nothing yet. Your chat with Smith, hand gestures and Hub messages appear here.';rowsEl.append(d);return;}
@@ -162,7 +164,17 @@ SOFTWARE.
     }
     function logAdd(kind,t,err){if(logRows.length&&logRows[0].t===t&&logRows[0].kind===kind)return;logRows.unshift({at:Date.now(),kind,t,err:!!err});if(logRows.length>80)logRows.pop();try{sessionStorage.setItem(LOGKEY,JSON.stringify(logRows.slice(0,80)));}catch(_){}paintLog();updateHead();}
     function logLine(t,err){logAdd('hands',t,err);}
+    function clickByText(t){const b=[...document.querySelectorAll('.hb-viewbar button,.hb-right-panel button')].find(n=>n.textContent.trim().toUpperCase().startsWith(t));if(b)b.click();}
+    function backAction(){
+      if(!setup.hidden){setup.hidden=true;calibration=null;diagnostic=false;engine.reset();interlock=true;return true;}
+      for(const s of ['.hb-session-detail','.hb-glass-panel','.hb-context-panel']){const n=document.querySelector(s);if(n&&!n.hidden){n.remove();return true;}}
+      const m=document.querySelector('.hb-layer-menu:not([hidden]),.hb-more-menu:not([hidden]),.hb-tray-list:not([hidden]),.hb-jump:not([hidden]),.hb-ctx:not([hidden])');if(m){m.hidden=true;return true;}
+      const v=document.getElementById('voice'),c=document.getElementById('v-close');if(v&&!v.hidden&&c){c.click();return true;}
+      return false;}
+    function doAction(a){if(a==='back'){if(!backAction())fitButton.click();}else if(a==='fit')fitButton.click();else if(a==='tidy')clickByText('TIDY');else if(a==='view')clickByText('VIEW:');}
     function friendly(ev,x){
+      if(ev==='dwell-right')return 'MIDDLE-FINGER POINT: right click on '+(x.target||'a control');
+      if(ev==='dwell-action')return 'POINT HOLD: '+actName(x.action);if(ev==='mpinch-action')return 'THUMB + MIDDLE: '+actName(x.action);
       if(ev==='end-left')return x.how==='tap'?'TAP: click':x.how==='scroll'?'SCROLL: a panel followed your hand':x.how==='drag'?'DRAG ('+x.travel+' px)':null;
       if(ev==='dwell-click')return 'POINT CLICK on '+(x.target||'a control');
       if(ev==='end-right')return x.how==='contextmenu'?'RIGHT CLICK: menu':'right press ended ('+x.how+')';
@@ -183,21 +195,26 @@ SOFTWARE.
     let cursorInfo=null,dw={x:0,y:0,since:0,fired:false},targetBox=null,realMouseAt=-Infinity,handsLive=false,lastEl=null,lastRes=null,lastAt=-Infinity,lastX=-1e9,lastY=-1e9,lastRect='';
     function hideTarget(){if(targetBox){targetBox.remove();targetBox=null;lastRect='';}}
     function pointerUi(hands,now){
-      const h=hands[0],pointing=h&&h.gesture==='point'&&!h.pinched&&!h.rpinched&&!h.triple&&!diagnostic&&!interlock&&!presses.size;
+      const h=hands[0],pointing=h&&(h.gesture==='point'||h.gesture==='middle')&&!h.pinched&&!h.rpinched&&!h.triple&&!diagnostic&&!interlock&&!presses.size;
       if(!pointing){cursorInfo=null;dw.since=0;hideTarget();if(handsLive){handsLive=false;document.documentElement.classList.remove('hands-live');}return;}
       const x=h.x,y=h.y;
       if(!dw.since||Math.hypot(x-dw.x,y-dw.y)>Math.max(22,innerWidth*.017)){dw={x,y,since:now,fired:false};}
       if(Math.hypot(x-lastX,y-lastY)>4||now-lastAt>150){lastRes=resolve(x,y);lastX=x;lastY=y;lastAt=now;}         // the element under the pointer is looked up when the pointer moved, not every frame
-      const r=lastRes,el=r&&r.el?clickableOf(r.el):null,usable=!!el;
+      const mode=h.gesture==='middle'?act().middle:act().point,r=lastRes,el=r&&r.el?clickableOf(r.el):null,any=r&&r.el?r.el:null,usable=mode==='none'?false:mode==='left'?!!el:mode==='right'?!!any:true;
       const live=now-realMouseAt>2500;if(live!==handsLive){handsLive=live;document.documentElement.classList.toggle('hands-live',live);}
       const held=now-dw.since;
       cursorInfo={x,y,progress:usable&&!dw.fired?Math.max(0,Math.min(1,(held-RING_FROM_MS)/(DWELL_MS-RING_FROM_MS))):0,usable};
-      if(usable){
-        const b=el.getBoundingClientRect(),k=r.k||1;if(!targetBox){targetBox=document.createElement('div');targetBox.className='hands-target';targetBox.setAttribute('aria-hidden','true');document.body.appendChild(targetBox);}
+      if(usable&&(el||any)&&(mode==='left'||mode==='right')){
+        const tg=el||any,b=tg.getBoundingClientRect(),k=r.k||1;if(!targetBox){targetBox=document.createElement('div');targetBox.className='hands-target';targetBox.setAttribute('aria-hidden','true');document.body.appendChild(targetBox);}
         const key=Math.round(r.ox+b.left*k)+','+Math.round(r.oy+b.top*k)+','+Math.round(b.width*k)+','+Math.round(b.height*k);
         if(key!==lastRect){lastRect=key;Object.assign(targetBox.style,{left:(r.ox+b.left*k-3)+'px',top:(r.oy+b.top*k-3)+'px',width:(b.width*k+6)+'px',height:(b.height*k+6)+'px'});}
       }else hideTarget();
-      if(usable&&!dw.fired&&held>=DWELL_MS&&h.sincePinch>600&&now-typedAt>1500){
+      if(usable&&!dw.fired&&held>=DWELL_MS&&h.sincePinch>600&&now-typedAt>1500&&mode!=='left'){
+        dw.fired=true;lastAction=performance.now();
+        if(mode==='right'){const w=r.el.ownerDocument.defaultView||window;r.el.dispatchEvent(new w.MouseEvent('contextmenu',{bubbles:true,cancelable:true,composed:true,clientX:(x-r.ox)/r.k,clientY:(y-r.oy)/r.k,button:2}));counts.rclicks++;mark('dwell-right',{target:String(any.className||any.tagName).slice(0,30)});}
+        else{doAction(mode);mark('dwell-action',{action:mode});}
+      }
+      if(usable&&!dw.fired&&held>=DWELL_MS&&h.sincePinch>600&&now-typedAt>1500&&mode==='left'){
         dw.fired=true;const q={target:r.el,k:r.k,ox:r.ox,oy:r.oy,button:0},w=r.el.ownerDocument.defaultView||window,o={bubbles:true,cancelable:true,composed:true,clientX:(x-r.ox)/r.k,clientY:(y-r.oy)/r.k};
         emit(q,'pointermove',h.id,x,y,false);emit(q,'pointerdown',h.id,x,y,true);emit(q,'pointerup',h.id,x,y,false);r.el.dispatchEvent(new w.MouseEvent('click',{...o,detail:1}));
         counts.clicks++;counts.dwells++;counts.pinches++;mark('dwell-click',{x:Math.round(x),y:Math.round(y),target:String(el.className||el.tagName).slice(0,30)});lastAction=performance.now();firstPinch();
@@ -230,6 +247,7 @@ SOFTWARE.
       if(!document.hasFocus()||document.hidden){if(presses.size)cancelAll();if(status&&!hint)status.textContent='CLICK THE HUB WINDOW ONCE SO HANDS CAN ACT ON IT';else if(status)say('CLICK THE HUB WINDOW ONCE SO HANDS CAN ACT ON IT');return;}
       const processingAt=performance.now();
       const output=engine.update(result,now,innerWidth,innerHeight,meta.cam);if(output.stale)return;counts.frames++;pointerUi(output.hands,now);paint(output.hands);
+      for(const h of output.hands)if(!h.rpinched)rWas.delete(h.id);
       for(const h of output.hands){const on=h.pinched||h.rpinched||h.triple;if(on&&!detected.has(h.id)){detected.add(h.id);counts.detectedPinches++;}if(!on)detected.delete(h.id);}
       for(const h of output.lost)detected.delete(h.id);
       counts.latencies.push(performance.now()-(Number.isFinite(meta.inferenceMs)?now:processingAt));if(Number.isFinite(meta.captureTime))counts.cameraLatencies.push(performance.now()-meta.captureTime);
@@ -252,7 +270,7 @@ SOFTWARE.
         for(const hand of output.hands){const p=presses.get(hand.id);if(p){const at=posOf(p,hand);p.last=at;emit(p,'pointermove',hand.id,at.x,at.y,true);}}
         return;}
       if(zooming){cancelAll();interlock=true;return;}
-      if(output.fit&&![...presses.values()].some(p=>p.mode!=='pan')&&now-typedAt>3000&&performance.now()-lastAction>2500){fitButton.click();counts.fits++;}
+      if(output.fit&&![...presses.values()].some(p=>p.mode!=='pan')&&now-typedAt>3000&&performance.now()-lastAction>2500){if(act().open!=='none')doAction(act().open);counts.fits++;}
       for(const hand of output.hands){
         let p=presses.get(hand.id);
         // thumb, index and middle together: one-hand zoom. A press that began on the way there is cancelled, never completed as a click.
@@ -283,7 +301,7 @@ SOFTWARE.
           p.last=p.travel<(p.mode==='left'?dead():slop())?p.down:at;emit(p,'pointermove',hand.id,p.last.x,p.last.y,true);
         }else if(profile.palm&&hand.flat&&!hand.pinched&&!hand.rpinched&&!hand.triple&&hand.sincePinch>500){beginPan(hand.id,hand);}
         else if(hand.pinched)begin(hand.id,hand,'left');
-        else if(hand.rpinched)begin(hand.id,hand,'right');
+        else if(hand.rpinched){if(act().mpinch==='right')begin(hand.id,hand,'right');else if(!rWas.has(hand.id)){rWas.add(hand.id);const a=act().mpinch;if(a!=='none'){doAction(a);mark('mpinch-action',{action:a});}lastAction=performance.now();}}
         else if(profile.orbit&&hand.gesture==='fist'&&hand.sincePinch>700){const v=boardView();if(v&&v.mode()==='3d')begin(hand.id,hand,'orbit');else say('FIST TILTS THE BOARD IN VIEW 3D: choose VIEW, then 3D');}
         else{const r=resolve(hand.x,hand.y);if(r)emit({target:r.el,k:r.k,ox:r.ox,oy:r.oy,button:0},'pointermove',hand.id,hand.x,hand.y,false);}
       }
@@ -337,7 +355,18 @@ SOFTWARE.
         {cells:['Last minute of tracking','','SAVE'],fn:()=>{if(!enabled){p.textContent='Turn the camera on, use your hands for a minute, then come back here (or press SAVE TRACE in the bar).';return;}saveTrace('free',p);}},
         {cells:['Hand trace (about 32 seconds)','','RECORD'],fn:()=>{if(!enabled){p.textContent='Turn the camera on explicitly, then return here to record.';return;}p.textContent='Recording about 32 seconds. Follow the prompts at the top left; this panel closes so you can see them.';setup.hidden=true;startTrace(p);}},
         {cells:['Everything above','','RESET TO DEFAULTS'],fn:()=>{profile={v:PROFILE_VERSION,fist:false,orbit:true,palm:false};saveProfile();repaint();}}],'hs-controls');
-      return [controlsTable,tableOf('GESTURES',['Gesture','What it does'],GESTURES.map(g=>({cells:g})),'hs-gestures')];
+      const choose=(key)=>()=>{const i=ACTIONS.findIndex(x=>x[0]===act()[key]);profile.act={...act(),[key]:ACTIONS[(i+1)%ACTIONS.length][0]};saveProfile();repaint();};
+      const gestures=tableOf('GESTURES (press a row to change what it does)',['Gesture','Does','Press the row to'],[
+        {cells:['Point with the index finger, hold still',actName(act().point),'CHANGE'],fn:choose('point')},
+        {cells:['Point with the middle finger, hold still',actName(act().middle),'CHANGE'],fn:choose('middle')},
+        {cells:['Thumb + middle pinch',actName(act().mpinch),'CHANGE'],fn:choose('mpinch')},
+        {cells:['Open hand, hold 1 second',actName(act().open),'CHANGE'],fn:choose('open')},
+        {cells:['Thumb + index pinch','Quick pinch: tap. Hold and move: drag a block or scroll a panel.','']},
+        {cells:['Thumb + index + middle','Hold together and move your hand up or down to zoom.','']},
+        {cells:['Fist in VIEW 3D','Tilt and turn the board.','']},
+        {cells:['Flat palm','Pan and push/pull zoom (turn it on above).','']},
+        {cells:['Escape','Stop hand control and release the camera.','']}],'hs-gestures');
+      return [controlsTable,gestures];
     }
     // ONE hands menu (right-click on the hand; also under HANDS in the log): the controls and the gestures, as tables
     function calibrationPanel(){

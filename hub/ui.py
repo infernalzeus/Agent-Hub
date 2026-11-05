@@ -1259,6 +1259,7 @@ shutdownBtn.onclick = async () => {
   if (!confirm('Turn off Agent Hub?\\n\\nRunning apps will be stopped and this page goes dormant until you start it again on the PC.')) return;
   shutdownBtn.disabled = true;
   shutdownBtn.classList.add('working');
+  window.__hubShuttingDown = true;
   fetch('/api/shutdown', {method: 'POST'}).catch(() => {});
   setConn(false);
   document.title = 'AGENT HUB — Dormant';
@@ -1752,6 +1753,10 @@ function mountOrb() {
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mountOrb,{once:true});else mountOrb();
 
 function setConn(live) {
+  if (window.__hubConnWas !== undefined && window.__hubConnWas !== live) {
+    try { window.dispatchEvent(new CustomEvent('hub-log', {detail: {kind: 'hub', text: live ? 'Hub is on again' : window.__hubShuttingDown ? 'Hub turned off from the dashboard' : window.__hubRestarting ? 'Hub restarting: turned off, then on again' : 'Hub not answering: it is off or unreachable'}})); } catch (e) {}
+  }
+  window.__hubConnWas = live;
   orbHome.classList.toggle('down', !live);
   if (orbMark) { try { orbMark.setState(live ? 'live' : 'dormant'); } catch (e) {} }
   connLabel.textContent = live ? 'LIVE' : 'DISCONNECTED';

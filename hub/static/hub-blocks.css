@@ -429,7 +429,6 @@ html:root:root{--hb-logbtn:34px;--hb-log:var(--hb-logbtn)!important}
 .hb .hb-map{border-color:rgba(0,230,118,.3)}
 .hands-log .hl-body{background:rgba(8,12,40,.52)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;box-shadow:none!important;border-color:rgba(101,118,183,.45)}
 /* the log's tools: only GESTURE LEGEND, and it shows or hides the legend in the log */
-html.hub-board-on .hands-log .hl-tools button[data-log-kind]{display:inline-flex!important}
 .hands-log .hl-legend{display:none!important}
 html.hub-legend-on .hands-log .hl-legend{display:block!important;opacity:1!important}
 .hands-log .hl-tools button[aria-pressed=true]{border-color:#41ebff;color:#41ebff;background:#41ebff12}

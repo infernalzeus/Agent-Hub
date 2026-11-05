@@ -338,8 +338,6 @@
       } catch (err) { /* a page from another origin keeps its own events */ }
     }
     function hubNote(t){try{window.dispatchEvent(new CustomEvent('hub-log',{detail:{kind:'hub',text:String(t)}}));}catch(e){}}
-    // The Hub is not answering for a while: it was turned off. When it answers again: on. A changed start time means it was restarted.
-    setInterval(function(){if(!alive||document.hidden)return;if(paint._at&&Date.now()-paint._at>25000&&!paint._offNoted){paint._offNoted=true;hubNote('Hub not answering: it may have been turned off');}},5000);
     var stackDepth = null;
     // Several windows of one tool: another block of the same tool, offset a little, allowed to overlap its siblings, in front of them in 3D.
     stackDepth = function () {
@@ -459,7 +457,6 @@
       a.classList.toggle('amber', nA > 0); a.classList.toggle('red', data.attention.some(function (x) { return x.level === 'red'; }));
       var up=data.health&&data.health.uptime_s;if(typeof up==='number'){var boot=Math.round(Date.now()/1000-up),prevBoot=0;try{prevBoot=Number(localStorage.getItem('agenthub:hub:boot'))||0;localStorage.setItem('agenthub:hub:boot',String(boot));}catch(e){}
         if(prevBoot&&Math.abs(boot-prevBoot)>15)hubNote('Hub restarted: it was turned off and on again');else if(!prevBoot)hubNote('Hub is on');}
-      if(paint._offNoted){hubNote('Hub answering again: it is on');paint._offNoted=false;}paint._at=Date.now();
       var runIds={};data.runs.forEach(function(m){runIds[m.id]=m.brief||m.id;});
       if(paint._runs){Object.keys(runIds).forEach(function(k){if(!(k in paint._runs))hubNote('Mission started: '+runIds[k]);});Object.keys(paint._runs).forEach(function(k){if(!(k in runIds))hubNote('Mission finished or stopped: '+paint._runs[k]);});}paint._runs=runIds;
       var attIds={};data.attention.forEach(function(x){if(x.kind!=='session')attIds[x.id||x.title]=x.title;});if(paint._att){Object.keys(attIds).forEach(function(k){if(!(k in paint._att))hubNote('Needs you: '+attIds[k]);});}paint._att=attIds;
@@ -766,8 +763,8 @@
     var rightPanel=fadePanel(el('aside','hb-right-panel')),ingestDock=el('div','hb-ingest-dock'),rightScroll=el('div','hb-right-scroll'),viewBar=el('div','hb-viewbar'),zoomRow=el('div','hb-zoomrow');viewBar.setAttribute('role','group');viewBar.setAttribute('aria-label','View controls');zoomRow.append(zout,zin);viewBar.append(zh);if(view)viewBar.append(view.btn,view.gizmoBtn);viewBar.append(fitBtn,tidyBtn,blocksBtn,zoomRow);rightScroll.appendChild(viewBar);rightPanel.appendChild(rightScroll);ingestDock.classList.add('hb-top-tools');host.append(ingestDock,rightPanel);
     var controls={readout:zh,view:view&&view.btn,axis:view&&view.gizmoBtn,zoom:zoomRow,fit:fitBtn,blocks:blocksBtn,tidy:tidyBtn,talk:talkBtn,pc:pcBtn,ingest:ingestBtn,setup:setupBtn,hands:hands&&hands.button};
     Array.from(bar.children).forEach(function(b){if(b.textContent==='HAND SETUP')controls.handSetup=b;if(b.textContent==='SAVE TRACE')controls.saveTrace=b;});
-    var legend=el('button','hb-btn','HANDS MENU');legend.type='button';
-    legend.onclick=function(){openHandControls();};
+    var legend=el('button','hb-btn','HAND CONTROLS');legend.type='button';controls.legend=legend;
+    legend.onclick=function(){var d=document.querySelector('.hands-setup');if(d&&!d.hidden&&d.querySelector('.hs-table')){var x=d.querySelector('.hs-x');if(x)x.click();}else openHandControls();};
     var handMenuButton=el('button','hb-btn','HAND CONTROLS');handMenuButton.type='button';handMenuButton.onclick=function(){openHandControls(false);};
     var logPending=[];function toLog(node){if(node===controls.handSetup||node===controls.saveTrace){node.remove();return;}var t=document.querySelector('.hands-log .hl-tools');if(t){if(node.parentNode!==t)t.appendChild(node);}else if(logPending.indexOf(node)<0)logPending.push(node);}function onLogReady(){var all=logPending.slice();[controls.legend].forEach(function(n){if(n&&all.indexOf(n)<0)all.push(n);});all.forEach(toLog);logPending=[];}window.addEventListener('hub-log-ready',onLogReady);
     function placeControl(key,node){if(!node)return;var home=CONTROL_HOME[key];if(home==='hands')toLog(node);else if(home==='health'){if(node.parentNode!==blocks.hlt._in)blocks.hlt._in.appendChild(node);}else if(home==='ingest')ingestDock.appendChild(node);else if(home==='view')viewBar.appendChild(node);else bar.appendChild(node);}
