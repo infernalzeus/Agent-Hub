@@ -64,6 +64,14 @@ SOFTWARE.
       try{const d=fr.contentDocument;if(!d)return null;const r=fr.getBoundingClientRect(),k=(r.width/(fr.clientWidth||r.width))||1,inner=d.elementFromPoint((x-r.left)/k,(y-r.top)/k);return inner?{el:inner,k,ox:r.left,oy:r.top}:null;}
       catch(_){return null;}                                                  // a page from another origin cannot be reached, and is left alone
     }
+    // A script-made click is untrusted: browsers refuse file pickers and media play for it. For those targets the click goes through the Hub as a real mouse click.
+    const needsReal=el=>{try{if(!el||!el.closest)return false;if(el.closest('input[type=file],video,audio,[data-real-click]'))return true;const l=el.closest('label');return !!(l&&l.control&&l.control.type==='file');}catch(_){return false;}};
+    async function realClick(x,y){const dpr=devicePixelRatio||1,bw=(outerWidth-innerWidth)/2,left=screenX+bw,top=screenY+(outerHeight-innerHeight)-bw;
+      try{const r=await fetch('/api/hands/os-click',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({x:Math.round((left+x)*dpr),y:Math.round((top+y)*dpr)})});const j=await r.json().catch(()=>({}));mark('real-click',{ok:!!j.ok,why:j.why||''});return !!j.ok;}catch(e){mark('real-click',{ok:false,why:String(e)});return false;}}
+    // Right click inside an app window (a page of its own): the Hub's page menu, because the page has none.
+    function pageMenu(x,y,fw){document.querySelectorAll('.hb-pagemenu').forEach(n=>n.remove());const m=document.createElement('div');m.className='hb-pagemenu';m.style.cssText='position:fixed;z-index:2147483001;left:'+Math.min(x,innerWidth-170)+'px;top:'+Math.min(y,innerHeight-130)+'px;background:#080c28;border:1px solid #00e676;border-radius:6px;padding:4px;display:grid;gap:2px;min-width:150px;box-shadow:0 8px 24px #000a';
+      [['BACK',()=>fw.history.back()],['RELOAD',()=>fw.location.reload()],['OPEN IN TAB',()=>window.open(fw.location.href,'_blank')]].forEach(([t,fn])=>{const b=document.createElement('button');b.type='button';b.textContent=t;b.style.cssText='font:700 10px Orbitron,monospace;letter-spacing:1px;color:#00e676;background:transparent;border:0;padding:9px 10px;text-align:left;cursor:pointer';b.onclick=()=>{m.remove();try{fn();}catch(_){}};m.appendChild(b);});
+      document.body.appendChild(m);setTimeout(()=>document.addEventListener('pointerdown',()=>m.remove(),{once:true,capture:true}),50);}
     function emit(p,type,id,x,y,pressed){
       const w=p.target.ownerDocument.defaultView||window,b=p.button;
       p.target.dispatchEvent(new w.PointerEvent(type,{bubbles:true,cancelable:true,composed:true,pointerId:9000+id,pointerType:'touch',isPrimary:id===0,clientX:(x-p.ox)/p.k,clientY:(y-p.oy)/p.k,button:type==='pointermove'?-1:b,buttons:pressed?(b===2?2:1):0,pressure:pressed?.5:0}));
@@ -99,7 +107,7 @@ SOFTWARE.
       const at=hand?posOf(p,hand):p.last;
       const tap=!cancel&&p.mode==='left'&&!p.scrolled&&p.travel<dead()&&performance.now()-p.t0<700;
       emit(p,(cancel||p.scrolled)?'pointercancel':'pointerup',id,at.x,at.y,false);
-      if(tap){const w=p.target.ownerDocument.defaultView||window;p.target.dispatchEvent(new w.MouseEvent('click',{bubbles:true,cancelable:true,composed:true,clientX:(p.down.x-p.ox)/p.k,clientY:(p.down.y-p.oy)/p.k,detail:1}));counts.clicks++;counts.taps++;}
+      if(tap&&needsReal(p.target)){realClick(at.x,at.y);counts.clicks++;counts.taps++;}else if(tap){const w=p.target.ownerDocument.defaultView||window;p.target.dispatchEvent(new w.MouseEvent('click',{bubbles:true,cancelable:true,composed:true,clientX:(p.down.x-p.ox)/p.k,clientY:(p.down.y-p.oy)/p.k,detail:1}));counts.clicks++;counts.taps++;}
       if(p.mode==='pan'){presses.delete(id);mark('end-pan',{travel:Math.round(p.travel)});return;}
       let how=cancel?'cancelled':tap?'tap':p.scrolled?'scroll':'drag';
       if(!cancel&&p.mode==='right'&&G.isClick(p.down,at,p.travel,slop())){
@@ -177,6 +185,7 @@ SOFTWARE.
       if(ev==='dwell-action')return 'POINT HOLD: '+actName(x.action);if(ev==='mpinch-action')return 'THUMB + MIDDLE: '+actName(x.action);
       if(ev==='end-left')return x.how==='tap'?'TAP: click':x.how==='scroll'?'SCROLL: a panel followed your hand':x.how==='drag'?'DRAG ('+x.travel+' px)':null;
       if(ev==='dwell-click')return 'POINT CLICK on '+(x.target||'a control');
+      if(ev==='real-click')return x.ok?'REAL CLICK sent (file picker / media needs a real one)':'real click refused: '+(x.why||'error');
       if(ev==='end-right')return x.how==='contextmenu'?'RIGHT CLICK: menu':'right press ended ('+x.how+')';
       if(ev==='begin-orbit')return 'FIST: tilting the board';if(ev==='begin-zoom1')return 'ZOOM hold';if(ev==='begin-pan')return 'PALM: panning';
       if(ev==='no-target'||ev==='tap-no-target')return 'press found nothing under the pointer';
@@ -211,12 +220,12 @@ SOFTWARE.
       }else hideTarget();
       if(usable&&!dw.fired&&held>=DWELL_MS&&h.sincePinch>600&&now-typedAt>1500&&mode!=='left'){
         dw.fired=true;lastAction=performance.now();
-        if(mode==='right'){const w=r.el.ownerDocument.defaultView||window;r.el.dispatchEvent(new w.MouseEvent('contextmenu',{bubbles:true,cancelable:true,composed:true,clientX:(x-r.ox)/r.k,clientY:(y-r.oy)/r.k,button:2}));counts.rclicks++;mark('dwell-right',{target:String(any.className||any.tagName).slice(0,30)});}
+        if(mode==='right'&&r.el.ownerDocument!==document&&!r.el.closest('.hk-h')){pageMenu(x,y,r.el.ownerDocument.defaultView);counts.rclicks++;mark('dwell-right',{target:'page menu'});}else if(mode==='right'){const w=r.el.ownerDocument.defaultView||window;r.el.dispatchEvent(new w.MouseEvent('contextmenu',{bubbles:true,cancelable:true,composed:true,clientX:(x-r.ox)/r.k,clientY:(y-r.oy)/r.k,button:2}));counts.rclicks++;mark('dwell-right',{target:String(any.className||any.tagName).slice(0,30)});}
         else{doAction(mode);mark('dwell-action',{action:mode});}
       }
       if(usable&&!dw.fired&&held>=DWELL_MS&&h.sincePinch>600&&now-typedAt>1500&&mode==='left'){
         dw.fired=true;const q={target:r.el,k:r.k,ox:r.ox,oy:r.oy,button:0},w=r.el.ownerDocument.defaultView||window,o={bubbles:true,cancelable:true,composed:true,clientX:(x-r.ox)/r.k,clientY:(y-r.oy)/r.k};
-        emit(q,'pointermove',h.id,x,y,false);emit(q,'pointerdown',h.id,x,y,true);emit(q,'pointerup',h.id,x,y,false);r.el.dispatchEvent(new w.MouseEvent('click',{...o,detail:1}));
+        emit(q,'pointermove',h.id,x,y,false);if(needsReal(r.el)){realClick(x,y);}else{emit(q,'pointerdown',h.id,x,y,true);emit(q,'pointerup',h.id,x,y,false);r.el.dispatchEvent(new w.MouseEvent('click',{...o,detail:1}));}
         counts.clicks++;counts.dwells++;counts.pinches++;mark('dwell-click',{x:Math.round(x),y:Math.round(y),target:String(el.className||el.tagName).slice(0,30)});lastAction=performance.now();firstPinch();
       }
     }
@@ -284,7 +293,7 @@ SOFTWARE.
           }
           if(p.mode==='orbit'){
             if(hand.gesture!=='fist'||hand.pinched||hand.rpinched||hand.triple){release(hand.id,false);continue;}
-            const v=boardView();if(v)v.orbitBy((hand.palm.x-p.prev.x)+(hand.roll-p.roll)*ROLL_PX,hand.palm.y-p.prev.y);p.prev={...hand.palm};p.roll=hand.roll;continue;
+            const v=boardView();if(v)v.orbitBy((hand.palm.x-p.prev.x)+(hand.roll-p.roll)*ROLL_PX+((hand.twist||0)-(p.twist==null?hand.twist||0:p.twist))*ROLL_PX*(profile.twistSign===-1?-1:1),hand.palm.y-p.prev.y);p.prev={...hand.palm};p.roll=hand.roll;p.twist=hand.twist;continue;
           }
           if(p.mode==='pan'){
             if(!hand.flat||hand.pinched||hand.rpinched||hand.triple){release(hand.id,false,hand);continue;}

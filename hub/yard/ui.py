@@ -52,19 +52,11 @@ button.i{width:26px;height:26px;padding:0;border-radius:50%;font:700 13px Outfit
 .prog{display:none;margin:6px 0}.prog.on{display:block}.prog .track{height:8px;border-radius:4px;background:rgba(0,230,118,.12);overflow:hidden}.prog .fill{height:100%;background:var(--accent);width:0}
 .stop{border-color:var(--red);color:var(--red)}iframe.teach{width:100%;height:68vh;min-height:420px;border:1px solid var(--border);border-radius:10px;background:#080c28}
 </style></head><body><main>
-<header class="top"><h1>REINFORCEMENT LEARNING</h1><p class="sub">The Hub learns to make better choices from results. It only ever proposes; nothing it learns acts until you say yes.</p></header>
-<div class="tabs" role="tablist"><button type="button" data-tab="overview" class="on">OVERVIEW</button><button type="button" data-tab="practice">YARD</button><button type="button" data-tab="teach">TEACH</button><button type="button" data-tab="status">STATUS</button></div>
+<header class="top"><h1>REINFORCEMENT LEARNING</h1><p class="sub">The Hub records each choice it makes, you grade them, and the grades change what it does. Today only one thing acts on your grades: a sentence you correct is routed your way from then on. The rest records or practises. See LEARNED.</p></header>
+<div class="tabs" role="tablist"><button type="button" data-tab="overview" class="on">OVERVIEW</button><button type="button" data-tab="practice">YARD</button><button type="button" data-tab="teach">TEACH</button><button type="button" data-tab="learned">LEARNED</button><button type="button" data-tab="routines">ROUTINES</button><button type="button" data-tab="status">STATUS</button></div>
 <section id="tab-overview">
 <div class="flow" id="flow"></div>
 <h2>WHAT TO DO NEXT</h2><div id="next" class="card"></div>
-<h2>THE WORDS</h2>
-<div class="words">
-<div><b>Choice</b><span>a moment where the Hub must pick: what you meant, which model, how to press through an app.</span></div>
-<div><b>Result (label)</b><span>whether the choice worked. Exact when it comes from a real outcome or from you; only a hint when it is guessed from what you did next.</span></div>
-<div><b>Learner</b><span>a small program that gets better at one kind of choice by trying and seeing results. Not an agent that talks.</span></div>
-<div><b>Yard</b><span>pretend apps where a learner can try thousands of times at no risk.</span></div>
-<div><b>Shadow</b><span>the learner watches the live Hub and notes what it would have done. It never acts.</span></div>
-</div>
 </section>
 <section id="tab-practice">
 <p class="sub">Pretend music apps where a learner tries to play a playlist, again and again. Nothing here touches your PC.<button type="button" class="i" data-info="info-yard" title="Details" aria-label="Details about the yard">i</button></p>
@@ -82,6 +74,8 @@ button.i{width:26px;height:26px;padding:0;border-radius:50%;font:700 13px Outfit
 <div class="infobox" id="info-teach" hidden><b>REQUESTS</b> shows things you said to the Hub and what it took you to mean. Tap <b>RIGHT</b> if it understood, <b>WRONG</b> if not (and say what you meant). <b>MISSIONS</b> shows your latest jobs for coding agents, newest first. Tap <b>GOOD</b> or <b>BAD</b>. If you already pressed APPLY the Hub counts it as good, DISCARD as bad; your tap beats that.<br><br>Each tap is one exact result. The learners are short of these: they need about a hundred and have about ten. Nothing else changes when you tap.</div>
 <iframe class="teach" id="teachframe" title="Teach" data-src="/teach"></iframe>
 </section>
+<section id="tab-learned" hidden><p class="sub" id="lsub"></p><div class="card" id="lnow"></div><h2>CORRECTIONS NOW IN FORCE</h2><div class="wrap"><table id="lfix"></table></div><h2>YOUR GRADES</h2><div class="wrap"><table id="lgrades"></table></div><h2>NOT BUILT YET</h2><div class="card" id="lnot"></div></section>
+<section id="tab-routines" hidden><p class="sub">Saved ways of doing things on this PC. A CANDIDATE has not been replayed cleanly twice; TRUSTED replays with no model. Read the steps, then APPROVE what is right and DELETE what is junk.</p><div id="rlist"></div></section>
 <section id="tab-status" hidden>
 <h2>SWITCHES<button type="button" class="i" data-info="info-status" title="Details" aria-label="Details about status">i</button></h2>
 <div class="infobox" id="info-status" hidden><b>LEARNING LOG</b> writes down each choice the Hub makes and how it turned out; switch it off and new notes stop. <b>SHADOW MODE</b> lets the trained learner watch real PC tasks and note what it would have done; it never acts. Below: how many choices exist and how many have an exact result, what each later step is still waiting for, and the <b>bandits</b> (the simplest learners: a tally of how often each option worked; they say nothing until two options have three results each).</div>
@@ -157,10 +151,38 @@ button.i{width:26px;height:26px;padding:0;border-radius:50%;font:700 13px Outfit
     todo.push(['MISSIONS','Mark your latest missions good or bad in TEACH > MISSIONS.','teach']);
     todo.forEach(([b,t,go])=>{const r=el('div','a');r.append(el('span',null,t));if(go){const g=el('button',null,b);g.onclick=()=>tab(go);r.append(g);}else r.append(el('span','chip',b));nx.append(r);});
   }
+  async function routines(){
+    const box=$('rlist');box.replaceChildren();let rows=[];
+    try{rows=(await (await fetch('/api/pc/routines',{cache:'no-store'})).json()).routines||[];}catch(e){box.textContent='Could not read the routines: '+e.message;return;}
+    if(!rows.length){box.append(el('div','card','No routines yet.'));return;}
+    rows.forEach(r=>{const c=el('div','card');c.append(el('div','said',r.title));
+      const m=el('div','mute');m.append(el('span','chip '+(r.status==='trusted'?'ok':r.status==='disabled'?'no':'part'),r.status.toUpperCase()),el('span','chip',r.successes+' good · '+r.failures+' bad'),el('span','chip',r.kind||''));c.append(m);
+      const st=el('div','mute','');c.append(st);
+      const row=el('div','row'),see=el('button','skip','SHOW STEPS'),ok=el('button',null,'APPROVE'),off=el('button','part',r.status==='disabled'?'RE-ENABLE':'DISABLE'),del=el('button','no','DELETE');
+      see.onclick=async()=>{try{const j=await (await fetch('/api/pc/routines/'+r.id+'/steps')).json();st.textContent=(j.steps.length?j.steps.map(s=>(s.ordinal+1)+'. '+s.tool+' '+((s.target&&s.target.name)||'')).join('  >  '):'no steps (an app launch or an address)');}catch(e){st.textContent=String(e);}};
+      ok.onclick=async()=>{await fetch('/api/pc/routines/'+r.id+'/approve',{method:'POST'});routines();};
+      off.onclick=async()=>{await fetch('/api/pc/routines/'+r.id+'/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:r.status==='disabled'?'candidate':'disabled'})});routines();};
+      del.onclick=async()=>{if(!confirm('Delete this routine for good? '+r.title))return;await fetch('/api/pc/routines/'+r.id,{method:'DELETE'});routines();};
+      ok.hidden=r.status==='trusted';row.append(see,ok,off,del);c.append(row);box.append(c);});
+  }
+  async function learned(){
+    let j;try{j=await (await fetch('/api/learning/learned',{cache:'no-store'})).json();}catch(e){$('lsub').textContent='Could not read it: '+e.message;return;}
+    $('lsub').textContent='What your taps have changed, and what they have not.';
+    const n=$('lnow');n.replaceChildren();n.append(el('div',null,j.acting_now));
+    n.append(el('div','mute',j.route_labelled+' of '+j.route_events+' requests have an exact label; the routing learner wants about '+j.label_goal+'. Speech-to-text misses counted so far: '+j.speech_misses+'.'));
+    const f=$('lfix');head(f,['Sentence you corrected','The Hub had chosen','Now it chooses','Times used since']);
+    if(!j.corrections.length){const r=el('tr'),d=el('td','mute','None yet. In TEACH, tap WRONG, pick what it should have been and SAVE.');d.colSpan=4;r.append(d);f.append(r);}
+    j.corrections.forEach(c=>{const r=el('tr');r.append(el('td',null,c.text),el('td','mute',c.was||'?'),el('td','bin',c.now),el('td',null,c.used));f.append(r);});
+    const g=$('lgrades');head(g,['What','Count']);
+    const rows=Object.entries(j.summary.grades||{}).map(([k,v])=>[k,v]).concat(Object.entries(j.summary.causes||{}).map(([k,v])=>['why: '+(j.summary.cause_help[k]||k),v]));
+    if(!rows.length){const r=el('tr'),d=el('td','mute','Nothing graded yet.');d.colSpan=2;r.append(d);g.append(r);}
+    rows.forEach(([k,v])=>{const r=el('tr');r.append(el('td',null,k),el('td',null,v));g.append(r);});
+    const nn=$('lnot');nn.replaceChildren();j.not_yet.forEach(t=>nn.append(el('div','mute','• '+t)));
+  }
   function tab(name){document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===name));
-    for(const n of ['overview','practice','teach','status'])$('tab-'+n).hidden=n!==name;
+    for(const n of ['overview','practice','teach','learned','routines','status'])$('tab-'+n).hidden=n!==name;
     if(name==='overview')overview();
-    if(name==='teach'){const f=$('teachframe');if(!f.src)f.src=f.dataset.src;}if(name==='status')status();try{localStorage.setItem('hub-rl-tab',name);}catch(e){}}
+    if(name==='teach'){const f=$('teachframe');if(!f.src)f.src=f.dataset.src;}if(name==='status')status();if(name==='learned')learned();if(name==='routines')routines();try{localStorage.setItem('hub-rl-tab',name);}catch(e){}}
   document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>tab(b.dataset.tab));
   document.querySelectorAll('button.i').forEach(b=>b.onclick=()=>{const x=document.getElementById(b.dataset.info);x.hidden=!x.hidden;});
   $('stop').onclick=async()=>{$('stop').disabled=true;$('msg').textContent='Stopping...';try{await fetch('/api/yard/practice/stop',{method:'POST'});}catch(e){}};

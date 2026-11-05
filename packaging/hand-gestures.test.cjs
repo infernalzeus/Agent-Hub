@@ -1,5 +1,7 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');
 const G=require('../hub/static/hand-gestures.js');
+// the older tests feed one frame at a time and expect the hand at once; the presence rule has its own test at the end
+{const E0=G.Engine;G.Engine=class extends E0{constructor(o={}){super({...o,tuning:{presentFrames:1,...(o.tuning||{})}});}};}
 function marks(x=.5,gap=1,open=false){const a=Array.from({length:21},()=>({x,y:.7,z:0}));a[0]={x,y:.8,z:0};a[9]={x,y:.6,z:0};a[2]={x:x+.04,y:.7,z:0};a[6]={x:x-.05,y:.5,z:0};a[8]={x:x-.05,y:.3,z:0};a[4]={x:a[8].x+gap*.16,y:.3,z:0};for(const [pip,tip]of [[10,12],[14,16],[18,20]]){a[pip]={x:x+(pip-14)*.012,y:.55,z:0};a[tip]={x:a[pip].x,y:open?.27:.69,z:0};}return a;}
 const result=(...hands)=>({landmarks:hands,handedness:hands.map(()=>[{categoryName:'Right',score:1}])});
 function feed(e,gap,from,to,open=false){let out;for(let t=from;t<=to;t+=20)out=e.update(result(marks(.5,gap,open)),t,1000,800);return out;}
@@ -61,4 +63,14 @@ test('thumb, index and middle touching is the zoom hold, and the same hand with 
 test('the three-finger zoom hold is opt-in: by default a pinch with the middle finger resting beside it stays a left press (5 Nov trace: 10 of 15 left presses were cancelled by it)',()=>{
   const e=new G.Engine({tuning:{settleMs:0,confirmMs:0}}),a=marks(.5,1,true);a[4]={x:(a[8].x+a[12].x)/2,y:(a[8].y+a[12].y)/2,z:0};let h;for(let t=0;t<=600;t+=20)h=e.update(result(a),t,1000,800).hands[0];
   assert.equal(h.triple,false);assert.equal(h.pinched,true);
+});
+
+test('a hand must be present for 3 frames and plausible before it exists (ghost detections of 5 Nov)',()=>{
+  const e=new G.Engine({tuning:{presentFrames:3}});
+  assert.equal(e.update(result(marks(.5,1)),0,1000,800).hands.length,0);assert.equal(e.update(result(marks(.5,1)),80,1000,800).hands.length,0);
+  assert.equal(e.update(result(marks(.5,1)),160,1000,800).hands.length,1);
+  const f=new G.Engine({tuning:{presentFrames:1}}),low={landmarks:[marks(.5,1)],handedness:[[{categoryName:'Right',score:.3}]]};
+  assert.equal(f.update(low,0,1000,800).hands.length,0);                                   // the model itself was unsure
+  const tiny=marks(.5,1);tiny[9]={x:.5,y:.79,z:0};
+  assert.equal(f.update(result(tiny),100,1000,800).hands.length,0);                        // far too small to be a hand
 });

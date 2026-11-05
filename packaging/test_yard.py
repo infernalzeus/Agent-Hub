@@ -234,7 +234,7 @@ def test_the_r_learning_panel_has_three_tabs_and_practice_can_be_stopped(hub):
         errors = []
         pg.on("pageerror", lambda e: errors.append(str(e)))
         pg.goto(hub + "/yard")
-        assert [t.strip() for t in pg.locator(".tabs button").all_inner_texts()] == ["OVERVIEW", "YARD", "TEACH", "STATUS"]
+        assert [t.strip() for t in pg.locator(".tabs button").all_inner_texts()] == ["OVERVIEW", "YARD", "TEACH", "LEARNED", "ROUTINES", "STATUS"]
         assert pg.locator("#stop").is_hidden()
         pg.click("[data-tab=practice]")
         pg.click("#go")

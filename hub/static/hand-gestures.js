@@ -29,7 +29,7 @@ SOFTWARE.
   // pinchOn / pinchOff are fractions of the hand's own size (wrist to the middle finger's knuckle), measured in the camera's own space and
   // including depth, so two fingertips that merely overlap in the picture but sit at different depths are not a pinch. 0.22 is about 2 cm on an
   // adult hand and 0.34 about 3.5 cm: a pinch starts below the first and ends above the second.
-  const TUNING=Object.freeze({pinchOn:.22,pinchOff:.34,pinchOnM:.26,pinchOffM:.38,tripleOn:.28,tripleOff:.40,tripleHoldMs:260,tripleTips:.30,rightIndexAway:.30,flatOn:1.45,flatOff:1.7,flatHoldMs:400,confirmMs:70,settleMs:220,poseHoldMs:200,aimLagMs:190,trailMs:500,clickSlop:20,fitHoldMs:1000,maxJump:.28,idleMs:60000});
+  const TUNING=Object.freeze({pinchOn:.22,pinchOff:.34,pinchOnM:.26,pinchOffM:.38,tripleOn:.28,tripleOff:.40,tripleHoldMs:260,tripleTips:.30,rightIndexAway:.30,flatOn:1.45,flatOff:1.7,flatHoldMs:400,confirmMs:70,settleMs:220,poseHoldMs:200,aimLagMs:190,trailMs:500,clickSlop:20,fitHoldMs:1000,maxJump:.28,idleMs:60000,minScore:.6,minSize:.05,maxSize:.5,presentFrames:3});
   const CAMERA={w:640,h:480};
   const PALM=[0,5,9,13,17];
   class LowPass{constructor(){this.last=null;}filter(x,a){this.last=this.last===null?x:a*x+(1-a)*this.last;return this.last;}}
@@ -53,12 +53,17 @@ SOFTWARE.
       const t=this.tuning,seen=new Set(),out=[],lost=[],marks=result?.landmarks||[],labels=result?.handedness||[],reach=Math.hypot(width,height),cw=cam?.w||CAMERA.w,ch=cam?.h||CAMERA.h;
       for(let i=0;i<Math.min(2,marks.length);i++){
         const raw=marks[i];if(!raw||raw.length!==21||raw.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y)))continue;
+        // A hand the model is unsure of, or one far too small or large to be a hand at this camera, is background (a face, a poster): ignored.
+        const conf=labels[i]?.[0]?.score;if(typeof conf==='number'&&conf<t.minScore)continue;
+        {const sz=Math.hypot(raw[0].x-raw[9].x,raw[0].y-raw[9].y);if(sz<t.minSize||sz>t.maxSize)continue;}
         const label=labels[i]?.[0]?.categoryName==='Right'?'right':'left',wrist={x:(1-raw[0].x)*width,y:raw[0].y*height};
         let id=-1,best=Infinity;for(const [key,s]of this.hands){if(seen.has(key))continue;const d=distance(s.wrist,wrist);if(d<best){best=d;id=key;}}
         if(best>reach*t.maxJump)id=-1;
-        if(id<0){id=label==='right'?1:0;if(seen.has(id))id=1-id;if(this.hands.has(id)){lost.push(this.hands.get(id).out);this.hands.delete(id);}}
+        if(id<0){id=label==='right'?1:0;if(seen.has(id))id=1-id;if(this.hands.has(id)){if(this.hands.get(id).out)lost.push(this.hands.get(id).out);this.hands.delete(id);}}
         seen.add(id);let s=this.hands.get(id);
         if(!s){s={cursor:new Point(),palmF:new Point(1.1,.012),rollF:new OneEuro(.8,.01),rollU:null,rollRaw:null,joints:Array.from({length:21},()=>new Point(2.4,.02)),trail:[],pinchSince:null,rSince:null,pinched:false,rpinched:false,pose:null,poseAt:now,held:'none',changedAt:now,aim:wrist};this.hands.set(id,s);}
+        // Present for a few frames before it counts, so a one-frame false detection never reaches the board.
+        if(!s.confirmed){s.frames=(s.frames||0)+1;s.wrist=wrist;if(s.frames<t.presentFrames)continue;s.confirmed=true;}
         s.wrist=wrist;const points=raw.map((p,j)=>s.joints[j].filter((1-p.x)*width,p.y*height,now/1000));
         // true distances: the camera's own pixels plus its depth estimate (same scale as x), so the picture's shape and overlap cannot fake a pinch
         const P=raw.map(p=>[p.x*cw,p.y*ch,(p.z||0)*cw]),d3=(a,b)=>Math.hypot(P[a][0]-P[b][0],P[a][1]-P[b][1],P[a][2]-P[b][2]);
@@ -103,6 +108,9 @@ SOFTWARE.
         const palm=s.palmF.filter(PALM.reduce((a,j)=>a+points[j].x,0)/PALM.length,PALM.reduce((a,j)=>a+points[j].y,0)/PALM.length,now/1000);
         const rr=Math.atan2((1-raw[9].x)-(1-raw[0].x),-(raw[9].y-raw[0].y));
         s.rollU=s.rollRaw===null?rr:s.rollU+wrap(rr-s.rollRaw);s.rollRaw=rr;const roll=s.rollF.filter(s.rollU,now/1000);
+        // Turning the forearm (how a fist is naturally rotated) barely moves the knuckle line in the picture but tips the knuckles in depth:
+        // the index knuckle comes forward as the little-finger knuckle goes back. 5 Nov trace: this swings 15 degrees where the image roll swings 4.
+        if(!s.twistF)s.twistF=new OneEuro(.8,.01);const twist=s.twistF.filter(Math.atan2(raw[17].z-raw[5].z,Math.max(1e-4,Math.abs(raw[17].x-raw[5].x))),now/1000);
         // a fist is four fingertips pulled in to the palm; a pinch with the other fingers curled is NOT one (the index fingertip stays about a
         // hand-size away from the palm), and neither is anything where the thumb touches a fingertip, so a pinch can never start a tilt
         const ext=(a,b)=>d3(a,0)>d3(b,0)*1.12;
@@ -114,11 +122,11 @@ SOFTWARE.
         if(flatShape){if(s.flatSince==null)s.flatSince=now;}else s.flatSince=null;
         const flat=flatShape&&(s.flat||now-s.flatSince>=t.flatHoldMs);s.flat=flat;
         s.pinched=pinched;s.rpinched=rpinched;s.triple=triple;
-        s.out={id,...pos,aimX:s.aim.x,aimY:s.aim.y,pinched,rpinched,triple,flat,hsize:rawSize,spread,sincePinch:s.lastPinchAt==null?1e9:now-s.lastPinchAt,gesture:s.held,points,span,fingers,pointerFinger:useMid?'middle':'index',handedness:label,palm,roll,
+        s.out={id,...pos,aimX:s.aim.x,aimY:s.aim.y,pinched,rpinched,triple,flat,hsize:rawSize,spread,sincePinch:s.lastPinchAt==null?1e9:now-s.lastPinchAt,gesture:s.held,points,span,fingers,pointerFinger:useMid?'middle':'index',handedness:label,palm,roll,twist,
                closeness:clamp(1-(gap-t.pinchOn)/(t.pinchOff-t.pinchOn),0,1),closenessM:clamp(1-(gapM-t.pinchOnM)/(t.pinchOffM-t.pinchOnM),0,1),gap,gapM};
         out.push(s.out);
       }
-      for(const [id,s]of this.hands)if(!seen.has(id)){lost.push(s.out);this.hands.delete(id);}
+      for(const [id,s]of this.hands)if(!seen.has(id)){if(s.out)lost.push(s.out);this.hands.delete(id);}
       const open=out.length===1&&out[0].gesture==='open'&&!out[0].pinched&&!out[0].rpinched&&!out[0].triple;let fit=false;
       if(open){if(this.openSince===null)this.openSince=now;if(!this.fitLatched&&now-this.openSince>=t.fitHoldMs){fit=true;this.fitLatched=true;}}else{this.openSince=null;this.fitLatched=false;}
       return {hands:out,lost,fit,zoom:out.length===2&&out.every(h=>h.pinched)?{mid:{x:(out[0].palm.x+out[1].palm.x)/2,y:(out[0].palm.y+out[1].palm.y)/2},distance:distance(out[0].palm,out[1].palm)}:null};

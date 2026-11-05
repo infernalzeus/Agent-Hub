@@ -1287,6 +1287,17 @@ async def api_set_status(request: web.Request) -> web.Response:
             db.execute("SELECT * FROM pc_routines WHERE id=?", (row["id"],)).fetchone())})
 
 
+@routes.post("/api/pc/routines/{id}/approve")
+async def api_approve_routine(request: web.Request) -> web.Response:
+    """The person reads the steps and says it is right: it becomes trusted without waiting for two clean replays. Only this button does that."""
+    with _db() as db:
+        row = db.execute("SELECT id FROM pc_routines WHERE id=?", (request.match_info["id"],)).fetchone()
+        if not row:
+            raise web.HTTPNotFound(text="no such routine")
+        db.execute("UPDATE pc_routines SET status='trusted', updated=? WHERE id=?", (time.time(), row["id"]))
+        return web.json_response({"ok": True, "routine": dict(db.execute("SELECT * FROM pc_routines WHERE id=?", (row["id"],)).fetchone())})
+
+
 @routes.get("/api/pc/routines/{id}/steps")
 async def api_routine_steps(request: web.Request) -> web.Response:
     steps = _steps(request.match_info["id"])

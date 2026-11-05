@@ -148,3 +148,57 @@ async def asset(request):
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Cache-Control'] = 'private, max-age=86400'
     return response
+
+# A click made by script is not a click made by a person: browsers refuse file pickers, media play and similar for it. A hand press that lands on one of
+# those asks for a real click here. Windows only; it refuses unless the Hub's own window is in front, restores the mouse pointer afterwards, and is rate limited.
+_last_os_click = [0.0]
+
+
+def _foreground_title() -> str:
+    import ctypes
+    u = ctypes.windll.user32
+    h = u.GetForegroundWindow()
+    n = u.GetWindowTextLengthW(h)
+    buf = ctypes.create_unicode_buffer(n + 1)
+    u.GetWindowTextW(h, buf, n + 1)
+    return buf.value
+
+
+def _real_click(x: int, y: int) -> None:
+    import ctypes
+    from ctypes import wintypes
+    u = ctypes.windll.user32
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+    except Exception:  # noqa: BLE001
+        pass
+    old = wintypes.POINT()
+    u.GetCursorPos(ctypes.byref(old))
+    u.SetCursorPos(int(x), int(y))
+    u.mouse_event(0x0002, 0, 0, 0, 0)       # left down
+    u.mouse_event(0x0004, 0, 0, 0, 0)       # left up
+    time.sleep(0.05)
+    u.SetCursorPos(old.x, old.y)
+
+
+@routes.post('/api/hands/os-click')
+async def os_click(request: web.Request) -> web.Response:
+    import sys
+    if sys.platform != 'win32':
+        raise web.HTTPNotImplemented(text='a real click is only available on Windows')
+    try:
+        b = await request.json()
+        x, y = int(b['x']), int(b['y'])
+    except Exception:  # noqa: BLE001
+        raise web.HTTPBadRequest(text='send {"x": screen px, "y": screen px}')
+    if not (0 <= x < 20000 and 0 <= y < 20000):
+        raise web.HTTPBadRequest(text='outside any screen')
+    now = time.time()
+    if now - _last_os_click[0] < 0.4:
+        raise web.HTTPTooManyRequests(text='one real click at a time')
+    title = await asyncio.get_running_loop().run_in_executor(None, _foreground_title)
+    if 'agent hub' not in title.casefold():
+        return web.json_response({'ok': False, 'why': 'the Hub window is not in front, so nothing was clicked', 'front': title[:60]})
+    _last_os_click[0] = now
+    await asyncio.get_running_loop().run_in_executor(None, _real_click, x, y)
+    return web.json_response({'ok': True})

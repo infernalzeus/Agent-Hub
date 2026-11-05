@@ -252,6 +252,29 @@ __SETUP_LINK__
   catch (e) { mark = null; }
   if (!mark) host.classList.add('mark-fallback');
   window.dormantGlobe = mark;
+  // Hover readout. The installed app has no address bar, so: triple-click the word under the globe (DORMANT / ONLINE), or add #hover-debug to the address.
+  // It shows what the globe really receives: pointer type, events on the globe itself and on the page above it, and WHAT ELSE is under the pointer.
+  var dbgOn = false;
+  function showHoverDebug() {
+    if (dbgOn) return; dbgOn = true;
+    var dbg = document.createElement('pre'); dbg.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;margin:0;padding:8px 10px;background:#000c;color:#0f0;font:11px/1.4 monospace;max-width:92vw;white-space:pre-wrap;pointer-events:none';
+    document.body.appendChild(dbg); var ent = 0, mov = 0, ptype = '-', docIn = 0, under = '-';
+    host.addEventListener('pointerenter', function (e) { ent++; ptype = e.pointerType; }, true);
+    host.addEventListener('pointermove', function (e) { mov++; ptype = e.pointerType; }, true);
+    document.addEventListener('pointermove', function (e) { var r = host.getBoundingClientRect(); if (Math.hypot(e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2) < r.width / 2) { docIn++; var t = document.elementFromPoint(e.clientX, e.clientY); under = t ? (t.tagName + (t.id ? '#' + t.id : '') + (t.className && t.className.baseVal === undefined ? '.' + t.className : '')) : 'none'; } }, true);
+    var paintDbg = function () { caches.keys().then(function (k) { dbg.textContent = 'mark: ' + (window.AgentHubMark ? 'loaded' : 'MISSING') + ' mounted: ' + !!mark + ' error: ' + (window.__markError || 'none') + NL +
+      'canvases in globe: ' + host.querySelectorAll('canvas').length + '  size: ' + host.clientWidth + 'x' + host.clientHeight + NL +
+      'pointer type: ' + ptype + '  enter on globe: ' + ent + '  moves on globe: ' + mov + '  moves over globe (page): ' + docIn + NL +
+      'under the pointer: ' + under + NL +
+      'suspended: ' + window.__hubViewSuspended + '  hidden: ' + document.hidden + '  focus: ' + document.hasFocus() + NL +
+      'reduced motion: ' + matchMedia('(prefers-reduced-motion: reduce)').matches + '  hover capable: ' + matchMedia('(hover: hover)').matches + '  coarse: ' + matchMedia('(pointer: coarse)').matches + NL +
+      'service worker: ' + (navigator.serviceWorker && navigator.serviceWorker.controller ? 'controlling' : 'none') + '  caches: ' + k.join(', '); }); };
+    paintDbg(); setInterval(paintDbg, 700);
+  }
+  var NL = String.fromCharCode(10);
+  if (/hover-debug/.test(location.hash)) showHoverDebug();
+  (function () { var tl = document.querySelector('.status'), n = 0, t0 = 0;
+    if (tl) tl.addEventListener('click', function () { var now = Date.now(); n = now - t0 < 1500 ? n + 1 : 1; t0 = now; if (n >= 3) showHoverDebug(); }); })();
   // Safari bookmark launch can change its visual viewport after DOM layout.
   // Keep the startup geometry out of view; reveal only after a quiet sizing window.
   if(/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)) {
@@ -661,7 +684,7 @@ header{display:flex;align-items:center;flex-wrap:nowrap;gap:7px;width:100%;paddi
 #conn-dot{width:7px;height:7px;border-radius:50%;background:#c0392b;transition:background .3s,box-shadow .3s;flex-shrink:0}
 #conn-dot.live{background:var(--accent);box-shadow:0 0 8px var(--accent)}
 .header-shortcuts{display:flex;gap:8px}
-#setup-banner:empty{display:none}
+#setup-banner:empty,#setup-banner{display:none!important}      /* the board is the only home; these notices live under SETUP on it. They used to flash on the page before the board took over */
 .setup-issue{margin:14px 20px 0;padding:12px 14px;border-radius:10px;font-size:12.5px;line-height:1.5;
   border:1px solid;cursor:default}
 .setup-issue.info{background:rgba(0,230,118,.06);border-color:var(--border-dim);color:var(--text-muted)}

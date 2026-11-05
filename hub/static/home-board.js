@@ -227,10 +227,16 @@
       defs.forEach(function (d) {
         var l = L[d[0]], e = blocks[d[0]]; if (!e || l.exp || l.min || isHidden(d[0])) return;if(l.rz){e._in.style.overflowY='auto';return;}
         var keep = e.style.height, visibility = e.style.contentVisibility; e.style.contentVisibility = 'visible'; e.style.height = 'auto'; var nat = Math.max(Math.ceil(e.offsetHeight),e.querySelector('.hk-h').offsetHeight+e._in.scrollHeight)+8; e.style.height = keep; e.style.contentVisibility = visibility;
-        l.h = Math.max(d[1].h, Math.min(nat, 460));
+        // The block follows its content, up and down (it used to only grow, so a block whose content shrank stayed too big), and the 3D slab behind it
+        // follows the block: the slab's own height is set here too, not only when the block is placed.
+        l.h = Math.max(110, Math.min(nat, 460));
         e._in.style.overflowY = nat > 460 ? 'auto' : 'hidden'; e.style.height = l.h + 'px';
+        if (e._solid) e._solid.style.height = e.style.height;
       });
     }
+    var fitTimer = 0;
+    function fitSoon() { if (fitTimer) return; fitTimer = setTimeout(function () { fitTimer = 0; if (!alive) return; var before = defs.map(function (d) { return L[d[0]] && L[d[0]].h; }).join(); autosize(); var after = defs.map(function (d) { return L[d[0]] && L[d[0]].h; }).join(); if (before !== after && nav) nav.refresh(); }, 180); }
+    function watchContent(e) { if (e._in && window.MutationObserver) new MutationObserver(fitSoon).observe(e._in, { childList: true, subtree: true, characterData: true }); }
     function grid() {
       // Wide window: the overview panels in a row, usage under the first, the tiles below. Narrow window (a tablet): everything flows
       // in rows that fit, centred, so nothing is cut off at the sides and the zoom can stay readable.
@@ -295,7 +301,7 @@
         e._spec = c[0] === 'oc' ? { tabs: [['MISSIONS', '/missions'], ['GRAPH', '/graph'], ['REINFORCEMENT LEARNING', '/yard'], ['AGENCY', '/agents'], ['CHATS', '/chats']], w: 860, h: 600 } : { move: c[0] === 'ytdl' ? 'ytdl-app-area' : 'yt-app-area', toggle: c[3], w: 560, h: 620 };
         e._open = function () { expand(id); };
       }
-      e.setAttribute('aria-label', e._name); blocks[id] = e; world.append(solid,e); applyBlock(id); return e;
+      e.setAttribute('aria-label', e._name); blocks[id] = e; watchContent(e); world.append(solid,e); applyBlock(id); return e;
     }
     defs.forEach(function (d) { mk(d[0], d[1]); });
     var releaseArrival = HubBlocks.prepare(blocks);

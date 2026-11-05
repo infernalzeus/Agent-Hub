@@ -147,6 +147,34 @@ _BIN_DESC = {
 }
 
 
+_MEMORY: dict = {"key": None, "map": {}}
+
+
+def _norm(text: str) -> str:
+    return " ".join(re.findall(r"[a-z0-9']+", (text or "").casefold()))
+
+
+def corrections() -> "dict[str, dict]":
+    """What you taught by saying WRONG and naming the right bin: {normalised sentence: {bin, at, text}}. The latest correction of a sentence wins.
+    This is the one thing in the Hub that changes its behaviour from a tap today: the same sentence is routed the way you said. Cached on the log file."""
+    try:
+        st = LOG.stat()
+        key = (st.st_mtime_ns, st.st_size)
+    except OSError:
+        return {}
+    if _MEMORY["key"] == key:
+        return _MEMORY["map"]
+    rows = _rows()
+    said = {r.get("at"): r for r in rows if r.get("kind") not in ("outcome", "verdict") and r.get("text")}
+    out: dict = {}
+    for r in rows:
+        if r.get("kind") == "verdict" and r.get("by") == "teach" and r.get("correct") in BINS and r.get("of") in said:
+            text = said[r["of"]]["text"]
+            out[_norm(text)] = {"bin": r["correct"], "at": r.get("at"), "text": text, "was": said[r["of"]].get("bin")}
+    _MEMORY["key"], _MEMORY["map"] = key, out
+    return out
+
+
 def _d(bin_: str, confidence: float, why: str, by: str = "rules", **extra) -> dict:
     return {"bin": bin_, "confidence": round(confidence, 2), "by": by, "why": why, **extra}
 
@@ -182,6 +210,11 @@ def decide(text: str, *, have_question_open: bool = False) -> dict:
     if not t:
         return _d("conversation", 0.0, "nothing was said")
     low = t.casefold()
+
+    # 0. A sentence you have already corrected is routed the way you said, before anything else is asked.
+    mine = corrections().get(_norm(t))
+    if mine:
+        return _d(mine["bin"], 0.99, "you corrected this exact sentence before", by="you")
 
     # 1. About you: telling, forgetting, what it knows.
     if re.match(r"^(?:my |the )?(?:location|timezone|time zone|name|units)\s*(?:is|=|:)\s*\S", low) \

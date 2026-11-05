@@ -27,6 +27,31 @@ function agOverview(){
  const name=id=>agNode(id)?.name||id,by={};for(const e of m.edges)(by[e.from]||=[]).push(e);
  return `<h3>WHO CALLS WHOM</h3><div class="ag-table"><table><thead><tr><th>Agent</th><th>Hands work to</th></tr></thead><tbody>${Object.keys(by).map(id=>`<tr><td>${esc(name(id))}</td><td>${by[id].map(e=>esc(name(e.to))).join(', ')}</td></tr>`).join('')}</tbody></table></div><h3>WHAT THE LEARNERS CAN SEE</h3><p>${m.complete?'Every agent has a coverage decision.':'Some agents need a coverage decision.'} Declared learning gaps: ${(m.gaps||[]).length}.</p><div class="ag-table"><table><thead><tr><th>Agent</th><th>State</th><th>Why</th></tr></thead><tbody>${m.nodes.map(n=>{let c=m.coverage[n.id]||{};return `<tr><td>${esc(n.name)}</td><td>${esc(c.state||'not decided')}</td><td>${esc(c.note||'')}</td></tr>`}).join('')}</tbody></table></div>`;
 }
+// An opened agent shows its editable controls (model, temperature, top_p, max steps, reasoning) at once, not behind a second SETTINGS press.
+function agOpenEditor(key){
+ if(String(key).startsWith('helper:')||!window.editAgent)return;
+ const box=document.getElementById('edit-'+key);if(!box)return;
+ if(box.style.display!=='block')window.editAgent(key);
+ if(box.querySelector('.ag-sliders'))return;
+ // Sliders with a live value beside each, and every change saved at once with a visible SAVED / ERROR mark (no second SAVE press, nothing to double-click).
+ const $e=id=>document.getElementById(id),temp=$e('e-temp-'+key),topp=$e('e-topp-'+key),steps=$e('e-steps-'+key),vari=$e('e-var-'+key),model=$e('e-model-'+key),row=box.querySelector('.editrow');
+ const p=(DATA.personas||[]).find(x=>x.name===key),eff=k=>{const o=(p&&p.settings&&p.settings[k])||{};return o.value;};
+ const wrap=document.createElement('div');wrap.className='ag-sliders';
+ const mk=(label,input,min,max,step,fallback,hint)=>{const d=document.createElement('div'),out=document.createElement('output'),r=document.createElement('input');r.type='range';r.min=min;r.max=max;r.step=step;
+   const start=input.value!==''?input.value:(fallback!=null?fallback:min);r.value=start;out.textContent=input.value!==''?input.value:(fallback!=null?fallback+' (default)':'default');
+   r.oninput=()=>{out.textContent=r.value;input.value=r.value;};r.onchange=()=>{input.value=r.value;save();};
+   const l=document.createElement('label');l.append(label,out);d.append(l,r);if(hint){const h=document.createElement('small');h.textContent=hint;d.append(h);}return d;};
+ wrap.append(mk('TEMPERATURE',temp,0,2,.05,eff('temperature'),'low = repeatable, high = varied'),mk('TOP_P',topp,0,1,.05,eff('top_p'),'how much of the likely words it may pick from'),mk('MAX STEPS',steps,1,60,1,eff('steps'),'tool calls per run'));
+ const status=document.createElement('div');status.className='ag-saved';status.textContent='CHANGES SAVE AT ONCE';wrap.append(status);
+ row.parentNode.insertBefore(wrap,row);row.style.display='none';
+ // model and reasoning stay as dropdowns, visible beside the sliders
+ const sel=document.createElement('div');sel.className='ag-sliders';[['MODEL',model],['REASONING',vari]].forEach(([t,el])=>{const d=document.createElement('div'),l=document.createElement('label');l.textContent=t;el.remove();d.append(l,el);sel.append(d);});
+ wrap.parentNode.insertBefore(sel,wrap);
+ let timer=0;const save=()=>{clearTimeout(timer);status.className='ag-saved';status.textContent='SAVING...';timer=setTimeout(async()=>{
+   try{await jpost('/api/opencode/agents/'+encodeURIComponent(key)+'/settings',{model:model.value||null,temperature:temp.value||null,top_p:topp.value||null,steps:steps.value||null,variant:vari.value||null});
+     DATA=await jget('/api/agents');agPaintModels();status.className='ag-saved ok';status.textContent='SAVED';}catch(e){status.className='ag-saved bad';status.textContent='NOT SAVED: '+e.message;}},350);};
+ model.onchange=save;vari.onchange=save;
+}
 function agPaintList(){
  if(!DATA||!AG_CARD)return;
  const q=AG_QUERY.trim().toLowerCase(),persons=DATA.personas||[],has=p=>!q||[p.name,p.description,p.frontmatter?.about].join(' ').toLowerCase().includes(q),used=new Set();
@@ -43,6 +68,7 @@ function agPaintList(){
   if(!AG_WORK){const other=persons.filter(p=>!used.has(p.name)&&!p.utility&&p.name!=='neo').filter(has);html+=section('Hub orchestration and other agents',other,agCompact);}
  }
  $('list').innerHTML=html;
+ AG_OPEN.forEach(agOpenEditor);
  if(!document.querySelector('.ag-entry'))$('list').insertAdjacentHTML('beforeend','<p class="ag-empty">No agents match these filters.</p>');
 }
 function agPaintModels(){
@@ -55,14 +81,18 @@ async function agModelChange(name,value){const err=$('agency-model-error');err.t
 function agSetTab(tab){AG_TAB=tab==='skills'?'skills':'agents';$('agents-view').hidden=AG_TAB!=='agents';$('skl-modal').classList.toggle('open',AG_TAB==='skills');$('skl-scrim').classList.remove('open');$('tab-agents').setAttribute('aria-selected',String(AG_TAB==='agents'));$('btn-skills').setAttribute('aria-selected',String(AG_TAB==='skills'));$('btn-create').hidden=AG_TAB==='skills';history.replaceState(null,'','#'+AG_TAB);}
 function agRender(){
  if(!$('agency-search')){
-  $('pick').innerHTML=`<div class="ag-filters"><label>Search agents<input type="search" id="agency-search" placeholder="Name, role or work"></label><label>Show<select id="agency-scope"><option value="all">All agents and helpers</option><option value="missions">Mission agents</option><option value="helpers">Hub helpers</option></select></label><label>Work type<select id="agency-work"><option value="">All work types</option>${Object.entries(PROFILES).map(([id,p])=>`<option value="${esc(id)}">${esc(p.label||id)}</option>`).join('')}</select></label></div>`;
-  $('agency-search').oninput=e=>{AG_QUERY=e.target.value;agPaintList();};$('agency-scope').value=AG_SCOPE;$('agency-scope').onchange=e=>{AG_SCOPE=e.target.value;agPaintList();};$('agency-work').onchange=e=>{AG_WORK=e.target.value;agPaintList();};
+  $('pick').innerHTML=`<div class="ag-filters"><label>Search agents<input type="search" id="agency-search" placeholder="Name, role or work"></label></div><div class="agency-tabs ag-subtabs" id="agency-subtabs" role="tablist" aria-label="Agents by group"></div>`;
+  const paintTabs=()=>{const T=[['all','','ALL'],['missions','','MISSION AGENTS'],['helpers','','HUB HELPERS']].concat(Object.entries(PROFILES).map(([id,p])=>['missions',id,String(p.label||id).toUpperCase()]));
+   $('agency-subtabs').innerHTML=T.map(([sc,wk,lab])=>`<button type="button" role="tab" data-sc="${sc}" data-wk="${wk}" aria-selected="${sc===AG_SCOPE&&wk===AG_WORK}">${esc(lab)}</button>`).join('');
+   $('agency-subtabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{AG_SCOPE=b.dataset.sc;AG_WORK=b.dataset.wk;paintTabs();agPaintList();});};
+  paintTabs();
+  $('agency-search').oninput=e=>{AG_QUERY=e.target.value;agPaintList();};
  }
  agPaintList();agPaintModels();agSetTab(AG_TAB);
 }
 $('tab-agents').onclick=()=>agSetTab('agents');
 document.addEventListener('click',e=>{
- const b=e.target.closest('[data-ag-expand]');if(b){const key=b.dataset.agExpand,open=!AG_OPEN.has(key);if(open)AG_OPEN.add(key);else AG_OPEN.delete(key);b.setAttribute('aria-expanded',String(open));b.closest('.ag-entry').querySelector('.ag-full').hidden=!open;}
+ const b=e.target.closest('[data-ag-expand]');if(b){const key=b.dataset.agExpand,open=!AG_OPEN.has(key);if(open)AG_OPEN.add(key);else AG_OPEN.delete(key);b.setAttribute('aria-expanded',String(open));b.closest('.ag-entry').querySelector('.ag-full').hidden=!open;if(open)agOpenEditor(key);}
  const reset=e.target.closest('[data-model-reset]');if(reset)agModelChange(reset.dataset.modelReset,'');
  const overview=e.target.closest('[data-fam=map]');if(overview){AG_OVERVIEW=!AG_OVERVIEW;agPaintList();}
 });

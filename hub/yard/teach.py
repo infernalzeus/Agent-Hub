@@ -24,7 +24,7 @@ BIN_HELP = {
 }
 
 
-GRADES = ("right", "partly", "wrong")
+GRADES = ("right", "partly", "wrong", "skip")
 # WHY a thing went wrong. "heard", "app" and "steps" are not the router's fault, so they must not be counted against it: a garbled transcript is a
 # speech-to-text lesson, an app that changed is a routine lesson. Only "hub" (and "wording", which asks the Hub to ask back) blame the decision itself.
 CAUSES = {"hub": "the Hub chose badly", "heard": "it heard me wrongly (speech to text)", "wording": "I said it badly / it was unclear",
@@ -41,6 +41,8 @@ def _grade(b: dict) -> "tuple[str, bool | None, str | None]":
             raise web.HTTPBadRequest(text='send "grade": right|partly|wrong (or "ok": true|false)')
         g = "right" if ok else "wrong"
     cause = b.get("cause") if b.get("cause") in CAUSES else None
+    if g == "skip":
+        return g, None, None
     if g == "right":
         return g, True, None
     if g == "partly":
@@ -48,13 +50,47 @@ def _grade(b: dict) -> "tuple[str, bool | None, str | None]":
     return g, (None if cause in NOT_THE_ROUTERS_FAULT else False), cause
 
 
+def _runs_since(at: float, text: str) -> "dict | None":
+    """The desktop agent's try that followed this request, if there was one: its steps are what a multi-step grade is about."""
+    import json
+    from ..runtime import STATE
+    try:
+        lines = (STATE / "data" / "desktop_agent_runs.jsonl").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    stop = {"can", "you", "open", "apple", "music", "please", "play", "something", "from", "the", "list", "playlist", "for", "and", "some"}
+    words = {w.strip(".,?!") for w in text.casefold().split()} - stop
+    best, score = None, 0
+    for raw in lines:
+        try:
+            r = json.loads(raw)
+        except ValueError:
+            continue
+        if not (at - 5 <= float(r.get("at") or 0) <= at + 900):
+            continue
+        goal = {w.strip(".,?!") for w in str(r.get("goal", "")).casefold().split()} - stop
+        n = len(words & goal) + (0.5 if not words and not goal else 0)
+        if n > score or (best is None and not words):
+            best, score = r, n
+    return best
+
+
 def _unlabelled(limit: int = 100) -> "tuple[list[dict], int]":
-    from ..features import binning as BIN, learning as LRN
-    labelled = {e["at"] for e in LRN._route_events() if e["ok"] is not None}
-    rows = [r for r in BIN._rows() if r.get("kind") not in ("outcome", "verdict") and r.get("at") and r.get("text")]
-    left = [r for r in rows if r["at"] not in labelled]
+    from ..features import binning as BIN
+    rows = BIN._rows()
+    answered = {r.get("of") for r in rows if r.get("kind") == "verdict" and r.get("by") == "teach"}
+    said = [r for r in rows if r.get("kind") not in ("outcome", "verdict") and r.get("at") and r.get("text")]
+    left = [r for r in said if r["at"] not in answered and not any(v.get("of") == r["at"] and isinstance(v.get("ok"), bool) for v in rows if v.get("kind") == "verdict")]
     left.sort(key=lambda r: r["at"], reverse=True)
-    items = [{"of": r["at"], "text": str(r["text"])[:200], "chosen": str(r.get("bin")), "said": str(r.get("said") or "")[:160]} for r in left[:limit]]
+    items = []
+    for r in left[:limit]:
+        item = {"of": r["at"], "text": str(r["text"])[:200], "chosen": str(r.get("bin")), "said": str(r.get("said") or "")[:160], "by": str(r.get("by") or "rules")}
+        run = _runs_since(r["at"], str(r["text"])) if r.get("bin") in ("app_task", "launch_app", "pc_direct") else None
+        if run:
+            item["steps"] = [{"n": t.get("step", i) + 1, "what": str(t.get("control") or t.get("do") or "")[:90], "changed": t.get("changed"), "ms": t.get("ms")} for i, t in enumerate(run.get("trace") or [])]
+            item["model"] = run.get("model")
+            item["run_said"] = str(run.get("say") or "")[:140]
+        items.append(item)
     return items, len(left)
 
 
@@ -86,7 +122,10 @@ async def api_tap(request: web.Request) -> web.Response:
         row["correct"] = correct
     step = b.get("step")
     if isinstance(step, int) and 0 < step < 100:
-        row["failed_step"] = step                              # which step of a multi-step task went wrong
+        row["failed_step"] = step
+    bad = b.get("bad_steps")
+    if isinstance(bad, list):
+        row["bad_steps"] = [n for n in bad if isinstance(n, int) and 0 < n < 100][:20]      # which steps of a multi-step task went wrong
     note = b.get("note")
     if isinstance(note, str) and note.strip():
         row["note"] = note.strip()[:300]                      # why it was wrong, in your words
@@ -134,6 +173,30 @@ async def api_summary(request: web.Request) -> web.Response:
                               "not_the_routers_fault": list(NOT_THE_ROUTERS_FAULT)})
 
 
+@routes.get("/api/learning/learned")
+async def api_learned(request: web.Request) -> web.Response:
+    """What your taps have changed. Today exactly one thing acts on them: a sentence you corrected is routed the way you said."""
+    from ..features import binning as BIN, learning as LRN
+    rows = BIN._rows()
+    fixes = BIN.corrections()
+    used: dict = {}
+    for r in rows:
+        if r.get("by") == "you" and r.get("text"):
+            k = BIN._norm(r["text"])
+            used[k] = used.get(k, 0) + 1
+    corrections = [{"text": v["text"], "was": v.get("was"), "now": v["bin"], "used": used.get(k, 0), "at": v.get("at")} for k, v in fixes.items()]
+    corrections.sort(key=lambda c: -(c["at"] or 0))
+    summ = (await api_summary(request)).text
+    import json
+    st = LRN.status()
+    route = st["per_kind"]["route"]
+    heard = json.loads(summ).get("causes", {}).get("heard", 0)
+    return web.json_response({"corrections": corrections, "summary": json.loads(summ), "route_labelled": route["labelled"], "route_events": route["events"],
+                              "label_goal": 100, "speech_misses": heard,
+                              "acting_now": "Only your corrections of exact sentences. Everything else is recorded or practised, and nothing else changes what the Hub does.",
+                              "not_yet": ["A router that generalises from your labels (needs about 100 exact labels)", "A speech-to-text fix (the misses are only counted)", "Routine confidence from your grades"]})
+
+
 @routes.get("/api/learning/teach/missions")
 async def api_missions(request: web.Request) -> web.Response:
     return web.json_response({"missions": await asyncio.get_running_loop().run_in_executor(None, _missions)})
@@ -179,14 +242,14 @@ p.sub{color:var(--mute);margin:6px 0 14px;font-size:13px}
 .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
 button,select{font:700 13px Orbitron,system-ui,sans-serif;letter-spacing:.06em;border-radius:8px;padding:11px 18px;border:1px solid var(--accent);background:var(--panel);color:var(--accent);cursor:pointer;min-height:44px}
 button.no{border-color:var(--red);color:var(--red)}button.part{border-color:var(--amber);color:var(--amber)}input.step{width:130px;font:14px Outfit,system-ui,sans-serif;color:var(--text);background:rgba(8,12,40,.9);border:1px solid var(--border);border-radius:8px;padding:8px 10px}button.skip{border-color:var(--border);color:var(--mute)}
-select{font-weight:400;letter-spacing:0;max-width:100%}
+.opts{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}.opts button{padding:6px 11px;min-height:34px;font-size:11px}.opts button.on{background:var(--accent);color:#04120a}.steps{margin:10px 0;border:1px solid var(--border);border-radius:8px;overflow:hidden}.steps label{display:flex;gap:10px;align-items:flex-start;padding:7px 10px;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer}.steps label:last-child{border-bottom:0}.steps label.bad{background:rgba(255,92,92,.1)}.steps .n{color:var(--mute);min-width:22px}.steps .nochg{color:var(--amber);font-size:12px}.h{font:700 11px Orbitron,system-ui,sans-serif;letter-spacing:.08em;color:var(--mute);margin:12px 0 2px}.effect{color:var(--mute);font-size:12.5px;margin-top:8px}select{font-weight:400;letter-spacing:0;max-width:100%}
 textarea{width:100%;font:14px Outfit,system-ui,sans-serif;color:var(--text);background:rgba(8,12,40,.9);border:1px solid var(--border);border-radius:8px;padding:8px 10px;resize:vertical}
 .count{color:var(--amber);font-size:13px}
 .seg{display:flex;gap:8px;margin:6px 0 10px}.seg button.on{background:var(--accent);color:#04120a}
 .chip{border:1px solid var(--border);border-radius:99px;padding:2px 10px;font-size:12px;color:var(--mute);margin-right:6px;display:inline-block}.chip.ok{color:var(--accent);border-color:var(--accent)}.chip.no{color:var(--red);border-color:var(--red)}
 </style></head><body><main>
 <h1>TEACH</h1>
-<p class="sub">Things you already asked, and what the Hub thought you wanted. Tap RIGHT or WRONG. Each tap is one exact label for the learner; nothing else changes.</p>
+<p class="sub">Things you already asked, and what the Hub thought you wanted. RIGHT, PARTLY or WRONG, with a reason. A WRONG that says what it should have been changes how that exact sentence is routed from now on; everything else is recorded and counted on the LEARNED tab.</p>
 <div class="seg"><button type="button" id="s-req" class="on">REQUESTS</button><button type="button" id="s-mis">MISSIONS</button></div>
 <div class="count" id="count"></div>
 <div id="card"></div>
@@ -212,18 +275,35 @@ textarea{width:100%;font:14px Outfit,system-ui,sans-serif;color:var(--text);back
     row.appendChild(done);
   }
   function show(){
-    const c=$('card');c.replaceChildren();$('count').textContent=left?left+' still without a label':'';
+    const c=$('card');c.replaceChildren();$('count').textContent=left?left+' left to answer. SKIP hides one for good.':'';
     const it=items[i];
-    if(!it){c.appendChild(el('div','card',left?'That is the batch. Reload for more.':'Nothing left to label. Thank you.'));return;}
+    if(!it){c.appendChild(el('div','card',left?'That is the batch. Reload for more.':'Nothing left to answer. Thank you.'));return;}
     const card=el('div','card');card.appendChild(el('div','said','“'+it.text+'”'));
-    const p=el('div','mute','The Hub took that as: ');p.appendChild(el('span','bin',help(it.chosen)));card.appendChild(p);
+    const p=el('div','mute','The Hub took that as: ');p.appendChild(el('span','bin',help(it.chosen)));p.append(' (chosen by '+(it.by==='you'?'your earlier correction':it.by)+')');card.appendChild(p);
     if(it.said)card.appendChild(el('div','mute','It said: '+it.said));
+    let bad=new Set();
+    if(it.steps&&it.steps.length){
+      card.appendChild(el('div','h','IT TOOK '+it.steps.length+' STEP'+(it.steps.length>1?'S':'')+(it.model?' · MODEL '+it.model:'')+(it.run_said?' · "'+it.run_said+'"':'')));
+      const box=el('div','steps');
+      it.steps.forEach(s=>{const lab=el('label'),cb=el('input');cb.type='checkbox';cb.onchange=()=>{cb.checked?bad.add(s.n):bad.delete(s.n);lab.classList.toggle('bad',cb.checked);};
+        lab.append(cb,el('span','n',s.n+'.'),el('span',null,s.what||'(a key press)'));if(s.changed===false)lab.append(el('span','nochg','nothing changed'));if(s.ms)lab.append(el('span','mute',(s.ms/1000).toFixed(1)+' s'));box.appendChild(lab);});
+      card.appendChild(box);card.appendChild(el('div','mute','Tick the steps that went wrong. Leave all unticked if none did.'));
+    }
+    let grade=null,cause='';
     const row=el('div','row'),yes=el('button',null,'RIGHT'),part=el('button','part','PARTLY'),no=el('button','no','WRONG'),skip=el('button','skip','SKIP');
-    const save=(g)=>send('/api/learning/teach',Object.assign({of:it.of},g),()=>{left=Math.max(0,left-1);i++;show();});
-    yes.onclick=()=>save({grade:'right'});skip.onclick=()=>{i++;show();};
-    part.onclick=()=>detail(row,'partly',false,it,save);
-    no.onclick=()=>detail(row,'wrong',true,it,save);
-    row.append(yes,part,no,skip);card.appendChild(row);c.appendChild(card);
+    const why=el('div');card.appendChild(row);card.appendChild(why);
+    const why_h=el('div','h','WHY? (OPTIONAL BUT THIS IS WHAT IT LEARNS FROM)');why.appendChild(why_h);
+    const opts=el('div','opts');Object.keys(causes).forEach(k=>{const b=el('button',null,causes[k]);b.type='button';b.onclick=()=>{cause=cause===k?'':k;opts.querySelectorAll('button').forEach(x=>x.classList.remove('on'));if(cause)b.classList.add('on');};opts.appendChild(b);});why.appendChild(opts);
+    const sel=el('select');const s0=el('option',null,'If the Hub chose wrongly, it should have been...');s0.value='';sel.appendChild(s0);bins.filter(b=>b.id!==it.chosen).forEach(b=>{const o=el('option',null,b.help||b.id);o.value=b.id;sel.appendChild(o);});why.appendChild(sel);
+    const note=el('textarea');note.placeholder='In your own words: what you said, what you saw, what went wrong. If the transcript was nonsense, say so here.';note.rows=3;note.maxLength=300;why.appendChild(note);
+    why.appendChild(el('div','effect','What this does: WRONG with a "should have been" makes the Hub route this exact sentence that way from now on. The reason and notes are kept and counted on the LEARNED tab; a speech-to-text miss is counted separately and is not held against the router.'));
+    const save=el('button',null,'SAVE');save.hidden=true;
+    const paint=()=>{[yes,part,no].forEach(b=>b.classList.remove('on'));({right:yes,partly:part,wrong:no})[grade]&&({right:yes,partly:part,wrong:no})[grade].classList.add('on');save.hidden=!(grade==='partly'||grade==='wrong');save.textContent='SAVE '+(grade||'').toUpperCase();};
+    const send1=(g)=>send('/api/learning/teach',Object.assign({of:it.of},g),()=>{left=Math.max(0,left-1);i++;show();});
+    const full=(g)=>({grade:g,cause:cause||undefined,correct:sel.value||undefined,bad_steps:[...bad].sort((a,b)=>a-b),step:bad.size?[...bad][0]:undefined,note:note.value||undefined});
+    yes.onclick=()=>send1(full('right'));skip.onclick=()=>send1({grade:'skip'});
+    part.onclick=()=>{grade='partly';paint();};no.onclick=()=>{grade='wrong';paint();};save.onclick=()=>send1(full(grade));
+    row.append(yes,part,no,skip,save);c.appendChild(card);
   }
   async function missions(){const c=$('card');c.replaceChildren();$('count').textContent='Newest first. APPLY already counts as a yes and DISCARD as a no; tap for the rest.';
     let j;try{j=await (await fetch('/api/learning/teach/missions',{cache:'no-store'})).json();}catch(e){c.textContent='Could not read the missions: '+e.message;return;}

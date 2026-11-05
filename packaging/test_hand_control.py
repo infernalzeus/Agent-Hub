@@ -342,3 +342,19 @@ def test_the_hand_log_is_one_small_tab_that_pulls_up_and_records_what_happened(p
 def test_a_hands_error_tells_the_person_to_tell_the_doctor_not_claude():
  src=(__import__('pathlib').Path(__file__).resolve().parents[1]/'hub'/'static'/'hand-board.js').read_text(encoding='utf-8')
  assert 'tell the Doctor it is there' in src and 'Tell the Doctor it is there' in src and 'Tell Claude' not in src
+
+
+def test_the_real_click_endpoint_refuses_bad_input_without_clicking():
+    """A real operating-system click is only ever sent for a sane screen position; bad input never reaches the mouse. (The foreground-window refusal is not exercised here: it would click if the Hub were in front.)"""
+    import asyncio
+    from aiohttp import web
+    from aiohttp.test_utils import TestClient, TestServer
+    from hub import hand_tracking as HT
+
+    async def go():
+        app = web.Application(); app.add_routes(HT.routes)
+        async with TestClient(TestServer(app)) as c:
+            assert (await c.post('/api/hands/os-click', data='x')).status == 400
+            assert (await c.post('/api/hands/os-click', json={'x': -5, 'y': 10})).status == 400
+            assert (await c.post('/api/hands/os-click', json={'x': 99999, 'y': 10})).status == 400
+    asyncio.run(go())

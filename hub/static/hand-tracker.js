@@ -45,7 +45,7 @@ SOFTWARE.
     async function makeModel(manifest){
       if(options.factory)return options.factory(manifest);
       const runtime=await import(manifest.runtime_url),files=await runtime.FilesetResolver.forVisionTasks(manifest.wasm_url);
-      const config={runningMode:'VIDEO',numHands:2,minHandDetectionConfidence:.5,minHandPresenceConfidence:.5,minTrackingConfidence:.5};
+      const config={runningMode:'VIDEO',numHands:2,minHandDetectionConfidence:.7,minHandPresenceConfidence:.6,minTrackingConfidence:.5};
       try{const m=await runtime.HandLandmarker.createFromOptions(files,{...config,baseOptions:{modelAssetPath:manifest.model_url,delegate:'GPU'}});stats.delegate='GPU';return m;}
       catch(error){stats.delegate='CPU';return runtime.HandLandmarker.createFromOptions(files,{...config,baseOptions:{modelAssetPath:manifest.model_url,delegate:'CPU'}});}
     }

@@ -64,3 +64,22 @@ def test_the_page_is_served():
             r = await c.get("/teach")
             assert r.status == 200 and "RIGHT" in await r.text()
     _run(go())
+
+
+def test_skip_partly_and_not_the_routers_fault_never_come_back_and_a_correction_changes_the_route(tmp_path, monkeypatch):
+    """5 Nov: SKIP only hid a card until the page reloaded, and PARTLY or a speech-to-text miss (no exact label) were offered again and again."""
+    log = _log(tmp_path, monkeypatch)
+    monkeypatch.setattr(BIN, "_MEMORY", {"key": None, "map": {}})
+
+    async def go():
+        app = web.Application(); app.add_routes(T.routes)
+        async with TestClient(TestServer(app)) as c:
+            assert (await c.post("/api/learning/teach", json={"of": 100.0, "grade": "skip"})).status == 200
+            assert (await c.post("/api/learning/teach", json={"of": 200.0, "grade": "wrong", "cause": "heard", "note": "garbled"})).status == 200
+            j = await (await c.get("/api/learning/teach")).json()
+            assert j["items"] == [] and j["left"] == 0
+    _run(go())
+    # a WRONG that names the right bin is the one tap that changes behaviour: the same sentence is routed that way next time
+    log.write_text(log.read_text(encoding="utf-8") + json.dumps({"kind": "verdict", "at": 300.0, "of": 200.0, "grade": "wrong", "by": "teach", "ok": False, "correct": "conversation"}) + "\n", encoding="utf-8")
+    d = BIN.decide("What is the weather?")
+    assert d["bin"] == "conversation" and d["by"] == "you"
