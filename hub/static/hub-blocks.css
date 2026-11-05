@@ -433,3 +433,22 @@ html.hub-board-on .hands-log .hl-tools button[data-log-kind]{display:inline-flex
 .hands-log .hl-legend{display:none!important}
 html.hub-legend-on .hands-log .hl-legend{display:block!important;opacity:1!important}
 .hands-log .hl-tools button[aria-pressed=true]{border-color:#41ebff;color:#41ebff;background:#41ebff12}
+
+/* Round 13: the board owns the whole window; control strips only catch taps on their own buttons; layer rename and hide; one hands menu as tables. */
+.hb .hb-tray,.hb .hb-batch-controls,.hb .hb-top-tools,.hb .hb-bar,.hb .hb-panel-show,.hb .hb-panel-hide{pointer-events:none!important}
+.hb .hb-tray>*,.hb .hb-batch-controls>*,.hb .hb-top-tools>*,.hb .hb-bar>*,.hb .hb-panel-show,.hb .hb-panel-hide{pointer-events:auto}
+.hb-layer-row.off b{opacity:.5;text-decoration:line-through}
+.hb-layer-row .hb-layer-name{flex:1;min-width:0;background:#080c28;color:#bdeeff;border:1px solid #41ebff88;border-radius:6px;padding:5px 7px;font:700 11px Orbitron,monospace}
+.hb-layer-row .hb-btn.is-off{opacity:1;border-color:#ff9d9d88;color:#ff9d9d}
+/* the one hands menu */
+.hands-setup .hb-glass-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:8px}
+.hands-setup .hb-glass-head h2{margin:0;font:700 13px Orbitron,monospace;color:#41ebff}
+.hands-setup .hs-x{display:grid;place-items:center;width:32px;height:32px;min-width:32px;min-height:32px;padding:0;border-radius:50%;flex:none}
+.hands-setup .hs-note{margin:0 0 10px;color:#bfeaf4;font-size:13px;line-height:1.5}
+.hs-table{width:100%;border-collapse:collapse;margin:0 0 14px;font:13px/1.4 Outfit,system-ui,sans-serif;color:#d6f5e6}
+.hs-table caption{text-align:left;font:700 9px Orbitron,monospace;letter-spacing:1.2px;color:#41ebff;padding:4px 0 6px}
+.hs-table th{text-align:left;font:700 8px Orbitron,monospace;letter-spacing:1px;color:#8fcfb2;border-bottom:1px solid #41ebff44;padding:5px 8px}
+.hs-table td{border-bottom:1px solid #41ebff1f;padding:7px 8px;vertical-align:top}
+.hs-table td:nth-child(2){white-space:nowrap}
+.hs-table tr.hs-act{cursor:pointer}.hs-table tr.hs-act td:last-child{color:#00e676;font:700 9px Orbitron,monospace;letter-spacing:.8px;white-space:nowrap}
+.hs-table tr.hs-act:hover,.hs-table tr.hs-act:focus-visible{background:#00e67614;outline:none}

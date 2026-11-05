@@ -117,7 +117,7 @@ SOFTWARE.
     function clearOverlay(){clearTimeout(legendTimer);legendTimer=0;canvas?.remove();canvas=ctx=null;updateHead();}
     // ---- LOG: one small tab at the bottom, always there. Everything that happens lands here, newest first: your chat with Smith (also what was said on
     // the landing page), hand gestures and their errors, and the Hub's own messages. Pull it up to read, filter, open the chat, or set up the hands.
-    const LOGKEY='agenthub:log',KINDS=[['all','ALL'],['chat','CHAT'],['hands','HANDS']];
+    const LOGKEY='agenthub:log',KINDS=[['all','ALL'],['chat','CHAT'],['hands','HANDS'],['hub','HUB']];
     let logBox=null,rowsEl=null,toolsEl=null,headEl=null,logFilter='all',logUnhook=null;
     function logOff(){if(logUnhook){logUnhook();logUnhook=null;}}
     const loadLog=()=>{try{const a=JSON.parse(sessionStorage.getItem(LOGKEY)||'[]');return Array.isArray(a)?a:[];}catch(_){return [];}};
@@ -321,27 +321,34 @@ SOFTWARE.
       if(Number.isFinite(profile.pinchOn)&&profile.pinchOn>.05&&profile.pinchOff>profile.pinchOn&&profile.pinchOff<1.2){engine.tuning.pinchOn=profile.pinchOn;engine.tuning.pinchOff=profile.pinchOff;}
       profile.v=PROFILE_VERSION;try{localStorage.setItem('hub-hands-profile',JSON.stringify(profile));}catch(_){}interlock=true;}
     saveProfile();
+    function closeX(onclose){const b=document.createElement('button');b.type='button';b.className='hb-btn hs-x';b.setAttribute('aria-label','Close');b.title='Close';b.innerHTML='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';b.onclick=onclose;return b;}
+    const GESTURES=[['Point','Aim with your index fingertip; hold still over a control to click.'],['Thumb + index','Quick pinch: tap. Hold and move: drag a block or scroll a panel.'],['Thumb + middle','Keep the index away; pinch to open the right-click menu.'],['Thumb + index + middle','Hold together and move your hand up or down to zoom.'],['Fist · 3D','Tilt and turn the board in VIEW 3D.'],['Open hand','Hold for one second to fit the board.'],['Flat palm','Optional pan and push/pull zoom; turn it on below.'],['Escape','Immediately stop hand control and release the camera.']];
+    function tableOf(caption,heads,rows){const tb=document.createElement('table');tb.className='hs-table';tb.createCaption().textContent=caption;const hr=tb.insertRow();heads.forEach(x=>{const th=document.createElement('th');th.textContent=x;hr.appendChild(th);});
+      rows.forEach(r=>{const tr=tb.insertRow();r.cells.forEach(c=>{tr.insertCell().textContent=c;});if(r.fn){tr.className='hs-act';tr.tabIndex=0;tr.setAttribute('role','button');tr.onclick=r.fn;tr.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();r.fn();}};}});return tb;}
+    // ONE hands menu (right-click on the hand, or HANDS MENU in the log): the controls and the gestures, as tables
     function calibrationPanel(){
       cancelAll();diagnostic=true;setup.replaceChildren();setup.hidden=false;
-      const title=document.createElement('strong');title.textContent='HAND CONTROLS';const p=document.createElement('p');
-      p.textContent='Thumb + index: left click, drag. Thumb + middle: right click. Thumb + index + middle together, hand up or down: zoom. Fist in VIEW 3D: tilt and turn. Choices save here at once; the defaults need no calibration.';setup.append(title,p);
-      const mk=(text,fn)=>{const b=document.createElement('button');b.className='hb-btn';b.type='button';b.textContent=text;b.onclick=fn;setup.append(b);return b;};
-      mk('FIST TILTS 3D: '+(profile.orbit?'ON':'OFF'),()=>{profile.orbit=!profile.orbit;saveProfile();calibrationPanel();});
-      mk('FLAT PALM PAN AND ZOOM: '+(profile.palm?'ON':'OFF'),()=>{profile.palm=!profile.palm;saveProfile();calibrationPanel();});
-      mk('SAVE LAST MINUTE',()=>{if(!enabled){p.textContent='Turn HANDS on, use your hands for a minute, then come back here (or press SAVE TRACE in the bar).';return;}saveTrace('free',p);});
-      mk('RECORD HAND TRACE',()=>{if(!enabled){p.textContent='Close setup, turn HANDS on explicitly, then return here to record.';return;}p.textContent='Recording about 32 seconds. Follow the prompts at the top left; this panel closes so you can see them.';setup.hidden=true;startTrace(p);});
-      mk('RESET TO DEFAULTS',()=>{profile={v:PROFILE_VERSION,fist:false,orbit:true,palm:false};saveProfile();calibrationPanel();});
-      mk('CLOSE',()=>{calibration=null;diagnostic=false;engine.reset();interlock=true;setup.hidden=true;});
+      const head=document.createElement('div');head.className='hb-glass-head';const h2=document.createElement('h2');h2.textContent='HANDS';
+      head.append(h2,closeX(()=>{calibration=null;diagnostic=false;engine.reset();interlock=true;setup.hidden=true;}));
+      const p=document.createElement('p');p.className='hs-note';p.textContent=enabled?'Camera on. Tracking stays on this device.':'Camera off. Nothing watches until you turn it on. Choices save here at once; the defaults need no calibration.';
+      const onoff=v=>v?'ON':'OFF',flip=v=>v?'TURN OFF':'TURN ON';
+      const controlsTable=tableOf('CONTROLS',['Control','Now','Press the row to'],[
+        {cells:['Camera and hand tracking',onoff(enabled),flip(enabled)],fn:()=>{btn.onclick();setTimeout(()=>{if(!setup.hidden&&setup.querySelector('.hs-table'))calibrationPanel();},900);}},
+        {cells:['Fist tilts the board in VIEW 3D',onoff(profile.orbit),flip(profile.orbit)],fn:()=>{profile.orbit=!profile.orbit;saveProfile();calibrationPanel();}},
+        {cells:['Flat palm pan and zoom',onoff(profile.palm),flip(profile.palm)],fn:()=>{profile.palm=!profile.palm;saveProfile();calibrationPanel();}},
+        {cells:['Last minute of tracking','','SAVE'],fn:()=>{if(!enabled){p.textContent='Turn the camera on, use your hands for a minute, then come back here (or press SAVE TRACE in the bar).';return;}saveTrace('free',p);}},
+        {cells:['Hand trace (about 32 seconds)','','RECORD'],fn:()=>{if(!enabled){p.textContent='Turn the camera on explicitly, then return here to record.';return;}p.textContent='Recording about 32 seconds. Follow the prompts at the top left; this panel closes so you can see them.';setup.hidden=true;startTrace(p);}},
+        {cells:['Everything above','','RESET TO DEFAULTS'],fn:()=>{profile={v:PROFILE_VERSION,fist:false,orbit:true,palm:false};saveProfile();calibrationPanel();}}]);
+      setup.append(head,p,controlsTable,tableOf('GESTURES',['Gesture','What it does'],GESTURES.map(g=>({cells:g}))));
     }
     function setupPanel(manifest){
       setup.replaceChildren();setup.hidden=false;const title=document.createElement('strong');title.textContent=manifest.ready?'HAND CONTROL READY':'HAND TRACKING NOT INSTALLED';
-      const p=document.createElement('p');p.textContent=manifest.ready?'Processing stays on this device. Start only when you want the webcam on.':'Download MediaPipe Tasks Vision 1.2.2 and hand_landmarker.task once (about 18 MB download, 38 MB stored). Files stay in the Hub state folder. No camera opens during download.';setup.append(title,p);
-      const action=document.createElement('button'),close=document.createElement('button');action.type=close.type='button';action.className=close.className='hb-btn';close.textContent='CLOSE';close.onclick=()=>setup.hidden=true;
+      const p=document.createElement('p');p.textContent=manifest.ready?'Processing stays on this device. Start only when you want the webcam on.':'Download MediaPipe Tasks Vision 1.2.2 and hand_landmarker.task once (about 18 MB download, 38 MB stored). Files stay in the Hub state folder. No camera opens during download.';const action=document.createElement('button');action.type='button';action.className='hb-btn';const close=closeX(()=>{setup.hidden=true;});const head=document.createElement('div');head.className='hb-glass-head';const h2=document.createElement('h2');h2.textContent=title.textContent;head.append(h2,close);setup.append(head,p);
       action.textContent=manifest.ready?'START HAND CONTROL':'DOWNLOAD HAND TRACKING';
       action.onclick=async()=>{if(manifest.ready){setup.hidden=true;await tracker.start();return;}action.disabled=true;action.textContent='DOWNLOADING...';
         try{const r=await fetch('/api/hands/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})});if(!r.ok)throw Error('Download failed. Try again.');setupPanel(await r.json());}
         catch(e){p.textContent=e.message;action.disabled=false;action.textContent='RETRY DOWNLOAD';}};
-      setup.append(action,close);action.focus();
+      setup.append(action);action.focus();
     }
     btn.onclick=async()=>{if(tracker.stats.enabled||tracker.stats.loading){tracker.stop('HANDS off');return;}used=false;engine.reset();interlock=false;
       try{const r=await fetch('/api/hands/status',{cache:'no-store'});if(!r.ok)throw Error('Hand control unavailable');const s=await r.json();if(!alive)return;if(!s.ready)setupPanel(s);else await tracker.start();}

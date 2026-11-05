@@ -194,7 +194,7 @@
     function isHidden(id){return !!hid[id]||!!layerState.hidden[layerOf(id)];}
     function revealLayer(id){var key=layerOf(id);if(layerState.hidden[key]){delete layerState.hidden[key];saveLayers();refreshLayers();}}
     function saveLayers(){try{localStorage.setItem('agenthub:board:layers',JSON.stringify(layerState));}catch(e){}if(typeof markBoard==='function')markBoard();}
-    function changeLayer(id,key){layerState.members[id.split('#')[0]]=key;saveLayers();refreshLayers();}
+    function changeLayer(id,key){layerState.members[id.split('#')[0]]=key;hubNote(((blocks[id]&&blocks[id]._name)||id)+' moved to layer '+layerName(key));saveLayers();refreshLayers();}
     function refreshLayers(){Object.keys(blocks).forEach(applyBlock);if(stackDepth)stackDepth();if(layerMenu&&!layerMenu.hidden)drawLayers();trayDraw();}
 
     function bh(l) { return l.min ? (touchScreen.matches?44:32) + PEEK : l.h; }
@@ -337,6 +337,7 @@
         }, { capture: true, passive: false });
       } catch (err) { /* a page from another origin keeps its own events */ }
     }
+    function hubNote(t){try{window.dispatchEvent(new CustomEvent('hub-log',{detail:{kind:'hub',text:String(t)}}));}catch(e){}}
     var stackDepth = null;
     // Several windows of one tool: another block of the same tool, offset a little, allowed to overlap its siblings, in front of them in 3D.
     stackDepth = function () {
@@ -417,7 +418,7 @@
 
 
     function blockActions(target,actions){var row=el('div','hb-block-actions');actions.forEach(function(a){var b=el(typeof a[1]==='string'?'a':'button','hb-btn',a[0]);if(typeof a[1]==='string')b.href=a[1];else {b.type='button';b.onclick=a[1];}row.appendChild(b);});target.appendChild(row);}
-    function hideBlock(id){var b=blocks[id];if(!b)return;hid[id]=1;b.getAnimations().forEach(function(a){a.cancel();});applyBlock(id);save();trayDraw();if(focusId===id){focusId=null;undim();}if(stackDepth)stackDepth();}
+    function hideBlock(id){var b=blocks[id];if(!b)return;hid[id]=1;hubNote(((b._name)||id)+' hidden in the tray');b.getAnimations().forEach(function(a){a.cancel();});applyBlock(id);save();trayDraw();if(focusId===id){focusId=null;undim();}if(stackDepth)stackDepth();}
     var bin=document.getElementById('edit-toggle');
     function overBin(e){if(!bin)return false;var r=bin.getBoundingClientRect();return e.clientX>=r.left-8&&e.clientX<=r.right+8&&e.clientY>=r.top-8&&e.clientY<=r.bottom+8;}
     function stopApp(id){var b=blocks[id],app=b&&b._app;if(!app||!confirm('Stop '+b._name+'?'))return;var button=b.querySelector('[data-a=stop]');button.disabled=true;fetch('/api/stop/'+encodeURIComponent(app.id),{method:'POST'}).then(function(r){if(!r.ok)throw Error('Could not stop app');Object.keys(blocks).forEach(function(k){if(blocks[k]._app&&blocks[k]._app.id===app.id){if(L[k].exp)collapse(k,true);blocks[k]._app.running=false;blocks[k]._st.textContent='IDLE';blocks[k]._st.className='';blocks[k].querySelector('[data-a=stop]').hidden=true;}});if(window.__hubHomePanels)__hubHomePanels.refresh();}).catch(function(e){button.title=e.message;}).finally(function(){button.disabled=false;});}
@@ -454,6 +455,9 @@
       });
       if(setupCard)a._in.appendChild(setupCard);blockActions(a._in,[['SETUP','/setup']]);
       a.classList.toggle('amber', nA > 0); a.classList.toggle('red', data.attention.some(function (x) { return x.level === 'red'; }));
+      var runIds={};data.runs.forEach(function(m){runIds[m.id]=m.brief||m.id;});
+      if(paint._runs){Object.keys(runIds).forEach(function(k){if(!(k in paint._runs))hubNote('Mission started: '+runIds[k]);});Object.keys(paint._runs).forEach(function(k){if(!(k in runIds))hubNote('Mission finished or stopped: '+paint._runs[k]);});}paint._runs=runIds;
+      var attIds={};data.attention.forEach(function(x){if(x.kind!=='session')attIds[x.id||x.title]=x.title;});if(paint._att){Object.keys(attIds).forEach(function(k){if(!(k in paint._att))hubNote('Needs you: '+attIds[k]);});}paint._att=attIds;
       var r = blocks.runs; r._n.textContent = String(data.runs.length); r._in.replaceChildren(); var st = el('div', 'hb-stat'); var runNumber = el('b'); st.appendChild(runNumber); motion.number(runNumber, r._count, data.runs.length); r._count = data.runs.length; st.appendChild(el('span', '', data.runs.length ? data.runs.map(function (m) { return m.brief; }).slice(0, 2).join(' · ') : 'missions running')); r._in.appendChild(st);
       var s = blocks.ses; s._in.replaceChildren(); var ss = data.sessions, any = false; s._n.textContent = String(ss.needs_you.length + ss.working.length + ss.idle.length);
       [['needs_you', 'a'], ['working', ''], ['idle', 'o']].forEach(function (g) { if(ss[g[0]].length)s._in.appendChild(el('div','hb-session-group',g[0].replace('_',' ').toUpperCase()));ss[g[0]].forEach(function (m) { any = true; var chatRow=m.kind==='agent-log',row=li(g[1],m.brief,(chatRow?'CHAT · ':'MISSION · ')+(m.ask||m.project||'')+' · '+g[0].replace('_',' '),'button');if(chatRow)row.classList.add('hb-chat');row.type='button';if(/^Doctor[: ]/.test(m.brief)){var doctor=doctorPicture();row.prepend(doctor);}row.classList.add('hb-session');row.tabIndex=0;row.setAttribute('role','button');row.title=/^Doctor[: ]/.test(m.brief)?'Open this Doctor session in Support':'Show session status and details';row.onclick=function(){sessionOpen(m);};row.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();row.click();}};s._in.appendChild(row); }); });
@@ -500,11 +504,8 @@
     var stage={left:8,top:120,right:800,bottom:600,width:792,height:480};
     function stageRect(ignoreTray){
       var hr=host.getBoundingClientRect(),ar=bar.getBoundingClientRect(),top=Math.max(ar.bottom,document.querySelector('body>header')?document.querySelector('body>header').getBoundingClientRect().bottom:0,!restartChip.hidden?restartChip.getBoundingClientRect().bottom:0)-hr.top+8,right=hr.width-8,bottom=hr.height-8;
-      [host.querySelector('.hb-right-panel')].forEach(function(e){if(e&&e.getClientRects().length&&getComputedStyle(e).display!=='none'&&getComputedStyle(e).visibility!=='hidden'){var r=e.getBoundingClientRect();right=Math.min(right,r.left-hr.left-8);}});
-      var map=host.querySelector('.hb-map');if(map&&getComputedStyle(map).visibility!=='hidden')bottom=Math.min(bottom,map.getBoundingClientRect().top-hr.top-8);var batch=host.querySelector('.hb-batch-controls');if(batch&&batch.getClientRects().length&&getComputedStyle(batch).visibility!=='hidden')bottom=Math.min(bottom,batch.getBoundingClientRect().top-hr.top-8);
-      if(!ignoreTray&&tray.childElementCount&&getComputedStyle(tray).visibility!=='hidden'){var tr=tray.getBoundingClientRect();bottom=Math.min(bottom,tr.top-hr.top-8);}
       stage={left:8,top:top,right:Math.max(48,right),bottom:Math.max(top+40,bottom)};stage.width=stage.right-stage.left;stage.height=stage.bottom-stage.top;
-      stageClip.style.clipPath='inset('+stage.top+'px '+Math.max(0,hr.width-stage.right)+'px '+Math.max(0,hr.height-stage.bottom)+'px '+stage.left+'px)';return stage;
+      stageClip.style.clipPath='none';return stage;
     }
     function TOP(){return stageRect().top;}
     function setTop(){var h=document.querySelector('body>header');document.documentElement.style.setProperty('--hub-header-bottom',Math.ceil(h?h.getBoundingClientRect().bottom:0)+'px');host.style.setProperty('--hb-top',Math.ceil(h?h.getBoundingClientRect().bottom+4:80)+'px');document.documentElement.style.setProperty('--hub-chrome-bottom',Math.ceil(Math.max(bar.getBoundingClientRect().bottom,h?h.getBoundingClientRect().bottom:0))+'px');stageRect();}
@@ -732,7 +733,7 @@
         ids.forEach(function(id){var l=L[id];if(!l)return;l.x=from[id].x+(to[id].x-from[id].x)*e;l.y=from[id].y+(to[id].y-from[id].y)*e;applyBlock(id);});
         if(u<1)requestAnimationFrame(step);else finishPack();})(t0);
     }
-    tidyBtn.onclick=function(){if(view&&view.mode()==='3d')arrangeLayerBands(null);else tidyInPlace();};
+    tidyBtn.onclick=function(){hubNote('TIDY: blocks packed'+(view&&view.mode()==='3d'?' by layer':''));if(view&&view.mode()==='3d')arrangeLayerBands(null);else tidyInPlace();};
     readBoardPrefs();
     var batchControls=el('div','hb-batch-controls'),minAll=el('button','hb-btn','MINIMISE ALL'),maxAll=el('button','hb-btn','MAXIMISE ALL');
     batchControls.setAttribute('role','group');batchControls.setAttribute('aria-label','Arrange all shown blocks');
@@ -758,14 +759,15 @@
     var rightPanel=fadePanel(el('aside','hb-right-panel')),ingestDock=el('div','hb-ingest-dock'),rightScroll=el('div','hb-right-scroll'),viewBar=el('div','hb-viewbar'),zoomRow=el('div','hb-zoomrow');viewBar.setAttribute('role','group');viewBar.setAttribute('aria-label','View controls');zoomRow.append(zout,zin);viewBar.append(zh);if(view)viewBar.append(view.btn,view.gizmoBtn);viewBar.append(fitBtn,tidyBtn,blocksBtn,zoomRow);rightScroll.appendChild(viewBar);rightPanel.appendChild(rightScroll);ingestDock.classList.add('hb-top-tools');host.append(ingestDock,rightPanel);
     var controls={readout:zh,view:view&&view.btn,axis:view&&view.gizmoBtn,zoom:zoomRow,fit:fitBtn,blocks:blocksBtn,tidy:tidyBtn,talk:talkBtn,pc:pcBtn,ingest:ingestBtn,setup:setupBtn,hands:hands&&hands.button};
     Array.from(bar.children).forEach(function(b){if(b.textContent==='HAND SETUP')controls.handSetup=b;if(b.textContent==='SAVE TRACE')controls.saveTrace=b;});
-    var legend=el('button','hb-btn','GESTURE LEGEND');legend.type='button';controls.legend=legend;
-    legend.setAttribute('aria-pressed','false');legend.onclick=function(){var on=document.documentElement.classList.toggle('hub-legend-on');legend.setAttribute('aria-pressed',String(on));};
+    var legend=el('button','hb-btn','HANDS MENU');legend.type='button';controls.legend=legend;
+    legend.onclick=function(){openHandControls();};
     var handMenuButton=el('button','hb-btn','HAND CONTROLS');handMenuButton.type='button';handMenuButton.onclick=function(){openHandControls(false);};
     var logPending=[];function toLog(node){if(node===controls.handSetup||node===controls.saveTrace){node.remove();return;}var t=document.querySelector('.hands-log .hl-tools');if(t){if(node.parentNode!==t)t.appendChild(node);}else if(logPending.indexOf(node)<0)logPending.push(node);}function onLogReady(){var all=logPending.slice();[controls.legend].forEach(function(n){if(n&&all.indexOf(n)<0)all.push(n);});all.forEach(toLog);logPending=[];}window.addEventListener('hub-log-ready',onLogReady);
     function placeControl(key,node){if(!node)return;var home=CONTROL_HOME[key];if(home==='hands')toLog(node);else if(home==='health'){if(node.parentNode!==blocks.hlt._in)blocks.hlt._in.appendChild(node);}else if(home==='ingest')ingestDock.appendChild(node);else if(home==='view')viewBar.appendChild(node);else bar.appendChild(node);}
     Object.keys(controls).forEach(function(k){placeControl(k,controls[k]);});if(view)viewBar.append(view.btn);viewBar.append(fitBtn,tidyBtn,blocksBtn);if(view)viewBar.append(view.gizmoBtn);viewBar.append(zoomRow);zoomRow.dataset.only3d='1';zh.dataset.only3d='1';hint.hidden=true;menu.appendChild(hint);more.hidden=true;
     var layerButton=el('button','hb-btn','LAYERS'),layerMenu=el('div','hb-layer-menu');layerButton.type='button';layerButton.dataset.layers='1';layerButton.setAttribute('aria-expanded','false');layerMenu.hidden=true;layerMenu.setAttribute('aria-label','Layers');host.appendChild(layerMenu);placeControl('layers',layerButton);
-    function commitLayers(){host.classList.add('hb-layer-moving');saveLayers();refreshLayers();setTimeout(function(){host.classList.remove('hb-layer-moving');},350);}
+    var layerFitTimer=0;
+    function commitLayers(){host.classList.add('hb-layer-moving');saveLayers();refreshLayers();setTimeout(function(){host.classList.remove('hb-layer-moving');},350);clearTimeout(layerFitTimer);layerFitTimer=setTimeout(function(){if(alive)fit(true);},420);}
     // The layer list: drag a layer by its grip to put it in front of or behind another, drag an app onto a layer to move it there,
     // fold a layer so its apps are out of the way, and (in 3D) choose whether layers sit apart in depth, in height or both.
     function dragThing(grip,source,kind,done){
@@ -796,8 +798,8 @@
       layerMenu.append(add);
       if(is3d){
         var axisRow=el('div','hb-layer-axis');axisRow.appendChild(el('span','','LAYERS SIT APART IN'));
-        [['depth','DEPTH','Front to back'],['height','HEIGHT','Top to bottom'],['both','BOTH','Diagonal']].forEach(function(o){var b=el('button','hb-btn',o[1]);b.type='button';b.title=o[2];b.setAttribute('aria-pressed',String((layerState.axis||'depth')===o[0]));b.onclick=function(){layerState.axis=o[0];commitLayers();};axisRow.appendChild(b);});
-        var inv=el('button','hb-btn','INVERT');inv.type='button';inv.title='Put the deepest layer at the front or the top instead';inv.setAttribute('aria-pressed',String(!!layerState.invert));inv.onclick=function(){layerState.invert=!layerState.invert;commitLayers();};axisRow.appendChild(inv);
+        [['depth','DEPTH','Front to back'],['height','HEIGHT','Top to bottom'],['both','BOTH','Diagonal']].forEach(function(o){var b=el('button','hb-btn',o[1]);b.type='button';b.title=o[2];b.setAttribute('aria-pressed',String((layerState.axis||'depth')===o[0]));b.onclick=function(){layerState.axis=o[0];hubNote('Layers apart in '+o[1].toLowerCase());commitLayers();};axisRow.appendChild(b);});
+        var inv=el('button','hb-btn','INVERT');inv.type='button';inv.title='Put the deepest layer at the front or the top instead';inv.setAttribute('aria-pressed',String(!!layerState.invert));inv.onclick=function(){layerState.invert=!layerState.invert;hubNote('Layer order inverted');commitLayers();};axisRow.appendChild(inv);
         layerMenu.appendChild(axisRow);
       }
       layerMenu.appendChild(el('small','','Top of the list is in front. Drag a layer by its grip to reorder it; drag an app onto a layer to move it. TIDY packs each layer into its own band.'));
@@ -807,9 +809,14 @@
         var grip=el('button','hb-btn hb-layer-grip');grip.type='button';grip.title='Drag to move this layer in front of or behind another';grip.setAttribute('aria-label','Drag layer '+layerName(key));grip.appendChild(svg('M5 8h14M5 12h14M5 16h14'));
         var fold=el('button','hb-btn hb-layer-fold');fold.type='button';fold.title=folded?'Show the apps in this layer':'Fold this layer';fold.setAttribute('aria-expanded',String(!folded));fold.setAttribute('aria-label',(folded?'Show apps in ':'Fold ')+layerName(key));fold.appendChild(svg(folded?'M9 6l6 6-6 6':'M6 9l6 6 6-6'));
         fold.onclick=function(){layerState.collapsed=layerState.collapsed||{};layerState.collapsed[key]=!folded;saveLayers();drawLayers();};
-        row.append(grip,fold,el('b','',layerName(key)+' · '+ids.length));
+        var nameEl=el('b','',layerName(key)+' · '+ids.length);nameEl.title='Double-click to rename';
+        function rename(){var inp=el('input');inp.className='hb-layer-name';inp.value=layerName(key);inp.maxLength=40;inp.setAttribute('aria-label','Layer name');nameEl.replaceWith(inp);inp.focus();inp.select();var done=false;
+          function finish(ok){if(done)return;done=true;var v=inp.value.trim();if(ok&&v&&v!==layerName(key)){layerState.labels[key]=v;hubNote('Layer renamed to '+v);commitLayers();}else drawLayers();}
+          inp.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();finish(true);}else if(e.key==='Escape'){e.preventDefault();finish(false);}};inp.onblur=function(){finish(true);};}
+        nameEl.ondblclick=rename;row.classList.toggle('off',!!layerState.hidden[key]);row.append(grip,fold,nameEl);
         function action(label,path,fn,disabled){var btn=el('button','hb-btn');btn.type='button';btn.title=label;btn.setAttribute('aria-label',label+' '+layerName(key));btn.appendChild(svg(path));btn.disabled=!!disabled;btn.onclick=fn;row.appendChild(btn);return btn;}
-        action('Show/hide layer','M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM9 12a3 3 0 1 0 6 0 3 3 0 1 0-6 0',function(){layerState.hidden[key]=!layerState.hidden[key];commitLayers();}).setAttribute('aria-pressed',String(!layerState.hidden[key]));
+        action('Rename layer','M4 20h4l10-10-4-4L4 16v4zM13 7l4 4',rename);
+        var off=!!layerState.hidden[key],eye=action(off?'Show this layer':'Hide this layer',off?'M3 3l18 18M10.6 6.2A9.8 9.8 0 0 1 12 6c6 0 10 6 10 6a17 17 0 0 1-3.2 3.8M6.5 7.6C3.9 9.4 2 12 2 12s4 7 10 7a9.6 9.6 0 0 0 4-.9M9.9 10a3 3 0 0 0 4.1 4.1':'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM9 12a3 3 0 1 0 6 0 3 3 0 1 0-6 0',function(){layerState.hidden[key]=!layerState.hidden[key];hubNote('Layer '+layerName(key)+(layerState.hidden[key]?' hidden':' shown'));commitLayers();});eye.setAttribute('aria-pressed',String(!off));eye.classList.toggle('is-off',off);
         function shift(by){var i=layerState.order.indexOf(key),j=i+by;if(j<0||j>=layerState.order.length)return;layerState.order.splice(i,1);layerState.order.splice(j,0,key);commitLayers();}
         action('Move forward','M6 14l6-6 6 6',function(){shift(1);},layerState.order.indexOf(key)===layerState.order.length-1);
         action('Move backward','M6 10l6 6 6-6',function(){shift(-1);},layerState.order.indexOf(key)===0);
@@ -855,11 +862,7 @@
     var handsToggle=hands&&hands.button.onclick,handAction=el('button','hb-btn','START HANDS');handAction.type='button';handAction.dataset.logKind='hands';
     handAction.onclick=function(e){if(handsToggle)return handsToggle.call(hands.button,e);};
     function utilityPanel(title){var old=document.querySelector('.hb-context-panel');if(old)old.remove();var pane=fadePanel(el('section','hb-glass-panel hb-context-panel')),head=el('div','hb-glass-head'),close=el('button','hb-btn');close.appendChild(svg(ICON.x));pane.setAttribute('role','dialog');pane.setAttribute('aria-label',title);close.type='button';close.setAttribute('aria-label','Close '+title);close.onclick=function(){pane.remove();};head.append(el('h2','',title),close);pane.appendChild(head);document.body.appendChild(pane);pane._fadeOpen();close.focus({preventScroll:true});return pane;}
-    function openHandControls(showGuide){
-      var pane=utilityPanel('HAND CONTROL'),intro=el('p','hb-context-note','Left-click the dashboard hand to start or stop tracking. Right-click opens these controls. The camera stays off until you press START HANDS.'),tools=el('div','hb-hand-actions'),guide=el('div','hb-gesture-guide'),toggle=el('button','hb-btn','GESTURE LEGEND');toggle.type='button';toggle.setAttribute('aria-expanded',String(!!showGuide));guide.hidden=!showGuide;
-      [['Point','Aim with your index fingertip; hold still over a control to click.'],['Thumb + index','Quick pinch: tap. Hold and move: drag a block or scroll a panel.'],['Thumb + middle','Keep the index away; pinch to open the right-click menu.'],['Thumb + index + middle','Hold together and move your hand up or down to zoom.'],['Fist · 3D','Tilt and turn the board in VIEW 3D.'],['Open hand','Hold for one second to fit the board.'],['Flat palm','Optional pan and push/pull zoom; enable in HAND SETUP.'],['Escape','Immediately stop hand control and release the camera.']].forEach(function(item){var card=el('article');card.append(el('h3','',item[0]),el('p','',item[1]));guide.appendChild(card);});
-      toggle.onclick=function(){guide.hidden=!guide.hidden;toggle.setAttribute('aria-expanded',String(!guide.hidden));};tools.append(handAction);[controls.handSetup,controls.saveTrace].forEach(function(n){if(n)tools.appendChild(n);});tools.appendChild(toggle);var live=el('p','hb-hand-state');live.setAttribute('role','status');pane.append(intro,live,tools,guide);paintLogContext();
-    }
+    function openHandControls(){if(controls.handSetup&&controls.handSetup.onclick)controls.handSetup.onclick();}
     function paintLogContext(){var box=document.querySelector('.hands-log');if(!box)return;var selected=box.querySelector('.hl-filters .on'),kind=selected?selected.dataset.kind:'all';box.dataset.context=kind;box.querySelectorAll('.hl-tools button').forEach(function(b){if(!b.dataset.logKind)b.dataset.logKind=b.textContent==='OPEN CHAT'?'chat':'hands';});handAction.textContent=hands&&hands.button.classList.contains('live')?'STOP HANDS':'START HANDS';var live=document.querySelector('.hb-hand-state');if(live&&hands){var stats=hands.tracker.stats;live.textContent=stats.loading?'Starting hand tracking…':stats.enabled?'CAMERA ON · Local hand tracking':stats.error?'Camera off · '+stats.error:'Camera off · Tracking stopped';}}
     function openHandsLog(e){if(e)e.preventDefault();openHandControls(false);}
     function logContextClick(e){if(e.target.closest('.hl-filters button'))paintLogContext();}
