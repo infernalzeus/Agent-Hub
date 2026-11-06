@@ -29,7 +29,7 @@ SOFTWARE.
   // pinchOn / pinchOff are fractions of the hand's own size (wrist to the middle finger's knuckle), measured in the camera's own space and
   // including depth, so two fingertips that merely overlap in the picture but sit at different depths are not a pinch. 0.22 is about 2 cm on an
   // adult hand and 0.34 about 3.5 cm: a pinch starts below the first and ends above the second.
-  const TUNING=Object.freeze({pinchOn:.22,pinchOff:.34,pinchOnM:.26,pinchOffM:.38,tripleOn:.28,tripleOff:.40,tripleHoldMs:260,tripleTips:.30,rightIndexAway:.30,flatOn:1.45,flatOff:1.7,flatHoldMs:400,confirmMs:70,settleMs:220,poseHoldMs:200,aimLagMs:190,trailMs:500,clickSlop:20,fitHoldMs:1000,maxJump:.28,idleMs:60000,minScore:.6,minSize:.05,maxSize:.5,presentFrames:3,fistDist:.75,depthStep:.05,depthStill:250,panStart:40,ctlStillMs:500,rotGain:1,tiltGain:1});
+  const TUNING=Object.freeze({pinchOn:.10,pinchOff:.40,pinchOnM:.16,pinchOffM:.38,tripleOn:.10,tripleOff:.40,tripleHoldMs:260,tripleTips:.30,rightIndexAway:.30,flatOn:1.45,flatOff:1.7,flatHoldMs:400,confirmMs:70,settleMs:220,poseHoldMs:200,aimLagMs:190,trailMs:500,clickSlop:20,fitHoldMs:1000,maxJump:.28,idleMs:60000,minScore:.6,minSize:.05,maxSize:.5,presentFrames:3,fistDist:.75,depthStep:.05,depthStill:250,panStart:40,ctlStillMs:500,rotGain:1,tiltGain:1});
   const CAMERA={w:640,h:480};
   const PALM=[0,5,9,13,17];
   class LowPass{constructor(){this.last=null;}filter(x,a){this.last=this.last===null?x:a*x+(1-a)*this.last;return this.last;}}
@@ -111,7 +111,7 @@ SOFTWARE.
         // Turning the forearm (how a fist is naturally rotated) barely moves the knuckle line in the picture but tips the knuckles in depth:
         // the index knuckle comes forward as the little-finger knuckle goes back. 5 Nov trace: this swings 15 degrees where the image roll swings 4.
         // Depth: the hand's size in the picture from its flat knuckle line and wrist-to-knuckle length (2D only: the camera's z estimate is noisy and made push/pull jitter). Bigger = nearer.
-        if(!s.depthF)s.depthF=new OneEuro(.5,.004);const d2=(a,b)=>Math.hypot((raw[a].x-raw[b].x)*cw,(raw[a].y-raw[b].y)*ch),depth=s.depthF.filter(Math.sqrt(d2(0,9)*Math.max(1,d2(5,17))),now/1000);
+        if(!s.depthF)s.depthF=new OneEuro(.6,.03);const d2=(a,b)=>Math.hypot((raw[a].x-raw[b].x)*cw,(raw[a].y-raw[b].y)*ch),depth=s.depthF.filter(Math.sqrt(d2(0,9)*Math.max(1,d2(5,17))),now/1000);
         if(!s.twistF)s.twistF=new OneEuro(.8,.01);const twist=s.twistF.filter(Math.atan2(raw[17].z-raw[5].z,Math.max(1e-4,Math.abs(raw[17].x-raw[5].x))),now/1000);
         // Pitch: how far the hand is tipped toward or away from the camera (wrist to middle knuckle, depth against picture length). With roll and twist it is the whole wrist rotation.
         if(!s.pitchF)s.pitchF=new OneEuro(.8,.01);const pitch=s.pitchF.filter(Math.atan2(raw[9].z-raw[0].z,Math.max(1e-4,Math.hypot(raw[9].x-raw[0].x,raw[9].y-raw[0].y))),now/1000);
