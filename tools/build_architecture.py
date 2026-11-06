@@ -22,36 +22,62 @@ NODES=[
  ('neo','NEO','Design an agent',1,5,'Describe a job; Neo drafts an agent definition. Read it and save it before using that agent.'),
  ('doctor','THE DOCTOR','Diagnose → propose repair',2,5,'The Doctor reads Hub facts and proposes a repair through a mission. You approve its diff and choose when to restart.'),
 ]
-EDGES=[('devices','network'),('network','hub'),('board','hub'),('smith','router'),('router','hub'),('hub','apps'),('router','apps'),('hub','media'),('hub','pc'),('hub','graph'),('hub','missions'),('missions','orchestrator'),('orchestrator','worktree'),('worktree','review'),('worktree','graph'),('skills','orchestrator'),('smith','neo'),('smith','doctor'),('neo','orchestrator'),('doctor','missions'),('doctor','neo')]
+EDGES=[('devices','network'),('network','hub'),('board','hub'),('smith','router'),('router','hub'),('router','missions'),('router','media'),('router','pc'),('router','graph'),('hub','apps'),('router','apps'),('hub','media'),('hub','pc'),('hub','graph'),('hub','missions'),('missions','orchestrator'),('orchestrator','worktree'),('worktree','review'),('worktree','graph'),('skills','orchestrator'),('smith','neo'),('smith','doctor'),('neo','orchestrator'),('doctor','missions'),('doctor','neo')]
+LAYERS=[
+ ('access','DEVICES + ACCESS',['devices','network']),
+ ('hub','HUB + INPUT',['hub','board','router']),
+ ('tools','PC TOOLS',['apps','media','pc','graph']),
+ ('agents','AGENTS + SKILLS',['smith','orchestrator','neo','doctor','skills']),
+ ('work','WORK + REVIEW',['missions','worktree','review'])]
+
 def interactive():
-    nodes=''.join('<button type="button" class="circuit-node%s" data-arch-node="%s" style="--col:%s;--row:%s"><span class="circuit-pins" aria-hidden="true"></span>%s<b>%s</b><small>%s</small></button>' % (' circuit-core' if key=='hub' else '',key,col,row,'<img src="assets/agent-hub-mark.png" alt="" width="56" height="56">' if key=='hub' else '',escape(label),escape(note)) for key,label,note,col,row,description in NODES)
-    model=json.dumps({'nodes':{n[0]:n[5] for n in NODES},'edges':EDGES},separators=(',',':'))
-    return '<div class="architecture-shell"><div class="circuit-board" data-architecture="%s"><svg class="circuit-wires" aria-hidden="true"></svg>%s</div><div class="circuit-caption"><b>FOLLOW A CONNECTION</b><p>Select a component to see its role and connections. Solid traces carry work; dashed traces connect helpers and skills.</p></div></div>' % (escape(model,quote=True),nodes)
+    lookup={n[0]:n for n in NODES}
+    layers=[]
+    for key,title,ids in LAYERS:
+        nodes=[]
+        for node in ids:
+            nid,label,note,col,row,description=lookup[node]
+            mark='<img src="assets/agent-hub-mark.png" alt="" width="56" height="56">' if nid=='hub' else ''
+            nodes.append('<button type="button" class="circuit-node%s" data-arch-node="%s" aria-pressed="false"><span class="circuit-pins" aria-hidden="true"></span>%s<b>%s</b><small>%s</small></button>' % (' circuit-core' if nid=='hub' else '',nid,mark,escape(label),escape(note)))
+        layers.append('<section class="arch-layer%s" data-arch-layer="%s"><h3>%s</h3><div class="arch-layer-nodes">%s</div></section>' % (' current-layer' if key=='hub' else '',key,title,''.join(nodes)))
+    model=json.dumps({'nodes':{n[0]:n[5] for n in NODES},'edges':EDGES,'labels':{n[0]:n[1] for n in NODES}},separators=(',',':'))
+    tabs='<nav class="arch-layer-tabs" aria-label="Architecture layers">'+''.join('<button type="button" data-layer-tab="%s" aria-pressed="%s">%s</button>' % (key,str(key=='hub').lower(),title) for key,title,ids in LAYERS)+'</nav>'
+    return '<div class="architecture-shell">%s<div class="circuit-board layered-board" data-architecture="%s"><svg class="circuit-wires" aria-hidden="true"></svg>%s</div><div class="circuit-caption"><b>FOLLOW A CONNECTION</b><p>Select a component to inspect its role.</p><div class="arch-connections"></div></div></div>' % (tabs,escape(model,quote=True),''.join(layers))
+
 def diagram(tall=False):
     mark='data:image/png;base64,'+b64encode((Path(__file__).resolve().parent.parent/'docs/assets/agent-hub-mark.png').read_bytes()).decode('ascii')
-    w,h=(760,1240) if tall else (1440,860)
-    coords={}
-    for i,(key,label,note,col,row,desc) in enumerate(NODES):
+    w,h=(760,1500) if tall else (1440,900)
+    coords={};frames=[]
+    for i,(key,title,ids) in enumerate(LAYERS):
         if tall:
-            order=['devices','network','board','smith','router','hub','apps','media','pc','graph','missions','orchestrator','worktree','neo','doctor','skills','review'];idx=order.index(key);x=30+(idx%2)*370;y=25+(idx//2)*132;bw,bh=330,100
-        else:x=35+(col-1)*354;y=25+(row-1)*164;bw,bh=306,112
-        coords[key]=(x,y,bw,bh)
-    out=[f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" role="img" aria-label="Agent Hub circuit-board architecture"><rect width="{w}" height="{h}" fill="#05070c"/><defs><marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L8 4L0 8" fill="#00e676"/></marker></defs>']
-    for a,b in EDGES:
+            x,y,bw=24,20+i*292,712
+            for j,n in enumerate(ids):coords[n]=(x+18+(j%2)*344,y+52+(j//2)*72,324,60)
+            frames.append((x,y,bw,274,title))
+        else:
+            x,y,bw=22+i*284,28,260
+            for j,n in enumerate(ids):coords[n]=(x+15,y+70+j*146,230,112)
+            frames.append((x,y,bw,840,title))
+    out=[f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" role="img" aria-label="Agent Hub architecture grouped by devices, Hub, tools, agents and reviewed work"><rect width="{w}" height="{h}" fill="#05070c"/><defs><marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L8 4L0 8" fill="#00e676"/></marker></defs>']
+    for x,y,bw,bh,title in frames:
+        out.append(f'<rect x="{x}" y="{y}" width="{bw}" height="{bh}" rx="8" fill="#081322" stroke="#00e676" stroke-opacity=".22"/><text x="{x+15}" y="{y+28}" fill="#7cceaf" font-family="system-ui" font-size="15">{title}</text>')
+    for i,(a,b) in enumerate(EDGES):
         x,y,bw,bh=coords[a];xx,yy,ww,hh=coords[b]
-        if xx>x:sx,sy,tx,ty=x+bw,y+bh/2,xx,yy+hh/2;d=f'M{sx} {sy}H{(sx+tx)/2}V{ty}H{tx}'
-        else:sx,sy,tx,ty=x+bw/2,y+bh,xx+ww/2,yy;d=f'M{sx} {sy}V{(sy+ty)/2}H{tx}V{ty}'
-        dash=' stroke-dasharray="6 5"' if a in ('smith','skills','neo','doctor') else ''
-        out.append(f'<path d="{d}" fill="none" stroke="#00e676" stroke-opacity=".38" stroke-width="1.7" marker-end="url(#ah)"{dash}/>')
+        sx,sy,tx,ty=x+bw,y+bh/2,xx,yy+hh/2
+        if tall:
+            bus=8+(i%5)*3;d=f'M{sx} {sy}H{w-bus}V{ty}H{tx+ww}'
+        elif xx==x:
+            bus=x+bw+7;d=f'M{sx} {sy}H{bus}V{ty}H{tx+ww}'
+        else:
+            bus=850+(i%5)*6;d=f'M{sx} {sy}H{sx+7}V{bus}H{tx-8}V{ty}H{tx}'
+        highlight=a=='router' and b=='missions'
+        out.append(f'<path d="{d}" fill="none" stroke="{"#41ebff" if highlight else "#00e676"}" stroke-opacity="{1 if highlight else .22}" stroke-width="{2.6 if highlight else 1.2}" marker-end="url(#ah)"/>')
     for key,label,note,col,row,desc in NODES:
-        x,y,bw,bh=coords[key]
-        out.append(f'<rect x="{x}" y="{y}" width="{bw}" height="{bh}" fill="#091525" stroke="#00e676" stroke-opacity=".5"/>')
-        for side in (x-6,x+bw):
-            for j in range(5):out.append(f'<rect x="{side}" y="{y+20+j*15}" width="6" height="3" fill="#00e676" fill-opacity=".6"/>')
-        if key=='hub':out.append(f'<image href="{mark}" x="{x+10}" y="{y+25}" width="60" height="60"/>')
-        cx=x+bw/2+(22 if key=='hub' else 0)
-        out.append(f'<text x="{cx}" y="{y+45}" fill="#00e676" font-family="Orbitron,system-ui" font-size="18" text-anchor="middle">{escape(label)}</text><text x="{cx}" y="{y+75}" fill="#b4d1c4" font-family="Outfit,system-ui" font-size="16" text-anchor="middle">{escape(note)}</text>')
+        x,y,bw,bh=coords[key];cx=x+bw/2
+        out.append(f'<rect x="{x}" y="{y}" width="{bw}" height="{bh}" rx="3" fill="#091525" stroke="#00e676" stroke-opacity=".6"/>')
+        if key=='hub':out.append(f'<image href="{mark}" x="{x+8}" y="{y+bh/2-20}" width="40" height="40"/>');cx+=18
+        out.append(f'<text x="{cx}" y="{y+bh/2-5}" fill="#00e676" font-family="Orbitron,system-ui" font-size="14" text-anchor="middle">{escape(label)}</text><text x="{cx}" y="{y+bh/2+18}" fill="#b4d1c4" font-family="Outfit,system-ui" font-size="13" text-anchor="middle">{escape(note)}</text>')
     out.append('</svg>');return ''.join(out)
+
 def wide():return diagram()
 def tall():return diagram(True)
 if __name__=='__main__':

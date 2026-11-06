@@ -15,7 +15,7 @@ from html import escape
 from pathlib import Path
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
-V = "20261105-dashboard-preview"
+V = "20261105-layered-glass"
 REPO = "https://github.com/infernalzeus/Agent-Hub"
 AG = "assets/agents/"
 LEGEND = "Live: seen running on a real machine. Unit-tested: the logic is tested, not yet seen running. Built, not tried: built and tested without the real hardware."
@@ -217,9 +217,23 @@ def agents_body():
         }[img]
         lis.append('<li><button class="st card" type="button" data-t="%s" data-k="AGENCY" data-d="%s" data-you="%s" data-img="%s%s.png" aria-pressed="%s"><img class="av" src="%s%s.png" alt="" width="48" height="48"><span class="sb"><b>%s</b><em>%s</em></span></button></li>' % (escape(name,True),escape(role,True),escape(you,True),AG,img,'true' if i==0 else 'false',AG,img,escape(name),{'orchestrator':'Plans and delegates','smith':'Voice and chat','neo':'Designs agents','doctor':'Repairs the Hub'}[img]))
     agents=_auto_wrap(''.join(lis)).replace('class="auto"','class="auto agents-auto"',1)
-    others=[a[1] for a in AGENTS if a[0] not in ('orchestrator','smith','neo','doctor','router')]
-    agents+='<p class="specific-agents"><b>Specific agents</b> '+escape(' · '.join(others))+'</p>'
-    return '<div class="agency"><div class="tabs" role="tablist" aria-label="Agency"><button class="tab" role="tab" type="button" aria-selected="true" data-tab="agents">AGENTS</button><button class="tab" role="tab" type="button" aria-selected="false" data-tab="skills">SKILLS</button></div><div class="tabpanel" data-panel="agents">%s</div><div class="tabpanel" data-panel="skills" hidden>%s</div></div>' % (agents,auto(STEPS['skills']))
+    groups={
+      'Code': ['coder','tester','reviewer','scout'],
+      'Research': ['analyst','researcher','data-analyst'],
+      'Writing': ['copywriter','editor','doc-writer','ops-writer'],
+      'Delivery': ['product-manager','project-manager'],
+      'Design': ['designer','compliance-reviewer']}
+    rows=[]
+    for group, names in groups.items():
+        for name in names:
+            source=Path(__file__).resolve().parent.parent/'hub/agent_knowledge/agents'/f'{name}.md'
+            definition=source.read_text(encoding='utf-8')
+            about=re.search(r'^about:\s*(.+)$',definition,re.M)
+            description=re.search(r'^description:\s*(.+)$',definition,re.M)
+            text=(about or description).group(1).strip().strip('"')
+            rows.append('<button type="button" class="work-agent" data-work-group="%s" data-work-description="%s"%s><b>%s</b><span>%s</span></button>' % (group,escape(text,True),' hidden' if group!='Code' else '',escape(name),escape(text)))
+    work='<div class="work-panel"><nav class="work-categories" aria-label="Work types">'+''.join('<button type="button" class="ui-btn" data-work-category="%s" aria-pressed="%s">%s</button>' % (g,str(g=='Code').lower(),g) for g in groups)+'</nav><div class="work-list">'+''.join(rows)+'</div><p class="work-description" aria-live="polite">Choose a work agent to read its role. The orchestrator delegates scoped briefs to these agents.</p></div>'
+    return '<div class="agency"><div class="tabs" role="tablist" aria-label="Agency"><button class="tab" role="tab" type="button" aria-selected="true" data-tab="agents">AGENTS</button><button class="tab" role="tab" type="button" aria-selected="false" data-tab="work">WORK AGENTS</button><button class="tab" role="tab" type="button" aria-selected="false" data-tab="skills">SKILLS</button></div><div class="tabpanel" data-panel="agents">%s</div><div class="tabpanel" data-panel="work" hidden>%s</div><div class="tabpanel" data-panel="skills" hidden>%s</div></div>' % (agents,work,auto(STEPS['skills']))
 
 def scene(sid, label, headline, chips_, line, runs, runs_line, body, wide=False, extra_head=""):
     main = ('<article class="blk main-block"><header class="blk-h"><p class="label">%s</p><h2 id="%s-title" tabindex="-1">%s</h2>%s</header><div class="blk-b">%s</div></article>' % (escape(label),sid,escape(headline),extra_head,body))
@@ -238,15 +252,22 @@ STORY = {
  "install": ("Choose your system, then open the first-run wizard.","Tool choices, private-device access and a Hub bookmark.","Unsigned macOS builds. Desktop control is Windows only.")}
 
 STEPS["hands"] = [
- ("Start", "YOU", "Choose HANDS to start the camera; nothing starts on this website.", "In the Hub, choose HANDS when you are ready.", 1),
- ("Point", "BROWSER CURSOR", "An index finger moves the cursor over the board.", "Point at a board control.", 0),
- ("Pinch", "BOARD POINTER", "A quick thumb-index pinch presses; hold and move to drag.", "Pinch to press, or keep pinched and move a block.", 0),
- ("Zoom", "BOARD VIEW", "Two index pinches change the board zoom.", "Pinch with both hands and move them apart.", 0),
- ("Turn", "3D BOARD", "A fist turns the board while its 3D view is enabled.", "Switch to 3D view, then turn with a fist.", 0),
- ("Fit / stop", "YOU", "An open hand held briefly fits the board. Escape stops the camera.", "Hold an open hand to fit; press Escape to stop.", 1)]
-STORY["hands"] = ("Choose HANDS in the Hub, then point at the board.", "Cursor, drag, zoom, turn and fit controls in the browser.", "Illustrated demo only; no camera access here. Physical gesture actions still need a hardware trial.")
+ ("Start", "YOU", "Choose HANDS in your dashboard to start the camera.", "Start the camera explicitly in your Hub.", 1),
+ ("Point", "BROWSER CURSOR", "The index fingertip positions the board cursor.", "Point at a board control.", 0),
+ ("Click", "BOARD POINTER", "A quick thumb-index pinch presses the control beneath the cursor.", "Pinch and release to click.", 0),
+ ("Drag", "BOARD POINTER", "Keep the pinch held while moving to carry a block.", "Hold a pinch and move your hand.", 0),
+ ("Drop", "BOARD POINTER", "Release the pinch to leave the block at its new position.", "Release your fingers to place the block.", 0),
+ ("Rotate", "3D BOARD", "A fist changes the board angle in 3D view.", "Make a fist and move to turn the board.", 0),
+ ("Fit / stop", "YOU", "Hold an open palm to fit the board; Escape stops the camera.", "Open your hand to fit. Press Escape to stop.", 1)]
 
-STEPS['graph'][-1] = ('Choose what next','YOU','Return to the project map or keep inspecting changed files. Mission APPLY remains a separate choice.','Choose another file, or return to the map.',0)
+
+STEPS['graph'] = [
+ ("Project map", "YOUR PROJECTS", "Each dot represents a repository. Related projects can be connected; select a dot to inspect it.", "Choose a project in the example map.", 0),
+ ("Connections", "PROJECT CONTEXT", "A relationship describes shared context between projects; it is separate from a git branch.", "Select a connected project to follow its context.", 0),
+ ("New project", "MISSIONS", "Choose New Project in Missions. The Hub scaffolds a git repository before creating the mission's private worktree.", "Name a project in this browser-only example.", 0),
+ ("Private work", "MISSION WORKTREE", "Agents change a separate git worktree. Your project's working files stay untouched until review.", "Inspect the working branch and its changed files.", 0),
+ ("Review diff", "YOU", "Read the diff in Git Graph or the mission. APPLY and DISCARD remain your decision in Missions.", "Read the changed lines, or return to the map.", 1)]
+
 STORY['talk']=("Press TALK, or choose an example below.","Smith answers or opens the tool that handles the request.","")
 STORY['hands']=("Choose HANDS in the dashboard, then point at a block.","Move the cursor, drag, zoom, turn and fit the board.","")
 STEPS['skills']=[
@@ -305,10 +326,10 @@ def build() -> str:
         '<p class="tagline">Your most powerful PC tools at your fingertips, any device.</p>'
         '<div class="actions"><a class="action primary" href="#install">DOWNLOAD</a><a class="action" href="%s">SOURCE ↗</a></div>'
         '<nav class="more-links" aria-label="More"><a href="#agents">AGENTS + SKILLS</a><a href="#architecture">ARCHITECTURE</a><a href="#hands">HAND CONTROL</a></nav>'
-        '<form class="wishlist-form"><label for="wishlist-email">Learn how to build your own Agent Hub.</label><div><input id="wishlist-email" type="email" autocomplete="email" placeholder="Your email" aria-label="Email for the build guide wishlist" required><button type="submit">JOIN WISHLIST</button></div><p role="status">Signup preview</p></form>'
+        '<form class="wishlist-form"><div><input id="wishlist-email" type="email" autocomplete="email" placeholder="Learn to build your own Agent Hub" aria-label="Email for the build guide wishlist" required><button type="submit">JOIN</button></div><p role="status" hidden></p></form>'
         '%s<nav class="doors" aria-label="The tools">%s</nav></div></section>' % (REPO, smith_btn, doors))
     body = ('<body><header class="site-header"><a class="brand" href="#" data-home aria-label="Agent Hub — return to landing"><img src="assets/agent-hub-mark.png" alt="" width="44" height="44">AGENT HUB</a>'
-            '<a class="projects" href="https://infernalzeus.github.io/" data-projects>← PROJECTS</a></header><main class="stage">%s%s</main>'
+            '<a class="projects" href="https://infernalzeus.github.io/" data-projects><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 5-7 7 7 7M3 12h18"/></svg><span>Infernal Zeus - Projects</span></a></header><main class="stage">%s%s</main>'
             '<script src="assets/agent-hub-mark.min.js?v=20261105b" defer></script><script src="assets/depth-lift-site.js?v=%s" defer></script>'
             '<script src="assets/site.js?v=%s" defer></script></body></html>\n' % (landing, "".join(parts), V, V))
     return head + body
