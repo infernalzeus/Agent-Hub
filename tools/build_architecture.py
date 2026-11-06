@@ -58,10 +58,10 @@ EDGES=[
  ('review','apply','M988 75H1006'),
  ('missions','orchestrator','M654 92V112H668V126'),
  ('orchestrator','team','M668 158V174H718V190'),
- ('team','runtime','M772 205H840V114H752V92'),
- ('skills','runtime','M788 126V114H752V92'),
+ ('team','runtime','M772 205H840V110H768V92'),
+ ('skills','runtime','M788 126V118H736V92'),
  ('worktree','graph','M850 92V110H908V126'),
- ('review','missions','M948 92V104H654V92'),
+ ('review','missions','M948 58V28H670V58'),
  ('router','pc','M532 92V112H486V352H568V372'),
  ('pc','mcp','M620 389H670'),
  ('router','download','M556 58V24H478V456H562V482'),
@@ -76,8 +76,8 @@ EDGES=[
  ('neo','team','M804 205H772'),
  ('hub','apps','M390 250V300H306V482H162V502'),
  ('router','routines','M516 75H506V238H593V254'),
- ('router','schedule','M576 92V108H1074V238H777V254'),
- ('schedule','missions','M854 271H1088V100H654V92'),
+ ('router','schedule','M516 75H500V296H777V288'),
+ ('schedule','missions','M854 271H1094V18H638V58'),
 ]
 
 def _add(root,tag,attrs,text=None):
@@ -106,7 +106,7 @@ def diagram(tall=False, interactive=False):
             defs=next(e for e in root if e.tag.endswith('defs'))
             clip=_add(defs,'clipPath',{'id':'hub-round-icon','clipPathUnits':'userSpaceOnUse'})
             _add(clip,'circle',{'cx':374,'cy':184,'r':17.25});el.set('clip-path','url(#hub-round-icon)')
-    for label,y,w,h in [('AUTONOMOUS LLM',34,608,290),('MCP CONTROL',354,330,76),('MEDIA VAULT',464,500,76)]:
+    for label,y,w,h in [('AUTONOMOUS LLM',8,608,316),('MCP CONTROL',354,330,76),('MEDIA VAULT',464,500,76)]:
         _add(root,'rect',{'x':494,'y':y,'width':w,'height':h,'rx':2,'fill':'#00e676','fill-opacity':.022,'stroke':'#00e676','stroke-opacity':.3,'stroke-dasharray':'7 5'})
         _add(root,'rect',{'x':502,'y':y-6,'width':126,'height':13,'fill':'#05070c'})
         _add(root,'text',{'x':509,'y':y+4,'fill':'#00e676','font-family':'Orbitron,Segoe UI,sans-serif','font-size':8.5,'font-weight':700,'letter-spacing':1.6},label)
@@ -114,7 +114,7 @@ def diagram(tall=False, interactive=False):
         if x<494:continue
         _add(root,'rect',{'x':x,'y':y,'width':w,'height':h,'rx':2,'fill':'#0b1220','stroke':'#00e676','stroke-opacity':.55})
         _add(root,'text',{'x':x+w/2,'y':y+h/2+3,'text-anchor':'middle','fill':'#00e676','font-family':'Orbitron,Segoe UI,sans-serif','font-size':8 if key=='orchestrator' else 8.5,'font-weight':700},label)
-    for y,text in [(310,'Select a component to inspect its routes.'),(445,'Inspect → act → verify. Reuse a routine when it fits.'),(553,'Download and convert on the PC; browse or receive files from your devices.')]:
+    for y,text in [(316,'Select a component to inspect its routes.'),(445,'Inspect → act → verify. Reuse a routine when it fits.'),(553,'Download and convert on the PC; browse or receive files from your devices.')]:
         _add(root,'text',{'x':509,'y':y,'fill':'#a8cbb9','font-family':'Outfit,Segoe UI,sans-serif','font-size':9},text)
     for el in list(root):
         if el.tag.endswith('path') and el.attrib.get('stroke-linecap')=='round':root.remove(el)

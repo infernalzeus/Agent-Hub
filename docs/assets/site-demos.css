@@ -390,3 +390,32 @@
 svg.agent-portrait{display:block;flex-shrink:0;overflow:visible;filter:none!important;mix-blend-mode:normal!important}
 @media(min-width:1001px) and (min-height:820px){.js .landing .tilt-layer{max-width:1320px;column-gap:60px;grid-template-rows:auto calc(var(--core-size)/2 + 20px) calc(var(--core-size)/2 + 20px) auto auto auto auto auto;row-gap:12px}}
 @media(max-width:650px) and (orientation:portrait) and (min-height:740px){.js .landing .tilt-layer{grid-template-rows:auto calc(var(--core-size)/2 + 24px) calc(var(--core-size)/2 + 24px) auto auto auto auto auto;row-gap:9px}}
+
+/* Use the full main zone: side doors sit near its upper and lower edges. */
+@media(min-width:651px) and (min-height:541px){
+ .js .landing .tilt-layer{max-width:calc(100vw - 76px);column-gap:clamp(36px,5vw,80px)}
+ .js .landing .doorbox:nth-of-type(1),.js .landing .doorbox:nth-of-type(2){align-self:start}
+ .js .landing .doorbox:nth-of-type(3),.js .landing .doorbox:nth-of-type(4){align-self:end}
+}
+svg.agent-portrait *{transform-box:view-box!important}
+
+/* Portrait screens use their full height; the side cards never crowd the core. */
+@media(max-width:900px) and (orientation:portrait){
+ .js .landing .tilt-layer{inset:76px 18px 16px;max-width:none;grid-template-columns:minmax(0,1fr) minmax(100px,1fr) minmax(0,1fr);grid-template-rows:40px 64px minmax(96px,1fr) 64px 24px 47px 47px 47px;column-gap:8px;row-gap:9px;align-content:stretch}
+ .js .landing .hero-title{grid-column:1/-1;grid-row:1;font-size:clamp(25px,4.5vw,36px);line-height:1.12}
+ .js .landing .mark-host{grid-column:1/-1;grid-row:3;height:100%;width:auto;aspect-ratio:1;max-width:min(60vw,30dvh);max-height:min(60vw,30dvh);align-self:center;justify-self:center}
+ .js .landing .doorbox:nth-of-type(1){grid-column:1;grid-row:2;align-self:center}.js .landing .doorbox:nth-of-type(2){grid-column:3;grid-row:2;align-self:center}
+ .js .landing .doorbox:nth-of-type(3){grid-column:1;grid-row:4;align-self:center}.js .landing .doorbox:nth-of-type(4){grid-column:3;grid-row:4;align-self:center}
+ .js .landing .smithbox{grid-column:2;grid-row:4;width:min(154px,100%)}.js .landing .smith-btn{min-height:48px;padding:3px 5px;gap:3px}.js .landing .smith-btn :is(img,svg.agent-portrait){width:32px;height:32px}.js .landing .smith-btn em{display:none}
+ .js .landing .tagline{grid-column:1/-1;grid-row:5;font-size:clamp(11px,1.6vw,13px);line-height:1.4}
+ .js .landing .actions{grid-column:1/-1;grid-row:6}.js .landing .more-links{grid-column:1/-1;grid-row:7}.js .landing .wishlist-form{grid-column:1/-1;grid-row:8;width:min(380px,100%);padding:0}
+ .js .landing .actions .action,.js .landing .more-links a,.js .landing .wishlist-form input,.js .landing .wishlist-form button{min-height:47px}
+}
+@media(max-width:900px) and (orientation:portrait) and (max-height:740px){.js .landing .tilt-layer{grid-template-rows:32px 48px minmax(90px,1fr) 52px 22px 47px 47px 47px;row-gap:5px}}
+
+@media(max-width:900px) and (orientation:portrait){
+ .js .landing .tilt-layer{grid-template-rows:40px 64px minmax(96px,1fr) 52px 64px 24px 47px 47px 47px}
+ .js .landing .doorbox:nth-of-type(3),.js .landing .doorbox:nth-of-type(4){grid-row:5}
+ .js .landing .tagline{grid-row:6}.js .landing .actions{grid-row:7}.js .landing .more-links{grid-row:8}.js .landing .wishlist-form{grid-row:9}
+}
+@media(max-width:900px) and (orientation:portrait) and (max-height:740px){.js .landing .tilt-layer{grid-template-rows:28px 48px minmax(90px,1fr) 48px 48px 22px 47px 47px 47px;row-gap:6px}}
