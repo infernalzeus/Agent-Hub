@@ -244,3 +244,51 @@
 .hand-stage .hand-boardwrap .hand-board{inset:0;height:100%}
 .hand-stage .hand-skel{pointer-events:none}
 .hand-stage .capture-label{position:absolute;left:0;right:0;bottom:0;height:18px;display:grid;place-items:center;font:10px Outfit,sans-serif;color:#9fd8bd;background:#04061a;padding:0 6px}
+
+/* ---- agents list: just the silhouette, no box behind it ---- */
+.js .agents-auto .st.card .av,.agency-profile>img{border:0!important;background:none!important;object-fit:contain;filter:drop-shadow(0 0 6px rgba(65,235,255,.35))}
+.work-definition{margin:0;max-height:210px;overflow:auto;padding:10px 12px;border:1px solid rgba(0,230,118,.3);background:rgba(2,10,24,.7);color:#bfe9d2;font:11px/1.45 ui-monospace,Consolas,monospace;white-space:pre-wrap}
+/* ---- media: the Hub's own cards (YouTube Download, File Browser) ---- */
+.media-preview.real{display:flex;flex-direction:column;gap:10px}
+.yt-card{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid rgba(0,230,118,.35);background:rgba(0,230,118,.05)}
+.yt-ic{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;background:linear-gradient(135deg,#ff5a5a,#c2185b)}
+.yt-card.fb .yt-ic{background:linear-gradient(135deg,#00b894,#0a7f5f)}
+.yt-ic svg{width:20px;height:20px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.yt-card b{display:block;font:700 12px Orbitron,sans-serif;color:#e6f7ef}
+.yt-status{display:flex;align-items:center;gap:6px;font:700 9px Orbitron,sans-serif;color:#87bba3;font-style:normal;letter-spacing:.08em;margin-top:3px}
+.yt-status i{width:7px;height:7px;border-radius:50%;background:#87bba3}.yt-status.busy{color:#f5c842}.yt-status.busy i{background:#f5c842;animation:ytp 1s infinite}
+@keyframes ytp{50%{opacity:.3}}
+.yt-toggle{margin-left:auto;padding:6px 10px;border:1px solid rgba(0,230,118,.5);color:#00e676;font:700 9px Orbitron,sans-serif}
+.yt-open{display:flex;flex-direction:column;gap:8px;padding:2px 2px 0}
+.yt-lab{font:700 9px Orbitron,sans-serif;color:#87bba3;letter-spacing:.1em}
+.yt-input{padding:10px;background:#050b18;border:1px solid rgba(65,235,255,.3);color:#e6f7ef;font:12px ui-monospace,Consolas,monospace}
+.yt-slider{display:grid;grid-template-columns:1fr 1fr;border:1px solid rgba(65,235,255,.3);background:#050b18}
+.yt-opt{display:flex;align-items:center;justify-content:center;gap:8px;padding:9px;background:none;border:0;color:#87bba3;font:700 10px Orbitron,sans-serif;cursor:pointer}
+.yt-opt svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.yt-opt.on{background:rgba(0,230,118,.16);color:#00e676}
+.yt-go{padding:11px;background:rgba(0,230,118,.14);border:1px solid #00e676;color:#00e676;font:700 11px Orbitron,sans-serif;cursor:pointer}
+.yt-title{font:600 12px Outfit,system-ui,sans-serif;color:#e6f7ef}.yt-pct{font:700 10px Orbitron,sans-serif;color:#00e676}
+.yt-bar{height:8px;background:#0b1730;border:1px solid rgba(0,230,118,.3)}.yt-bar i{display:block;height:100%;width:62%;background:#00e676;animation:ytbar 4s ease-in-out infinite alternate}
+@keyframes ytbar{from{width:12%}to{width:92%}}
+.yt-queue span{font:700 9px Orbitron,sans-serif;color:#87bba3;letter-spacing:.1em}.yt-qrow{display:flex;justify-content:space-between;padding:7px 9px;margin-top:5px;border:1px solid rgba(65,235,255,.25);font-size:11px;color:#bfe9d2}.yt-qrow u{text-decoration:none;color:#ff7b7b}
+.yt-result{padding:9px 11px;border-left:3px solid #00e676;background:rgba(0,230,118,.07);color:#bff5d6;font-size:12px}
+.fb-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid rgba(65,235,255,.15);color:#e6f7ef;font-size:12px}
+.fb-row svg{width:16px;height:16px;fill:none;stroke:#41ebff;stroke-width:2}.fb-row b{font-weight:600}.fb-row span{margin-left:auto;color:#87bba3;font-size:11px}
+/* ---- git graph: the Hub's project graph (status-coloured dots, wiki links, side panel, changed files) ---- */
+.graph-preview.real .gg-stage{display:flex;gap:10px;position:relative;min-height:0}
+.gg{flex:1;min-width:0;height:auto;max-height:280px;background:radial-gradient(circle at 50% 50%,#0a1a33,#050b18)}
+.gg .rel{stroke:#6a3fd1;stroke-width:1.8}.gg .doc{stroke:#fff;stroke-width:1.5;stroke-dasharray:2 4;opacity:.8}
+.gg-node text{fill:#bfe9d2;font:600 10px Outfit,system-ui,sans-serif}.gg-node circle{stroke:#050b18;stroke-width:1}.gg-node.pick{cursor:pointer}.gg-node.sel circle{stroke:#fff;stroke-width:3}
+.gg-legend{display:flex;flex-wrap:wrap;gap:2px 12px;align-items:center;padding:5px 8px;background:rgba(5,11,24,.82);border:1px solid rgba(65,235,255,.2);font-size:9px;color:#87bba3}
+.gg-legend b{width:100%;font:700 8px Orbitron,sans-serif;letter-spacing:.1em}.gg-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}.gg-legend i.ring{background:#f5a623;box-shadow:0 0 0 2px #00e676}
+.gg-legend u{display:inline-block;width:16px;margin-right:4px;vertical-align:middle;border-top:2px solid #fff}.gg-legend u.dot{border-top-style:dotted}.gg-legend u.sol{border-top-color:#6a3fd1}
+.gg-panel{width:230px;flex:none;padding:12px;border:1px solid rgba(65,235,255,.3);background:#07122a;display:flex;flex-direction:column;gap:6px;font-size:12px;color:#d6efe3}
+.gg-panel.wide{width:300px}.gg-panel h4{margin:0;font:700 14px Orbitron,sans-serif;color:#00e676}.gg-panel code{font-size:10px;color:#87bba3;word-break:break-all}
+.gg-badge{align-self:flex-start;padding:3px 8px;font:700 9px Orbitron,sans-serif;letter-spacing:.06em}.gg-badge.ok{background:#00e67622;color:#00e676}.gg-badge.diff{background:#f5a62322;color:#f5a623}
+.gg-sec{margin-top:6px;font:700 9px Orbitron,sans-serif;color:#87bba3;letter-spacing:.1em}.gg-panel p{margin:0;line-height:1.5}.gg-panel a{color:#41ebff}.muted{color:#6c8a7d}
+.gg-file{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid rgba(65,235,255,.18)}.gg-file b{font-weight:600;font-size:12px}.gg-file .ui-btn,.gg-file .sel,.gg-file .muted{margin-left:auto;font-size:10px}
+.gg-file .b{width:18px;height:18px;display:grid;place-items:center;font:700 10px Orbitron,sans-serif;color:#050b18}.gg-file .b.M{background:#f5a623}.gg-file .b.A{background:#00e676}
+.gg-diff{flex:1;min-width:0;padding:12px;border:1px solid rgba(65,235,255,.25);background:#050b18}.gg-diff header{font:700 11px Orbitron,sans-serif;color:#41ebff;margin-bottom:8px}.gg-diff.empty{display:grid;place-items:center;color:#87bba3;font-size:12px}
+.gg-diff code{display:block;padding:3px 6px;font:12px ui-monospace,Consolas,monospace}
+/* ---- architecture: the Hub in the middle ---- */
+.original-map svg image{image-rendering:auto}

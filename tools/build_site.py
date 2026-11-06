@@ -206,8 +206,18 @@ def auto(steps, with_downloads=False):
     return _auto_wrap(''.join(lis),with_downloads)
 
 
+def _source_text(rel, name):
+    """The text of a module-level string constant, read from the Hub's own source without importing it."""
+    import ast
+    tree = ast.parse((Path(__file__).resolve().parent.parent / rel).read_text(encoding='utf-8'))
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and getattr(node.targets[0], 'id', None) == name:
+            return ast.literal_eval(node.value).strip()
+    return ''
+
+
 def agents_body():
-    principal = [next(a for a in AGENTS if a[0]==key) for key in ("orchestrator","smith","neo","doctor")]
+    principal = [next(a for a in AGENTS if a[0]==key) for key in ("orchestrator","neo","smith","doctor")]
     lis=[]
     for i,(img,name,role,ch,you) in enumerate(principal):
         role = {
@@ -219,6 +229,10 @@ def agents_body():
         definition=role
         if img in ('orchestrator','neo'):
             definition=(Path(__file__).resolve().parent.parent/'hub/agent_knowledge/agents'/f'{img}.md').read_text(encoding='utf-8').split('---',2)[-1].strip()
+        elif img=='smith':
+            definition="Smith's standing instructions (hub/features/voice.py), before the live Hub state is added:" + chr(10) + chr(10) + _source_text('hub/features/voice.py','_SYSTEM')
+        elif img=='doctor':
+            definition="The Doctor's standing instructions (hub/features/support.py), before the live Hub facts are added:" + chr(10) + chr(10) + _source_text('hub/features/support.py','RULES')
         lis.append('<li><button data-definition="%s" class="st card" type="button" data-t="%s" data-k="AGENCY" data-d="%s" data-you="%s" data-img="%s%s.png" aria-pressed="%s"><img class="av" src="%s%s.png" alt="" width="48" height="48"><span class="sb"><b>%s</b><em>%s</em></span></button></li>' % (escape(definition,True),escape(name,True),escape(role,True),escape(you,True),AG,img,'true' if i==0 else 'false',AG,img,escape(name),{'orchestrator':'Plans and delegates','smith':'Voice and chat','neo':'Designs agents','doctor':'Repairs the Hub'}[img]))
     agents=_auto_wrap(''.join(lis)).replace('class="auto"','class="auto agents-auto"',1)
     groups={
@@ -235,8 +249,8 @@ def agents_body():
             about=re.search(r'^about:\s*(.+)$',definition,re.M)
             description=re.search(r'^description:\s*(.+)$',definition,re.M)
             text=(about or description).group(1).strip().strip('"')
-            rows.append('<button type="button" class="work-agent" data-work-group="%s" data-work-description="%s"%s><b>%s</b><span>%s</span></button>' % (group,escape(text,True),' hidden' if group!='Code' else '',escape(name),escape(text)))
-    work='<div class="work-panel"><nav class="work-categories" aria-label="Work types">'+''.join('<button type="button" class="ui-btn" data-work-category="%s" aria-pressed="%s">%s</button>' % (g,str(g=='Code').lower(),g) for g in groups)+'</nav><div class="work-list">'+''.join(rows)+'</div><div class="work-route" aria-label="Work-agent handoff"><span>Your goal</span><i>→</i><span>Orchestrator</span><i>→</i><span data-work-chosen>Work agent</span><i>→</i><span>Your review</span></div><p class="work-description" aria-live="polite">Choose a work agent to read its role. The orchestrator delegates scoped briefs to these agents.</p></div>'
+            rows.append('<button type="button" class="work-agent" data-work-group="%s" data-work-description="%s" data-work-definition="%s"%s><b>%s</b><span>%s</span></button>' % (group,escape(text,True),escape(definition.split('---',2)[-1].strip()[:4200],True),' hidden' if group!='Code' else '',escape(name),escape(text)))
+    work='<div class="work-panel"><nav class="work-categories" aria-label="Work types">'+''.join('<button type="button" class="ui-btn" data-work-category="%s" aria-pressed="%s">%s</button>' % (g,str(g=='Code').lower(),g) for g in groups)+'</nav><div class="work-list">'+''.join(rows)+'</div><div class="work-route" aria-label="Work-agent handoff"><span>Your goal</span><i>→</i><span>Orchestrator</span><i>→</i><span data-work-chosen>Work agent</span><i>→</i><span>Your review</span></div><p class="work-description" aria-live="polite">Choose a work agent to read its role. The orchestrator delegates scoped briefs to these agents.</p><pre class="work-definition" hidden></pre></div>'
     return '<div class="agency"><div class="tabs" role="tablist" aria-label="Agency"><button class="tab" role="tab" type="button" aria-selected="true" data-tab="agents">AGENTS</button><button class="tab" role="tab" type="button" aria-selected="false" data-tab="work">WORK AGENTS</button><button class="tab" role="tab" type="button" aria-selected="false" data-tab="skills">SKILLS</button></div><div class="tabpanel" data-panel="agents">%s</div><div class="tabpanel" data-panel="work" hidden>%s</div><div class="tabpanel" data-panel="skills" hidden>%s</div></div>' % (agents,work,auto(STEPS['skills']))
 
 def scene(sid, label, headline, chips_, line, runs, runs_line, body, wide=False, extra_head=""):
@@ -256,13 +270,10 @@ STORY = {
  "install": ("Choose your system, then open the first-run wizard.","Tool choices, private-device access and a Hub bookmark.","Unsigned macOS builds. Desktop control is Windows only.")}
 
 STEPS["hands"] = [
- ("Start", "YOU", "Choose HANDS in your dashboard to start the camera. It runs on your own device; nothing is recorded or sent anywhere.", "Start the camera explicitly in your Hub.", 1),
- ("Point", "INDEX FINGER", "The fingertip is your cursor. Hold it still over a control and it clicks.", "Point at a control and hold still.", 0),
- ("Pinch", "THUMB + INDEX", "A quick pinch clicks. Hold it and move to drag a block or scroll a panel; open your fingers to drop it.", "Pinch, hold and move, then let go.", 0),
- ("Fist", "FIST", "A fist takes control of the screen. A fist again, a point or a pinch hands it back.", "Make a fist.", 0),
- ("Palm", "FIST, THEN OPEN PALM", "Move the open palm and the board follows. Rest your hand to finish the move.", "Open your hand and move it.", 0),
- ("Push / pull", "FIST, THEN OPEN PALM", "Push the palm toward the camera to zoom in; pull it back to zoom out. Pan and zoom never run together.", "Move your hand toward or away from the camera.", 0),
- ("Turn", "FIST IN 3D", "In the 3D view, hold the fist and turn your wrist: the board and its panels turn with it.", "Hold a fist and turn your wrist.", 1)]
+ ("Start", "YOU", "Choose HANDS in your dashboard to start the camera. It runs on your own device; nothing is recorded or sent anywhere. Your hand appears as a skeleton and T, I, M, R, P name the fingertips.", "Start the camera explicitly in your Hub.", 1),
+ ("Point", "INDEX FINGER", "The fingertip is your cursor. Hold it still over a control and a ring fills, then it clicks.", "Point at a control and hold still.", 0),
+ ("Drag", "THUMB + INDEX + MIDDLE", "Bring thumb, index and middle together. The point between them carries the block, window or panel under it; open your fingers to drop it.", "Pinch three fingers, move, then let go.", 0),
+ ("Take control", "FIST, THEN OPEN PALM", "A fist takes control. Then the open palm pans the board, pushing or pulling it zooms (never both at once), and turning the fist in 3D rotates the board. A fist again, a point or a pinch hands control back.", "Make a fist, then open your hand and move it.", 0)]
 
 
 STEPS['graph'] = [
@@ -348,8 +359,8 @@ def build() -> str:
     body = ('<body><header class="site-header"><a class="brand" href="#" data-home aria-label="Agent Hub — return to landing"><img src="assets/agent-hub-logo-176.png" alt="" width="44" height="44" decoding="async">AGENT HUB</a>'
             '<a class="projects" href="https://infernalzeus.github.io/" data-projects><span class="old-project-arrow" aria-hidden="true">←</span><span>INFERNALZEUS - PROJECTS</span></a></header><main class="stage">%s%s</main>'
             '<script src="assets/agent-hub-mark.min.js?v=20261105b" defer></script><script src="assets/depth-lift-site.js?v=%s" defer></script>'
-            '<script src="assets/hand-clips.js?v=%s" defer></script><script src="assets/hand-player.js?v=%s" defer></script>'
-            '<script src="assets/site.js?v=%s" defer></script></body></html>\n' % (landing, "".join(parts), V, V, V, V))
+            '<script src="assets/hand-player.js?v=%s" defer></script>'
+            '<script src="assets/site.js?v=%s" defer></script></body></html>\n' % (landing, "".join(parts), V, V, V))
     payload='<script type="application/json" id="site-skill-library">'+skill_examples()+'</script>'
     return head + body.replace('<script src="assets/agent-hub-mark',payload+'<script src="assets/agent-hub-mark',1)
 

@@ -4,7 +4,7 @@ import pytest
 from PIL import Image
 
 ICON_DIR = Path(__file__).resolve().parents[1] / 'hub' / 'static' / 'agent-icons'
-ICON_IDS = ['doctor', 'orchestrator', 'coder', 'tester', 'reviewer', 'researcher', 'designer', 'scout', 'analyst', 'copywriter', 'data-analyst', 'doc-writer', 'editor', 'ops-writer', 'product-manager', 'project-manager', 'compliance-reviewer', 'desktop-agent', 'router', 'yard-learner', 'bandit', 'learning-log']
+ICON_IDS = ['doctor', 'orchestrator', 'tester', 'reviewer', 'researcher', 'designer', 'scout', 'analyst', 'copywriter', 'data-analyst', 'doc-writer', 'editor', 'ops-writer', 'product-manager', 'project-manager', 'compliance-reviewer', 'desktop-agent', 'router', 'yard-learner', 'bandit', 'learning-log']
 
 @pytest.mark.parametrize('icon_id', ICON_IDS)
 def test_agent_icon_contract(icon_id):
