@@ -231,11 +231,13 @@ def _practice(episodes: int, seed: int, n_eval: int, write: bool, with_ablation:
              "rule of thumb": evaluate(lambda: L.greedy_policy, n_eval, fams),
              "learned, linear": evaluate(lambda: lin.policy(False), n_eval, fams),
              "learned, one hidden layer": evaluate(lambda: mlp.policy(False), n_eval, fams)}
+    from . import candidates as CD
+    safety = CD.breaches(lin, 60)
     demo = DM.agreement(lin)
     if demo["steps"]:
         EV.emit("demos", "agreement", f"the plain learner presses what your attested routines press on {demo['agree']} of {demo['steps']} steps", demo["rate"], edge="demos>gate")
     rep = {"at": time.time(), "episodes": episodes, "seed": seed, "eval_per_cell": n_eval, "train_seconds": round(t_train, 1),
-           "curve": {"linear": c_lin, "hidden16": c_mlp}, "table": table, "layouts": fams, "hidden_units": hidden, "live_memory": live_note, "attested_agreement": demo,
+           "curve": {"linear": c_lin, "hidden16": c_mlp}, "table": table, "layouts": fams, "hidden_units": hidden, "live_memory": live_note, "attested_agreement": demo, "safety": safety,
            "methods": {"linear": "advantage actor-critic, linear scorer", "hidden16": f"advantage actor-critic, {hidden} tanh units"},
            "warm_from": (start or {}).get("version"), "knobs": {k: v for k, v in K.values().items() if k in ("episodes", "lr_actor", "lr_critic", "gamma", "entropy_beta", "hindsight", "replay_every", "step_cost", "win")},
            "means": {p: {v: round(float(np.mean([t[f][v]["success"] for f in t])), 3) for v in ("train", "held")} for p, t in table.items()},
@@ -249,7 +251,9 @@ def _practice(episodes: int, seed: int, n_eval: int, write: bool, with_ablation:
         REPORT.write_text(json.dumps(rep, indent=1), encoding="utf-8")
         sv = rep["saved"] if isinstance(rep["saved"], dict) else {}
         EV.emit("ver", "saved", f"saved as version {sv.get('version', '?')}; " + ("now the one in use" if sv.get("adopted") else "kept, not better than the one in use"), sv.get("version"), edge="gate>ver")
+        EV.emit("safety", "replayed", f"{safety['breaches']} of {safety['screens']} screens picked a forbidden control", safety["breaches"], edge="ver>safety")
         EV.emit("gate", "decided", "a new version replaces the one in use only if it is at least as good on words it never saw", edge="fit>gate")
+        EV.emit("gate", "decided", "zero forbidden presses are needed before it may act" + (": it did not pass" if safety["breaches"] else ": passed"), edge="safety>gate")
     return rep
 
 

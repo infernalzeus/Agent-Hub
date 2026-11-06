@@ -66,6 +66,20 @@ async def api_settings_set(request: web.Request) -> web.Response:
     return web.json_response(settings.update(body))
 
 
+@routes.post("/api/yard/rollback")
+async def api_rollback(request: web.Request) -> web.Response:
+    """{"version": 3}: make a saved version the one in use. The way back after a session you do not like; nothing is deleted."""
+    from . import events as EV, store
+    try:
+        n = int((await request.json())["version"])
+    except Exception:  # noqa: BLE001
+        raise web.HTTPBadRequest(text='send {"version": a saved version number}')
+    if not store.restore(REPORT.parent, REPORT.with_name("policy.json"), n):
+        raise web.HTTPNotFound(text="no such version")
+    EV.emit("ver", "restored", f"version {n} is now the one in use", n)
+    return web.json_response({"ok": True, "in_use_version": n})
+
+
 @routes.post("/api/yard/practice/stop")
 async def api_stop(request: web.Request) -> web.Response:
     """Ask a practice run to end at its next episode. Nothing is saved from a stopped run; the last finished report stays."""

@@ -1,5 +1,8 @@
-"""Smith on the landing page is the wake switch: drawn line by line while the wake word is off or while he listens, gone while it waits for his name, and a click on him toggles it."""
-import pytest
+"""Smith replaces the wake button on the landing page. His picture is the switch: visible while the wake word is off, faded out (still clickable) while it waits for his name.
+His outline is drawn, line by line, only while you are talking with him; it lives outside the orb, has no filter, is built the first time it is needed and is hidden for good the
+moment ENTER is pressed, so it cannot slow the move to the dashboard."""
+import time
+
 from playwright.sync_api import sync_playwright
 
 from test_ui_lifecycle import hub  # noqa: F401  (an isolated Hub on its own state folder)
@@ -7,59 +10,89 @@ from test_ui_lifecycle import hub  # noqa: F401  (an isolated Hub on its own sta
 FAKE_MIC = """navigator.mediaDevices.getUserMedia = async () => { const c = new AudioContext(), d = c.createMediaStreamDestination(), o = c.createOscillator(); o.connect(d); o.start(); return d.stream; };"""
 
 
-def _offset(pg, i):
-    return pg.evaluate("i=>parseFloat(getComputedStyle(document.querySelectorAll('.smith-draw .ln')[i]).strokeDashoffset)", i)
+def _landing(pw, hub, **ctx_args):
+    b = pw.chromium.launch(headless=True, args=["--autoplay-policy=no-user-gesture-required"])
+    ctx = b.new_context(service_workers="block", viewport={"width": 1100, "height": 900}, **ctx_args)
+    ctx.add_init_script(FAKE_MIC)
+    pg = ctx.new_page()
+    pg.goto(hub + "/offline.html")
+    pg.wait_for_selector("#smith-slot", state="visible", timeout=20000)
+    return b, pg
 
 
-def test_smith_is_drawn_when_the_wake_word_is_off_and_a_click_on_him_switches_it_on_and_off(hub):
+def _opacity(pg):
+    return pg.evaluate("parseFloat(getComputedStyle(document.querySelector('#smith-slot img')).opacity)")
+
+
+def test_his_picture_is_the_switch_and_his_outline_appears_only_while_you_talk_with_him(hub):
     with sync_playwright() as pw:
-        b = pw.chromium.launch(headless=True, args=["--autoplay-policy=no-user-gesture-required"])
-        ctx = b.new_context(service_workers="block", viewport={"width": 1100, "height": 900})
-        ctx.add_init_script(FAKE_MIC)
-        pg = ctx.new_page()
+        b, pg = _landing(pw, hub)
         errors = []
         pg.on("pageerror", lambda e: errors.append(str(e)))
-        pg.goto(hub + "/offline.html")
-        pg.wait_for_selector("#wake-toggle", state="visible", timeout=20000)
-        pg.wait_for_function("window.__hubWake && window.__hubWake.smith().shown === true", timeout=10000)
+        pg.wait_for_function("window.__hubWake && window.__hubWake.smith().icon === true", timeout=10000)
         info = pg.evaluate("window.__hubWake.smith()")
-        assert info["state"] == "off" and info["drawn"] >= 60                                       # the traced strokes are there
-        pg.wait_for_function("(()=>{const p=document.querySelectorAll('.smith-draw .ln');return p.length&&parseFloat(getComputedStyle(p[p.length-1]).strokeDashoffset)===0})()", timeout=8000)
-        assert _offset(pg, 0) == 0                                                                  # drawn in, every line
-        assert pg.get_attribute("#smith-hit", "aria-label").startswith("Smith") and "on" in pg.get_attribute("#smith-hit", "title")
-        pg.click("#smith-hit")                                                                      # click him: he draws out and the ring lights
+        assert info["state"] == "off" and info["shown"] is False and info["built"] is False and info["strokes"] >= 60     # nothing is drawn, nothing is even built
+        pg.wait_for_function("parseFloat(getComputedStyle(document.querySelector('#smith-slot img')).opacity) > 0.9", timeout=4000)
+        assert pg.get_attribute("#smith-slot", "aria-label").startswith("Smith")
+        assert "smith-held" in pg.get_attribute("#wake-toggle", "class")                           # the old button is no longer on the page
+        assert not pg.evaluate("!!document.querySelector('.globe-wrap .smith-draw, .globe-wrap svg.smith-draw')")
+        pg.click("#smith-slot")                                                                    # his picture goes out: wake word on, ring lit
         pg.wait_for_function("window.__hubWake.state() === 'wake'", timeout=15000)
-        pg.wait_for_function("window.__hubWake.smith().shown === false")
         pg.wait_for_function("document.getElementById('wake-ring').classList.contains('on')")
-        pg.wait_for_function("parseFloat(getComputedStyle(document.querySelectorAll('.smith-draw .ln')[0]).strokeDashoffset)===1", timeout=8000)      # fully drawn out
-        assert "off" in pg.get_attribute("#smith-hit", "title")
-        pg.evaluate("window.__hubWake._set('convo')")                                                 # he is addressed: he comes back and breathes while it listens
+        pg.wait_for_function("parseFloat(getComputedStyle(document.querySelector('#smith-slot img')).opacity) < 0.05", timeout=3000)
+        after = pg.evaluate("window.__hubWake.smith()")
+        assert after["icon"] is False and after["shown"] is False and after["built"] is False      # invisible while it waits for his name: no outline
+        pg.evaluate("window.__hubWake._set('convo')")                                              # he is addressed: his outline is drawn
         pg.wait_for_function("window.__hubWake.smith().shown === true")
-        assert "live" in pg.get_attribute(".smith-draw", "class")
-        pg.evaluate("window.__hubWake._set('wake')")                                                  # quiet again: he leaves, the ring stays lit
+        assert pg.evaluate("getComputedStyle(document.querySelector('.smith-draw')).display") == "block" and pg.evaluate("document.querySelector('.smith-draw').parentNode === document.body")
+        pg.wait_for_function("(()=>{const p=document.querySelectorAll('.smith-draw .ln');return parseFloat(getComputedStyle(p[p.length-1]).strokeDashoffset)===0})()", timeout=6000)
+        assert pg.evaluate("getComputedStyle(document.querySelector('.smith-draw .ln')).filter") == "none"      # no glow filter: that was the cost
+        pg.evaluate("window.__hubWake._set('wake')")                                               # quiet again: gone
         pg.wait_for_function("window.__hubWake.smith().shown === false")
-        pg.click("#smith-hit")                                                                      # click the invisible him: wake word off, he draws in
+        pg.wait_for_function("getComputedStyle(document.querySelector('.smith-draw')).display === 'none'", timeout=3000)
+        pg.click("#smith-slot")                                                                    # the invisible him: off, his picture returns
         pg.wait_for_function("window.__hubWake.state() === 'off'", timeout=10000)
-        pg.wait_for_function("window.__hubWake.smith().shown === true")
+        pg.wait_for_function("window.__hubWake.smith().icon === true && parseFloat(getComputedStyle(document.querySelector('#smith-slot img')).opacity) > 0.9", timeout=3000)
         assert not pg.evaluate("document.getElementById('wake-ring').classList.contains('on')")
+        pg.evaluate("window.__hubWake._set('speak')")
+        pg.wait_for_function("window.__hubWake.smith().shown === true")
+        pg.evaluate("window.__hubWake._leave()")                                                   # ENTER: his outline is out of the page at once
+        assert pg.evaluate("window.__hubWake.smith().shown") is False and pg.evaluate("getComputedStyle(document.querySelector('.smith-draw')).display") == "none"
         b.close()
     assert errors == []
 
 
-def test_the_old_wake_button_and_smith_stay_in_step_and_reduced_motion_shows_him_without_animation(hub):
+def test_the_hidden_wake_button_still_works_and_reduced_motion_draws_him_without_animation(hub):
     with sync_playwright() as pw:
-        b = pw.chromium.launch(headless=True)
-        ctx = b.new_context(service_workers="block", viewport={"width": 1100, "height": 900}, reduced_motion="reduce")
-        ctx.add_init_script(FAKE_MIC)
-        pg = ctx.new_page()
-        pg.goto(hub + "/offline.html")
-        pg.wait_for_selector("#wake-toggle", state="visible", timeout=20000)
-        pg.wait_for_function("window.__hubWake.smith().shown === true")
-        assert _offset(pg, 3) == 0 and pg.evaluate("document.querySelectorAll('.smith-draw .ln')[3].getAnimations().length") == 0       # no animation, just shown
-        pg.click("#wake-toggle")                                                                    # the button under the ring is the same switch
+        b, pg = _landing(pw, hub, reduced_motion="reduce")
+        pg.evaluate("document.getElementById('wake-toggle').click()")                              # the old switch is still the one holding the state
         pg.wait_for_function("window.__hubWake.state() === 'wake'", timeout=15000)
-        pg.wait_for_function("window.__hubWake.smith().shown === false")
-        assert _offset(pg, 3) == 1
-        pg.click("#wake-toggle")
-        pg.wait_for_function("window.__hubWake.state() === 'off' && window.__hubWake.smith().shown === true", timeout=10000)
+        pg.evaluate("window.__hubWake._set('convo')")
+        pg.wait_for_function("window.__hubWake.smith().shown === true")
+        assert pg.evaluate("document.querySelectorAll('.smith-draw .ln')[3].getAnimations().length") == 0
+        assert pg.evaluate("parseFloat(getComputedStyle(document.querySelectorAll('.smith-draw .ln')[3]).strokeDashoffset)") == 0
+        pg.evaluate("window.__hubWake._set('wake')")
+        pg.wait_for_function("getComputedStyle(document.querySelector('.smith-draw')).display === 'none'", timeout=3000)
         b.close()
+
+
+def _enter_ms(pw, hub, talking):
+    b, pg = _landing(pw, hub)
+    pg.wait_for_selector("#wake-btn[data-s=enter]", timeout=20000)
+    if talking:
+        pg.evaluate("window.__hubWake._set('convo')")
+        pg.wait_for_function("window.__hubWake.smith().shown === true")
+        pg.wait_for_timeout(900)
+    t0 = time.time()
+    pg.click("#wake-btn")
+    pg.wait_for_url("**enter=1**", timeout=30000)                                                  # the landing page's own leaving transition ends in this address
+    ms = (time.time() - t0) * 1000
+    b.close()
+    return ms
+
+
+def test_entering_the_dashboard_is_no_slower_when_he_was_on_screen(hub):
+    with sync_playwright() as pw:
+        plain = min(_enter_ms(pw, hub, False) for _ in range(2))
+        talking = min(_enter_ms(pw, hub, True) for _ in range(2))
+    assert talking < plain + 900, (plain, talking)                                                 # headless uses software graphics, so only a large gap would be real

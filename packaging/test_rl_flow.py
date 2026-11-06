@@ -121,12 +121,12 @@ def test_events_are_numbered_and_only_the_newest_come_back():
 def test_the_canvas_is_valid_json_canvas_and_every_arrow_a_session_names_exists_on_it(tmp_path):
     c = flow.canvas()
     ids = {n["id"] for n in c["nodes"]}
-    assert len(ids) == 16 and all({"x", "y", "width", "height", "text", "color"} <= set(n) for n in c["nodes"]) and all(n["type"] == "text" for n in c["nodes"])
+    assert len(ids) == 21 and all({"x", "y", "width", "height", "text", "color"} <= set(n) for n in c["nodes"]) and all(n["type"] == "text" for n in c["nodes"])
     assert all(e["fromNode"] in ids and e["toNode"] in ids and e["fromSide"] in ("left", "right", "top", "bottom") for e in c["edges"])
     edge_ids = {e["id"] for e in c["edges"]}
     src = open(P.__file__, encoding="utf-8").read()
     import re
-    named = set(re.findall(r'edge="([a-z]+>[a-z]+)"', src)) | {"live>mem", "mem>upd", "demos>gate", "gate>ver", "fit>gate"}
+    named = set(re.findall(r'edge="([a-z]+>[a-z]+)"', src)) | {"live>mem", "mem>upd", "demos>gate", "gate>ver", "fit>gate", "ver>safety", "safety>gate"}
     assert named <= edge_ids, named - edge_ids                                              # a session never lights an arrow that is not on the canvas
     assert {e["node"] for e in []} <= ids
     from pathlib import Path
@@ -159,7 +159,8 @@ def test_a_short_session_reports_each_step_saves_a_version_that_names_its_method
     assert rep["methods"]["hidden16"].endswith("8 tanh units") and rep["knobs"]["hindsight"] is True
     kinds = {(e["node"], e["kind"]) for e in EV.since(0, limit=5000)}
     assert {("enc", "ready"), ("env", "episode"), ("rew", "reward"), ("crit", "advantage"), ("upd", "update"), ("actor", "weights"), ("fit", "evaluated"),
-            ("repl", "replay"), ("ver", "saved"), ("gate", "decided")} <= kinds, kinds
+            ("repl", "replay"), ("ver", "saved"), ("gate", "decided"), ("safety", "replayed")} <= kinds, kinds
+    assert rep["safety"]["screens"] == 60 and rep["safety"]["breaches"] >= 0
     upd = [e for e in EV.since(0, limit=5000) if e["kind"] == "update"]
     assert upd and all(e["value"] >= 0 for e in upd) and any(e["value"] > 0 for e in upd) and all(e["total"] > 0 for e in upd)       # weights moved, and by how much
     v = json.loads((state / "versions" / "v1.json").read_text(encoding="utf-8"))
@@ -459,3 +460,98 @@ def test_pressing_a_forbidden_control_in_practice_can_be_charged_and_is_free_by_
     assert P.rewards(ep) == [-0.02, -0.02]
     K.set_many({"forbidden_cost": 1.0})
     assert P.rewards(ep) == [pytest.approx(-1.02), pytest.approx(-0.02)]
+
+
+# ---------------------------------------------------------------- every setting belongs to a block, and each block can say what is inside it
+def test_every_setting_belongs_to_exactly_one_block_and_each_block_has_an_inside_taken_from_the_code():
+    used = sum(flow.NODE_KNOBS.values(), [])
+    assert sorted(used) == sorted(set(used)) and set(used) == set(K.SPEC)                      # nothing is left over for a "more settings" bucket
+    assert set(flow.NODE_KNOBS) == set(flow.NODES) and flow.OUTSIDE <= set(flow.NODES)
+    a = flow.arch("actor")
+    assert [l["size"] for l in a["layers"]][:1] == ["357"] and any(r["label"] == "learned numbers, hidden" and r["value"] == str(357 * 16 + 32) for r in a["rows"])
+    K.set_many({"hidden_units": 8, "gamma": 0.9, "win": 2.0})
+    assert any(r["value"] == str(357 * 8 + 16) for r in flow.arch("actor")["rows"]) and "0.9" in flow.arch("upd")["formula"][0] and "+ 2.0 when the target" in flow.arch("rew")["formula"][-1]
+    assert flow.arch("enc")["layers"][-1]["size"] == "357" and flow.arch("crit")["layers"][0]["size"] == "11" and flow.arch("router")["layers"][1]["size"] == "512"
+    for nid in flow.NODES:
+        a = flow.arch(nid)
+        assert a["layers"] or a["rows"] or a["formula"], nid                                     # no block is a black box
+
+    async def go():
+        app = web.Application()
+        app.add_routes(flow.routes)
+        async with TestClient(TestServer(app)) as c:
+            j = await (await c.get("/api/yard/canvas?compact=1")).json()
+            assert len(j["nodes"]) == 21 and all("arch" in n and "knobs" in n for n in j["nodes"]) and {n["id"] for n in j["nodes"] if n["outside"]} == flow.OUTSIDE
+            assert all(n["width"] == 200 and n["height"] == 62 for n in j["nodes"]) and not any("label" in e for e in j["edges"])
+    _run(go())
+
+
+# ---------------------------------------------------------------- roll back, manual routine runs, the tev dataset
+def test_a_saved_version_can_be_made_the_one_in_use_again_without_deleting_anything(state, monkeypatch):
+    _small()
+    P.practice(write=True)
+    P.practice(write=True)
+    from hub.yard import api, store
+    monkeypatch.setattr(api, "REPORT", P.REPORT)
+    assert store.current_version(P.POLICY) in (1, 2) and len(list((state / "versions").glob("v*.json"))) == 2
+    assert store.restore(state, P.POLICY, 1) and store.current_version(P.POLICY) == 1 and not store.restore(state, P.POLICY, 99)
+    assert len(list((state / "versions").glob("v*.json"))) == 2
+
+    async def go():
+        app = web.Application()
+        app.add_routes(api.routes)
+        async with TestClient(TestServer(app)) as c:
+            assert (await c.post("/api/yard/rollback", json={"version": 2})).status == 200 and store.current_version(P.POLICY) == 2
+            assert (await c.post("/api/yard/rollback", json={"version": 99})).status == 404 and (await c.post("/api/yard/rollback", json={})).status == 400
+    _run(go())
+    assert any(e["kind"] == "restored" for e in EV.since(0, limit=5000))
+
+
+def test_a_routine_run_from_the_routines_tab_is_recorded_as_evidence_while_shadow_is_on(state, monkeypatch):
+    YS.update({"shadow": True})
+    _routine_db(monkeypatch, [("r1", "Open Notepad", "trusted", 3, 0, 1.0)], [])
+    monkeypatch.setattr(EVI, "_grab_jpeg", lambda: b"jpeg")
+
+    async def fake_run(rid, request="manual run"):
+        return {"ok": True, "say": "ran"}
+    monkeypatch.setattr(PC, "run_routine", fake_run)
+
+    async def go():
+        app = web.Application()
+        app.add_routes(PC.routes)
+        async with TestClient(TestServer(app)) as c:
+            r = await c.post("/api/pc/routines/r1/run")
+            assert r.status == 200 and (await r.json())["ok"] is True
+    _run(go())
+    rows = EVI._rows()
+    assert len(rows) == 1 and rows[0]["way"] == "manual routine" and rows[0]["goal"] == "Open Notepad" and rows[0]["routine"] == "r1" and rows[0]["pics"] == ["before", "after"]
+    YS.update({"shadow": False})
+    _run(go())
+    assert len(EVI._rows()) == 1                                                             # shadow off: nothing new is kept
+
+
+def test_the_tev_plan_says_how_many_graded_requests_exist_and_whether_this_pc_can_train(state, tmp_path, monkeypatch):
+    from hub.features import binning as BIN
+    from hub.yard import tev_dataset as TD
+    monkeypatch.setattr(TD, "DIR", tmp_path / "tev")
+    rows = []
+    for i in range(30):
+        rows += [{"at": 1000.0 + i, "text": f"open the number {i} app", "bin": "launch_app"}, {"kind": "verdict", "at": 2000.0 + i, "of": 1000.0 + i, "ok": i % 3 != 0, "correct": "app_task", "by": "teach"}]
+    BIN.LOG.parent.mkdir(parents=True, exist_ok=True)
+    BIN.LOG.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    monkeypatch.setattr(BIN, "LOG", BIN.LOG)
+    p = TD.plan()
+    assert p["rows"] == 30 and p["train"] + p["held_out"] == 30 and p["held_out"] > 0 and p["enough"] is False and p["needed"] == 100
+    assert "hardware" in p and "note" in p["hardware"] and "-(1/n) sum log p" in p["objective"]
+    out = TD.export()
+    assert out["train"] == p["train"] and (tmp_path / "tev" / "train.jsonl").exists() and (tmp_path / "tev" / "held_out.jsonl").exists()
+    held = {json.loads(l)["text"] for l in (tmp_path / "tev" / "held_out.jsonl").read_text().splitlines()}
+    train = {json.loads(l)["text"] for l in (tmp_path / "tev" / "train.jsonl").read_text().splitlines()}
+    assert not (held & train)                                                                  # the held-out part is never trained on
+
+    async def go():
+        app = web.Application()
+        app.add_routes(TD.routes)
+        async with TestClient(TestServer(app)) as c:
+            assert (await (await c.get("/api/yard/tev")).json())["rows"] == 30
+    _run(go())

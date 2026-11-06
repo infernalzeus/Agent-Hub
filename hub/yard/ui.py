@@ -46,17 +46,32 @@ iframe.teach{width:100%;height:80vh;min-height:460px;border:1px solid var(--bord
 .krow .kv{font-size:11px;color:var(--amber)}.krow button.i{width:24px;height:24px;padding:0;border-radius:50%;font:700 12px Outfit,sans-serif;margin:0}
 details>summary{cursor:pointer;color:var(--accent);font:700 11px Orbitron,system-ui,sans-serif;letter-spacing:.08em;padding:6px 0}details h2{margin-top:8px}
 .rc .said{font-size:13.5px;margin-bottom:4px}.rc .why{font-size:11.5px;color:var(--mute);margin-top:3px}
+.band{background:rgba(0,230,118,.05);border:1px solid var(--border);border-radius:10px;padding:7px 10px;margin:0 0 8px}
+.sess{border:1px solid rgba(0,230,118,.45);border-radius:12px;padding:0;margin:14px 0 8px;background:rgba(8,12,40,.55);overflow:hidden}
+.sess-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--border);background:rgba(0,230,118,.06)}
+.sess-head .ttl{font:700 11px Orbitron,system-ui,sans-serif;letter-spacing:.1em;color:var(--mute)}.sess-head .sp{flex:1}
+button.big{background:var(--accent);color:#04120a;padding:8px 16px;font-size:11px}button.big:disabled{opacity:.5}
+#result{padding:6px 12px 0}.sess .flowwrap{border:0;border-radius:0;background:transparent;margin:0}.sess #flog{padding:0 12px 8px}
+.fnode.outside rect{stroke-dasharray:4 3;fill-opacity:.7}.fnode text.fl{fill:#9fe7c0}.fnode.outside text.fl{fill:#6c8f7d}
+.fnode .fi circle{fill:rgba(8,12,40,.9);stroke:var(--accent);stroke-width:1.3}.fnode .fi text{fill:var(--accent);font:700 12px Outfit,sans-serif;pointer-events:none}.fnode .fi{cursor:pointer}
+.fnode .fx{opacity:0;cursor:pointer;transition:opacity .15s}.fnode:hover .fx{opacity:.9}.fnode .fx circle{fill:rgba(8,12,40,.9);stroke:var(--mute);stroke-width:1.2}.fnode .fx text{fill:var(--mute);font:700 12px Outfit,sans-serif;pointer-events:none}
+.fnode{touch-action:none}.fnode.pulse{filter:none}
+.nh{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;margin-bottom:4px}.nh .sp{flex:1}.sub{font:700 10px Orbitron,system-ui,sans-serif;letter-spacing:.08em;color:var(--accent);margin:8px 0 2px}
+.inside{border:1px solid var(--border);border-radius:8px;padding:8px;margin:6px 0;background:rgba(0,0,0,.2)}.irow{font-size:11.5px;margin:2px 0}.irow b{color:var(--accent);font-weight:600}
+.chain{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:6px}.chain .arrow{color:var(--mute)}.chain .lay{border:1px solid var(--accent);border-radius:7px;padding:3px 8px;text-align:center;min-width:70px}.chain .ls{font:700 14px Orbitron,system-ui,sans-serif;color:var(--accent)}.chain .ln{font-size:10px;color:var(--mute)}
+pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;white-space:pre-wrap}
 </style></head><body><main>
-<div class="row" id="topbar"><span class="chip part">EXPERIMENTAL</span><button id="top-shadow" type="button" aria-pressed="false"></button><span class="mute" id="top-note"></span></div>
+<div class="band"><div class="row" id="topbar" style="margin:0"><span class="chip part">EXPERIMENTAL</span><button id="top-shadow" type="button" aria-pressed="false"></button><span class="mute" id="top-note"></span></div></div>
 <div class="tabs" role="tablist"><button type="button" data-tab="yard" class="on">YARD</button><button type="button" data-tab="teach">TEACH</button><button type="button" data-tab="routines">ROUTINES</button><button type="button" data-tab="scores">SCORES</button></div>
 
 <section id="tab-yard">
-<div class="row"><button id="go" type="button">START A SESSION</button><button id="stop" type="button" class="stop" hidden>STOP</button><span class="mute" id="phase"></span><span class="chip part" id="msg" hidden></span></div>
+<div class="sess">
+<div class="sess-head"><span class="ttl">SESSION</span><button id="go" type="button" class="big">START A SESSION</button><button id="stop" type="button" class="stop" hidden>STOP</button><span class="mute" id="phase"></span><span class="chip part" id="msg" hidden></span><span class="sp"></span><button id="showall" type="button" class="skip" hidden>RESET LAYOUT</button><button id="kreset" type="button" class="stop" hidden>RESET SETTINGS</button></div>
 <div class="mute" id="result"></div>
 <div class="flowwrap"><svg id="flowsvg" role="img" aria-label="The learning layer"></svg></div>
-<div class="card" id="nodebox" hidden></div>
 <div class="mute" id="flog"></div>
-<details id="more"><summary>MORE SETTINGS</summary><div id="knobbox"></div></details>
+</div>
+<div class="card" id="nodebox" hidden></div>
 </section>
 
 <section id="tab-teach" hidden><iframe class="teach" id="teachframe" title="Teach" data-src="/teach"></iframe></section>
@@ -69,7 +84,7 @@ details>summary{cursor:pointer;color:var(--accent);font:700 11px Orbitron,system
 <section id="tab-scores" hidden>
 <div class="wrap"><table id="fit"></table></div>
 <h2>METHODS BEHIND EACH CHOICE</h2><div class="wrap"><table id="chal"></table></div>
-<div class="mute" id="knn"></div><div class="mute" id="gateline"></div>
+<div class="mute" id="knn"></div><div class="mute" id="gateline"></div><div class="mute" id="tevline"></div>
 </section>
 </main>
 <script>
@@ -87,39 +102,65 @@ details>summary{cursor:pointer;color:var(--accent);font:700 11px Orbitron,system
     t.onclick=async()=>{t.disabled=true;try{await POST('/api/yard/settings',{shadow:!sh.on,learning:!sh.on});}finally{await switches();}};lamp(sh.on);
     $('top-note').textContent=sh.forced_off_by_environment?'Held off by an environment variable.':sh.on?'Observing. Nothing is pressed.':'Off. Nothing is recorded.';}catch(e){}}
 
-  // ---- YARD: the flow, as small blocks
-  let CV=null,KN=null,gById={},eById={},lastN=0,timer=0,wasRunning=false,flog=[],sel=null,saveT={};
+  // ---- YARD: the architecture as small blocks you can move, with the inside of each block one click away
+  let CV=null,KN=null,gById={},eEls=[],lastN=0,timer=0,wasRunning=false,flog=[],sel=null,showInside=false,saveT={},POS={},HID=new Set(),NODE={};
   const NS='http://www.w3.org/2000/svg',sv=(t,a,x)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(x!=null)e.textContent=x;return e;};
-  const anchor=(n,s)=>s==='left'?[n.x,n.y+n.height/2]:s==='right'?[n.x+n.width,n.y+n.height/2]:s==='top'?[n.x+n.width/2,n.y]:[n.x+n.width/2,n.y+n.height];
+  const LS='hub-rl-flow';
+  function loadLayout(){try{const j=JSON.parse(localStorage.getItem(LS)||'{}');POS=j.pos||{};HID=new Set(j.hid||[]);}catch(e){POS={};HID=new Set();}}
+  function saveLayout(){try{localStorage.setItem(LS,JSON.stringify({pos:POS,hid:[...HID]}));}catch(e){}}
+  const at=n=>POS[n.id]||[n.x,n.y];
+  function anchor(n,s){const [x,y]=at(n);return s==='left'?[x,y+n.height/2]:s==='right'?[x+n.width,y+n.height/2]:s==='top'?[x+n.width/2,y]:[x+n.width/2,y+n.height];}
+  const dir=s=>s==='left'?[-1,0]:s==='right'?[1,0]:s==='top'?[0,-1]:[0,1];
+  function curve(a,b,sa,sb){const da=dir(sa),db=dir(sb),d=Math.max(34,Math.hypot(b[0]-a[0],b[1]-a[1])/3);return 'M'+a[0]+' '+a[1]+' C'+(a[0]+da[0]*d)+' '+(a[1]+da[1]*d)+' '+(b[0]+db[0]*d)+' '+(b[1]+db[1]*d)+' '+b[0]+' '+b[1];}
+  function redrawEdges(){eEls.forEach(x=>{const a=NODE[x.e.fromNode],b=NODE[x.e.toNode],gone=HID.has(a.id)||HID.has(b.id);x.g.style.display=gone?'none':'';if(!gone)x.p.setAttribute('d',curve(anchor(a,x.e.fromSide),anchor(b,x.e.toSide),x.e.fromSide,x.e.toSide));});}
+  function fitView(){const vis=CV.nodes.filter(n=>!HID.has(n.id));if(!vis.length)return;let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;vis.forEach(n=>{const [x,y]=at(n);x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x+n.width);y1=Math.max(y1,y+n.height);});
+    $('flowsvg').setAttribute('viewBox',(x0-12)+' '+(y0-12)+' '+(x1-x0+24)+' '+(y1-y0+24));}
   async function loadFlow(){
     try{CV=await J('/api/yard/canvas?compact=1');KN=await J('/api/yard/knobs');}catch(e){$('result').textContent='Could not read the yard: '+e.message;return;}
-    const svg=$('flowsvg');svg.replaceChildren();const defs=sv('defs',{}),mk=sv('marker',{id:'farrow',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:6,markerHeight:6,orient:'auto'});mk.appendChild(sv('path',{d:'M0 0L10 5L0 10z',fill:'#8fb3a0'}));defs.appendChild(mk);svg.appendChild(defs);
-    const by={};CV.nodes.forEach(n=>by[n.id]=n);gById={};eById={};
-    CV.edges.forEach(e=>{const a=anchor(by[e.fromNode],e.fromSide),b=anchor(by[e.toNode],e.toSide),g=sv('g',{class:'fedge'});g.appendChild(sv('path',{d:'M'+a[0]+' '+a[1]+' L'+b[0]+' '+b[1],'marker-end':'url(#farrow)'}));svg.appendChild(g);eById[e.id]=g;});
-    CV.nodes.forEach(n=>{const g=sv('g',{class:'fnode '+n.state,'data-id':n.id});g.appendChild(sv('rect',{x:n.x,y:n.y,width:n.width,height:n.height,rx:8}));
-      g.appendChild(sv('text',{x:n.x+10,y:n.y+24,class:'ft'},n.title));const live=sv('text',{x:n.x+10,y:n.y+47,class:'fl'},'');g.appendChild(live);g._live=live;
-      g.onclick=()=>openNode(n.id);svg.appendChild(g);gById[n.id]=g;});
-    const mx=Math.max(...CV.nodes.map(n=>n.x+n.width)),my=Math.max(...CV.nodes.map(n=>n.y+n.height));svg.setAttribute('viewBox','-8 -8 '+(mx+16)+' '+(my+16));
-    const used=new Set();CV.nodes.forEach(n=>n.knobs.forEach(k=>used.add(k)));moreSettings(used);
+    loadLayout();const svg=$('flowsvg');svg.replaceChildren();const defs=sv('defs',{}),mk=sv('marker',{id:'farrow',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:6,markerHeight:6,orient:'auto'});mk.appendChild(sv('path',{d:'M0 0L10 5L0 10z',fill:'#8fb3a0'}));defs.appendChild(mk);svg.appendChild(defs);
+    NODE={};CV.nodes.forEach(n=>NODE[n.id]=n);gById={};eEls=[];
+    CV.edges.forEach(e=>{const g=sv('g',{class:'fedge','data-id':e.id}),p=sv('path',{'marker-end':'url(#farrow)'});g.appendChild(p);svg.appendChild(g);eEls.push({e,g,p});});
+    CV.nodes.forEach(n=>{const g=sv('g',{class:'fnode '+n.state+(n.outside?' outside':''),'data-id':n.id}),r=sv('rect',{width:n.width,height:n.height,rx:8});g.appendChild(r);
+      g.appendChild(sv('text',{x:10,y:23,class:'ft'},n.title));const live=sv('text',{x:10,y:46,class:'fl'},n.outside?'outside a session':'');g.appendChild(live);g._live=live;
+      const ib=sv('g',{class:'fi'});ib.appendChild(sv('circle',{cx:n.width-14,cy:14,r:9}));ib.appendChild(sv('text',{x:n.width-14,y:19,'text-anchor':'middle'},'i'));g.appendChild(ib);
+      const xb=sv('g',{class:'fx'});xb.appendChild(sv('circle',{cx:n.width-14,cy:n.height-12,r:8}));xb.appendChild(sv('text',{x:n.width-14,y:n.height-8,'text-anchor':'middle'},'×'));g.appendChild(xb);
+      ib.onpointerdown=ev=>ev.stopPropagation();ib.onclick=ev=>{ev.stopPropagation();openNode(n.id,true);};
+      xb.onpointerdown=ev=>ev.stopPropagation();xb.onclick=ev=>{ev.stopPropagation();HID.add(n.id);saveLayout();place();};
+      let drag=null;g.onpointerdown=ev=>{if(ev.button)return;const m=svg.getScreenCTM(),[x,y]=at(n);drag={px:ev.clientX,py:ev.clientY,x,y,s:1/m.a,moved:false};g.setPointerCapture(ev.pointerId);};
+      g.onpointermove=ev=>{if(!drag)return;const dx=(ev.clientX-drag.px)*drag.s,dy=(ev.clientY-drag.py)*drag.s;if(!drag.moved&&Math.hypot(dx,dy)<4/ (1/drag.s))return;drag.moved=true;POS[n.id]=[Math.round(drag.x+dx),Math.round(drag.y+dy)];g.setAttribute('transform','translate('+POS[n.id][0]+' '+POS[n.id][1]+')');redrawEdges();};
+      g.onpointerup=ev=>{if(!drag)return;const moved=drag.moved;drag=null;if(moved){saveLayout();fitView();}else openNode(n.id,false);};
+      svg.appendChild(g);gById[n.id]=g;});
+    place();
   }
+  function place(){CV.nodes.forEach(n=>{const g=gById[n.id],[x,y]=at(n);g.setAttribute('transform','translate('+x+' '+y+')');g.style.display=HID.has(n.id)?'none':'';});redrawEdges();fitView();
+    $('showall').hidden=!(HID.size||Object.keys(POS).length);$('showall').textContent=HID.size?'SHOW ALL ('+HID.size+' HIDDEN) · RESET LAYOUT':'RESET LAYOUT';}
+  $('showall').onclick=()=>{POS={};HID=new Set();saveLayout();place();};
   function knobRow(k){const row=el('div','krow'),lab=el('label',null,k.label);lab.title=k.info;row.append(lab);let inp;
     if(k.kind==='bool'){inp=el('input');inp.type='checkbox';inp.checked=!!k.value;inp.onchange=()=>put(k.name,inp.checked);row.append(inp,el('span'));}
     else if(k.kind==='choice'){inp=el('select');k.choices.forEach(c=>{const o=el('option',null,c);o.value=c;if(c===k.value)o.selected=true;inp.append(o);});inp.onchange=()=>put(k.name,inp.value);row.append(inp,el('span'));}
     else{inp=el('input');inp.type='range';inp.min=k.low;inp.max=k.high;inp.step=k.step;inp.value=k.value;const v=el('span','kv',String(k.value));inp.oninput=()=>{v.textContent=inp.value;clearTimeout(saveT[k.name]);saveT[k.name]=setTimeout(()=>put(k.name,k.kind==='int'?parseInt(inp.value,10):parseFloat(inp.value)),350);};row.append(inp,v);}
     const rs=el('button','i','↺');rs.title='Back to '+k.default;rs.style.visibility=k.changed?'visible':'hidden';rs.onclick=async()=>{await POST('/api/yard/knobs/reset',{name:k.name});await refreshKnobs();};row.append(rs);return row;}
   async function put(name,value){try{const r=await POST('/api/yard/knobs',{[name]:value});if(!r.ok){$('msg').hidden=false;$('msg').textContent=await r.text();}else{await refreshKnobs(true);}}catch(e){}}
-  async function refreshKnobs(quiet){try{KN=await J('/api/yard/knobs');}catch(e){return;}if(!quiet){if(sel)openNode(sel);const used=new Set();CV.nodes.forEach(n=>n.knobs.forEach(k=>used.add(k)));moreSettings(used);}}
-  function openNode(id){sel=id;Object.values(gById).forEach(g=>g.classList.toggle('sel',g.dataset.id===id));const n=CV.nodes.find(x=>x.id===id),box=$('nodebox');box.hidden=false;box.replaceChildren();
-    box.append(el('b',null,n.title+'  '),document.createTextNode(n.info));const ks=n.knobs.map(name=>KN.knobs.find(k=>k.name===name)).filter(Boolean);
-    if(ks.length)ks.forEach(k=>box.append(knobRow(k)));else box.append(el('div','mute','Nothing to adjust here.'));}
-  function moreSettings(used){const box=$('knobbox');box.replaceChildren();const groups={};KN.knobs.filter(k=>!used.has(k.name)).forEach(k=>(groups[k.group]=groups[k.group]||[]).push(k));
-    Object.keys(groups).forEach(g=>{box.append(el('h2',null,g.toUpperCase()));const card=el('div','card');groups[g].forEach(k=>card.append(knobRow(k)));box.append(card);});
-    const fx=el('div','card');KN.fixed.forEach(f=>{const d=el('div','mute');d.append(el('b',null,f.name+': '),document.createTextNode(f.why));fx.append(d);});box.append(el('h2',null,'NOT ADJUSTABLE'),fx);
-    const ch=KN.knobs.some(k=>k.changed),rb=el('button','stop','RESET EVERYTHING');rb.id='kreset';rb.hidden=!ch;rb.onclick=async()=>{if(!confirm('Put every number back to its default?'))return;await POST('/api/yard/knobs/reset',{});await refreshKnobs();};box.prepend(rb);}
+  async function refreshKnobs(quiet){try{KN=await J('/api/yard/knobs');}catch(e){return;}$('kreset').hidden=!KN.knobs.some(k=>k.changed);if(!quiet&&sel)openNode(sel,showInside);}
+  // the inside of a block: its layers drawn as a chain with their sizes, then the plain numbers, then the arithmetic
+  function inside(n){const a=n.arch||{},wrap=el('div','inside');
+    if(a.layers&&a.layers.length){const ch=el('div','chain');a.layers.forEach((l,i)=>{if(i)ch.append(el('span','arrow','→'));const b=el('div','lay');b.append(el('div','ls',l.size),el('div','ln',l.name));ch.append(b);});wrap.append(ch);}
+    (a.rows||[]).forEach(r=>{const d=el('div','irow');d.append(el('b',null,r.label+': '),document.createTextNode(r.value));wrap.append(d);});
+    if(a.formula&&a.formula.length){const f=el('pre','formula');f.textContent=a.formula.join('\\n');wrap.append(f);}
+    if(n.id==='ver')versionsBox(wrap);return wrap;}
+  async function versionsBox(wrap){try{const s=await J('/api/yard/status'),vs=(s.versions||[]).slice().reverse();if(!vs.length){wrap.append(el('div','mute','No version saved yet.'));return;}
+      const box=el('div','irow');box.append(el('b',null,'versions: '));vs.slice(0,6).forEach(v=>{const inuse=s.in_use_version===v.n,b=el('button',inuse?'on':'skip',(inuse?'IN USE ':'RESTORE ')+'v'+v.n);b.title=Math.round(v.held*100)+' % on unseen words'+(v.methods?' · '+v.methods.linear:'');b.disabled=inuse;
+        b.onclick=async()=>{if(!confirm('Make version '+v.n+' the one in use? Nothing is deleted.'))return;const r=await POST('/api/yard/rollback',{version:v.n});$('msg').hidden=false;$('msg').textContent=r.ok?'Version '+v.n+' is now in use.':(await r.text());loadResult();openNode('ver',true);};box.append(b,document.createTextNode(' '));});wrap.append(box);}catch(e){}}
+  async function openNode(id,inn){try{const c=await J('/api/yard/canvas?compact=1');c.nodes.forEach(m=>{if(NODE[m.id])NODE[m.id].arch=m.arch;});KN=await J('/api/yard/knobs');}catch(e){}
+    sel=id;showInside=!!inn;Object.values(gById).forEach(g=>g.classList.toggle('sel',g.dataset.id===id));const n=NODE[id],box=$('nodebox');box.hidden=false;box.replaceChildren();
+    const h=el('div','nh');h.append(el('b',null,n.title),document.createTextNode('  '+n.info),el('span','sp'));const tg=el('button',showInside?'on':'skip','INSIDE');tg.title='Layers, numbers and arithmetic';tg.onclick=()=>openNode(id,!showInside);h.append(tg);box.append(h);
+    if(showInside)box.append(inside(n));
+    const ks=n.knobs.map(name=>KN.knobs.find(k=>k.name===name)).filter(Boolean);
+    if(ks.length){box.append(el('div','sub','SETTINGS'));ks.forEach(k=>box.append(knobRow(k)));}else box.append(el('div','mute','Nothing to adjust here.'));}
   const flash=(e,c,ms)=>{e.classList.add(c);setTimeout(()=>e.classList.remove(c),ms);};
   function showEvents(evs){evs.forEach(ev=>{const g=gById[ev.node];if(g){g._live.textContent=(ev.text||'').slice(0,34);flash(g,ev.improved?'improved':'pulse',ev.improved?3500:450);}
-      if(ev.edge&&eById[ev.edge])flash(eById[ev.edge],'lit',550);
-      if(['improved','saved','imitated','relabel','agreement','stopped'].includes(ev.kind))flog.unshift(ev);});
+      const x=eEls.find(q=>q.e.id===ev.edge);if(x)flash(x.g,'lit',550);
+      if(['improved','saved','imitated','relabel','agreement','stopped','replayed'].includes(ev.kind))flog.unshift(ev);});
     flog=flog.slice(0,6);$('flog').replaceChildren(...flog.map(ev=>el('div',ev.improved?'yes':'mute',(ev.improved?'↑ ':'· ')+ev.text)));}
   async function poll(){try{const j=await J('/api/yard/events?since='+lastN);if(j.last<lastN)lastN=0;if(j.events.length){lastN=j.last;showEvents(j.events);}
       $('go').hidden=!!j.running;$('stop').hidden=!j.running;$('phase').textContent=j.running?(j.phase+' ('+Math.round(100*j.done/Math.max(1,j.total))+' %)'):'';
@@ -127,12 +168,13 @@ details>summary{cursor:pointer;color:var(--accent);font:700 11px Orbitron,system
   async function loadResult(){try{const s=await J('/api/yard/status'),r=s.report,box=$('result');
     if(!s.ready){box.textContent='numpy is not installed; practising needs it.';return;}
     if(!r){box.textContent='No session yet.';return;}
-    const m=r.means||{},v=s.in_use_version,att=r.attested_agreement&&r.attested_agreement.rate!=null?' · agrees with your attested routines on '+pct(r.attested_agreement.rate):'';
-    box.textContent='Last session: version '+(v||'?')+', '+r.episodes+' episodes. Unseen words: learned '+pct((m['learned, linear']||{}).held||0)+' · rule of thumb '+pct((m['rule of thumb']||{}).held||0)+' · random '+pct((m.random||{}).held||0)+att;}catch(e){}}
+    const m=r.means||{},v=s.in_use_version,att=r.attested_agreement&&r.attested_agreement.rate!=null?' · agrees with your attested routines on '+pct(r.attested_agreement.rate):'',sf=r.safety?' · forbidden pressed on '+r.safety.breaches+' of '+r.safety.screens+' screens':'';
+    box.textContent='Last session: version '+(v||'?')+', '+r.episodes+' episodes. Unseen words: learned '+pct((m['learned, linear']||{}).held||0)+' · rule of thumb '+pct((m['rule of thumb']||{}).held||0)+' · random '+pct((m.random||{}).held||0)+att+sf;}catch(e){}}
   $('go').onclick=async()=>{$('go').disabled=true;$('msg').hidden=true;try{const r=await POST('/api/yard/practice',{confirm:true});if(!r.ok)throw Error(await r.text()||('error '+r.status));const j=await r.json();
       if(j.stopped){$('msg').hidden=false;$('msg').textContent='Stopped. Nothing was saved.';}}catch(e){$('msg').hidden=false;$('msg').textContent=String(e.message||e);}finally{$('go').disabled=false;poll();loadResult();}};
   $('stop').onclick=async()=>{$('stop').disabled=true;try{await POST('/api/yard/practice/stop');}catch(e){}$('stop').disabled=false;};
-  function flowStart(){if(!CV)loadFlow();loadResult();if(!timer)timer=setInterval(poll,500);poll();}
+  $('kreset').onclick=async()=>{if(!confirm('Put every number back to its default?'))return;await POST('/api/yard/knobs/reset',{});await refreshKnobs();};
+  function flowStart(){if(!CV)loadFlow().then(()=>refreshKnobs(true));loadResult();if(!timer)timer=setInterval(poll,500);poll();}
   function flowStop(){clearInterval(timer);timer=0;}
 
   // ---- ROUTINES
@@ -176,6 +218,7 @@ details>summary{cursor:pointer;color:var(--accent);font:700 11px Orbitron,system
         b.onclick=async()=>{await POST('/api/yard/learners',{head:h,learner:l.learner});scores();};w.append(b);r.append(w);ct.append(r);}));
     const k=ch.router_knn||{},c2=ch.router_classifier||{};
     $('knn').textContent=k.ready?('Router, graded requests left out one at a time: nearest neighbours right on '+pct(k.knn)+(c2.ready?', trained classifier on '+pct(c2.classifier):'')+', current rules and tev on '+pct(k.current)+' ('+k.n+' graded).'):('Router: needs '+(k.needs||5)+' graded requests, has '+(k.n||0)+'.');
+    try{const v=await J('/api/yard/tev');$('tevline').textContent='tev fine-tune: '+(v.enough?'enough graded requests ('+v.rows+'), ':'needs '+v.needed+' graded requests, has '+v.rows+' ('+v.held_out+' held out). ')+(v.hardware.cuda?'a CUDA device is available. ':v.hardware.note+'. ')+'Nothing runs until you say go.';}catch(e){}
     const g=j.gate||{};$('gateline').textContent='Gate for a new version: '+g.min_frozen+' held-out rows · zero forbidden presses · '+g.shadow_n+' watched live choices at '+pct(g.shadow_agree||0)+' · your yes.';}
 
   // ---- tabs

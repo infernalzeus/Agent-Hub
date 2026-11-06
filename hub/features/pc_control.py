@@ -1221,8 +1221,17 @@ async def run_routine(rid: str, request: str = "manual run") -> dict:
 
 @routes.post("/api/pc/routines/{id}/run")
 async def api_run_routine(request: web.Request) -> web.Response:
+    t0 = time.time()
+    before = await _snap()                                        # EXPERIMENTAL shadow mode only: a picture before, evidence after
     try:
-        return web.json_response(await run_routine(request.match_info["id"]))
+        got = await run_routine(request.match_info["id"])
+        try:
+            with _db() as db:
+                row = db.execute("SELECT title FROM pc_routines WHERE id=?", (request.match_info["id"],)).fetchone()
+            await _evidence("manual routine", (row["title"] if row else request.match_info["id"]), "", bool(got.get("ok")), t0, before, {"routine_clean": bool(got.get("ok"))}, request.match_info["id"])
+        except Exception:  # noqa: BLE001
+            pass
+        return web.json_response(got)
     except KeyError as exc:
         raise web.HTTPNotFound(text=str(exc))
     except ValueError as exc:

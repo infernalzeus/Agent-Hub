@@ -30,18 +30,18 @@ NODES=[
  ('orchestrator','ORCHESTRATOR',(664,126,108,32),'For an orchestrated mission, plan the goal and delegate scoped briefs to named work agents. It is one role, not the whole Hub.'),
  ('team','WORK AGENTS',(664,180,108,30),'Coding, testing, review, research, writing, delivery and design roles receive task-specific briefs. Their results return to the mission.'),
  ('graph','GIT GRAPH',(804,126,96,32),'Each dot is a discovered project. Project links come from wikilinks between project entity pages; branches and worktree diffs are separate from those links.'),
- ('pc','PC CONTROL',(516,290,104,34),'Desktop tasks inspect an app, choose a named control, act and inspect the result again. A named-control press can require approval; task-level desktop runs are a separate route.'),
- ('mcp','WINDOWS MCP',(670,290,118,34),'Windows MCP supplies desktop app, control, input and inspection tools. Music success is checked against Windows media-session playback state, not just a changed button label.'),
- ('download','YT-DLP',(516,400,92,34),'Download source media on the PC. Format selection, conversion and destination belong to the media job.'),
- ('convert','FFMPEG',(630,400,80,34),'Convert media to the selected output format on the PC.'),
- ('files','FILE BROWSER',(734,400,118,34),'Browse folders you allowed. It can show media outputs and incoming files; not every file passes through the media converter.'),
- ('smb','SHARED DRIVE',(876,400,72,34),'A configured shared drive is another file-access option. It is not a compulsory final step after every download.'),
+ ('pc','PC CONTROL',(516,372,104,34),'Desktop tasks inspect an app, choose a named control, act and inspect the result again. A named-control press can require approval; task-level desktop runs are a separate route.'),
+ ('mcp','WINDOWS MCP',(670,372,118,34),'Windows MCP supplies desktop app, control, input and inspection tools. Music success is checked against Windows media-session playback state, not just a changed button label.'),
+ ('download','YT-DLP',(516,482,92,34),'Download source media on the PC. Format selection, conversion and destination belong to the media job.'),
+ ('convert','FFMPEG',(630,482,80,34),'Convert media to the selected output format on the PC.'),
+ ('files','FILE BROWSER',(734,482,118,34),'Browse folders you allowed. It can show media outputs and incoming files; not every file passes through the media converter.'),
+ ('smb','SHARED DRIVE',(876,482,72,34),'A configured shared drive is another file-access option. It is not a compulsory final step after every download.'),
  ('hands','HAND CONTROL',(44,408,236,42),'Camera landmarks control the browser board: pointer, pinch click and drag, fist rotation and open-palm fit. Hand control is a direct dashboard input, not an agent action.'),
  ('neo','NEO',(804,176,108,30),'Draft an agent persona from the job you describe. Review and save its instructions before adding it to your team.'),
- ('doctor','THE DOCTOR',(44,502,150,38),'Inspect Hub facts and propose a repair mission. You review its diff, choose APPLY and decide when to restart.'),
- ('apps','YOUR APPS',(226,502,180,38),'Open ingested web apps through the Hub address. An app can start on demand; it need not run a mission to open.'),
- ('routines','SAVED ROUTINES',(516,502,154,38),'Replay a saved action sequence when it matches the task and current machine. A failed replay can return to inspection instead of pretending it succeeded.'),
- ('schedule','SCHEDULE',(700,502,154,38),'A trigger decides when a request runs. Repetition does not automatically turn a single capability call into an agent mission.'),
+ ('doctor','THE DOCTOR',(516,180,118,34),'Inspect Hub facts and propose a repair mission. You review its diff, choose APPLY and decide when to restart.'),
+ ('apps','YOUR APPS',(44,502,236,38),'Open ingested web apps through the Hub address. An app can start on demand; it need not run a mission to open.'),
+ ('routines','SAVED ROUTINES',(516,244,154,34),'Replay a saved action sequence when it matches the task and current machine. A failed replay can return to inspection instead of pretending it succeeded.'),
+ ('schedule','SCHEDULE',(700,244,154,34),'A trigger decides when a request runs. Repetition does not automatically turn a single capability call into an agent mission.'),
 ]
 EDGES=[
  ('phone','network','M132 167H145L152 174V193L159 200H174'),
@@ -49,8 +49,8 @@ EDGES=[
  ('laptop','network','M132 263H145L152 256V207L159 200H174'),
  ('network','hub','M270 200H300'),
  ('hub','smith','M406 250V330'),
- ('hub','router','M448 180H458V75H516'),
- ('smith','router','M462 346H478V110H556V92'),
+ ('hub','router','M448 180H456V75H516'),
+ ('smith','router','M462 346H470V110H556V92'),
  ('router','missions','M596 75H614'),
  ('missions','runtime','M694 75H712'),
  ('runtime','worktree','M792 75H810'),
@@ -62,22 +62,22 @@ EDGES=[
  ('skills','runtime','M544 126V104H736V92'),
  ('worktree','graph','M850 92V126'),
  ('review','missions','M948 92V222H654V92'),
- ('router','pc','M596 75H606V262H568V290'),
- ('pc','mcp','M620 307H670'),
- ('router','download','M556 58V24H486V372H562V400'),
- ('download','convert','M608 417H630'),
- ('convert','files','M710 417H734'),
- ('hub','files','M330 250V368H793V400'),
- ('hub','smb','M318 250V480H912V434'),
+ ('router','pc','M532 92V112H486V352H568V372'),
+ ('pc','mcp','M620 389H670'),
+ ('router','download','M556 58V24H478V456H562V482'),
+ ('download','convert','M608 499H630'),
+ ('convert','files','M710 499H734'),
+ ('hub','files','M330 250V446H793V482'),
+ ('files','smb','M852 499H876'),
  ('hands','hub','M162 408V316H300V224'),
- ('smith','neo','M462 346H488V166H858V176'),
- ('smith','doctor','M350 346H294V468H119V502'),
- ('doctor','missions','M119 502V482H286V8H654V58'),
+ ('router','neo','M596 75H606V162H1016V191H912'),
+ ('router','doctor','M548 92V112H620V166H575V180'),
+ ('doctor','missions','M634 197H644V104H654V92'),
  ('neo','team','M804 191H790V195H772'),
- ('hub','apps','M374 250V284H306V490H316V502'),
- ('router','routines','M584 92V114H1074V486H593V502'),
- ('router','schedule','M576 92V118H1090V478H777V502'),
- ('schedule','missions','M854 521H1104V16H654V58'),
+ ('hub','apps','M390 250V300H306V482H162V502'),
+ ('router','routines','M584 92V114H650V228H593V244'),
+ ('router','schedule','M576 92V110H1028V228H777V244'),
+ ('schedule','missions','M854 261H1040V104H654V92'),
 ]
 
 def _add(root,tag,attrs,text=None):
@@ -93,6 +93,23 @@ def diagram(tall=False, interactive=False):
     root.set('viewBox','0 0 1120 580');root.attrib.pop('width',None)
     root.set('aria-label','Agent Hub: original left-to-right circuit architecture, with current routes and private Tailscale access.')
     root[0].set('height','580')
+    # Keep ACCESS and the central Hub untouched; expand the existing right-hand
+    # autonomous group and shift only the two capability rows below it.
+    import re
+    for el in root:
+        if el.tag.endswith('rect') and el.get('x')=='494' and el.get('y')=='34':el.set('height','290')
+        x=float(el.get('x',-1));y=float(el.get('y',-1))
+        if el.tag.endswith('path'):
+            match=re.match(r'M\s*([\d.]+)[, ]+([\d.]+)',el.get('d',''))
+            if match:x,y=map(float,match.groups())
+        if x>=494 and y>=260:el.set('transform','translate(0 82)')
+        if el.tag.endswith('text') and el.get('y')=='249':el.set('y','310')
+        if el.tag.endswith('image'):
+            defs=next(e for e in root if e.tag.endswith('defs'))
+            clip=_add(defs,'clipPath',{'id':'hub-round-icon','clipPathUnits':'userSpaceOnUse'})
+            _add(clip,'circle',{'cx':374,'cy':184,'r':17.25})
+            el.set('clip-path','url(#hub-round-icon)')
+
     for el in list(root):
         if el.tag.endswith('path') and el.attrib.get('stroke-linecap')=='round':root.remove(el)
     replacements={
@@ -106,16 +123,14 @@ def diagram(tall=False, interactive=False):
       'TALK':'SMITH / TALK'}
     for el in root:
         if el.tag.endswith('text') and el.text in replacements:el.text=replacements[el.text]
-    # Original diagram ends at y=492. Additions occupy its existing bottom margin
-    # and the space below ACCESS without moving ANY original component.
+    # Helpers stay in their owning group; direct inputs and applications stay left of the capability rows.
     for key,label,(x,y,w,h),description in NODES:
         if key not in ('hands','neo','doctor','apps','routines','schedule'):continue
         _add(root,'rect',dict(x=x,y=y,width=w,height=h,rx=2,fill='#0b1220',stroke='#00e676',**{'stroke-opacity':'.5'}))
         _add(root,'text',dict(x=x+w/2,y=y+h/2+3,fill='#00e676',**{'text-anchor':'middle','font-family':'Orbitron,Segoe UI,sans-serif','font-size':'9','font-weight':'700'}),label)
     _add(root,'text',{'x':44,'y':396,'fill':'#87bba3','font-size':9,'font-family':'Outfit,system-ui'},'DIRECT DASHBOARD INPUT')
-    _add(root,'text',{'x':44,'y':488,'fill':'#87bba3','font-size':9,'font-family':'Outfit,system-ui'},'HELPERS + APPS')
-    _add(root,'text',{'x':509,'y':488,'fill':'#87bba3','font-size':9,'font-family':'Outfit,system-ui'},'REUSE + TIMING')
-    _add(root,'text',{'x':712,'y':110,'fill':'#a8cbb9','font-size':8,'font-family':'Outfit,system-ui'},'OpenCode · Claude Code')
+    _add(root,'text',{'x':44,'y':488,'fill':'#87bba3','font-size':9,'font-family':'Outfit,system-ui'},'YOUR APPLICATIONS')
+    _add(root,'text',{'x':712,'y':122,'fill':'#a8cbb9','font-size':8,'font-family':'Outfit,system-ui'},'OpenCode · Claude Code')
     badges=ROLE_BADGES
     for key in ('orchestrator','neo','doctor'):
         x,y,w,h=next(n[2] for n in NODES if n[0]==key)
@@ -124,7 +139,7 @@ def diagram(tall=False, interactive=False):
     for el in root:
         if el.tag.endswith('text') and el.text in ('Orchestrator','NEO','THE DOCTOR'):
             el.set('x',str(float(el.get('x'))+8))
-    # Wiring is inserted behind the unchanged chip faces, never over their text.
+    # Wiring is inserted behind chip faces, with gaps at unrelated crossings.
     wires=ET.Element('{'+NS+'}g',{'class':'original-wires','fill':'none'})
     for a,b,d in EDGES:
         _add(wires,'path',{'d':d,'stroke':'#00e676','stroke-width':1.4,'stroke-opacity':'.72','marker-end':'url(#ah)','data-from':a,'data-to':b,'class':'original-trace'})

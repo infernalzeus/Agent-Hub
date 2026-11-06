@@ -240,7 +240,7 @@ def test_the_r_panel_has_four_tabs_with_the_flow_inside_the_yard_and_a_session_c
         pg.on("pageerror", lambda e: errors.append(str(e)))
         pg.goto(hub + "/yard")
         assert [t.strip() for t in pg.locator(".tabs button").all_inner_texts()] == ["YARD", "TEACH", "ROUTINES", "SCORES"]          # nothing else: no overview, flow, knobs or status tab
-        pg.wait_for_function("document.querySelectorAll('#flowsvg .fnode').length===16")            # the flow is part of the yard
+        pg.wait_for_function("document.querySelectorAll('#flowsvg .fnode').length===21")            # the flow is part of the yard
         assert pg.locator("#stop").is_hidden() and pg.locator(".infobox").count() == 0 and "i" not in pg.locator("button.i").all_inner_texts()
         pg.evaluate("fetch('/api/yard/knobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({episodes:3000})})")
         pg.click("#go")

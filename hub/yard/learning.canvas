@@ -159,6 +159,56 @@
    "height": 150,
    "color": "#3ba7ff",
    "text": "## Saved versions\n\nEach finished session is saved as a version (a few hundred kilobytes of plain numbers) with its scores and the method that made it. The newest twelve are kept so one can be restored. Weight tools can average, smooth or compare versions.\n\n*Event: saved, with the version number and whether it is now the one in use.*"
+  },
+  {
+   "id": "safety",
+   "type": "text",
+   "x": 380,
+   "y": 720,
+   "width": 300,
+   "height": 150,
+   "color": "#3ba7ff",
+   "text": "## Safety replay\n\nAfter a session the saved learner is shown pretend screens that also list forbidden controls (Delete playlist, Sign out ...) and it is counted how often its top pick is one. The gate needs zero. The real never-press list, the taint gate and the confirm rule stay in force whatever this says, and no learned number can loosen them.\n\n*Event: replayed, with how many screens picked a forbidden control. Adjust: Hide forbidden controls from the live agent.*"
+  },
+  {
+   "id": "learners",
+   "type": "text",
+   "x": 760,
+   "y": 720,
+   "width": 300,
+   "height": 150,
+   "color": "#3ba7ff",
+   "text": "## Choice methods\n\nTally, Thompson and LinUCB sit behind one interface for the model choice and the way a PC task is done. They are scored against each other on the choices already logged, without repeating any test (a weight-capped estimate of what each would have done). Choosing one only picks which is watched; no live choice changes.\n\n*Shown in SCORES, not during a session. Adjust: tries before trust, draws, optimism, the weight cap.*"
+  },
+  {
+   "id": "router",
+   "type": "text",
+   "x": 1140,
+   "y": 720,
+   "width": 300,
+   "height": 150,
+   "color": "#3ba7ff",
+   "text": "## Router yardstick\n\nNearest neighbours and a small classifier trained by gradient descent on every graded request, each judged by leaving a request out and predicting it from the rest, against the current rules and tev. A fine-tune of tev has to beat these to be worth doing.\n\n*Shown in SCORES, not during a session. Adjust: neighbours, share held out, classifier passes, penalty and step size.*"
+  },
+  {
+   "id": "search",
+   "type": "text",
+   "x": 1520,
+   "y": 720,
+   "width": 300,
+   "height": 150,
+   "color": "#3ba7ff",
+   "text": "## Number search\n\nCMA-ES and Bayesian optimisation look for the best set of a few numbers (hand and speech thresholds, sampling settings) when each try is slow and noisy. Built and tested on made-up numbers; applied to no real number until there are labelled traces to score against.\n\n*Not run in a session. Adjust: first step, repeats, random starts, smoothness, noise.*"
+  },
+  {
+   "id": "presets",
+   "type": "text",
+   "x": 1900,
+   "y": 720,
+   "width": 300,
+   "height": 150,
+   "color": "#3ba7ff",
+   "text": "## Sampling presets\n\nFive named sets of the eight language-model settings, and a reward that needs no label (valid answer, not cut off, no repeating, checks passed, few tokens) to learn which suits which agent role. Built and tested; not yet called by a live request.\n\n*Not run in a session. Adjust: the five reward weights.*"
   }
  ],
  "edges": [
@@ -305,6 +355,60 @@
    "toSide": "top",
    "toEnd": "arrow",
    "label": "imitate approved steps"
+  },
+  {
+   "id": "ver>safety",
+   "fromNode": "ver",
+   "fromSide": "bottom",
+   "toNode": "safety",
+   "toSide": "top",
+   "toEnd": "arrow",
+   "label": "the saved learner"
+  },
+  {
+   "id": "safety>gate",
+   "fromNode": "safety",
+   "fromSide": "right",
+   "toNode": "gate",
+   "toSide": "bottom",
+   "toEnd": "arrow",
+   "label": "forbidden presses"
+  },
+  {
+   "id": "learners>fit",
+   "fromNode": "learners",
+   "fromSide": "top",
+   "toNode": "fit",
+   "toSide": "bottom",
+   "toEnd": "arrow",
+   "label": "scored on the log"
+  },
+  {
+   "id": "router>fit",
+   "fromNode": "router",
+   "fromSide": "top",
+   "toNode": "fit",
+   "toSide": "bottom",
+   "toEnd": "arrow",
+   "label": "scored on graded requests"
+  },
+  {
+   "id": "search>fit",
+   "fromNode": "search",
+   "fromSide": "top",
+   "toNode": "fit",
+   "toSide": "right",
+   "toEnd": "arrow",
+   "label": "scored candidates"
+  },
+  {
+   "id": "presets>fit",
+   "fromNode": "presets",
+   "fromSide": "left",
+   "toNode": "fit",
+   "toSide": "right",
+   "toEnd": "arrow",
+   "label": "label-free reward"
   }
  ]
 }

@@ -66,6 +66,17 @@ def save(base: Path, policy_file: Path, rep: dict, weights: dict) -> dict:
     return {"version": n, "adopted": bool(adopted), "held": held, "best_before": best_before}
 
 
+def restore(base: Path, policy_file: Path, n: int) -> bool:
+    """Make saved version n the one in use (the shadow watcher reads it). Nothing is deleted; the other versions stay. False if there is no such version."""
+    f = _dir(base) / f"v{int(n)}.json"
+    try:
+        d = json.loads(f.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    policy_file.write_text(json.dumps({**d["weights"], "version": int(n)}), encoding="utf-8")
+    return True
+
+
 def current_version(policy_file: Path) -> "int | None":
     try:
         return json.loads(policy_file.read_text(encoding="utf-8")).get("version")

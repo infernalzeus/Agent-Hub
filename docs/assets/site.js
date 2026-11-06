@@ -115,7 +115,7 @@ function drawVisual(a){
   const clipNames=['start','point','drag','control'];content=`<div class="hand-demo"><div class="hand-stage" data-clip="${clipNames[s]||'point'}"><div class="hand-boardwrap"><svg class="hand-board" viewBox="0 0 1000 380" aria-hidden="true"></svg></div><svg class="hand-skel" viewBox="0 0 1000 380" role="img" aria-label="Skeleton of a hand drawn over the board, from a real recording"></svg><span class="capture-label">Your hand drawn from a real recording (joint numbers only, no pictures). The board is an illustration.</span></div></div>`;
 
  }else if(m.sid==='pc'){
-  content=`<div class="pc-preview"><div class="ui-message"><img src="assets/agents/smith.png" alt="Agent Smith"><div><b>Agent Smith → desktop control</b><p>Press the named Play control in Apple Music.</p></div></div>`;
+  content=`<div class="pc-preview"><div class="ui-message"><img src="assets/agents/smith.svg" alt="Agent Smith"><div><b>Agent Smith → desktop control</b><p>Press the named Play control in Apple Music.</p></div></div>`;
   if(s===0)content+=field('Goal','Press Play in Apple Music')+button('Show proposed task','next');
   if(s===1)content+=`<div class="ui-section">NAMED CONTROLS</div>`+row('App','Apple Music')+row('Control','Play · button')+row('Next','Request permission');
   if(s===2)content+=`<div class="ui-proposal"><b>Approve this press?</b><p>Press Play in Apple Music.</p><div class="ui-actions">${button('Yes, press Play','approve')}${button('No, leave it','refuse')}</div></div>`;
@@ -168,7 +168,7 @@ function drawVisual(a){
  }else if(m.sid==='install'){
   content=`<div class="setup-preview"><div class="ui-section">${['CHOOSE YOUR SYSTEM','FIRST-RUN CHOICES','PRIVATE DEVICE ACCESS','OPEN YOUR HUB'][s]}</div>${s===0?'<div class="setup-os">Windows · macOS · Linux</div>':s===1?['Media tools','PC control · Windows','Speech','File Browser'].map(t=>`<div class="setup-option"><span>${t}</span>${button(a.setupChoices?.has(t)?'Selected':'Choose','choose',a.setupChoices?.has(t)?'selected':'')}</div>`).join(''):s===2?row('PC','Hub runs here')+row('Phone / tablet','Same private Tailscale network'):row('Browser','Open your Hub address')+row('Home screen','Save a bookmark')}<p class="ui-note">${s===0?'Choose a download above. macOS builds are unsigned.':'Choose the tools and folders you want during setup.'}</p></div>`;
  }else{
-  content=`<div class="talk-preview"><div class="ui-message"><img src="assets/agents/smith.png" alt="Agent Smith"><div><b>Agent Smith</b><p>${esc(a.btns[s].dataset.t)}</p></div></div><div class="ui-proposal"><b>${esc(m.actor)}</b><p>${esc(m.description)}</p>${button('Explore this tool','tool')}</div></div>`;
+  content=`<div class="talk-preview"><div class="ui-message"><img src="assets/agents/smith.svg" alt="Agent Smith"><div><b>Agent Smith</b><p>${esc(a.btns[s].dataset.t)}</p></div></div><div class="ui-proposal"><b>${esc(m.actor)}</b><p>${esc(m.description)}</p>${button('Explore this tool','tool')}</div></div>`;
  }
  host.innerHTML=`<div class="screen-toolbar"><span>${pageTitle}</span><div><button type="button" data-preview="replay" aria-label="Replay this preview">↻</button><button type="button" data-preview="pause" aria-label="Pause this preview">Ⅱ</button><button type="button" data-preview="next" aria-label="Next preview step">›</button></div></div><div class="screen-body">${content}</div>`;
  if(m.sid==='hands'&&window.HubHandPlayer)window.HubHandPlayer(host,s);
@@ -325,12 +325,12 @@ function thickenPanels(){
   depth.hidden=false;front.classList.add('glass-front');Object.assign(depth.style,{left:front.offsetLeft+'px',top:front.offsetTop+'px',width:front.offsetWidth+'px',height:front.offsetHeight+'px'});
   if(front.closest('.landing')){
    const core=markHost.getBoundingClientRect(),f=front.getBoundingClientRect(),cx=core.left+core.width/2,cy=core.top+core.height/2;
-   const vx=cx-f.left-f.width/2,vy=cy-f.top-f.height/2,len=Math.hypot(vx,vy)||1,dx=vx/len*7,dy=vy/len*7,w=front.offsetWidth,h=front.offsetHeight;
+   const vx=cx-f.left-f.width/2,vy=cy-f.top-f.height/2,len=Math.hypot(vx,vy)||1,dx=Math.abs(vx/len)<.02?0:Math.sign(vx)*Math.max(7,Math.abs(vx/len)*13),dy=Math.abs(vy/len)<.02?0:Math.sign(vy)*Math.max(7,Math.abs(vy/len)*13),w=front.offsetWidth,h=front.offsetHeight;
    depth.style.setProperty('--core-dx',dx+'px');depth.style.setProperty('--core-dy',dy+'px');depth.querySelector('.glass-back').style.transform=`translate(${dx}px,${dy}px) translateZ(-24px)`;
-   const polygon=points=>'polygon('+points.map(([x,y])=>`${x+8}px ${y+8}px`).join(',')+')';
+   const polygon=points=>'polygon('+points.map(([x,y])=>`${x+16}px ${y+16}px`).join(',')+')';
    const edge=dx>0?w:0,base=dy>0?h:0;
    for(const [cls,points] of [['.glass-right',[[edge,0],[edge+dx,dy],[edge+dx,h+dy],[edge,h]]],['.glass-bottom',[[0,base],[w,base],[w+dx,base+dy],[dx,base+dy]]]]){
-    Object.assign(depth.querySelector(cls).style,{left:'-8px',top:'-8px',right:'auto',bottom:'auto',width:(w+16)+'px',height:(h+16)+'px',transform:'none',clipPath:polygon(points)});
+    Object.assign(depth.querySelector(cls).style,{left:'-16px',top:'-16px',right:'auto',bottom:'auto',width:(w+32)+'px',height:(h+32)+'px',transform:'none',clipPath:polygon(points)});
    }
    const board=front.closest('.tilt-layer'),br=board.getBoundingClientRect();board.style.setProperty('--core-x',(cx-br.left)+'px');board.style.setProperty('--core-y',(cy-br.top)+'px');
   }
@@ -360,6 +360,27 @@ document.querySelectorAll('.work-agent').forEach(b=>b.addEventListener('click',(
 
  const emailPrompt=document.querySelector('[data-email-prompt]');
  if(emailPrompt){const invite='Learn to build your own Agent Hub',prompt='Type in your email';const show=()=>{emailPrompt.placeholder=prompt;};const restore=()=>{if(document.activeElement!==emailPrompt&&!emailPrompt.value)emailPrompt.placeholder=invite;};emailPrompt.addEventListener('pointerenter',show);emailPrompt.addEventListener('focus',show);emailPrompt.addEventListener('pointerleave',restore);emailPrompt.addEventListener('blur',restore);}
+
+ /* Every portrait uses the same six-second clock, including newly opened readers.
+    Keep SVG paths as the source; stamp a shared phase into each image document. */
+ const portraitSources=new Map();
+ function syncPortraits(){
+  document.querySelectorAll('img[src*="assets/agents/"]').forEach(img=>{
+   const source=img.getAttribute('src');if(!/\/(smith|neo|doctor|orchestrator)\.svg(?:\?|$)/.test(source)||img.dataset.portraitClock)return;
+   img.dataset.portraitClock='loading';
+   if(!portraitSources.has(source))portraitSources.set(source,fetch(source+'?portrait=20261106d').then(r=>{if(!r.ok)throw Error('Portrait '+r.status);return r.text();}));
+   portraitSources.get(source).then(svg=>{
+    if(!img.isConnected)return;
+    const phase=performance.now()%6000;
+    svg=svg.replace('</svg>','<style>*{animation-delay:-'+phase.toFixed(2)+'ms!important}</style></svg>');
+    const url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));
+    img.addEventListener('load',()=>URL.revokeObjectURL(url),{once:true});
+    img.dataset.portraitSource=source;img.dataset.portraitClock='shared';img.src=url;
+   }).catch(()=>{img.dataset.portraitClock='failed';});
+  });
+ }
+ new MutationObserver(syncPortraits).observe(document.body,{childList:true,subtree:true});syncPortraits();
+
  document.documentElement.classList.add('js');
  enter(document.getElementById(route()));
  window.SiteBoard={get scene(){return active.id;},get permission(){return permission;},get tilt(){return {x,y,targetX,targetY,running:!!raf};}};

@@ -376,3 +376,12 @@
 .js .landing .hero-title{grid-column:1/-1}.js .landing .mark-host{width:var(--core-size);height:var(--core-size)}
 @media(max-width:650px),(max-height:540px){.js .landing .tilt-layer{--core-size:min(34vw,27dvh);grid-template-rows:auto calc(var(--core-size)/2) calc(var(--core-size)/2) auto auto auto auto auto}}
 @media(max-height:540px) and (orientation:landscape){.js .landing .tilt-layer{--core-size:100px;grid-template-rows:26px 50px 50px 48px 18px 44px 44px;align-content:center}.js .landing .smith-btn{min-height:48px}}
+
+/* Compact TALK; stronger inward-facing glass bevels. */
+.js .landing .smithbox{width:min(154px,100%)}
+.js .landing .smith-btn{padding:4px 9px;gap:7px}
+.js .landing .glass-depth>i{border-color:#41ebff77}
+.js .landing .glass-back{background:linear-gradient(135deg,#41ebff30,#00e67612);box-shadow:0 0 0 1px #41ebff25,0 5px 15px #0005}
+.js .landing .glass-right,.js .landing .glass-bottom{background:linear-gradient(120deg,#41ebff70,#00e67625);border-color:#91f7ff99}
+/* Smith stays cyan. His SVG animates only its lenses on the shared clock. */
+.smith-btn img,.smith-card img{animation:none!important}

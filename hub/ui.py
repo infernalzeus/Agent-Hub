@@ -156,8 +156,8 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;overflow:hidden;ove
   -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 /* the mark takes nearly all the room: the screen width less a small margin, or the height left after the
    name, the START button and the message below it; capped so a tablet does not get a giant canvas */
-.globe-wrap{--g:min(calc(100vw - 28px),720px,calc(100vh - 335px));position:relative;width:var(--g);height:var(--g);margin:0 auto 22px}
-@supports (height:100svh){.globe-wrap{--g:min(calc(100vw - 28px),720px,calc(100svh - 335px))}}
+.globe-wrap{--g:min(calc(100vw - 28px),720px,calc(100vh - 375px));position:relative;width:var(--g);height:var(--g);margin:0 auto 22px}
+@supports (height:100svh){.globe-wrap{--g:min(calc(100vw - 28px),720px,calc(100svh - 375px))}}
 .hero-globe{position:relative;width:100%;height:100%;margin:0}
 .hero-globe .hero-icon{width:100%;height:100%;margin:0;visibility:hidden}
 .hero-globe.mark-fallback .hero-icon{visibility:visible}

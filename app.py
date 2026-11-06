@@ -20,8 +20,8 @@ import sys
 from aiohttp import web
 
 try:                                                                       # the personal learning layer is optional: the Hub runs without hub/yard/
-    from hub.yard import api as yard_api, ui as yard_ui, teach as yard_teach, evidence as yard_evidence, fitness as yard_fitness, knobs as yard_knobs, events as yard_events, flow as yard_flow, candidates as yard_candidates
-    YARD_FEATURES = [yard_api, yard_ui, yard_teach, yard_evidence, yard_fitness, yard_knobs, yard_events, yard_flow, yard_candidates]
+    from hub.yard import api as yard_api, ui as yard_ui, teach as yard_teach, evidence as yard_evidence, fitness as yard_fitness, knobs as yard_knobs, events as yard_events, flow as yard_flow, candidates as yard_candidates, tev_dataset as yard_tev
+    YARD_FEATURES = [yard_api, yard_ui, yard_teach, yard_evidence, yard_fitness, yard_knobs, yard_events, yard_flow, yard_candidates, yard_tev]
 except ImportError:
     YARD_FEATURES = []
 from hub.features import board_prefs, helpers as hub_helpers, agent_map

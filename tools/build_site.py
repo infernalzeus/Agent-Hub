@@ -16,7 +16,7 @@ from html import escape
 from pathlib import Path
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
-V = "20261106-clear-architecture"
+V = "20261106-portrait-clock"
 REPO = "https://github.com/infernalzeus/Agent-Hub"
 AG = "assets/agents/"
 LEGEND = "Live: seen running on a real machine. Unit-tested: the logic is tested, not yet seen running. Built, not tried: built and tested without the real hardware."
@@ -319,7 +319,7 @@ def build() -> str:
     parts = []
     for sid, door, label, headline, ch, line, runs, runs_line in SCENES:
         if sid == "talk":
-            smith = '<span class="smith-card"><span class="smith-input">Speak or type</span><img src="%ssmith.png" alt="" width="52" height="52"><span class="smith-name">Smith</span></span>' % AG
+            smith = '<span class="smith-card"><span class="smith-input">Speak or type</span><img src="%ssmith.svg" alt="" width="52" height="52"><span class="smith-name">Smith</span></span>' % AG
             body = story(sid, '<div class="talk-desktop"><div class="fit"><div class="flow">%s</div></div>%s</div><div class="talk-phone">%s</div>' % (machine, talk_table(), auto(TALK_PHONE)))
             parts.append(scene(sid, label, headline, ch, line, runs, runs_line, body, wide=True, extra_head=smith))
         elif sid == "agents":
@@ -335,7 +335,7 @@ def build() -> str:
             parts.append(scene(sid, label, headline, ch, line, runs, runs_line, story(sid, auto(STEPS[sid]))))
     tiles = [s for s in SCENES if s[0] in ("missions", "pc", "media", "graph")]
     doors = "".join(slab('<a class="door blk" href="#%s">%s</a>' % (sid, escape(door)), "doorbox", 40, 52) for sid, door, *_ in tiles)
-    smith_btn = slab('<a class="smith-btn blk" href="#talk" aria-label="Talk to Agent Smith"><img src="%ssmith.png" alt="" width="52" height="52"><span><b>TALK</b><em>Agent Smith</em></span></a>' % AG, "smithbox", 50, 30)
+    smith_btn = slab('<a class="smith-btn blk" href="#talk" aria-label="Talk to Agent Smith"><img src="%ssmith.svg" alt="" width="52" height="52"><span><b>TALK</b><em>Agent Smith</em></span></a>' % AG, "smithbox", 50, 30)
     head = (
         '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
         '<meta name="description" content="Your most powerful PC tools at your fingertips, any device. Agent Hub brings autonomous LLM missions, desktop control, media and projects together.">'
