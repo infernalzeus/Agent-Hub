@@ -29,7 +29,7 @@ SOFTWARE.
   // pinchOn / pinchOff are fractions of the hand's own size (wrist to the middle finger's knuckle), measured in the camera's own space and
   // including depth, so two fingertips that merely overlap in the picture but sit at different depths are not a pinch. 0.22 is about 2 cm on an
   // adult hand and 0.34 about 3.5 cm: a pinch starts below the first and ends above the second.
-  const TUNING=Object.freeze({pinchOn:.10,pinchOff:.40,pinchOnM:.16,pinchOffM:.38,tripleOn:.10,tripleOff:.40,tripleHoldMs:260,tripleTips:.30,rightIndexAway:.30,flatOn:1.45,flatOff:1.7,flatHoldMs:400,confirmMs:70,settleMs:220,poseHoldMs:200,aimLagMs:190,trailMs:500,clickSlop:20,fitHoldMs:1000,maxJump:.28,idleMs:60000,minScore:.6,minSize:.05,maxSize:.5,presentFrames:3,fistDist:.75,depthStep:.05,depthStill:250,panStart:40,ctlStillMs:500,rotGain:1,tiltGain:1});
+  const TUNING=Object.freeze({pinchOn:.22,pinchOff:.40,pinchOnM:.28,pinchOffM:.42,tripleOn:.28,tripleOff:.40,tripleHoldMs:260,tripleTips:.30,rightIndexAway:.30,flatOn:1.45,flatOff:1.7,flatHoldMs:400,confirmMs:70,settleMs:220,poseHoldMs:200,aimLagMs:190,trailMs:500,clickSlop:20,fitHoldMs:1000,maxJump:.28,idleMs:60000,minScore:.6,minSize:.05,maxSize:.5,presentFrames:3,fistDist:.75,depthStep:.05,depthStill:250,panStart:40,ctlStillMs:500,rotGain:1,rollGain:1,tiltGain:4,rollTilt:0,extendRatio:1.12});
   const CAMERA={w:640,h:480};
   const PALM=[0,5,9,13,17];
   class LowPass{constructor(){this.last=null;}filter(x,a){this.last=this.last===null?x:a*x+(1-a)*this.last;return this.last;}}
@@ -95,7 +95,7 @@ SOFTWARE.
         const triple=s.triple?wantsT:wantsT&&s.tSince!=null&&now-s.tSince>=t.confirmMs&&settled;
         if(pinched||rpinched||triple)s.lastPinchAt=now;
         // pointing with the middle finger (index and the others curled) moves the cursor on the middle fingertip, held a moment so a passing pose does not jump it
-        const e2=(a,b)=>d3(a,0)>d3(b,0)*1.12,midOnly=e2(12,10)&&!e2(8,6)&&!e2(16,14)&&!e2(20,18)&&!wantsI&&!wantsM&&!s.pinched&&!s.rpinched&&!fist;
+        const e2=(a,b)=>d3(a,0)>d3(b,0)*t.extendRatio,midOnly=e2(12,10)&&!e2(8,6)&&!e2(16,14)&&!e2(20,18)&&!wantsI&&!wantsM&&!s.pinched&&!s.rpinched&&!fist;
         if(midOnly){if(s.midSince==null)s.midSince=now;}else s.midSince=null;
         const useMid=midOnly&&(s.useMid||now-s.midSince>=t.poseHoldMs);s.useMid=useMid;
         const tip=useMid?points[12]:points[8];
@@ -117,7 +117,7 @@ SOFTWARE.
         if(!s.pitchF)s.pitchF=new OneEuro(.8,.01);const pitch=s.pitchF.filter(Math.atan2(raw[9].z-raw[0].z,Math.max(1e-4,Math.hypot(raw[9].x-raw[0].x,raw[9].y-raw[0].y))),now/1000);
         // a fist is four fingertips pulled in to the palm; a pinch with the other fingers curled is NOT one (the index fingertip stays about a
         // hand-size away from the palm), and neither is anything where the thumb touches a fingertip, so a pinch can never start a tilt
-        const ext=(a,b)=>d3(a,0)>d3(b,0)*1.12;
+        const ext=(a,b)=>d3(a,0)>d3(b,0)*t.extendRatio;
         const fingers={thumb:d3(4,0)>d3(2,0)*1.35||d3(4,6)>size*1.1,index:ext(8,6),middle:ext(12,10),ring:ext(16,14),pinky:ext(20,18)};
         const up=Object.values(fingers).filter(Boolean).length;
         const pose=pinched||rpinched||triple?'pinch':up>=4?'open':useMid?'middle':fingers.index&&!fingers.middle&&!fingers.ring&&!fingers.pinky?'point':fistShape?'fist':'none';
@@ -127,7 +127,7 @@ SOFTWARE.
         const flat=flatShape&&(s.flat||now-s.flatSince>=t.flatHoldMs);s.flat=flat;
         s.pinched=pinched;s.rpinched=rpinched;s.triple=triple;
         s.out={id,...pos,aimX:s.aim.x,aimY:s.aim.y,pinched,rpinched,triple,flat,hsize:rawSize,spread,sincePinch:s.lastPinchAt==null?1e9:now-s.lastPinchAt,gesture:s.held,points,span,fingers,pointerFinger:useMid?'middle':'index',handedness:label,palm,roll,twist,pitch,
-               depth,conf:typeof conf==='number'?conf:1,openScore:up/5,flatScore:clamp(1-(spread-t.flatOn)/(t.flatOff-t.flatOn),0,1),fistRatio:[8,12,16,20].reduce((a,i)=>a+dp(i),0)/4/size,fistScore:clamp(1-([8,12,16,20].reduce((a,i)=>a+dp(i),0)/4/size-.35)/(.75-.35),0,1),closeness:clamp(1-(gap-t.pinchOn)/(t.pinchOff-t.pinchOn),0,1),closenessM:clamp(1-(gapM-t.pinchOnM)/(t.pinchOffM-t.pinchOnM),0,1),gap,gapM};
+               depth,conf:typeof conf==='number'?conf:1,openScore:up/5,flatScore:clamp(1-(spread-t.flatOn)/(t.flatOff-t.flatOn),0,1),idxRatio:d3(8,0)/Math.max(1e-6,d3(6,0)),midRatio:d3(12,0)/Math.max(1e-6,d3(10,0)),fistRatio:[8,12,16,20].reduce((a,i)=>a+dp(i),0)/4/size,fistScore:clamp(1-([8,12,16,20].reduce((a,i)=>a+dp(i),0)/4/size-.35)/(.75-.35),0,1),closeness:clamp(1-(gap-t.pinchOn)/(t.pinchOff-t.pinchOn),0,1),closenessM:clamp(1-(gapM-t.pinchOnM)/(t.pinchOffM-t.pinchOnM),0,1),gap,gapM};
         out.push(s.out);
       }
       for(const [id,s]of this.hands)if(!seen.has(id)){if(s.out)lost.push(s.out);this.hands.delete(id);}

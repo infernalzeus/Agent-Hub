@@ -3,7 +3,7 @@ const Real=require('../hub/static/hand-gestures.js');
 // The synthetic hands below are sized for the original thresholds; the shipped defaults are the owner's own (5 Nov: pinch 0.10 / 0.40, middle 0.16, triple 0.10).
 const OLD={pinchOn:.22,pinchOff:.34,pinchOnM:.26,tripleOn:.28};
 const G={...Real,Engine:class extends Real.Engine{constructor(o={}){super({...o,tuning:{...OLD,...(o.tuning||{})}});}}};
-test('the shipped defaults are the owners own settings',()=>{assert.equal(Real.TUNING.pinchOn,.10);assert.equal(Real.TUNING.pinchOff,.40);assert.equal(Real.TUNING.pinchOnM,.16);assert.equal(Real.TUNING.tripleOn,.10);});
+test('the shipped pinch defaults are reachable by a real pinch (5 Nov trace: closest 0.14 index, 0.23 middle)',()=>{assert.equal(Real.TUNING.pinchOn,.22);assert.equal(Real.TUNING.pinchOff,.40);assert.equal(Real.TUNING.pinchOnM,.28);assert.equal(Real.TUNING.extendRatio,1.12);});
 // the older tests feed one frame at a time and expect the hand at once; the presence rule has its own test at the end
 {const E0=G.Engine;G.Engine=class extends E0{constructor(o={}){super({...o,tuning:{presentFrames:1,...(o.tuning||{})}});}};}
 function marks(x=.5,gap=1,open=false){const a=Array.from({length:21},()=>({x,y:.7,z:0}));a[0]={x,y:.8,z:0};a[9]={x,y:.6,z:0};a[2]={x:x+.04,y:.7,z:0};a[6]={x:x-.05,y:.5,z:0};a[8]={x:x-.05,y:.3,z:0};a[4]={x:a[8].x+gap*.16,y:.3,z:0};for(const [pip,tip]of [[10,12],[14,16],[18,20]]){a[pip]={x:x+(pip-14)*.012,y:.55,z:0};a[tip]={x:a[pip].x,y:open?.27:.69,z:0};}return a;}

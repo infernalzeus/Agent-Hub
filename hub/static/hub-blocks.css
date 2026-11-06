@@ -480,3 +480,12 @@ html.hub-legend-on .hands-log .hl-legend{display:block!important;opacity:1!impor
 .hs-sel{background:#0a1230;color:#00e676;border:1px solid #00e676;border-radius:4px;padding:3px 6px;font:700 11px Outfit,system-ui,sans-serif;margin-bottom:4px}
 
 .hs-conf td.hs-grp{font:700 9px Orbitron,monospace;letter-spacing:1.4px;color:#41ebff;background:#41ebff12;padding:5px 8px}
+
+.hs-conf{table-layout:fixed;width:100%}.hs-conf th:nth-child(1){width:15%}.hs-conf th:nth-child(2){width:8%}.hs-conf th:nth-child(3){width:30%}.hs-conf th:nth-child(4){width:19%}.hs-conf th:nth-child(5){width:28%}
+.hs-conf td{vertical-align:top;white-space:normal;overflow-wrap:anywhere;line-height:1.35}.hs-conf td:nth-child(2),.hs-conf td:nth-child(4){white-space:normal}
+.hs-conf td b{display:block}.hs-conf .hs-tog{display:block;width:100%;min-width:0;text-align:center;box-sizing:border-box}
+.hs-conf td:nth-child(3) .hs-sel{display:block;width:100%;box-sizing:border-box;margin:0 0 5px}
+.hs-conf td:nth-child(3){font-size:12px;color:#b9e8d1}
+.hs-conf .hs-meter{min-width:0;width:100%}.hs-conf td:nth-child(4) span{display:block;font:700 11px Outfit,system-ui,sans-serif;color:#d6f5e6}
+.hs-conf td:nth-child(5){display:table-cell}.hs-conf .hs-field{display:grid;grid-template-columns:1fr 64px;align-items:center;gap:6px;margin:0 0 5px;width:100%;box-sizing:border-box}.hs-conf .hs-field input{width:100%;box-sizing:border-box}
+.hs-conf .hs-reset{display:block;margin-top:2px}
