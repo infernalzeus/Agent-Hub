@@ -30,6 +30,7 @@ _HOME_BOARD_JS = (_BLOCKS_JS + "\n" + _HAND_JS + "\n" + (Path(__file__).parent /
                   + (Path(__file__).parent / "static" / "home-board-view.js").read_text(encoding="utf-8") + "\n"
                   + (Path(__file__).parent / "static" / "home-board.js").read_text(encoding="utf-8"))
 _WAKE_JS = (_BLOCKS_JS + "\n" + (Path(__file__).parent / "static" / "voice-fx.js").read_text(encoding="utf-8") + "\n"
+            + (Path(__file__).parent / "static" / "smith-lines.js").read_text(encoding="utf-8") + "\n"
             + (Path(__file__).parent / "static" / "wake.js").read_text(encoding="utf-8"))
 _DEPTH_LIFT_SOURCE = (Path(__file__).parent / "static" / "depth-lift.js").read_text(encoding="utf-8")
 # The build id decides when a long-lived host page must be replaced. It covers everything a retained view can have

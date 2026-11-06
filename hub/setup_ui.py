@@ -758,8 +758,18 @@ function ytCard(){
   return fold('ytacc', 'YouTube channels', chip, body, false);
 }
 
+async function expInit(){
+  const b = $('exp-box'); if(!b) return;
+  let s; try{ s = await (await fetch('/api/yard/settings',{cache:'no-store'})).json(); }catch(e){ b.hidden = true; return; }
+  if(!s || !s.experimental){ b.hidden = true; return; }
+  const on = s.experimental.on;
+  b.innerHTML = `<div class="lh"><b>Experimental: personal learning (the R button)</b><span class="chip ${on?'warn':'ok'}">${on?'ON':'off'}</span></div>
+    <div class="lp">A personalising tool that watches how the Hub does things on this PC and practises in pretend apps. Off by default and hidden. It never presses anything by itself, and it is not part of the Hub's core settings.</div>
+    <div class="row"><button class="btn ${on?'stop':'go'}" id="exp-toggle" ${s.experimental.forced_on_by_environment?'disabled':''}>${on?'SWITCH OFF':'SWITCH ON'}</button><span class="lp" style="margin:0">${s.experimental.forced_on_by_environment?'held on by an environment variable':'shows or hides the R button'}</span></div>`;
+  $('exp-toggle').onclick = async () => { try{ await jsend('POST','/api/yard/settings',{experimental:!on}); toast(on?'Experimental learning is off':'Experimental learning is on'); }catch(e){ toast(e.message); } expInit(); };
+}
 function extraTools(){
-  let h = '';
+  let h = '<div class="loc" id="exp-box"></div>';
   const w = MCPS.find(x => x.name==='windows');
   h += `<div class="loc" id="pc-control"><div class="lh"><b>PC control (Windows MCP)</b>${w ? `<span class="chip ${w.enabled?'warn':'ok'}">${w.enabled?'ON':'off'}</span>${w.installed?'':'<span class="chip error">program missing</span>'}` : '<span class="chip">not set up</span>'}</div>
     <div class="lp">Lets agents click, type and use your desktop. Off by default — switch it on only while you need it.</div>
@@ -796,6 +806,7 @@ function bind(){
   document.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { CUR.project_sources.splice(+b.dataset.rm,1); render(); });
   document.querySelectorAll('[data-clear]').forEach(b => b.onclick = () => { CUR[b.dataset.clear] = ''; render(); });
   document.querySelectorAll('[data-create]').forEach(b => b.onclick = async () => { try{ await jsend('POST','/api/fs/mkdir',{path:CUR[b.dataset.create]}); toast('Folder created'); const r = await jget('/api/locations'); DATA = r; render(); }catch(e){ toast(e.message); } });
+  expInit();
   const mt = $('mcp-toggle'); if(mt) mt.onclick = async () => { const w = MCPS.find(x=>x.name==='windows'), on = !w.enabled;
     if(on && !confirm('Switch PC control ON? Agents in any ask will be able to click, type and open apps until you switch it off.')) return;
     try{ const r = await jsend('POST','/api/mcp/windows/enabled',{enabled:on}); MCPS = r.servers; render(); toast(on?'PC control is ON':'PC control is off'); }catch(e){ toast(e.message); } };

@@ -1,4 +1,4 @@
-"""Search baselines for a set of numbers. The real search (CMA-ES) is NOT built; these are what it has to beat.
+"""Searches for a set of numbers: random and grid are the baselines, CMA-ES (cma.py) is the real search and has to beat them.
 
 `objective(candidate: dict) -> float` is higher-is-better and must be repeatable (same input, same score). `space` is {name: (low, high)}.
 A learner earns its place only if it finds a better score than `random_search` and `grid_search` with the same number of tries.
@@ -34,5 +34,7 @@ def grid_search(objective, space: "dict[str, tuple[float, float]]", points: int 
     return best
 
 
-def cma_es(*args, **kwargs):
-    raise NotImplementedError("CMA-ES is not built. It needs labelled hand traces and a replay score first (see hub/yard/tunables.py); random_search and grid_search are the baselines.")
+def cma_es(objective, space: "dict[str, tuple[float, float]]", tries: int = 200, seed: int = 0, **kw) -> dict:
+    """CMA-ES (see cma.py). Built, but not used on any real number yet: it needs labelled hand traces and a replay score first (hub/yard/tunables.py)."""
+    from .cma import cma_es as _cma
+    return _cma(objective, space, tries=tries, seed=seed, **kw)

@@ -150,6 +150,16 @@ def recent_errors(now: "float | None" = None, within_s: int = 3600) -> "tuple[in
     return n, newest, sample
 
 
+def _learning() -> dict:
+    """What the Doctor may read about the optional learning layer: whether it is on, how much evidence there is and how it is doing. Read-only; absent if not installed."""
+    try:
+        from ..yard import evidence as EV, settings as YS
+        s = EV.summary()
+        return {"installed": True, "experimental": YS.experimental(), "shadow": s["on"], "tasks_kept": s["kept"], "tasks_graded": s["graded"], "fresh_since": YS.fresh_since()}
+    except Exception:  # noqa: BLE001
+        return {"installed": False}
+
+
 def bundle(lines: int = 150) -> dict:
     lines = max(10, min(int(lines), RING_LINES))
     log = [redact(x) for x in list(_ring)]
@@ -167,6 +177,7 @@ def bundle(lines: int = 150) -> dict:
         "missions": _missions(),
         "local_model_server": _local_model_server(),
         "disk_free_gb": {"state": _free_gb(RT.STATE), "work": _free_gb(work) if work else None},
+        "learning": _learning(),
         "problems": problems[-30:],
         "log_tail": log[-lines:],
         "note": "Credentials are removed from log lines; this endpoint only reads.",

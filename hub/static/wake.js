@@ -45,7 +45,12 @@
     '.wb .row{display:flex;gap:8px;padding:2px 10px 10px;flex-wrap:wrap}.wb .go{font:700 9.5px Orbitron,monospace;letter-spacing:1.2px;color:#00e676;background:none;border:1px solid #00e676;border-radius:7px;padding:8px 14px;min-height:34px;cursor:pointer;text-decoration:none;display:inline-block}.wb .go.no{color:#ff8a8a;border-color:rgba(255,92,92,.6)}',
     '#wake-lines{position:fixed;left:50%;bottom:max(12px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(560px,92vw);display:flex;flex-direction:column;gap:5px;align-items:center;pointer-events:none;z-index:7}',
     '.wl{font-size:13.5px;padding:5px 12px;border-radius:99px;border:1px solid rgba(0,230,118,.3);background:rgba(6,10,36,.92);color:#d9ffe9;max-width:100%}.wl.you{border-color:rgba(59,167,255,.5);color:#cfe6ff}',
-    '.wake-toggle .t{transition:opacity .2s}.wake-toggle .t.sw{opacity:0}'
+    '.wake-toggle .t{transition:opacity .2s}.wake-toggle .t.sw{opacity:0}',
+    '.smith-draw{position:absolute;left:14%;top:14%;width:72%;height:72%;pointer-events:none;overflow:visible;z-index:4}',
+    '.smith-draw .ln{fill:none;stroke:#41ebff;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1 1;stroke-dashoffset:1;filter:drop-shadow(0 0 2.5px rgba(65,235,255,.9))}',
+    '.smith-draw.live{animation:smBreath 2.2s ease-in-out infinite}@keyframes smBreath{50%{opacity:.72}}',
+    '.smith-hit{position:absolute;left:14%;top:14%;width:72%;height:72%;border:0;background:transparent;border-radius:50%;cursor:pointer;z-index:5;-webkit-tap-highlight-color:transparent;padding:0}',
+    '.smith-hit:focus-visible{outline:2px dashed rgba(0,230,118,.7);outline-offset:4px}'
   ].join('\n');
   document.head.appendChild(st);
   var lines = document.createElement('div'); lines.id = 'wake-lines'; document.body.appendChild(lines);
@@ -82,6 +87,7 @@
     setLabel({ off: 'WAKE WORD · OFF', wake: 'LISTENING FOR SMITH', convo: 'LISTENING', think: 'THINKING', speak: 'SPEAKING' }[s]);
     btn.classList.toggle('on', s !== 'off'); btn.setAttribute('aria-pressed', String(s !== 'off'));
     if (ring) { ring.classList.toggle('on', s !== 'off'); ring.classList.toggle('hot', s === 'convo' || s === 'speak' || s === 'think'); }
+    syncSmith();
   }
   var lineT = null;
   function say(text, who) {
@@ -336,14 +342,46 @@
   // nothing used to do that, so after any reply the landing page stayed on LISTENING for good. THINKING has a ceiling too (the longest request is 60 s).
   var thinkSince = 0;
   setInterval(function () {
+    syncSmith();
     if (!S.on) { thinkSince = 0; return; }
     if (S.state === 'convo' && !S.pending && Date.now() >= S.convoUntil) setState('wake');
     if (S.state === 'think') { if (!thinkSince) thinkSince = Date.now(); else if (Date.now() - thinkSince > 75000 && !S.speaking) { thinkSince = 0; setState('wake'); } } else thinkSince = 0;
   }, 500);
+  // ---- Smith is the wake switch. He is drawn, line by line, while the wake word is OFF and while he is listening or answering; he is gone while the Hub
+  // waits for his name (the ring is lit instead). A click on him, drawn or not, is the same switch as the button under the ring: off -> on and he draws out,
+  // on -> off and he draws in. Saying "Smith" brings him back for the conversation, and he leaves again when it is quiet.
+  var SM = { svg: null, hit: null, shown: false };
+  (function buildSmith() {
+    var D = window.SMITH_LINES; if (!globe || !D) return;
+    var NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 ' + D.width + ' ' + D.height); svg.setAttribute('class', 'smith-draw'); svg.setAttribute('aria-hidden', 'true');
+    D.paths.forEach(function (d) { var p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); p.setAttribute('pathLength', '1'); p.setAttribute('class', 'ln'); svg.appendChild(p); });
+    globe.appendChild(svg);
+    var hit = document.createElement('button'); hit.type = 'button'; hit.id = 'smith-hit'; hit.className = 'smith-hit';
+    hit.setAttribute('aria-label', 'Smith: switch the wake word on or off');
+    hit.onclick = function () { if (btn.offsetParent !== null) btn.onclick(); };         // only once the Hub is up, like the button
+    globe.appendChild(hit); SM.svg = svg; SM.hit = hit;
+  })();
+  function smithWanted() { return btn.offsetParent !== null && (S.state === 'off' || S.state === 'convo' || S.state === 'think' || S.state === 'speak'); }
+  function syncSmith() {
+    if (!SM.svg) return;
+    var want = smithWanted();
+    SM.svg.classList.toggle('live', want && S.state !== 'off');
+    SM.hit.title = S.on ? 'Click to switch the wake word off' : 'Click to switch the wake word on';
+    if (want === SM.shown) return;
+    SM.shown = want;
+    var ps = Array.prototype.slice.call(SM.svg.querySelectorAll('.ln'));
+    ps.forEach(function (p) { p.getAnimations().forEach(function (a) { a.cancel(); }); });
+    if (reduce.matches || !ps[0].animate) { ps.forEach(function (p) { p.style.strokeDashoffset = want ? 0 : 1; }); return; }
+    ps.forEach(function (p, i) {
+      var n = ps.length, from = want ? 1 : 0, to = want ? 0 : 1, delay = want ? i * 16 : (n - i) * 9;
+      p.animate([{ strokeDashoffset: from }, { strokeDashoffset: to }], { duration: want ? 720 : 520, delay: delay, easing: 'cubic-bezier(.4,.1,.2,1)', fill: 'forwards' });
+    });
+  }
   btn.onclick = function () { if (S.on) stopAll(); else start(); };
   // It keeps listening when another window comes in front (opening an app by voice used to switch it off); only leaving the page ends it.
   addEventListener('pagehide', function () { if (S.on) stopAll(); });
   addEventListener('resize', function () { if (blocks.length) clearBlocks(); });
-  window.__hubWake = { stop: function(){stopAll(false);}, state: function () { return S.state; }, blocks: function () { return blocks.length; }, say: function (t) { return ask(t); } };
+  window.__hubWake = { stop: function(){stopAll(false);}, state: function () { return S.state; }, smith: function () { return { shown: SM.shown, state: S.state, drawn: SM.svg ? SM.svg.querySelectorAll('.ln').length : 0 }; }, _set: function (s) { S.on = s !== 'off'; setState(s); }, blocks: function () { return blocks.length; }, say: function (t) { return ask(t); } };
   setState('off');
 })();

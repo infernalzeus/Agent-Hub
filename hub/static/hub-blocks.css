@@ -573,3 +573,6 @@ html.hub-legend-on .hands-log .hl-legend{display:block!important;opacity:1!impor
 @media(max-width:1000px){.hs-dblk{grid-template-columns:1fr}.hs-one th:nth-child(3){width:26%}}
 
 .hands-setup p.hs-hint{font-size:10.5px;line-height:1.35;margin:0 0 6px}.hands-setup .hb-glass-head{padding-bottom:2px}.hands-setup .hb-glass-head h2{font-size:11px}.hands-setup .hs-note{font-size:10.5px}
+/* R button: exactly the PC-control dot (4 px, top right, grey off, green on). On only while shadow mode is on; off by default. */
+.hb .hb-bar .hb-learning:after{content:'';position:absolute;right:4px;top:4px;width:4px;height:4px;border-radius:50%;background:#5f6b79;box-shadow:none}
+.hb .hb-bar .hb-learning.lit:after{background:#00e676;box-shadow:0 0 4px #00e67666}

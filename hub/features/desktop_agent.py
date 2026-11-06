@@ -75,9 +75,14 @@ def controls(nodes: "list[dict]", app: str, goal: str = "") -> "list[dict]":
     Window chrome is left out; alike controls from one group are capped; what the goal's own words hit comes first.
     """
     appl = PC.canonical_app_name(app)
+    try:                                                          # experimental, off by default: forbidden controls are never offered (policy before the model call)
+        from ..yard import knobs as _K
+        hide = bool(_K.get("hide_forbidden"))
+    except Exception:  # noqa: BLE001
+        hide = False
     scope = [i for i, n in enumerate(nodes) if (not appl or appl in (n.get("window") or "").casefold())
              and "x" in n and (n.get("name") or "").strip() and n["control"] != "window"
-             and (n["name"].strip().casefold() not in _CHROME)]
+             and (n["name"].strip().casefold() not in _CHROME) and not (hide and PC.never_press(n["name"]))]
     items = [i for i in scope if nodes[i]["control"] == "list item"]
     want = PC.target_words(goal)
     seen, per, out = set(), {}, []
@@ -482,7 +487,8 @@ async def run(goal: str, app: str, *, models: "list[str] | None" = None, decider
         _log_run(goal, app, tries[-1])
         try:                                     # R1: which model did the task, and did the checked result agree
             from . import learning as LRN
-            LRN.note("model", "desktop_task", name, chain, got["ok"], (time.time() - ta) * 1000)
+            LRN.note("model", "desktop_task", name, chain, got["ok"], (time.time() - ta) * 1000, p=1.0, ctx={"goal_words": len(goal.split()), "music": bool(wants_music(goal)), "models": len(chain)},
+                     sampling={"temperature": 0, "num_predict": 140, "num_ctx": 6144})
         except Exception:  # noqa: BLE001
             pass
         if got["ok"]:

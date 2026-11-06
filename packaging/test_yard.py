@@ -104,7 +104,11 @@ def shadowed(tmp_path, monkeypatch):
     monkeypatch.setattr(SH, "POLICY", tmp_path / "policy.json")
     monkeypatch.setattr(SH, "LOG", tmp_path / "shadow.jsonl")
     monkeypatch.setitem(SH._CACHE, "mtime", None)
-    monkeypatch.setenv("HUB_YARD_SHADOW", "1")
+    from hub.yard import settings as YS
+    monkeypatch.setattr(YS, "FILE", tmp_path / "settings.json")
+    monkeypatch.setitem(YS._CACHE, "at", 0.0)
+    monkeypatch.delenv("HUB_YARD_SHADOW", raising=False)
+    YS.update({"shadow": True})                                  # off by default now: the test switches it on, as the R panel does
     lr, _ = P.train(1200, hidden=0, seed=0)
     (tmp_path / "policy.json").write_text(json.dumps({"linear": lr.actor.dump()}))
     return SH
@@ -160,7 +164,7 @@ def test_shadow_costs_the_agent_under_five_milliseconds_a_step(shadowed):
 def test_the_practice_page_is_served_and_the_board_offers_it_as_a_tab(hub):
     import urllib.request
     html = urllib.request.urlopen(hub + "/yard").read().decode()
-    assert "REINFORCEMENT LEARNING" in html and "/api/yard/practice" in html and "/api/yard/status" in html
+    assert "Reinforcement learning" in html and "/api/yard/practice" in html and "/api/yard/status" in html
     board = (Path(__file__).resolve().parents[1] / "hub" / "static" / "home-board.js").read_text(encoding="utf-8")
     assert "['REINFORCEMENT LEARNING', '/yard']" in board
 
@@ -180,11 +184,12 @@ def test_the_practice_tab_opens_the_page_inside_the_board_and_a_run_fills_its_ta
         page = b.new_context(service_workers="block").new_page()
         page.on("pageerror", lambda e: errors.append(str(e)))
         page.goto(hub + "/yard")
+        page.evaluate("fetch('/api/yard/knobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({eval_per_cell:4})})")
         assert page.evaluate("fetch('/api/yard/practice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true,episodes:100})}).then(r=>r.status)") == 200
         page.reload()
-        page.wait_for_function("document.querySelectorAll('#means tr').length > 4")
-        assert "learned, linear" in page.inner_text("#means") and "direct" in page.inner_text("#layouts")
-        assert page.inner_text("#shadowsub")
+        page.wait_for_function("document.getElementById('result').textContent.includes('Last session')", timeout=20000)
+        assert "learned" in page.inner_text("#result") and "rule of thumb" in page.inner_text("#result") and "random" in page.inner_text("#result")
+        page.evaluate("fetch('/api/yard/knobs/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})")
         b.close()
     assert errors == []
 
@@ -196,10 +201,10 @@ def test_the_two_switches_stop_notes_at_once_and_environment_still_wins(tmp_path
     monkeypatch.delenv("HUB_LEARNING_LOG", raising=False)
     monkeypatch.delenv("HUB_YARD_SHADOW", raising=False)
     S._CACHE["at"] = 0.0
-    assert learning.enabled() and shadow.enabled()                                   # on by default
-    S.update({"learning": False, "junk": True, "shadow": "no"})                      # a non-boolean is ignored
-    assert not learning.enabled() and shadow.enabled()
-    S.update({"shadow": False})
+    assert not learning.enabled() and not shadow.enabled()                           # EXPERIMENTAL: off by default
+    S.update({"learning": True, "junk": True, "shadow": "no"})                       # a non-boolean is ignored
+    assert learning.enabled() and not shadow.enabled()
+    S.update({"learning": False})
     assert not learning.enabled() and not shadow.enabled()
     S.update({"learning": True, "shadow": True})
     assert learning.enabled() and shadow.enabled()
@@ -219,54 +224,35 @@ def test_the_settings_endpoint_flips_a_switch_and_refuses_nonsense(tmp_path, mon
     async def go():
         app = web.Application(); app.add_routes(api.routes)
         async with TestClient(TestServer(app)) as c:
-            assert (await (await c.get("/api/yard/settings")).json())["learning"]["on"] is True
-            j = await (await c.post("/api/yard/settings", json={"learning": False})).json()
-            assert j["learning"]["on"] is False and j["shadow"]["on"] is True
+            assert (await (await c.get("/api/yard/settings")).json())["learning"]["on"] is False       # off by default
+            j = await (await c.post("/api/yard/settings", json={"learning": True})).json()
+            assert j["learning"]["on"] is True and j["shadow"]["on"] is False
             assert (await c.post("/api/yard/settings", json={"learning": "off"})).status == 400
     asyncio.run(go())
 
 
-def test_the_r_learning_panel_has_three_tabs_and_practice_can_be_stopped(hub):
+def test_the_r_panel_has_four_tabs_with_the_flow_inside_the_yard_and_a_session_can_be_stopped(hub):
     from playwright.sync_api import sync_playwright
     with sync_playwright() as p:
         b = p.chromium.launch(headless=True)
-        pg = b.new_context(service_workers="block").new_page()
+        pg = b.new_context(service_workers="block", viewport={"width": 1250, "height": 850}).new_page()
         errors = []
         pg.on("pageerror", lambda e: errors.append(str(e)))
         pg.goto(hub + "/yard")
-        assert [t.strip() for t in pg.locator(".tabs button").all_inner_texts()] == ["OVERVIEW", "YARD", "TEACH", "LEARNED", "ROUTINES", "STATUS"]
-        assert pg.locator("#stop").is_hidden()
-        pg.click("[data-tab=practice]")
+        assert [t.strip() for t in pg.locator(".tabs button").all_inner_texts()] == ["YARD", "TEACH", "ROUTINES", "SCORES"]          # nothing else: no overview, flow, knobs or status tab
+        pg.wait_for_function("document.querySelectorAll('#flowsvg .fnode').length===16")            # the flow is part of the yard
+        assert pg.locator("#stop").is_hidden() and pg.locator(".infobox").count() == 0 and "i" not in pg.locator("button.i").all_inner_texts()
+        pg.evaluate("fetch('/api/yard/knobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({episodes:3000})})")
         pg.click("#go")
         pg.wait_for_selector("#stop", state="visible", timeout=8000)
-        pg.wait_for_function("document.querySelector('#phase').textContent.length>0", timeout=8000)      # a phase and a percentage while it runs
+        pg.wait_for_function("document.querySelector('#phase').textContent.length>0", timeout=8000)       # a phase and a percentage while it runs
         pg.click("#stop")
-        pg.wait_for_function("/Stopped/.test(document.querySelector('#msg').textContent)", timeout=15000)
-        pg.wait_for_function("document.getElementById('stop').hidden && !document.getElementById('go').disabled", timeout=8000)
-        pg.click("[data-tab=status]")
-        pg.wait_for_function("document.querySelectorAll('#kinds tr').length>3 && document.querySelectorAll('#bandits tr').length>2")
-        assert "R3" in pg.inner_text("#needs") and "bandit" in pg.inner_text("#tab-status").lower()
+        pg.wait_for_function("/Stopped/.test(document.querySelector('#msg').textContent)", timeout=20000)
+        pg.wait_for_function("document.getElementById('stop').hidden && !document.getElementById('go').disabled", timeout=10000)
+        pg.evaluate("fetch('/api/yard/knobs/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})")
         pg.click("[data-tab=teach]")
         pg.wait_for_function("!!document.getElementById('teachframe').src")
+        pg.click("[data-tab=scores]")
+        pg.wait_for_function("document.querySelectorAll('#fit tr').length>=5 && document.querySelectorAll('#chal tr').length>=7")
         b.close()
     assert errors == []
-
-
-def test_every_tab_of_the_r_learning_panel_has_an_info_button_that_explains_it(hub):
-    from playwright.sync_api import sync_playwright
-    with sync_playwright() as p:
-        b = p.chromium.launch(headless=True)
-        pg = b.new_context(service_workers="block").new_page()
-        pg.goto(hub + "/yard")
-        pg.wait_for_function("document.querySelectorAll('#flow .step').length===5")      # the whole story, with live numbers, on the first tab
-        assert "RECORD" in pg.inner_text("#flow") and "USE" in pg.inner_text("#flow") and pg.inner_text("#next")
-        pg.click("[data-tab=practice]")
-        pg.click("[data-info=info-yard]")
-        txt = pg.inner_text("#info-yard")
-        for word in ("direct", "modal", "search", "menu", "long", "unnamed", "tabs", "confirm", "Method", "unseen", "STOP"):
-            assert word in txt, word
-        pg.click("[data-tab=teach]"); pg.click("[data-info=info-teach]")
-        assert "RIGHT" in pg.inner_text("#info-teach") and "GOOD" in pg.inner_text("#info-teach")
-        pg.click("[data-tab=status]"); pg.click("[data-info=info-status]")
-        assert "bandit" in pg.inner_text("#info-status")
-        b.close()

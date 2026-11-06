@@ -16,7 +16,7 @@ from html import escape
 from pathlib import Path
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
-V = "20261106-original-flow"
+V = "20261106-svg-agency"
 REPO = "https://github.com/infernalzeus/Agent-Hub"
 AG = "assets/agents/"
 LEGEND = "Live: seen running on a real machine. Unit-tested: the logic is tested, not yet seen running. Built, not tried: built and tested without the real hardware."
@@ -33,7 +33,7 @@ SCENES = [
      "Download, convert, browse and receive.", "Windows · macOS · Linux", "Files stay on your PC and network."),
     ("graph", "GIT GRAPH", "GIT GRAPH", "Every project as one dot.", [("Live", "")],
      "Project status and worktree diffs.", "Windows · macOS · Linux", "Reads your local git projects."),
-    ("agents", "AGENTS + SKILLS", "AGENTS + SKILLS", "A team you can read and extend.", [("Live", "")],
+    ("agents", "AGENCY", "AGENCY", "A team you can read and extend.", [("Live", "")],
      "Roles, handoffs, skills and repairs you approve.", "Your Hub, any device", "Manage the team from your browser."),
     ("hands", "HAND CONTROL", "HAND CONTROL", "Your hands move the Hub board.", [("Built, not tried", "gestures")],
      "Camera recognition seen running; physical board gestures still need a hardware trial.", "Camera + browser", "Explicit camera start; board controls only."),
@@ -220,12 +220,7 @@ def agents_body():
     principal = [next(a for a in AGENTS if a[0]==key) for key in ("orchestrator","neo","smith","doctor")]
     lis=[]
     for i,(img,name,role,ch,you) in enumerate(principal):
-        role = {
-            'orchestrator':'Turns a goal into a plan and briefs for named agents. Plans only; it does not edit the project.',
-            'smith':'Receives spoken or typed requests, answers routine questions and hands work to the right Hub tool or agent.',
-            'neo':'Drafts an agent definition from a job description. Read and save the definition before using it.',
-            'doctor':'Reads Hub facts and proposes a repair in a private copy. Review the diff and choose APPLY; restarting remains yours.'
-        }[img]
+        role = {'orchestrator': 'Turns your goal into scoped briefs, assigns the right specialists and manages dependencies between their tasks. Brings their results back for review. Plans and delegates; it does not edit project code.', 'smith': 'Your voice and text front door to the Hub. Checks known commands and routines, then routes your request to a tool, desktop task, helper or mission. You can ask follow-up questions in the same conversation.', 'neo': 'Designs agents for the job you describe. Drafts their responsibilities, instructions and working preferences as an editable persona. You review and save the definition before adding that agent to your team.', 'doctor': 'Investigates Hub problems using current diagnostics, logs and configuration. Explains the likely cause and proposes a repair in a private working copy. You review the diff, choose APPLY and decide when to restart.'}[img]
         definition=role
         if img in ('orchestrator','neo'):
             definition=(Path(__file__).resolve().parent.parent/'hub/agent_knowledge/agents'/f'{img}.md').read_text(encoding='utf-8').split('---',2)[-1].strip()
@@ -233,7 +228,7 @@ def agents_body():
             definition="Smith's standing instructions (hub/features/voice.py), before the live Hub state is added:" + chr(10) + chr(10) + _source_text('hub/features/voice.py','_SYSTEM')
         elif img=='doctor':
             definition="The Doctor's standing instructions (hub/features/support.py), before the live Hub facts are added:" + chr(10) + chr(10) + _source_text('hub/features/support.py','RULES')
-        lis.append('<li><button data-definition="%s" class="st card" type="button" data-t="%s" data-k="AGENCY" data-d="%s" data-you="%s" data-img="%s%s.png" aria-pressed="%s"><img class="av" src="%s%s.png" alt="" width="48" height="48"><span class="sb"><b>%s</b><em>%s</em></span></button></li>' % (escape(definition,True),escape(name,True),escape(role,True),escape(you,True),AG,img,'true' if i==0 else 'false',AG,img,escape(name),{'orchestrator':'Plans and delegates','smith':'Voice and chat','neo':'Designs agents','doctor':'Repairs the Hub'}[img]))
+        lis.append('<li><button data-definition="%s" class="st card" type="button" data-t="%s" data-k="AGENCY" data-d="%s" data-you="%s" data-img="%s%s.svg" aria-pressed="%s"><img class="av" src="%s%s.svg" alt="" width="48" height="48"><span class="sb"><b>%s</b><em>%s</em></span></button></li>' % (escape(definition,True),escape(name,True),escape(role,True),escape(you,True),AG,img,'true' if i==0 else 'false',AG,img,escape(name),{'orchestrator':'Plans and delegates','smith':'Voice and chat','neo':'Designs agents','doctor':'Repairs the Hub'}[img]))
     agents=_auto_wrap(''.join(lis)).replace('class="auto"','class="auto agents-auto"',1)
     groups={
       'Code': ['coder','tester','reviewer','scout'],
@@ -250,12 +245,13 @@ def agents_body():
             description=re.search(r'^description:\s*(.+)$',definition,re.M)
             text=(about or description).group(1).strip().strip('"')
             rows.append('<button type="button" class="work-agent" data-work-group="%s" data-work-description="%s" data-work-definition="%s"%s><b>%s</b><span>%s</span></button>' % (group,escape(text,True),escape(definition.split('---',2)[-1].strip()[:4200],True),' hidden' if group!='Code' else '',escape(name),escape(text)))
-    work='<div class="work-panel"><nav class="work-categories" aria-label="Work types">'+''.join('<button type="button" class="ui-btn" data-work-category="%s" aria-pressed="%s">%s</button>' % (g,str(g=='Code').lower(),g) for g in groups)+'</nav><div class="work-list">'+''.join(rows)+'</div><div class="work-route" aria-label="Work-agent handoff"><span>Your goal</span><i>→</i><span>Orchestrator</span><i>→</i><span data-work-chosen>Work agent</span><i>→</i><span>Your review</span></div><p class="work-description" aria-live="polite">Choose a work agent to read its role. The orchestrator delegates scoped briefs to these agents.</p><pre class="work-definition" hidden></pre></div>'
-    return '<div class="agency"><div class="tabs" role="tablist" aria-label="Agency"><button class="tab" role="tab" type="button" aria-selected="true" data-tab="agents">AGENTS</button><button class="tab" role="tab" type="button" aria-selected="false" data-tab="work">WORK AGENTS</button><button class="tab" role="tab" type="button" aria-selected="false" data-tab="skills">SKILLS</button></div><div class="tabpanel" data-panel="agents">%s</div><div class="tabpanel" data-panel="work" hidden>%s</div><div class="tabpanel" data-panel="skills" hidden>%s</div></div>' % (agents,work,auto(STEPS['skills']))
+    work='<div class="work-panel"><nav class="work-categories" aria-label="Work types">'+''.join('<button type="button" class="ui-btn" data-work-category="%s" aria-pressed="%s">%s</button>' % (g,str(g=='Code').lower(),g) for g in groups)+'</nav><div class="work-list">'+''.join(rows)+'</div><section class="work-reading"><div class="work-route" aria-label="Work-agent handoff"><span>Your goal</span><i>→</i><span>Orchestrator</span><i>→</i><span data-work-chosen>Work agent</span><i>→</i><span>Your review</span></div><p class="work-description" aria-live="polite">Choose a work agent to read its role. The orchestrator delegates scoped briefs to these agents.</p><pre class="work-definition" hidden></pre></section></div>'
+    return '<div class="agency"><div class="tabs" role="tablist" aria-label="Agency"><button class="tab" role="tab" type="button" aria-selected="true" data-tab="agents">CORE CREW</button><button class="tab" role="tab" type="button" aria-selected="false" data-tab="work">OPERATIVES</button><button class="tab" role="tab" type="button" aria-selected="false" data-tab="skills">SKILLS</button></div><div class="tabpanel" data-panel="agents">%s</div><div class="tabpanel" data-panel="work" hidden>%s</div><div class="tabpanel" data-panel="skills" hidden>%s</div></div>' % (agents,work,auto(STEPS['skills']))
 
 def scene(sid, label, headline, chips_, line, runs, runs_line, body, wide=False, extra_head=""):
     main = ('<article class="blk main-block"><header class="blk-h"><p class="label">%s</p><h2 id="%s-title" tabindex="-1">%s</h2>%s</header><div class="blk-b">%s</div></article>' % (escape(label),sid,escape(headline),extra_head,body))
-    return '<section class="scene" id="%s" aria-labelledby="%s-title"><div class="board wide" data-tilt>%s</div></section>' % (sid,sid,slab(main,"main"))
+    result = '<section class="scene" id="%s" aria-labelledby="%s-title"><div class="board wide" data-tilt>%s</div></section>' % (sid,sid,slab(main,"main"))
+    return result.replace(' data-tilt',' data-static-architecture') if sid=='architecture' else result
 
 
 # Ordered stories. Each row separates the responsible actor, the result and the user's action.
@@ -287,7 +283,7 @@ STORY['talk']=("Press TALK, or choose an example below.","Smith answers or opens
 STORY['hands']=("Choose HANDS in the dashboard, then point at a block.","Pan, zoom, drag and turn the board with your hand.","Every gesture can be switched off or changed in the HANDS menu.")
 STEPS['skills']=[
  ("Hub library","SKILLS","Browse skills by topic, search for a name, and read its instructions.","Choose a topic or search the skill library.",0),
- ("Open-source skills","ANTHROPIC","The library includes Anthropic skills such as frontend-design, mcp-builder and webapp-testing.","Open a skill to read its instructions and origin.",0),
+ ("Open-source skills","OPEN SOURCE","Browse third-party skills by publisher and licence, including Apache-2.0 and MIT. Catalogue entries remain separate from installed skills.","Open a skill to read its instructions and origin.",0),
  ("Add a skill","CATALOGUE","Launch videos (brag) is available through the Hub catalogue from latent-spaces.","Review the skill and add it when it fits your work.",0),
  ("Write your own","NEW SKILL","Describe a reusable task, read the drafted SKILL.md, then save it.","Describe the task and review the instructions before saving.",0)]
 
@@ -323,7 +319,7 @@ def build() -> str:
     parts = []
     for sid, door, label, headline, ch, line, runs, runs_line in SCENES:
         if sid == "talk":
-            smith = '<span class="smith-card"><img src="%ssmith.png" alt="Agent Smith" width="44" height="44"><span>Smith · speak or type</span></span>' % AG
+            smith = '<span class="smith-card"><span class="smith-input">Speak or type</span><img src="%ssmith.svg" alt="" width="52" height="52"><span class="smith-name">Smith</span></span>' % AG
             body = story(sid, '<div class="talk-desktop"><div class="fit"><div class="flow">%s</div></div>%s</div><div class="talk-phone">%s</div>' % (machine, talk_table(), auto(TALK_PHONE)))
             parts.append(scene(sid, label, headline, ch, line, runs, runs_line, body, wide=True, extra_head=smith))
         elif sid == "agents":
@@ -339,7 +335,7 @@ def build() -> str:
             parts.append(scene(sid, label, headline, ch, line, runs, runs_line, story(sid, auto(STEPS[sid]))))
     tiles = [s for s in SCENES if s[0] in ("missions", "pc", "media", "graph")]
     doors = "".join(slab('<a class="door blk" href="#%s">%s</a>' % (sid, escape(door)), "doorbox", 40, 52) for sid, door, *_ in tiles)
-    smith_btn = slab('<a class="smith-btn blk" href="#talk" aria-label="Talk to Agent Smith"><img src="%ssmith.png" alt="" width="52" height="52"><span><b>TALK</b><em>Agent Smith</em></span></a>' % AG, "smithbox", 50, 30)
+    smith_btn = slab('<a class="smith-btn blk" href="#talk" aria-label="Talk to Agent Smith"><img src="%ssmith.svg" alt="" width="52" height="52"><span><b>TALK</b><em>Agent Smith</em></span></a>' % AG, "smithbox", 50, 30)
     head = (
         '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
         '<meta name="description" content="Your most powerful PC tools at your fingertips, any device. Agent Hub brings autonomous LLM missions, desktop control, media and projects together.">'
@@ -353,8 +349,8 @@ def build() -> str:
         '<div class="mark-host" id="hero-mark" role="img" aria-label="Agent Hub globe and crystalline core"><noscript>Agent Hub</noscript></div>'
         '<p class="tagline">Your most powerful PC tools at your fingertips, any device.</p>'
         '<div class="actions"><a class="action primary" href="#install">DOWNLOAD</a><a class="action" href="%s">SOURCE ↗</a></div>'
-        '<nav class="more-links" aria-label="More"><a href="#agents">AGENTS + SKILLS</a><a href="#architecture">ARCHITECTURE</a><a href="#hands">HAND CONTROL</a></nav>'
-        '<form class="wishlist-form"><div><input id="wishlist-email" type="email" autocomplete="email" placeholder="Learn to build your own Agent Hub" aria-label="Email for the build guide wishlist" required><button type="submit">JOIN</button></div><p role="status" hidden></p></form>'
+        '<nav class="more-links" aria-label="More"><a href="#agents">AGENCY</a><a href="#architecture">ARCHITECTURE</a><a href="#hands">HAND CONTROL</a></nav>'
+        '<form class="wishlist-form"><div><input id="wishlist-email" type="email" autocomplete="email" placeholder="Learn to build your own Agent Hub" title="Type in your email" data-email-prompt aria-label="Email for the build guide wishlist" required><button type="submit">JOIN</button></div><p role="status" hidden></p></form>'
         '%s<nav class="doors" aria-label="The tools">%s</nav></div></section>' % (REPO, smith_btn, doors))
     body = ('<body><header class="site-header"><a class="brand" href="#" data-home aria-label="Agent Hub — return to landing"><img src="assets/agent-hub-logo-176.png" alt="" width="44" height="44" decoding="async">AGENT HUB</a>'
             '<a class="projects" href="https://infernalzeus.github.io/" data-projects><span class="old-project-arrow" aria-hidden="true">←</span><span>INFERNALZEUS - PROJECTS</span></a></header><main class="stage">%s%s</main>'

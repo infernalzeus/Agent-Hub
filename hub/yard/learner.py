@@ -162,10 +162,43 @@ def softmax(s):
 
 
 class Learner:
-    def __init__(self, hidden: int = 0, seed: int = 0, lr: float = 0.05, lr_critic: float = 0.05, gamma: float = 0.95, entropy: float = 0.02, letters: bool = True):
+    def __init__(self, hidden: int = 0, seed: int = 0, lr: "float | None" = None, lr_critic: "float | None" = None, gamma: "float | None" = None,
+                 entropy: "float | None" = None, letters: bool = True):
+        from . import knobs as K                              # the KNOBS tab; the defaults there equal the numbers this used to hard-code
+        lr = K.get("lr_actor") if lr is None else lr
+        lr_critic = K.get("lr_critic") if lr_critic is None else lr_critic
+        gamma = K.get("gamma") if gamma is None else gamma
+        entropy = K.get("entropy_beta") if entropy is None else entropy
         self.letters = letters
         self.actor, self.v, self.rng = Actor(hidden, seed), np.zeros(ZDIM), np.random.default_rng(seed + 1)
         self.lr, self.lr_c, self.gamma, self.beta = lr * (3.0 if hidden else 1.0), lr_critic, gamma, entropy
+
+    def vec(self) -> "np.ndarray":
+        """Every learned number as one vector (actor, then critic): how far a learner has moved is the length of the difference of two of these."""
+        a = self.actor
+        parts = [a.W1.ravel(), a.b1, a.w2] if a.h else [a.w]
+        return np.concatenate([p.ravel() for p in parts] + [self.v])
+
+    def imitate(self, steps: "list[dict]", weight: float = 1.0) -> float:
+        """Learn from steps someone already approved: move the actor towards the control that was pressed (a supervised step, weighted). Returns the mean
+        probability the learner gave the approved choice before the step, so a rising number means it agrees more."""
+        probs = []
+        for s in steps:
+            o = parse(s["prompt"])
+            acts, X = candidates(o, self.letters)
+            if s["do"] in ("click", "type"):
+                a = next((i for i, c in enumerate(acts) if c["do"] == s["do"] and next((k for k in o["controls"] if k["id"] == c["id"]), {}).get("name") == s["name"]), None)
+            else:
+                a = next((i for i, c in enumerate(acts) if c["do"] == s["do"]), None)
+            if a is None:
+                continue
+            sc, h = self.actor.forward(X)
+            p = softmax(sc)
+            e = np.zeros_like(p)
+            e[a] = 1.0
+            probs.append(float(p[a]))
+            self.actor.step(X, h, np.clip(weight * (e - p), -2, 2), self.lr)
+        return float(np.mean(probs)) if probs else 0.0
 
     def dump(self) -> dict:
         """Everything that is learned: the actor's numbers and the critic's. A few kilobytes."""
@@ -189,7 +222,7 @@ class Learner:
             s, h = self.actor.forward(X)
             p = softmax(s)
             a = int(self.rng.choice(len(acts), p=p)) if explore else int(np.argmax(s))
-            records.append({"X": X, "h": h, "p": p, "a": a, "z": critic_input(o)})
+            records.append({"X": X, "h": h, "p": p, "a": a, "z": critic_input(o), "prompt": prompt})
             return json.dumps(acts[a])
         decide.records = records
         return decide

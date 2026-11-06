@@ -1302,6 +1302,11 @@ async def api_approve_routine(request: web.Request) -> web.Response:
         if not row:
             raise web.HTTPNotFound(text="no such routine")
         db.execute("UPDATE pc_routines SET status='trusted', updated=? WHERE id=?", (time.time(), row["id"]))
+        try:                                                      # R1: you read the steps and trusted it; recorded with the routine and who decided
+            from . import learning as LRN
+            LRN.note("trust", "routine", "trusted", ["trusted", "candidate"], True, by="you", routine=row["id"])
+        except Exception:  # noqa: BLE001
+            pass
         return web.json_response({"ok": True, "routine": dict(db.execute("SELECT * FROM pc_routines WHERE id=?", (row["id"],)).fetchone())})
 
 
@@ -1575,11 +1580,30 @@ async def effect_of(window: str, before: dict, settle: float = 1.2, retries: int
             "why": "" if changed else "nothing in the window changed"}
 
 
+async def _snap() -> "bytes | None":
+    """EXPERIMENTAL shadow mode: a small picture of the screen before a task, or None when the switch is off. Never raises."""
+    try:
+        from ..yard import evidence as EV
+        return await EV.snap()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+async def _evidence(way: str, goal: str, app: str, ok: bool, t0: float, before: "bytes | None", markers: dict, routine: "str | None" = None) -> None:
+    """EXPERIMENTAL shadow mode: keep what was asked, how it was done, what proved it and a before/after picture. Never raises, never changes a result."""
+    try:
+        from ..yard import evidence as EV
+        if EV.enabled():
+            EV.record(way, goal, display_app_name(app), ok, markers, time.time() - t0, routine, before, await EV.snap())
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _learn(chosen: str, ok: bool, t0: float, app: str) -> None:
     """R1: how this task was done (a saved routine, or the agent) and whether it worked, for the learning log. Never raises."""
     try:
         from . import learning as LRN
-        LRN.note("rung", canonical_app_name(app), chosen, ["replay", "agent"], ok, (time.time() - t0) * 1000)
+        LRN.note("rung", canonical_app_name(app), chosen, ["replay", "agent"], ok, (time.time() - t0) * 1000, p=1.0, ctx={"app": canonical_app_name(app)})       # the order is fixed in code, so the chance of this choice was 1
     except Exception:  # noqa: BLE001
         pass
 
@@ -1604,6 +1628,7 @@ async def after(app: str, then: str, request: str, tree=None) -> dict:
     """
     name = display_app_name(app)
     t0 = time.time()
+    before = await _snap() if tree is None else None
     if tree is None and _open_ended_play(then, app):
         # "play some music" names nothing. Guessing wastes a minute on a library full of choices; one short question does not.
         return _ask(f"{name} is open. You did not name anything, so I can shuffle your whole library, or start a radio station. Shall I shuffle your library?",
@@ -1612,11 +1637,14 @@ async def after(app: str, then: str, request: str, tree=None) -> dict:
     if taught and taught["tool"] == "surface" and taught["status"] != "disabled":
         from . import machine_routines as MR
         got = await MR.replay_machine_routine(taught, request=request)
+        if tree is None:
+            await _evidence("recorded routine", then, app, bool(got.get("ok")), t0, before, {"routine_clean": bool(got.get("ok")), "nothing_changed": not got.get("ok")}, taught.get("id"))
         if got.get("ok"):
             return {"ok": True, "say": f"Done: {then}.", "routine": got.get("routine")}
         return {"ok": False, "say": f"Opened {name}. {got.get('say') or 'The recording did not run.'}"}
     if taught and taught["tool"] == "ui" and _steps(taught["id"]):
         got = await replay_ui_routine(taught, request)
+        heard = None
         if got.get("ok") and tree is None and os.environ.get("HUB_DESKTOP_AGENT", "1") != "0":
             # A replay that changed the window is not a replay that played music: Windows says whether something is playing.
             from . import desktop_agent as DA
@@ -1631,6 +1659,8 @@ async def after(app: str, then: str, request: str, tree=None) -> dict:
                 got = {"ok": False, "route": "fall-through", "say": "It ran, but nothing is playing."}
         if tree is None:
             _learn("replay", bool(got.get("ok")), t0, app)
+            await _evidence("saved routine", then, app, bool(got.get("ok")), t0, before,
+                            {"routine_clean": bool(got.get("ok")), "windows_confirms": bool(got.get("ok") and heard), "nothing_changed": not got.get("ok")}, taught.get("id"))
         if got.get("ok"):
             return {"ok": True, "say": f"Opened {name} and {then}.", "routine": got.get("routine")}
         if got.get("route") != "fall-through":
@@ -1644,6 +1674,12 @@ async def after(app: str, then: str, request: str, tree=None) -> dict:
         t1 = time.time()
         got = await DA.run(then, app)
         _learn("agent", bool(got["ok"]), t1, app)
+        try:
+            from ..yard import evidence as EV
+            last = (got.get("tries") or [{}])[-1]
+            await _evidence("agent", then, app, bool(got["ok"]), t1, before, EV.markers_from_trace(last.get("trace") or [], bool(got["ok"]), got.get("say") or "", DA.wants_music(then)))
+        except Exception:  # noqa: BLE001
+            pass
         _record_run(request, "agent", "done" if got["ok"] else "failed",
                     f"{then}: {got['say'][:140]} [{', '.join(t['model'] for t in got['tries'])}]", level="ui-tree" if got["ok"] else "")
         if got["ok"]:

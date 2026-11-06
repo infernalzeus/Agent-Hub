@@ -5,7 +5,7 @@
  try{permission=sessionStorage.getItem('site:orientation')||'unknown';}catch(error){}
  const route=()=>document.getElementById(location.hash.slice(1))?.matches('.scene')?location.hash.slice(1):'landing';
  const MAX_TILT=4, REST_X=0, REST_Y=0, MOUSE_DEVICE=matchMedia('(hover:hover) and (pointer:fine)').matches, MOUSE_TILT=1.5, LANDING_MOUSE_TILT=2, PHONE_TILT=4, PERSPECTIVE=1600;
- const STEP=4200,DUR={hands:[4300,5900,8500,15900]};
+ const STEP=4200,DUR={talk:[10000,10000,10000,10000,10000,10000],hands:[4300,5900,8500,15900]};
  const stepMs=a=>(DUR[a.scene.id]||[])[a.i]||STEP;
 
  /* ---------- auto-playing step lists: they advance by themselves; a tap or hover pins one ---------- */
@@ -35,11 +35,12 @@
  /* the Agents / Skills tabs */
  document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{const ag=t.closest('.agency');ag.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));ag.querySelectorAll('.tabpanel').forEach(p=>p.hidden=p.dataset.panel!==t.dataset.tab);stopAutos();startAutos(active);if(t.dataset.tab==='work'){const foot=active.querySelector('.story-foot');foot.querySelector('.try-panel p').textContent='Choose a work type, then an agent.';foot.querySelector('.expect').textContent='The orchestrator delegates a scoped brief to the agent suited to the task.';}requestAnimationFrame(fit);}));
 
- document.querySelectorAll('[data-agent-jump]').forEach(b=>b.addEventListener('click',()=>{const a=autos.find(a=>a.scene.id==='agents'&&a.el.classList.contains('agents-auto'));if(a){const i=a.btns.findIndex(x=>(x.dataset.img||'').endsWith('/'+b.dataset.agentJump+'.png'));if(i>=0)pin(a,i,10000);}}));
+ document.querySelectorAll('[data-agent-jump]').forEach(b=>b.addEventListener('click',()=>{const a=autos.find(a=>a.scene.id==='agents'&&a.el.classList.contains('agents-auto'));if(a){const i=a.btns.findIndex(x=>(x.dataset.img||'').endsWith('/'+b.dataset.agentJump+'.svg'));if(i>=0)pin(a,i,10000);}}));
  /* small glass blocks open to show more */
 
  /* the animated machine on the TALK scene is drawn at one size and scaled to the room it has */
- function fit(){const w=active.querySelector('.fit');if(w&&w.offsetParent){const f=w.firstElementChild,s=Math.min(w.clientWidth/1060,w.clientHeight/f.offsetHeight,1.2);f.style.setProperty('--s',s.toFixed(3));}autos.filter(a=>a.live).forEach(drawVisual);drawArchitecture();thickenPanels();fitTilt();}
+ function fitTalk(){const w=active.querySelector('.fit');if(w&&w.offsetParent){const f=w.firstElementChild,s=Math.min(w.clientWidth/f.offsetWidth,w.clientHeight/f.offsetHeight,1.2);f.style.setProperty('--s',s.toFixed(3));}}
+ function fit(){fitTalk();autos.filter(a=>a.live).forEach(drawVisual);drawArchitecture();thickenPanels();fitTilt();}
  addEventListener('resize',()=>{fit();sizeGrid();});
  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{fit();sizeGrid();});
 
@@ -97,9 +98,10 @@ function detailSymbol(a){
 /* Dashboard-shaped previews. Camera, downloads and PC actions are never invoked here. */
 const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function stopDemo(a){cancelAnimationFrame(a.demoRaf);a.demoRaf=0;(a.demoTimers||[]).forEach(clearTimeout);a.demoTimers=[];}
-function demoModel(a){const b=a.btns[a.i];return {sid:a.scene.id,title:b.dataset.t,actor:b.dataset.k,ask:b.dataset.you,description:b.dataset.d,image:b.dataset.img,key:(b.dataset.img||'').split('/').pop()?.replace('.png',''),step:a.i};}
+function demoModel(a){const b=a.btns[a.i];return {sid:a.scene.id,title:b.dataset.t,actor:b.dataset.k,ask:b.dataset.you,description:b.dataset.d,image:b.dataset.img,key:(b.dataset.img||'').split('/').pop()?.replace(/\.(png|svg)$/,''),step:a.i};}
 function updateInsights(a,m){const f=a.scene.querySelector('.story-foot');if(f){f.querySelector('.try-panel>p').textContent=m.ask||'';f.querySelector('.expect').textContent=m.description||'';f.dataset.step=m.sid+'-'+m.step;}if(m.sid==='talk')a.scene.querySelectorAll('.say-table tbody tr').forEach((r,i)=>r.classList.toggle('example-active',i===a.i));}
-function syncTalk(a){if(a.scene.id!=='talk')return;const machine=a.scene.querySelector('.machine');if(!machine)return;const animations=machine.getAnimations({subtree:true});animations.forEach(x=>{x.currentTime=a.i*9000+100;x.playbackRate=2;if(reduced.matches)x.pause();else x.play();});if(!reduced.matches)a.demoTimers.push(setTimeout(()=>animations.forEach(x=>x.pause()),3950));}
+function syncTalk(a){if(a.scene.id!=='talk')return;const machine=a.scene.querySelector('.machine');if(!machine)return;machine.dataset.talkStep=String(a.i);requestAnimationFrame(fitTalk);const animations=machine.getAnimations({subtree:true});animations.forEach(x=>{x.currentTime=a.i*9000+100;x.playbackRate=1;if(reduced.matches)x.pause();else x.play();});if(!reduced.matches)a.demoTimers.push(setTimeout(()=>animations.forEach(x=>x.pause()),8800));}
+
 function drawVisual(a){
  stopDemo(a);const m=demoModel(a),host=a.detail.querySelector('[data-visual]');updateInsights(a,m);
  if(!host?.offsetParent){syncTalk(a);return;}
@@ -112,7 +114,7 @@ function drawVisual(a){
   const clipNames=['start','point','drag','control'];content=`<div class="hand-demo"><div class="hand-stage" data-clip="${clipNames[s]||'point'}"><div class="hand-boardwrap"><svg class="hand-board" viewBox="0 0 1000 380" aria-hidden="true"></svg></div><svg class="hand-skel" viewBox="0 0 1000 380" role="img" aria-label="Skeleton of a hand drawn over the board, from a real recording"></svg><span class="capture-label">Your hand drawn from a real recording (joint numbers only, no pictures). The board is an illustration.</span></div></div>`;
 
  }else if(m.sid==='pc'){
-  content=`<div class="pc-preview"><div class="ui-message"><img src="assets/agents/smith.png" alt="Agent Smith"><div><b>Agent Smith → desktop control</b><p>Press the named Play control in Apple Music.</p></div></div>`;
+  content=`<div class="pc-preview"><div class="ui-message"><img src="assets/agents/smith.svg" alt="Agent Smith"><div><b>Agent Smith → desktop control</b><p>Press the named Play control in Apple Music.</p></div></div>`;
   if(s===0)content+=field('Goal','Press Play in Apple Music')+button('Show proposed task','next');
   if(s===1)content+=`<div class="ui-section">NAMED CONTROLS</div>`+row('App','Apple Music')+row('Control','Play · button')+row('Next','Request permission');
   if(s===2)content+=`<div class="ui-proposal"><b>Approve this press?</b><p>Press Play in Apple Music.</p><div class="ui-actions">${button('Yes, press Play','approve')}${button('No, leave it','refuse')}</div></div>`;
@@ -146,9 +148,9 @@ function drawVisual(a){
 
  }else if(m.sid==='agents'&&m.key){
   const role={orchestrator:['ORCHESTRATION','Plans and delegates','Goal → briefs → named agents','Writes no code; the result returns for review.'],smith:['HUB HELPER','Voice and chat','Your request → router → tool','Routes app, media, mission and conversation requests.'],neo:['AGENT DESIGN','Design an agent','Describe the job → persona draft → save','Hands back instructions you can read and edit.'],doctor:['HUB REPAIR','Diagnose and propose','Hub facts → private repair → your APPLY','You review the diff and decide when to restart.']}[m.key];
-  a.handoff=role[2];content=`<div class="agency-preview"><div class="agency-profile"><img src="${esc(m.image)}" alt="${esc(m.title)}"><div><span class="ui-section">${role[0]}</span><h4>${esc(m.title)}</h4><p>${role[1]}</p></div></div><div class="agency-about">${esc(role[3])}</div>${row('Handoff',role[2])}<p class="ui-note">${role[3]}</p><div class="ui-actions">${button('Read definition','definition')}${button('Handoffs','handoffs')}</div><div class="ui-inline-detail" hidden></div></div>`;
+  a.handoff=role[2];content=`<div class="agency-preview"><div class="agency-profile"><img src="${esc(m.image)}" alt="${esc(m.title)}"><div><span class="ui-section">${role[0]}</span><h4>${esc(m.title)}</h4><p>${role[1]}</p></div></div><div class="agency-about">${esc(m.description)}</div>${row('Handoff',role[2])}<div class="ui-actions">${button('Read definition','definition')}${button('Handoffs','handoffs')}</div><div class="ui-inline-detail" hidden></div></div>`;
  }else if(m.sid==='agents'){
-  let skills=s===0?[['debugging-methodology','Hub skill','Find the cause, reproduce it, verify the fix.'],['testing-conventions','Hub skill','Choose meaningful checks for the behavior.'],['python-aiohttp-webapp','Hub skill','Conventions for the Hub’s async web services.']]:s===1?[['frontend-design','Anthropic · Apache-2.0','Build distinctive interfaces.'],['mcp-builder','Anthropic · Apache-2.0','Build Model Context Protocol integrations.'],['webapp-testing','Anthropic · Apache-2.0','Inspect and test browser interfaces.']]:[['Launch videos · brag','latent-spaces · MIT','Create a launch video for a finished project.']];
+  let skills=s===0?[['debugging-methodology','Hub skill','Find the cause, reproduce it, verify the fix.'],['testing-conventions','Hub skill','Choose meaningful checks for the behavior.'],['python-aiohttp-webapp','Hub skill','Conventions for the Hub’s async web services.']]:s===1?[['frontend-design','Anthropic · Apache-2.0','Build distinctive interfaces.'],['mcp-builder','Anthropic · Apache-2.0','Build Model Context Protocol integrations.'],['Launch videos · brag','latent-spaces · MIT','Optional catalogue skill for launch videos.']]:[['Launch videos · brag','latent-spaces · MIT','Create a launch video for a finished project.']];
   if(s===0&&a.userSkill)skills=[['interface-review','Your example','Review layout, wording and keyboard access.'],...skills.slice(0,2)];
   if(s===3)content=`<div class="skills-preview">${field('Describe a reusable skill','Review interface changes for clarity and consistency')}<div class="skill-file"><b>SKILL.md</b><pre>name: interface-review\ndescription: Review interface changes.\n\nCheck layout, wording and keyboard access.\nReport the issue and its location.</pre></div>${button('Preview saved skill','save')}</div>`;
   else content=`<div class="skills-preview"><div class="ui-section">${s===2?'ADD A SKILL':'SKILL LIBRARY'}</div><div class="ui-segment">${button('Hub skills','hub-skills',s===0?'selected':'')}${button('Open source','open-skills',s===1?'selected':'')}${button('New skill','new-skill')}</div>${skills.map(([name,origin,desc])=>`<button type="button" class="skill-library-row" data-preview="skill"><b>${name}</b><small>${origin}</small><span>${desc}</span></button>`).join('')}<div class="ui-inline-detail" hidden></div></div>`;
@@ -165,7 +167,7 @@ function drawVisual(a){
  }else if(m.sid==='install'){
   content=`<div class="setup-preview"><div class="ui-section">${['CHOOSE YOUR SYSTEM','FIRST-RUN CHOICES','PRIVATE DEVICE ACCESS','OPEN YOUR HUB'][s]}</div>${s===0?'<div class="setup-os">Windows · macOS · Linux</div>':s===1?['Media tools','PC control · Windows','Speech','File Browser'].map(t=>`<div class="setup-option"><span>${t}</span>${button(a.setupChoices?.has(t)?'Selected':'Choose','choose',a.setupChoices?.has(t)?'selected':'')}</div>`).join(''):s===2?row('PC','Hub runs here')+row('Phone / tablet','Same private Tailscale network'):row('Browser','Open your Hub address')+row('Home screen','Save a bookmark')}<p class="ui-note">${s===0?'Choose a download above. macOS builds are unsigned.':'Choose the tools and folders you want during setup.'}</p></div>`;
  }else{
-  content=`<div class="talk-preview"><div class="ui-message"><img src="assets/agents/smith.png" alt="Agent Smith"><div><b>Agent Smith</b><p>${esc(a.btns[s].dataset.t)}</p></div></div><div class="ui-proposal"><b>${esc(m.actor)}</b><p>${esc(m.description)}</p>${button('Explore this tool','tool')}</div></div>`;
+  content=`<div class="talk-preview"><div class="ui-message"><img src="assets/agents/smith.svg" alt="Agent Smith"><div><b>Agent Smith</b><p>${esc(a.btns[s].dataset.t)}</p></div></div><div class="ui-proposal"><b>${esc(m.actor)}</b><p>${esc(m.description)}</p>${button('Explore this tool','tool')}</div></div>`;
  }
  host.innerHTML=`<div class="screen-toolbar"><span>${pageTitle}</span><div><button type="button" data-preview="replay" aria-label="Replay this preview">↻</button><button type="button" data-preview="pause" aria-label="Pause this preview">Ⅱ</button><button type="button" data-preview="next" aria-label="Next preview step">›</button></div></div><div class="screen-body">${content}</div>`;
  if(m.sid==='hands'&&window.HubHandPlayer)window.HubHandPlayer(host,s);
@@ -338,13 +340,15 @@ function wirePreview(a,host){
 document.querySelectorAll('[data-work-category]').forEach(b=>b.addEventListener('click',()=>{
  const panel=b.closest('.work-panel');panel.querySelectorAll('[data-work-category]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
  panel.querySelectorAll('[data-work-group]').forEach(x=>{x.hidden=x.dataset.workGroup!==b.dataset.workCategory;});
- panel.querySelector('.work-list').dataset.count=panel.querySelectorAll('.work-agent:not([hidden])').length;panel.querySelector('.work-list').style.setProperty('--work-count',panel.querySelectorAll('.work-agent:not([hidden])').length);panel.querySelector('.work-description').textContent='Choose an agent to read its role.';{const d=panel.querySelector('.work-definition');if(d)d.hidden=true;}requestAnimationFrame(thickenPanels);
+ panel.querySelector('.work-list').dataset.count=panel.querySelectorAll('.work-agent:not([hidden])').length;panel.querySelector('.work-list').style.setProperty('--work-count',panel.querySelectorAll('.work-agent:not([hidden])').length);panel.querySelector('.work-description').textContent='Choose an operative to read its role.';panel.querySelector('[data-work-chosen]').textContent='Work agent';panel.querySelectorAll('.work-agent').forEach(x=>x.setAttribute('aria-pressed','false'));{const d=panel.querySelector('.work-definition');if(d)d.hidden=true;}requestAnimationFrame(thickenPanels);
 }));
 document.querySelectorAll('.work-agent').forEach(b=>b.addEventListener('click',()=>{
  const panel=b.closest('.work-panel');panel.querySelector('.work-description').textContent=b.querySelector('b').textContent+' — '+b.dataset.workDescription;const def=panel.querySelector('.work-definition');if(def){def.textContent=b.dataset.workDefinition||'';def.hidden=!b.dataset.workDefinition;}panel.querySelector('[data-work-chosen]').textContent=b.querySelector('b').textContent;
  panel.querySelectorAll('.work-agent').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
 }));
 
+ const emailPrompt=document.querySelector('[data-email-prompt]');
+ if(emailPrompt){const invite='Learn to build your own Agent Hub',prompt='Type in your email';const show=()=>{emailPrompt.placeholder=prompt;};const restore=()=>{if(document.activeElement!==emailPrompt&&!emailPrompt.value)emailPrompt.placeholder=invite;};emailPrompt.addEventListener('pointerenter',show);emailPrompt.addEventListener('focus',show);emailPrompt.addEventListener('pointerleave',restore);emailPrompt.addEventListener('blur',restore);}
  document.documentElement.classList.add('js');
  enter(document.getElementById(route()));
  window.SiteBoard={get scene(){return active.id;},get permission(){return permission;},get tilt(){return {x,y,targetX,targetY,running:!!raf};}};

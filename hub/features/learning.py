@@ -35,7 +35,7 @@ routes = web.RouteTableDef()
 
 CHOICES = STATE / "choices.jsonl"
 MAX_BYTES = 5 * 1024 * 1024
-KINDS = ("route", "model", "rung", "persona", "fix")      # persona and fix are recorded only: no learner reads them yet
+KINDS = ("route", "model", "rung", "persona", "fix", "trust")      # persona, fix and trust are recorded only: no learner reads them yet
 NEEDS = {"R3": ("model", 30, "labelled model events, across at least two models"),
          "R4": ("rung", 30, "labelled rung events, across at least two ways"),
          "R5": ("route", 100, "labelled route decisions")}
@@ -63,19 +63,32 @@ def _handle():
 def enabled() -> bool:
     if os.environ.get("HUB_LEARNING_LOG", "1") == "0":
         return False
-    from ..yard import settings as YS            # the switch on the practice page
-    return YS.flag("learning")
+    try:
+        from ..yard import settings as YS        # the switch on the practice page; without the learning layer installed there is nothing to log
+        return YS.flag("learning")
+    except ImportError:
+        return False
 
 
 def note(kind: str, context: str, chosen: str, options: "list | None" = None, ok: "bool | None" = None,
-         ms: "float | None" = None, by: str = "rules", **extra) -> None:
-    """One line: a choice that was made and, when it is already known, how it turned out. Never raises, never waits on anything but a file append."""
+         ms: "float | None" = None, by: str = "rules", p: "float | None" = None, ctx: "dict | None" = None, sampling: "dict | None" = None, **extra) -> None:
+    """One line: a choice that was made and, when it is already known, how it turned out. Never raises, never waits on anything but a file append.
+
+    p        the chance this choice had of being made (1.0 for a rule, the softmax value for a sampled policy): without it a past choice cannot fairly score a new learner
+    ctx      the few numbers the choice was made from (app, brief size, step), so a learner can be fitted to the rows later
+    sampling the settings a model call used (temperature, num_predict, num_ctx ...), the 8-settings plan starts from recording them"""
     if not enabled():
         return
     t0 = time.perf_counter()
     try:
         row = {"kind": kind, "context": str(context)[:80], "chosen": str(chosen)[:80], "options": [str(o)[:80] for o in (options or [])][:8],
                "by": by, "ok": ok if isinstance(ok, bool) else None, "ms": None if ms is None else int(ms), "at": round(time.time(), 1), **extra}
+        if isinstance(p, (int, float)):
+            row["p"] = round(float(p), 4)
+        if isinstance(ctx, dict):
+            row["ctx"] = {str(k)[:24]: (round(v, 4) if isinstance(v, float) else v if isinstance(v, (int, bool)) else str(v)[:40]) for k, v in list(ctx.items())[:12]}
+        if isinstance(sampling, dict):
+            row["sampling"] = {str(k)[:24]: v for k, v in list(sampling.items())[:10] if isinstance(v, (int, float, str, bool))}
         if _STATS["calls"] % 200 == 0 and CHOICES.exists() and CHOICES.stat().st_size > MAX_BYTES:
             _close()
             os.replace(CHOICES, CHOICES.with_suffix(".jsonl.1"))          # keep one older file, never grow without bound
@@ -138,6 +151,9 @@ def _route_events() -> "list[dict]":
             continue
         if k == "verdict":
             e = by_at.get(r.get("of"))
+            if e is not None and r.get("grade") in ("skip", "delete"):
+                e["hidden"] = r["grade"]                       # skip: not asked again; delete: not used for anything
+                continue
             if e is not None and isinstance(r.get("ok"), bool) and (e["ok"] is None or r["ok"] is False):      # a correction beats a run that finished
                 e["ok"] = r["ok"]
             continue
@@ -185,21 +201,40 @@ def _model_events() -> "list[dict]":
     from ..agent_knowledge import model_stats as MS
     from ..agent_knowledge.model_stats import SMALL_BRIEF_CHARS
     human = mission_verdicts()
+    gone = {k for k, v in _jsonl_dict(MISSION_LABELS).items() if isinstance(v, dict) and v.get("grade") == "delete"}
     out = []
     for r in MS._outcomes():
+        if str(r.get("mission") or "") in gone:
+            continue
         ok = r.get("ok") if isinstance(r.get("ok"), bool) else None
         mid = str(r.get("mission") or "")
         if mid in human:
             ok = human[mid]                                  # your decision beats the project's checks
+        # the reward you decided on: your approval of that mission counts most (1 or 0); where you have not decided, the checks count with less weight
+        reward = (1.0 if human[mid] else 0.0) if mid in human else (0.7 if ok is True else 0.2 if ok is False else None)
         out.append({"kind": "model", "context": "mission:" + ("small" if int(r.get("chars") or 0) <= SMALL_BRIEF_CHARS else "large"), "chosen": r.get("model"), "options": [],
-                    "by": "rules", "ok": ok, "ms": int(float(r.get("secs") or 0) * 1000), "at": r.get("at"), "mission": mid})
+                    "by": "rules", "ok": ok, "ms": int(float(r.get("secs") or 0) * 1000), "at": r.get("at"), "mission": mid,
+                    "reward": reward, "reward_by": "you" if mid in human else "checks"})
     return out
 
 
-def events(limit: int = 5000) -> "list[dict]":
-    """Every recorded choice, oldest first, from the three places that make them."""
+def _since() -> float:
+    try:
+        from ..yard import settings as YS
+        return YS.fresh_since()
+    except Exception:  # noqa: BLE001 - no learning layer: everything counts
+        return 0.0
+
+
+def events(limit: int = 5000, every: bool = False) -> "list[dict]":
+    """Every recorded choice a learner may use, oldest first, from the three places that make them.
+
+    Rows from before the FRESH START are left out (they stay in the logs, for audit), and so are rows you deleted. `every=True` gives all of them."""
     rows = _route_events() + _model_events() + _jsonl(CHOICES)
     rows.sort(key=lambda e: e.get("at") or 0)
+    if not every:
+        since = _since()
+        rows = [e for e in rows if e.get("hidden") != "delete" and (not since or (e.get("at") or 0) >= since)]
     return rows[-limit:]
 
 
@@ -223,10 +258,11 @@ def counters(rows: "list[dict] | None" = None) -> dict:
 def status() -> dict:
     """How much the Hub has to learn from, and what each later step still needs. Read-only."""
     rows = events()
+    every = events(every=True)
     per: dict = {}
     for k in KINDS:
         mine = [e for e in rows if e["kind"] == k]
-        per[k] = {"events": len(mine), "labelled": sum(1 for e in mine if e["ok"] is not None),
+        per[k] = {"events": len(mine), "labelled": sum(1 for e in mine if e["ok"] is not None), "skipped": sum(1 for e in mine if e.get("hidden") == "skip"),
                   "weak": sum(1 for e in mine if e["ok"] is None and e.get("weak") is not None), "options": len({e["chosen"] for e in mine if e["ok"] is not None})}
     needs = {}
     for step, (kind, n, what) in NEEDS.items():
@@ -235,7 +271,7 @@ def status() -> dict:
     calls = _STATS["calls"]
     from . import bandit as BD
     bandits = {"R3 model choice": BD.replay(rows, "model"), "R4 PC-task way": BD.replay(rows, "rung")}
-    return {"logging": enabled(), "per_kind": per, "needs": needs, "bandits": bandits,
+    return {"logging": enabled(), "fresh_since": _since(), "before_fresh_start": len(every) - len(rows), "per_kind": per, "needs": needs, "bandits": bandits,
             "cost": {"notes": calls, "spent_ms": round(_STATS["spent_s"] * 1000, 2), "mean_us": round(_STATS["spent_s"] / calls * 1e6) if calls else 0, "worst_us": round(_STATS["worst_s"] * 1e6)},
             "learning": "nothing learns yet: R1 only records"}
 

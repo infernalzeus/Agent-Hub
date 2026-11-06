@@ -1,0 +1,310 @@
+{
+ "nodes": [
+  {
+   "id": "live",
+   "type": "text",
+   "x": 0,
+   "y": 0,
+   "width": 300,
+   "height": 150,
+   "color": "#3ba7ff",
+   "text": "## Live shadow memory\n\nWhile shadow mode is on, every live PC task the Hub does is kept: the controls the agent saw at each step, what it pressed, how the task ended and how sure the Hub is that it worked. Attested routines are kept apart as checks and never used here.\n\n*Event: live>mem when a session reads approved live tasks. Adjust: Live memory (keep what the live agent saw, passes over approved live tasks).*"
+  },
+  {
+   "id": "mem",
+   "type": "text",
+   "x": 380,
+   "y": 0,
+   "width": 300,
+   "height": 150,
+   "color": "#3ba7ff",
+   "text": "## Memory block\n\nThe rows a session can draw from: pretend-app episodes it just played, and the approved live tasks. Rows older than the fresh start are never used. A held-out third of the labelled routes is kept apart for judging.\n\n*Events: mem>enc as a task is read into features; mem>upd when approved live steps are imitated. Adjust: Replay and hindsight, Live memory.*"
+  },
+  {
+   "id": "enc",
+   "type": "text",
+   "x": 760,
+   "y": 0,
+   "width": 300,
+   "height": 150,
+   "color": "#3ba7ff",
+   "text": "## Features (encoder)\n\nTurns what the agent sees into numbers: for each control it could press, 51 features (its kind, its role, how many goal words its name shares, whether it was pressed before, 32 hashed letter-triples of its name) multiplied by 7 flags for where the task is, so a menu item after a button that opened something looks different from one at the start. The encoder is fixed: only the actor and critic learn.\n\n*Event: enc>actor each step. Adjust: Learn from the letters of names (Yard session).*"
+  },
+  {
+   "id": "actor",
+   "type": "text",
+   "x": 1140,
+   "y": 0,
+   "width": 300,
+   "height": 150,
+   "color": "#3ba7ff",
+   "text": "## Actor\n\nScores every control the agent could press. A linear scorer, or one hidden layer of tanh units. This is the part that is saved as the learned file. Its weights are what change when something has been learned.\n\n*Events: weights, with how far the numbers moved. Adjust: Hidden layer size, Actor step size (Learner).*"
+  },
+  {
+   "id": "soft",
+   "type": "text",
+   "x": 1520,
+   "y": 0,
+   "width": 300,
+   "height": 150,
+   "color": "#3ba7ff",
+   "text": "## Choice (softmax)\n\nTurns the scores into probabilities and picks one control: sampled while practising so it keeps exploring, the best one when it is measured or watching the live agent. A bonus for staying varied keeps it from settling too early.\n\n*Event: soft>env at every press. Adjust: Exploration bonus (Learner).*"
+  },
+  {
+   "id": "env",
+   "type": "text",
+   "x": 1900,
+   "y": 0,
+   "width": 300,
+   "height": 150,
+   "color": "#3ba7ff",
+   "text": "## Pretend app\n\nA pretend music player with a hidden state. It answers like a real app: its control tree, its clicks, what Windows would say is playing. Eight layouts, each with its own trap; the training words and the unseen words differ. Whether the target is really playing is the one reward nobody can fake.\n\n*Event: episode, with the layout and the number of presses. Adjust: Pretend layouts, Words used in training, Unseen apps per cell.*"
+  },
+  {
+   "id": "rew",
+   "type": "text",
+   "x": 1900,
+   "y": 240,
+   "width": 300,
+   "height": 150,
+   "color": "#3ba7ff",
+   "text": "## Reward\n\n-0.02 for every press, -0.1 for an unusable answer, -0.5 for saying done too early, +1 when the target is really playing (the sizes are adjustable). A late reward is spread back to the choices that led to it by the discount.\n\n*Event: reward, with the episode's total return. Adjust: Rewards, Discount.*"
+  },
+  {
+   "id": "crit",
+   "type": "text",
+   "x": 1520,
+   "y": 240,
+   "width": 300,
+   "height": 150,
+   "color": "#3ba7ff",
+   "text": "## Critic\n\nLearns how much return to expect from where the task is (11 numbers: the step flags, how far along it is, how many controls are shown, how well the best control matches the goal, how many presses did nothing). The advantage is what happened minus what it expected; a choice is reinforced only by the surprise.\n\n*Event: advantage. Adjust: Critic step size (Learner).*"
+  },
+  {
+   "id": "upd",
+   "type": "text",
+   "x": 1140,
+   "y": 240,
+   "width": 300,
+   "height": 150,
+   "color": "#3ba7ff",
+   "text": "## Update\n\nMoves the actor's numbers along advantage times the slope of the log-probability of the chosen control, plus the exploration bonus, and the critic's numbers towards the return. This is the step in which weights change; the size of the change is shown on the actor.\n\n*Events: update, with how far the numbers moved and their total size. Adjust: step sizes, discount, exploration, largest change per update (Weights).*"
+  },
+  {
+   "id": "repl",
+   "type": "text",
+   "x": 760,
+   "y": 240,
+   "width": 300,
+   "height": 150,
+   "color": "#3ba7ff",
+   "text": "## Replay buffer\n\nRemembers recent episodes with how unsure the learner was; every N episodes some are learned from again, the unsure ones more often. Off unless you set a number.\n\n*Event: replay. Adjust: Replay every N episodes, Episodes per replay, Which episodes are replayed.*"
+  },
+  {
+   "id": "hind",
+   "type": "text",
+   "x": 1900,
+   "y": 480,
+   "width": 300,
+   "height": 150,
+   "color": "#3ba7ff",
+   "text": "## Hindsight\n\nA failed task that ended up playing some other playlist is also learned from as a success for that other playlist (the controls stay the same, only the goal words change). Off by default.\n\n*Event: relabel. Adjust: Hindsight relabelling.*"
+  },
+  {
+   "id": "knobs",
+   "type": "text",
+   "x": 0,
+   "y": 240,
+   "width": 300,
+   "height": 150,
+   "color": "#3ba7ff",
+   "text": "## Session\n\nEvery number of the layer you can change by hand, in the KNOBS tab. Changes are saved and read the moment they are used. Safety rules (never-press list, taint gate, confirm before acting) cannot be changed here.\n\n*Event: session, with the settings a session starts with.*"
+  },
+  {
+   "id": "demos",
+   "type": "text",
+   "x": 380,
+   "y": 240,
+   "width": 300,
+   "height": 150,
+   "color": "#3ba7ff",
+   "text": "## Attested checks\n\nThe routines you checked and trusted. They are never training samples. After a session the learner is asked, step by step on pretend screens built from your routine's control names, which control it would press; the share that match your routine is shown.\n\n*Event: agreement, with the share that match. Adjust: nothing; it only measures.*"
+  },
+  {
+   "id": "fit",
+   "type": "text",
+   "x": 1140,
+   "y": 480,
+   "width": 300,
+   "height": 150,
+   "color": "#3ba7ff",
+   "text": "## Fitness\n\nHow well it does on layouts and words it has never seen, against random and the rule of thumb the Hub already uses. A block of training that scores clearly higher than the one before is announced as an improvement of the weights.\n\n*Events: improved, evaluated. Adjust: Unseen apps per cell.*"
+  },
+  {
+   "id": "gate",
+   "type": "text",
+   "x": 760,
+   "y": 480,
+   "width": 300,
+   "height": 150,
+   "color": "#3ba7ff",
+   "text": "## Gate\n\nA new version replaces the one in use only if it is at least as good on unseen words (within a small tolerance). Nothing here ever acts on your PC: it only decides which saved learner the shadow watcher uses.\n\n*Event: decided. Adjust: Gate numbers act on live promotion, not on this check.*"
+  },
+  {
+   "id": "ver",
+   "type": "text",
+   "x": 380,
+   "y": 480,
+   "width": 300,
+   "height": 150,
+   "color": "#3ba7ff",
+   "text": "## Saved versions\n\nEach finished session is saved as a version (a few hundred kilobytes of plain numbers) with its scores and the method that made it. The newest twelve are kept so one can be restored. Weight tools can average, smooth or compare versions.\n\n*Event: saved, with the version number and whether it is now the one in use.*"
+  }
+ ],
+ "edges": [
+  {
+   "id": "live>mem",
+   "fromNode": "live",
+   "fromSide": "right",
+   "toNode": "mem",
+   "toSide": "left",
+   "toEnd": "arrow",
+   "label": "approved live tasks"
+  },
+  {
+   "id": "mem>enc",
+   "fromNode": "mem",
+   "fromSide": "right",
+   "toNode": "enc",
+   "toSide": "left",
+   "toEnd": "arrow",
+   "label": "what the agent sees"
+  },
+  {
+   "id": "enc>actor",
+   "fromNode": "enc",
+   "fromSide": "right",
+   "toNode": "actor",
+   "toSide": "left",
+   "toEnd": "arrow",
+   "label": "numbers per control"
+  },
+  {
+   "id": "actor>soft",
+   "fromNode": "actor",
+   "fromSide": "right",
+   "toNode": "soft",
+   "toSide": "left",
+   "toEnd": "arrow",
+   "label": "scores"
+  },
+  {
+   "id": "soft>env",
+   "fromNode": "soft",
+   "fromSide": "right",
+   "toNode": "env",
+   "toSide": "left",
+   "toEnd": "arrow",
+   "label": "a press"
+  },
+  {
+   "id": "env>rew",
+   "fromNode": "env",
+   "fromSide": "bottom",
+   "toNode": "rew",
+   "toSide": "top",
+   "toEnd": "arrow",
+   "label": "what happened"
+  },
+  {
+   "id": "rew>crit",
+   "fromNode": "rew",
+   "fromSide": "left",
+   "toNode": "crit",
+   "toSide": "right",
+   "toEnd": "arrow",
+   "label": "return"
+  },
+  {
+   "id": "crit>upd",
+   "fromNode": "crit",
+   "fromSide": "left",
+   "toNode": "upd",
+   "toSide": "right",
+   "toEnd": "arrow",
+   "label": "advantage"
+  },
+  {
+   "id": "upd>actor",
+   "fromNode": "upd",
+   "fromSide": "top",
+   "toNode": "actor",
+   "toSide": "bottom",
+   "toEnd": "arrow",
+   "label": "new weights"
+  },
+  {
+   "id": "repl>upd",
+   "fromNode": "repl",
+   "fromSide": "right",
+   "toNode": "upd",
+   "toSide": "left",
+   "toEnd": "arrow",
+   "label": "remembered episodes"
+  },
+  {
+   "id": "hind>rew",
+   "fromNode": "hind",
+   "fromSide": "top",
+   "toNode": "rew",
+   "toSide": "bottom",
+   "toEnd": "arrow",
+   "label": "relabelled misses"
+  },
+  {
+   "id": "upd>fit",
+   "fromNode": "upd",
+   "fromSide": "bottom",
+   "toNode": "fit",
+   "toSide": "top",
+   "toEnd": "arrow",
+   "label": "the learner so far"
+  },
+  {
+   "id": "fit>gate",
+   "fromNode": "fit",
+   "fromSide": "left",
+   "toNode": "gate",
+   "toSide": "right",
+   "toEnd": "arrow",
+   "label": "scores"
+  },
+  {
+   "id": "gate>ver",
+   "fromNode": "gate",
+   "fromSide": "left",
+   "toNode": "ver",
+   "toSide": "right",
+   "toEnd": "arrow",
+   "label": "keep or not"
+  },
+  {
+   "id": "demos>gate",
+   "fromNode": "demos",
+   "fromSide": "bottom",
+   "toNode": "gate",
+   "toSide": "top",
+   "toEnd": "arrow",
+   "label": "agreement with your routines"
+  },
+  {
+   "id": "mem>upd",
+   "fromNode": "mem",
+   "fromSide": "bottom",
+   "toNode": "upd",
+   "toSide": "top",
+   "toEnd": "arrow",
+   "label": "imitate approved steps"
+  }
+ ]
+}

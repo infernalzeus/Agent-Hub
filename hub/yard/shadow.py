@@ -52,6 +52,15 @@ def _append(row: dict) -> None:
         f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
+def _memory(row: dict) -> None:
+    from .memory import MEMORY_STEPS
+    MEMORY_STEPS.parent.mkdir(parents=True, exist_ok=True)
+    if MEMORY_STEPS.exists() and MEMORY_STEPS.stat().st_size > 4_000_000:
+        os.replace(MEMORY_STEPS, MEMORY_STEPS.with_suffix(".jsonl.1"))
+    with MEMORY_STEPS.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
 def _label(act: dict, names: dict) -> dict:
     c = names.get(act.get("id"))
     return {"do": act.get("do"), "role": c["role"], "name": c["name"][:60]} if act.get("do") in ("click", "type") and c else {"do": act.get("do")}
@@ -62,6 +71,10 @@ def note(goal: str, app: str, prompt: str, act: dict, step: int) -> None:
     if not enabled():
         return
     try:
+        from . import knobs as K
+        if K.get("memory_prompts"):                           # the live step's controls list, for a later session to learn from approved tasks (memory.live_dataset)
+            _memory({"at": round(time.time(), 1), "goal": goal[:80], "app": app[:40], "step": step, "prompt": prompt[:6000],
+                     "live": {"do": act.get("do"), "id": (act.get("control") or {}).get("id")}})
         lr = _learner()
         if lr is None:
             return

@@ -49,7 +49,8 @@ def save(base: Path, policy_file: Path, rep: dict, weights: dict) -> dict:
     meta = {"n": n, "at": rep["at"], "episodes": rep["episodes"], "seed": rep["seed"], "known": rep["means"]["learned, linear"]["train"], "held": held,
             "hidden_known": rep["means"]["learned, one hidden layer"]["train"], "hidden_held": rep["means"]["learned, one hidden layer"]["held"],
             "layouts": len(rep["table"]["learned, linear"]), "in_use_ever": bool(adopted), "warm_from": rep.get("warm_from"),
-            "total_episodes": (prior[-1].get("total_episodes", prior[-1]["episodes"]) if prior else 0) + rep["episodes"]}
+            "total_episodes": (prior[-1].get("total_episodes", prior[-1]["episodes"]) if prior else 0) + rep["episodes"],
+            "methods": rep.get("methods"), "attested_agreement": (rep.get("attested_agreement") or {}).get("rate")}     # which method made these numbers, so two methods never mix
     (_dir(base) / f"v{n}.json").write_text(json.dumps({"meta": meta, "weights": weights}), encoding="utf-8")
     base.mkdir(parents=True, exist_ok=True)
     log = base / "sessions.jsonl"

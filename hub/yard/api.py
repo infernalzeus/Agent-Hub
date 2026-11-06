@@ -40,7 +40,7 @@ def _run(episodes: int) -> dict:
         raise RuntimeError("a practice run is already going")
     try:
         from . import practice
-        return practice.practice(episodes=episodes, n_eval=20)
+        return practice.practice(episodes=episodes)                     # unseen apps per cell and everything else come from the KNOBS tab
     finally:
         _busy.release()
 
@@ -61,8 +61,8 @@ async def api_settings_set(request: web.Request) -> web.Response:
     """{"learning": false} and/or {"shadow": true}. Switching either off stops new notes at once; nothing already recorded is deleted."""
     from . import settings
     body = await request.json()
-    if not any(isinstance(body.get(k), bool) for k in settings.KEYS):
-        raise web.HTTPBadRequest(text='Send {"learning": true|false} and/or {"shadow": true|false}')
+    if not any(isinstance(body.get(k), bool) for k in (*settings.KEYS, "experimental", "fresh")):
+        raise web.HTTPBadRequest(text='Send {"experimental": bool}, {"learning": bool}, {"shadow": bool} and/or {"fresh": true}')
     return web.json_response(settings.update(body))
 
 
@@ -83,7 +83,8 @@ async def api_practice(request: web.Request) -> web.Response:
         raise web.HTTPBadRequest(text="Confirm the practice run first; it uses the processor for about a minute")
     if not status()["ready"]:
         raise web.HTTPServiceUnavailable(text=status()["needs"])
-    episodes = max(100, min(MAX_EPISODES, int(body.get("episodes") or 1500)))
+    from . import knobs as K
+    episodes = max(100, min(MAX_EPISODES, int(body.get("episodes") or K.get("episodes"))))
     try:
         rep = await asyncio.get_running_loop().run_in_executor(None, _run, episodes)
     except RuntimeError as exc:

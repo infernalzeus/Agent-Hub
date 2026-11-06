@@ -858,7 +858,16 @@
     talkBtn.textContent='';talkBtn.classList.add('talk-btn');talkBtn.setAttribute('aria-label','Talk to the Hub');var smith=el('img');smith.src='/smith-icon.png';smith.alt='';talkBtn.appendChild(smith);
     pcBtn.textContent='';var wire=document.querySelector('#mcp-wire svg');if(wire)pcBtn.appendChild(wire.cloneNode(true));pcBtn.setAttribute('aria-label','PC control');
     if(hands){hands.button.setAttribute('aria-label','Hand control');hands.button.title='Hand control';hands.button.querySelectorAll('span').forEach(function(n){n.remove();});Array.from(hands.button.childNodes).forEach(function(n){if(n.nodeType===3)n.textContent='';});}
-    var learning=el('button','hb-btn hb-learning','R');learning.type='button';learning.title='Reinforcement learning';learning.setAttribute('aria-label','Reinforcement learning');learning.onclick=function(){glassPage('/yard','REINFORCEMENT LEARNING');};bar.appendChild(learning);
+    var learning=el('button','hb-btn hb-learning','R');learning.type='button';learning.hidden=true;       // experimental: hidden until it is switched on in Settings
+    learning.title='Reinforcement learning (experimental)';learning.setAttribute('aria-label','Reinforcement learning, experimental');learning.onclick=function(){
+      // Light on: this click only switches shadow mode off (so it cannot stay on by accident). Light off: it opens the panel, where the switch to turn it on lives.
+      if(learning.classList.contains('lit')){fetch('/api/yard/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({shadow:false,learning:false})}).then(function(){shadowLight(false);}).catch(function(){});return;}
+      glassPage('/yard','REINFORCEMENT LEARNING · EXPERIMENTAL');};bar.appendChild(learning);
+    // The small light on R is on only while shadow mode is on (off by default). The panel's own switch tells the board at once; a slow check keeps it honest if it changes elsewhere.
+    function shadowLight(on){learning.classList.toggle('lit',!!on);learning.title=on?'Shadow mode is ON (experimental). Click to switch it off.':'Reinforcement learning (experimental). Click to open.';}
+    function shadowPoll(){if(!alive)return;fetch('/api/yard/settings',{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){learning.hidden=!(j&&j.experimental&&j.experimental.on);shadowLight(j&&j.shadow&&j.shadow.on);}).catch(function(){learning.hidden=true;});}
+    window.addEventListener('message',function(e){if(e.origin===location.origin&&e.data&&typeof e.data.hubShadow==='boolean')shadowLight(e.data.hubShadow);});
+    shadowPoll();var shadowTimer=setInterval(function(){if(!alive){clearInterval(shadowTimer);return;}shadowPoll();},20000);
     setupBtn.hidden=true;setupBtn.classList.add('hb-setup-secondary');
     var gizmo=host.querySelector('.hb-gizmo');if(gizmo)rightScroll.appendChild(gizmo);
     // LOG is a per-device presentation choice; recording its lines remains active.

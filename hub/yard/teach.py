@@ -24,7 +24,7 @@ BIN_HELP = {
 }
 
 
-GRADES = ("right", "partly", "wrong", "skip")
+GRADES = ("right", "partly", "wrong", "skip", "delete")       # skip: do not ask again; delete: remove it, it is used for nothing
 # WHY a thing went wrong. "heard", "app" and "steps" are not the router's fault, so they must not be counted against it: a garbled transcript is a
 # speech-to-text lesson, an app that changed is a routine lesson. Only "hub" (and "wording", which asks the Hub to ask back) blame the decision itself.
 CAUSES = {"hub": "the Hub chose badly", "heard": "it heard me wrongly (speech to text)", "wording": "I said it badly / it was unclear",
@@ -41,7 +41,7 @@ def _grade(b: dict) -> "tuple[str, bool | None, str | None]":
             raise web.HTTPBadRequest(text='send "grade": right|partly|wrong (or "ok": true|false)')
         g = "right" if ok else "wrong"
     cause = b.get("cause") if b.get("cause") in CAUSES else None
-    if g == "skip":
+    if g in ("skip", "delete"):
         return g, None, None
     if g == "right":
         return g, True, None
@@ -79,9 +79,19 @@ def _unlabelled(limit: int = 100) -> "tuple[list[dict], int]":
     from ..features import binning as BIN
     rows = BIN._rows()
     answered = {r.get("of") for r in rows if r.get("kind") == "verdict" and r.get("by") == "teach"}
-    said = [r for r in rows if r.get("kind") not in ("outcome", "verdict") and r.get("at") and r.get("text")]
+    from ..yard import settings as YS
+    since = YS.fresh_since()                                  # after a FRESH START only new requests are offered
+    said = [r for r in rows if r.get("kind") not in ("outcome", "verdict") and r.get("at") and r.get("text") and (not since or r["at"] >= since)]
     left = [r for r in said if r["at"] not in answered and not any(v.get("of") == r["at"] and isinstance(v.get("ok"), bool) for v in rows if v.get("kind") == "verdict")]
-    left.sort(key=lambda r: r["at"], reverse=True)
+    # Most useful first (uncertainty sampling): a decision the rules were unsure about, or that tev had to be asked, teaches more than one that was obvious,
+    # so you can stop early without losing the best labels. Ties: newest first.
+    def info(r: dict) -> float:
+        if r.get("by") == "you":
+            return 0.05                                        # your own earlier correction: already known
+        c = r.get("confidence")
+        base = 0.5 if not isinstance(c, (int, float)) else max(0.0, 1.0 - abs(float(c) - 0.75) * 2.0)      # most to learn near the 0.75 cut-off
+        return base + (0.3 if r.get("asked") else 0.0)
+    left.sort(key=lambda r: (-info(r), -r["at"]))
     items = []
     for r in left[:limit]:
         item = {"of": r["at"], "text": str(r["text"])[:200], "chosen": str(r.get("bin")), "said": str(r.get("said") or "")[:160], "by": str(r.get("by") or "rules")}
@@ -98,7 +108,7 @@ def _unlabelled(limit: int = 100) -> "tuple[list[dict], int]":
 async def api_items(request: web.Request) -> web.Response:
     from ..features import binning as BIN
     items, left = _unlabelled()
-    return web.json_response({"items": items, "left": left, "bins": [{"id": b, "help": BIN_HELP.get(b, "")} for b in BIN.BINS], "causes": CAUSES})
+    return web.json_response({"order": "most useful first: unsure decisions before obvious ones", "items": items, "left": left, "bins": [{"id": b, "help": BIN_HELP.get(b, "")} for b in BIN.BINS], "causes": CAUSES})
 
 
 @routes.post("/api/learning/teach")
@@ -142,6 +152,10 @@ def _missions(limit: int = 12) -> "list[dict]":
     except Exception:  # noqa: BLE001
         return []
     human = LRN.mission_verdicts()
+    from ..yard import settings as YS
+    since = YS.fresh_since()
+    gone = {k for k, v in LRN._jsonl_dict(LRN.MISSION_LABELS).items() if isinstance(v, dict) and v.get("grade") in ("skip", "delete")}
+    rows = [m for m in rows if m.id not in gone and (not since or (m.created or 0) >= since)]
     out = []
     for m in rows[:limit]:
         v = m.verify if isinstance(getattr(m, "verify", None), dict) else {}
@@ -233,14 +247,14 @@ _HTML = """<!DOCTYPE html>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--accent:#00e676;--text:rgba(214,245,230,.92);--mute:rgba(214,245,230,.58);--amber:#e0a53c;--red:#ff5c5c;--border:rgba(0,230,118,.25);--panel:rgba(8,12,40,.9)}
-body{background:#080c28;color:var(--text);font:15px/1.5 Outfit,system-ui,sans-serif;padding:18px max(16px,env(safe-area-inset-left)) 40px}
+body{background:#080c28;color:var(--text);font:13px/1.45 Outfit,system-ui,sans-serif;padding:12px max(14px,env(safe-area-inset-left)) 28px}
 main{max-width:640px;margin:0 auto}
-html.hub-embed h1{display:none}h1{font:800 20px Orbitron,system-ui,sans-serif;letter-spacing:.08em;color:var(--accent)}
-p.sub{color:var(--mute);margin:6px 0 14px;font-size:13px}
-.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;margin:12px 0}
-.said{font-size:20px;line-height:1.35;margin-bottom:10px}.bin{color:var(--accent);font-weight:600}.mute{color:var(--mute);font-size:13px}
-.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
-button,select{font:700 13px Orbitron,system-ui,sans-serif;letter-spacing:.06em;border-radius:8px;padding:11px 18px;border:1px solid var(--accent);background:var(--panel);color:var(--accent);cursor:pointer;min-height:44px}
+html.hub-embed h1{display:none}h1{font:800 16px Orbitron,system-ui,sans-serif;letter-spacing:.08em;color:var(--accent)}
+p.sub{color:var(--mute);margin:4px 0 8px;font-size:12px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:8px 0}
+.said{font-size:15px;line-height:1.35;margin-bottom:6px}.bin{color:var(--accent);font-weight:600}.mute{color:var(--mute);font-size:13px}
+.row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+button,select{font:700 11px Orbitron,system-ui,sans-serif;letter-spacing:.05em;border-radius:7px;padding:7px 12px;border:1px solid var(--accent);background:var(--panel);color:var(--accent);cursor:pointer;min-height:34px}
 button.no{border-color:var(--red);color:var(--red)}button.part{border-color:var(--amber);color:var(--amber)}input.step{width:130px;font:14px Outfit,system-ui,sans-serif;color:var(--text);background:rgba(8,12,40,.9);border:1px solid var(--border);border-radius:8px;padding:8px 10px}button.skip{border-color:var(--border);color:var(--mute)}
 .opts{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}.opts button{padding:6px 11px;min-height:34px;font-size:11px}.opts button.on{background:var(--accent);color:#04120a}.steps{margin:10px 0;border:1px solid var(--border);border-radius:8px;overflow:hidden}.steps label{display:flex;gap:10px;align-items:flex-start;padding:7px 10px;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer}.steps label:last-child{border-bottom:0}.steps label.bad{background:rgba(255,92,92,.1)}.steps .n{color:var(--mute);min-width:22px}.steps .nochg{color:var(--amber);font-size:12px}.h{font:700 11px Orbitron,system-ui,sans-serif;letter-spacing:.08em;color:var(--mute);margin:12px 0 2px}.effect{color:var(--mute);font-size:12.5px;margin-top:8px}select{font-weight:400;letter-spacing:0;max-width:100%}
 textarea{width:100%;font:14px Outfit,system-ui,sans-serif;color:var(--text);background:rgba(8,12,40,.9);border:1px solid var(--border);border-radius:8px;padding:8px 10px;resize:vertical}
@@ -249,8 +263,7 @@ textarea{width:100%;font:14px Outfit,system-ui,sans-serif;color:var(--text);back
 .chip{border:1px solid var(--border);border-radius:99px;padding:2px 10px;font-size:12px;color:var(--mute);margin-right:6px;display:inline-block}.chip.ok{color:var(--accent);border-color:var(--accent)}.chip.no{color:var(--red);border-color:var(--red)}
 </style></head><body><main>
 <h1>TEACH</h1>
-<p class="sub">Things you already asked, and what the Hub thought you wanted. RIGHT, PARTLY or WRONG, with a reason. A WRONG that says what it should have been changes how that exact sentence is routed from now on; everything else is recorded and counted on the LEARNED tab.</p>
-<div class="seg"><button type="button" id="s-req" class="on">REQUESTS</button><button type="button" id="s-mis">MISSIONS</button></div>
+<div class="seg"><button type="button" id="s-req" class="on">REQUESTS</button><button type="button" id="s-mis">MISSIONS</button><button type="button" id="s-task">PC TASKS</button></div>
 <div class="count" id="count"></div>
 <div id="card"></div>
 </main>
@@ -290,7 +303,7 @@ textarea{width:100%;font:14px Outfit,system-ui,sans-serif;color:var(--text);back
       card.appendChild(box);card.appendChild(el('div','mute','Tick the steps that went wrong. Leave all unticked if none did.'));
     }
     let grade=null,cause='';
-    const row=el('div','row'),yes=el('button',null,'RIGHT'),part=el('button','part','PARTLY'),no=el('button','no','WRONG'),skip=el('button','skip','SKIP');
+    const row=el('div','row'),yes=el('button',null,'RIGHT'),part=el('button','part','PARTLY'),no=el('button','no','WRONG'),skip=el('button','skip','SKIP'),del_=el('button','skip','DELETE');del_.title='Remove this for good. It is used for nothing and never comes back.';skip.title='Do not ask about this again';
     const why=el('div');card.appendChild(row);card.appendChild(why);
     const why_h=el('div','h','WHY? (OPTIONAL BUT THIS IS WHAT IT LEARNS FROM)');why.appendChild(why_h);
     const opts=el('div','opts');Object.keys(causes).forEach(k=>{const b=el('button',null,causes[k]);b.type='button';b.onclick=()=>{cause=cause===k?'':k;opts.querySelectorAll('button').forEach(x=>x.classList.remove('on'));if(cause)b.classList.add('on');};opts.appendChild(b);});why.appendChild(opts);
@@ -301,9 +314,9 @@ textarea{width:100%;font:14px Outfit,system-ui,sans-serif;color:var(--text);back
     const paint=()=>{[yes,part,no].forEach(b=>b.classList.remove('on'));({right:yes,partly:part,wrong:no})[grade]&&({right:yes,partly:part,wrong:no})[grade].classList.add('on');save.hidden=!(grade==='partly'||grade==='wrong');save.textContent='SAVE '+(grade||'').toUpperCase();};
     const send1=(g)=>send('/api/learning/teach',Object.assign({of:it.of},g),()=>{left=Math.max(0,left-1);i++;show();});
     const full=(g)=>({grade:g,cause:cause||undefined,correct:sel.value||undefined,bad_steps:[...bad].sort((a,b)=>a-b),step:bad.size?[...bad][0]:undefined,note:note.value||undefined});
-    yes.onclick=()=>send1(full('right'));skip.onclick=()=>send1({grade:'skip'});
+    yes.onclick=()=>send1(full('right'));skip.onclick=()=>send1({grade:'skip'});del_.onclick=()=>send1({grade:'delete'});
     part.onclick=()=>{grade='partly';paint();};no.onclick=()=>{grade='wrong';paint();};save.onclick=()=>send1(full(grade));
-    row.append(yes,part,no,skip,save);c.appendChild(card);
+    row.append(yes,part,no,skip,del_,save);c.appendChild(card);
   }
   async function missions(){const c=$('card');c.replaceChildren();$('count').textContent='Newest first. APPLY already counts as a yes and DISCARD as a no; tap for the rest.';
     let j;try{j=await (await fetch('/api/learning/teach/missions',{cache:'no-store'})).json();}catch(e){c.textContent='Could not read the missions: '+e.message;return;}
@@ -313,12 +326,32 @@ textarea{width:100%;font:14px Outfit,system-ui,sans-serif;color:var(--text);back
       if(m.checks!==null)meta.append(el('span','chip '+(m.checks?'ok':'no'),m.checks?'its checks passed':'its checks failed'));
       if(m.verdict!==null&&m.verdict!==undefined)meta.append(el('span','chip '+(m.verdict?'ok':'no'),(m.verdict?'good':'bad')+' ('+m.decided_by+')'));
       card.appendChild(meta);
-      const row=el('div','row'),g=el('button',null,'GOOD'),pt=el('button','part','PARTLY'),b=el('button','no','BAD');
+      const row=el('div','row'),g=el('button',null,'GOOD'),pt=el('button','part','PARTLY'),b=el('button','no','BAD'),hide=el('button','skip','HIDE'),rm=el('button','skip','DELETE');hide.title='Do not show this again';rm.title='Remove this for good; it is used for nothing';
       const save=(x)=>send('/api/learning/teach/mission',Object.assign({id:m.id},x),missions);
-      g.onclick=()=>save({grade:'right'});pt.onclick=()=>detail(row,'partly',false,null,save);b.onclick=()=>detail(row,'wrong',false,null,save);
-      row.append(g,pt,b);card.appendChild(row);c.appendChild(card);});}
-  $('s-req').onclick=()=>{$('s-req').classList.add('on');$('s-mis').classList.remove('on');show();};
-  $('s-mis').onclick=()=>{$('s-mis').classList.add('on');$('s-req').classList.remove('on');missions();};
+      hide.onclick=()=>save({grade:'skip'});rm.onclick=()=>save({grade:'delete'});g.onclick=()=>save({grade:'right'});pt.onclick=()=>detail(row,'partly',false,null,save);b.onclick=()=>detail(row,'wrong',false,null,save);
+      row.append(g,pt,b,hide,rm);card.appendChild(row);c.appendChild(card);});}
+  // PC TASKS: what the Hub did on this PC while shadow mode was on, with the evidence that it worked and how sure it is
+  const pctc=v=>Math.round(v*100)+' %';
+  async function tasks(){const c=$('card');c.replaceChildren();let j;
+    try{j=await (await fetch('/api/yard/evidence',{cache:'no-store'})).json();}catch(e){c.textContent='Could not read the evidence: '+e.message;return;}
+    $('count').textContent=j.on?'Newest first. EXPERIMENTAL: kept on this PC only, the newest '+j.keep+'.':'Shadow mode is OFF, so nothing new is being kept. Turn it on from the R panel.';
+    const cal=el('div','card');cal.append(el('div','h','HOW SURE vs WHAT YOU SAID'));
+    const g=j.calibration.filter(b=>b.graded);cal.append(el('div','mute',g.length?g.map(b=>b.band+': '+b.right+' of '+b.graded+' right').join('  ·  '):'Nothing graded yet. Each RIGHT or WRONG you tap here is one exact label for the confidence number.'));c.appendChild(cal);
+    if(!j.items.length){c.appendChild(el('div','card','No PC task has been kept yet. With shadow mode on, ask the Hub to open an app and do something in it.'));return;}
+    j.items.forEach(t=>{const card=el('div','card');card.appendChild(el('div','said',t.goal||'(a task)'));
+      const meta=el('div','mute');meta.append(el('span','chip',t.app||''),el('span','chip',t.way),el('span','chip',t.seconds+' s'),el('span','chip '+(t.ok?'ok':'no'),t.ok?'it said done':'it said failed'));
+      meta.append(el('span','chip '+(t.confidence>=0.9?'ok':t.confidence>=0.6?'':'no'),'confidence '+pctc(t.confidence)+(t.capped?' (capped: nothing independent checked it)':'')));card.appendChild(meta);
+      const why=el('div','steps');t.why.forEach(w=>{const l=el('label');l.append(el('span','n',w.startsWith('warning')?'!':'✓'),el('span',null,w.replace(/^warning: /,'')));if(w.startsWith('warning'))l.classList.add('bad');why.appendChild(l);});card.appendChild(why);
+      if(t.pics&&t.pics.length){const pics=el('div','row');t.pics.forEach(w=>{const f=el('div');f.append(el('div','h',w.toUpperCase()));const im=el('img');im.src='/api/yard/evidence/'+t.id+'/'+w+'.jpg';im.alt=w+' picture of the screen';im.loading='lazy';im.style.cssText='max-width:100%;width:290px;border:1px solid var(--border);border-radius:8px';f.append(im);pics.append(f);});card.appendChild(pics);}
+      else card.appendChild(el('div','mute','No picture was kept for this one.'));
+      const row=el('div','row'),yes=el('button',null,'RIGHT'),no=el('button','no','WRONG'),rp=el('button','part','REPLAY'),sk=el('button','skip','HIDE'),dl=el('button','skip','DELETE');const msg=el('span','mute');sk.title='Do not show this again';dl.title='Remove this task, its pictures and its label for good';
+      const lab=g=>fetch('/api/yard/evidence/'+t.id+'/label',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({grade:g})}).then(()=>tasks());
+      yes.onclick=()=>lab('right');no.onclick=()=>lab('wrong');sk.onclick=()=>lab('skip');dl.onclick=()=>fetch('/api/yard/evidence/'+t.id,{method:'DELETE'}).then(()=>tasks());
+      rp.hidden=!t.routine;rp.title='Plays the saved routine again on this PC so you can see it';
+      rp.onclick=async()=>{if(!confirm('Replay this routine now? It will press things on this PC.'))return;rp.disabled=true;msg.textContent='Replaying...';try{const r=await fetch('/api/yard/evidence/'+t.id+'/replay',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})});msg.textContent=r.ok?((await r.json()).say||'done'):(await r.text());}catch(e){msg.textContent=String(e);}rp.disabled=false;};
+      row.append(yes,no,rp,sk,dl,msg);if(t.label&&(t.label.grade==='right'||t.label.grade==='wrong'))row.append(el('span','chip '+(t.label.grade==='right'?'ok':'no'),'you said '+t.label.grade));card.appendChild(row);c.appendChild(card);});}
+  const segs={'s-req':show,'s-mis':missions,'s-task':tasks};
+  Object.keys(segs).forEach(k=>$(k).onclick=()=>{Object.keys(segs).forEach(o=>$(o).classList.toggle('on',o===k));segs[k]();});
   load().catch(e=>{$('card').textContent='Could not read the decision log: '+e.message;});
 })();
 </script></body></html>
