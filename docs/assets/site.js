@@ -108,7 +108,7 @@ function drawVisual(a){
  const field=(label,value)=>`<label class="ui-field"><span>${label}</span><input value="${esc(value)}" readonly></label>`;
  let content='',pageTitle=m.sid==='agents'?(m.key?'AGENCY':'SKILLS'):{hands:'DASHBOARD · HAND CONTROL',pc:'PC CONTROL · NAMED PRESS',media:'MEDIA VAULT',graph:'GIT GRAPH',missions:'MISSIONS',install:'FIRST-RUN SETUP',talk:'AGENT SMITH'}[m.sid];
  if(m.sid==='hands'){
-  const names=['start','point','point','drag','drag','turn','fit'];content=`<div class="hand-demo"><div class="dashboard-capture"><picture><source media="(max-width:650px) and (orientation:portrait)" srcset="assets/previews/hands-phone-${names[s]}.png"><img src="assets/previews/hands-${names[s]}.png" alt="Agent Hub dashboard: ${esc(m.title)}" draggable="false"></picture><span class="capture-label">${esc(m.title)} · dashboard view</span></div></div>`;
+  const clipNames=['point','point','pinch','fist','pan','zoom','turn'];content=`<div class="hand-demo"><div class="hand-stage" data-clip="${clipNames[s]||'point'}"><svg class="hand-skel" viewBox="0 0 1000 1000" role="img" aria-label="Skeleton of a hand, drawn from a real recording"></svg><div class="hand-boardwrap"><svg class="hand-board" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div><span class="hand-chip"></span><span class="capture-label">Your hand drawn from a real recording (joint numbers only, no pictures). The board is an illustration.</span></div></div>`;
 
  }else if(m.sid==='pc'){
   content=`<div class="pc-preview"><div class="ui-message"><img src="assets/agents/smith.png" alt="Agent Smith"><div><b>Agent Smith → desktop control</b><p>Press the named Play control in Apple Music.</p></div></div>`;
@@ -155,6 +155,7 @@ function drawVisual(a){
   content=`<div class="talk-preview"><div class="ui-message"><img src="assets/agents/smith.png" alt="Agent Smith"><div><b>Agent Smith</b><p>${esc(a.btns[s].dataset.t)}</p></div></div><div class="ui-proposal"><b>${esc(m.actor)}</b><p>${esc(m.description)}</p>${button('Explore this tool','tool')}</div></div>`;
  }
  host.innerHTML=`<div class="screen-toolbar"><span>${pageTitle}</span><div><button type="button" data-preview="replay" aria-label="Replay this preview">↻</button><button type="button" data-preview="pause" aria-label="Pause this preview">Ⅱ</button><button type="button" data-preview="next" aria-label="Next preview step">›</button></div></div><div class="screen-body">${content}</div>`;
+ if(m.sid==='hands'&&window.HubHandPlayer)window.HubHandPlayer(host,s);
  host.querySelectorAll('[data-preview]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const action=b.dataset.preview;clearTimeout(a.timer);clearTimeout(a.resume);a.pinned=true;
   const jump=i=>pin(a,i,12000);
   if(action==='next')jump(a.i+1);else if(action==='replay'){a.pinned=false;select(a,a.i);play(a);}else if(action==='pause'){stopDemo(a);host.getAnimations({subtree:true}).forEach(x=>x.pause());b.textContent='▶';b.setAttribute('aria-label','Resume preview');b.dataset.preview='replay';}

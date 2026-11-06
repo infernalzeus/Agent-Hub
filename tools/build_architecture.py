@@ -134,7 +134,7 @@ def diagram(tall=False, interactive=False):
 def interactive():
     model=json.dumps({'nodes':{n[0]:n[3] for n in NODES},'labels':{n[0]:n[1] for n in NODES},'edges':[(a,b) for a,b,d in EDGES]},separators=(',',':'))
     options=''.join('<option value="%s"%s>%s</option>'%(key,' selected' if key=='hub' else '',escape(label)) for key,label,_,_ in NODES)
-    return '<div class="architecture-shell original-shell"><label class="architecture-picker"><span>FOLLOW A COMPONENT</span><select aria-label="Architecture component">%s</select><button type="button" class="ui-btn" data-architecture-overview>Overview</button><small>Original circuit layout · select a component to follow its connections</small></label><div class="architecture-viewport"><div class="original-map" data-architecture="%s">%s</div></div><div class="circuit-caption"><b>AGENT HUB</b><p></p><div class="arch-connections"></div></div></div>'%(options,escape(model,quote=True),diagram(interactive=True))
+    return '<div class="architecture-shell original-shell"><label class="architecture-picker"><span>FOLLOW A COMPONENT</span><select aria-label="Architecture component">%s</select><button type="button" class="ui-btn" data-architecture-overview>Overview</button><small>Left to right: your devices, the private network, the Hub. Select a component to follow its connections</small></label><div class="architecture-viewport"><div class="original-map" data-architecture="%s">%s</div></div><div class="circuit-caption"><b>AGENT HUB</b><p></p><div class="arch-connections"></div></div></div>'%(options,escape(model,quote=True),diagram(interactive=True))
 
 def wide():return diagram()
 def tall():return diagram(True)

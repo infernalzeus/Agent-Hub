@@ -256,13 +256,13 @@ STORY = {
  "install": ("Choose your system, then open the first-run wizard.","Tool choices, private-device access and a Hub bookmark.","Unsigned macOS builds. Desktop control is Windows only.")}
 
 STEPS["hands"] = [
- ("Start", "YOU", "Choose HANDS in your dashboard to start the camera.", "Start the camera explicitly in your Hub.", 1),
- ("Point", "BROWSER CURSOR", "The index fingertip positions the board cursor.", "Point at a board control.", 0),
- ("Click", "BOARD POINTER", "A quick thumb-index pinch presses the control beneath the cursor.", "Pinch and release to click.", 0),
- ("Drag", "BOARD POINTER", "Keep the pinch held while moving to carry a block.", "Hold a pinch and move your hand.", 0),
- ("Drop", "BOARD POINTER", "Release the pinch to leave the block at its new position.", "Release your fingers to place the block.", 0),
- ("Rotate", "3D BOARD", "A fist changes the board angle in 3D view.", "Make a fist and move to turn the board.", 0),
- ("Fit / stop", "YOU", "Hold an open palm to fit the board; Escape stops the camera.", "Open your hand to fit. Press Escape to stop.", 1)]
+ ("Start", "YOU", "Choose HANDS in your dashboard to start the camera. It runs on your own device; nothing is recorded or sent anywhere.", "Start the camera explicitly in your Hub.", 1),
+ ("Point", "INDEX FINGER", "The fingertip is your cursor. Hold it still over a control and it clicks.", "Point at a control and hold still.", 0),
+ ("Pinch", "THUMB + INDEX", "A quick pinch clicks. Hold it and move to drag a block or scroll a panel; open your fingers to drop it.", "Pinch, hold and move, then let go.", 0),
+ ("Fist", "FIST", "A fist takes control of the screen. A fist again, a point or a pinch hands it back.", "Make a fist.", 0),
+ ("Palm", "FIST, THEN OPEN PALM", "Move the open palm and the board follows. Rest your hand to finish the move.", "Open your hand and move it.", 0),
+ ("Push / pull", "FIST, THEN OPEN PALM", "Push the palm toward the camera to zoom in; pull it back to zoom out. Pan and zoom never run together.", "Move your hand toward or away from the camera.", 0),
+ ("Turn", "FIST IN 3D", "In the 3D view, hold the fist and turn your wrist: the board and its panels turn with it.", "Hold a fist and turn your wrist.", 1)]
 
 
 STEPS['graph'] = [
@@ -273,7 +273,7 @@ STEPS['graph'] = [
  ("Review diff", "YOU", "Read the project agent-branch diff and choose whether to merge it in Git Graph. Mission APPLY and DISCARD remain separate decisions in Missions.", "Read the changed lines, or return to the map.", 1)]
 
 STORY['talk']=("Press TALK, or choose an example below.","Smith answers or opens the tool that handles the request.","")
-STORY['hands']=("Choose HANDS in the dashboard, then point at a block.","Move the cursor, drag, zoom, turn and fit the board.","")
+STORY['hands']=("Choose HANDS in the dashboard, then point at a block.","Pan, zoom, drag and turn the board with your hand.","Every gesture can be switched off or changed in the HANDS menu.")
 STEPS['skills']=[
  ("Hub library","SKILLS","Browse skills by topic, search for a name, and read its instructions.","Choose a topic or search the skill library.",0),
  ("Open-source skills","ANTHROPIC","The library includes Anthropic skills such as frontend-design, mcp-builder and webapp-testing.","Open a skill to read its instructions and origin.",0),
@@ -348,7 +348,8 @@ def build() -> str:
     body = ('<body><header class="site-header"><a class="brand" href="#" data-home aria-label="Agent Hub — return to landing"><img src="assets/agent-hub-mark.png" alt="" width="44" height="44">AGENT HUB</a>'
             '<a class="projects" href="https://infernalzeus.github.io/" data-projects><span class="old-project-arrow" aria-hidden="true">←</span><span>INFERNALZEUS - PROJECTS</span></a></header><main class="stage">%s%s</main>'
             '<script src="assets/agent-hub-mark.min.js?v=20261105b" defer></script><script src="assets/depth-lift-site.js?v=%s" defer></script>'
-            '<script src="assets/site.js?v=%s" defer></script></body></html>\n' % (landing, "".join(parts), V, V))
+            '<script src="assets/hand-clips.js?v=%s" defer></script><script src="assets/hand-player.js?v=%s" defer></script>'
+            '<script src="assets/site.js?v=%s" defer></script></body></html>\n' % (landing, "".join(parts), V, V, V, V))
     payload='<script type="application/json" id="site-skill-library">'+skill_examples()+'</script>'
     return head + body.replace('<script src="assets/agent-hub-mark',payload+'<script src="assets/agent-hub-mark',1)
 
