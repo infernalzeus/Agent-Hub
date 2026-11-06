@@ -345,7 +345,7 @@ def build() -> str:
         '<nav class="more-links" aria-label="More"><a href="#agents">AGENTS + SKILLS</a><a href="#architecture">ARCHITECTURE</a><a href="#hands">HAND CONTROL</a></nav>'
         '<form class="wishlist-form"><div><input id="wishlist-email" type="email" autocomplete="email" placeholder="Learn to build your own Agent Hub" aria-label="Email for the build guide wishlist" required><button type="submit">JOIN</button></div><p role="status" hidden></p></form>'
         '%s<nav class="doors" aria-label="The tools">%s</nav></div></section>' % (REPO, smith_btn, doors))
-    body = ('<body><header class="site-header"><a class="brand" href="#" data-home aria-label="Agent Hub — return to landing"><img src="assets/agent-hub-mark.png" alt="" width="44" height="44">AGENT HUB</a>'
+    body = ('<body><header class="site-header"><a class="brand" href="#" data-home aria-label="Agent Hub — return to landing"><img src="assets/agent-hub-logo-176.png" alt="" width="44" height="44" decoding="async">AGENT HUB</a>'
             '<a class="projects" href="https://infernalzeus.github.io/" data-projects><span class="old-project-arrow" aria-hidden="true">←</span><span>INFERNALZEUS - PROJECTS</span></a></header><main class="stage">%s%s</main>'
             '<script src="assets/agent-hub-mark.min.js?v=20261105b" defer></script><script src="assets/depth-lift-site.js?v=%s" defer></script>'
             '<script src="assets/hand-clips.js?v=%s" defer></script><script src="assets/hand-player.js?v=%s" defer></script>'

@@ -95,20 +95,39 @@ def main() -> int:
             continue
         s, file, i, w = b
         report[name] = f"{file} frame {i} score {s:.2f}"
-        # mirror like the dashboard overlay, then fit the whole clip into the unit square so the hand fills the view
-        xs = [1 - p[0] for f in w for p in f["lm"]]
-        ys = [p[1] for f in w for p in f["lm"]]
-        x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
-        side = max(x1 - x0, y1 - y0) * 1.12
-        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-        def norm(p):
-            return [round(((1 - p[0]) - cx) / side * 1000 + 500), round((p[1] - cy) / side * 1000 + 500)]
-        d0 = w[0]["d"]
+        # Same coordinates for the hand and the board (an overlay, as in the dashboard): camera pixels, mirrored, cropped to the clip's own
+        # extent and scaled to a 1000 x 700 stage. The numbers are smoothed (two binomial passes) so playback does not shake.
+        def smooth(vals):
+            k = [1, 4, 6, 4, 1]
+            for _ in range(2):
+                out = []
+                for q in range(len(vals)):
+                    acc = tot = 0
+                    for o, wt in zip(range(-2, 3), k):
+                        r = min(len(vals) - 1, max(0, q + o))
+                        acc += vals[r] * wt
+                        tot += wt
+                    out.append(acc / tot)
+                vals = out
+            return vals
+        nj = 42
+        series = [[(1 - f["lm"][q // 2][0]) * 640 if q % 2 == 0 else f["lm"][q // 2][1] * 480 for f in w] for q in range(nj)]
+        series = [smooth(v) for v in series]
+        xs = [v for q in range(0, nj, 2) for v in series[q]]
+        ys = [v for q in range(1, nj, 2) for v in series[q]]
+        cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+        hc = max((max(ys) - min(ys)) * 1.5, (max(xs) - min(xs)) * 1.5 * .7, 130)
+        wc = hc / .7
+        def sx(v):
+            return round((v - (cx - wc / 2)) / wc * 1000)
+        def sy(v):
+            return round((v - (cy - hc / 2)) / hc * 700)
+        px = smooth([f["px"] for f in w]); py = smooth([f["py"] for f in w]); kk = smooth([f["d"] / w[0]["d"] for f in w])
+        tw = smooth([f["tw"] for f in w]); pi = smooth([f["pi"] for f in w])
         frames = []
-        for f in w:
-            frames.append({"j": [v for p in f["lm"] for v in norm(p)],
-                           "px": round((f["px"] - w[0]["px"]) / 1280, 3), "py": round((f["py"] - w[0]["py"]) / 667, 3),
-                           "k": round(f["d"] / d0, 3), "tw": round(f["tw"], 3), "ro": round(f["ro"], 3), "pi": round(f["pi"], 3),
+        for n_, f in enumerate(w):
+            frames.append({"j": [sx(series[q][n_]) if q % 2 == 0 else sy(series[q][n_]) for q in range(nj)],
+                           "px": round(px[n_], 3), "py": round(py[n_], 3), "k": round(kk[n_], 3), "tw": round(tw[n_], 3), "pi": round(pi[n_], 3),
                            "on": f["p"] or f["tr"] or f["r"], "fist": 1 if f["g"] == "fist" else 0})
         dt = (w[-1]["t"] - w[0]["t"]) / (len(w) - 1)
         clips[name] = {"label": label, "ms": round(dt), "frames": frames}

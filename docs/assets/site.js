@@ -108,7 +108,7 @@ function drawVisual(a){
  const field=(label,value)=>`<label class="ui-field"><span>${label}</span><input value="${esc(value)}" readonly></label>`;
  let content='',pageTitle=m.sid==='agents'?(m.key?'AGENCY':'SKILLS'):{hands:'DASHBOARD · HAND CONTROL',pc:'PC CONTROL · NAMED PRESS',media:'MEDIA VAULT',graph:'GIT GRAPH',missions:'MISSIONS',install:'FIRST-RUN SETUP',talk:'AGENT SMITH'}[m.sid];
  if(m.sid==='hands'){
-  const clipNames=['point','point','pinch','fist','pan','zoom','turn'];content=`<div class="hand-demo"><div class="hand-stage" data-clip="${clipNames[s]||'point'}"><svg class="hand-skel" viewBox="0 0 1000 1000" role="img" aria-label="Skeleton of a hand, drawn from a real recording"></svg><div class="hand-boardwrap"><svg class="hand-board" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div><span class="hand-chip"></span><span class="capture-label">Your hand drawn from a real recording (joint numbers only, no pictures). The board is an illustration.</span></div></div>`;
+  const clipNames=['point','point','pinch','fist','pan','zoom','turn'];content=`<div class="hand-demo"><div class="hand-stage" data-clip="${clipNames[s]||'point'}"><div class="hand-boardwrap"><svg class="hand-board" viewBox="0 0 1000 700" aria-hidden="true"></svg></div><svg class="hand-skel" viewBox="0 0 1000 700" role="img" aria-label="Skeleton of a hand drawn over the board, from a real recording"></svg><span class="capture-label">Your hand drawn from a real recording (joint numbers only, no pictures). The board is an illustration.</span></div></div>`;
 
  }else if(m.sid==='pc'){
   content=`<div class="pc-preview"><div class="ui-message"><img src="assets/agents/smith.png" alt="Agent Smith"><div><b>Agent Smith → desktop control</b><p>Press the named Play control in Apple Music.</p></div></div>`;
@@ -184,21 +184,17 @@ document.querySelector('.wishlist-form')?.addEventListener('submit',e=>{e.preven
 
 function drawArchitecture(){
  const host=document.querySelector('.scene.active .original-map[data-architecture]');if(!host)return;
- const model=JSON.parse(host.dataset.architecture),shell=host.closest('.original-shell'),caption=shell.querySelector('.circuit-caption'),picker=shell.querySelector('.architecture-picker select');
- let connection=caption.querySelector('.arch-connection-picker');if(!connection){connection=document.createElement('select');connection.className='arch-connection-picker';connection.setAttribute('aria-label','Follow an architecture connection');caption.append(connection);}
- const choose=(id,pan=false)=>{
-  host.dataset.selected=id;picker.value=id;
-  const compact=matchMedia('(max-width:650px), (max-height:540px)').matches;
-  host.querySelectorAll('[data-arch-node]').forEach(n=>{const on=n.dataset.archNode===id;n.classList.toggle('selected',on);n.setAttribute('aria-pressed',String(on));n.setAttribute('tabindex',compact?'-1':'0');});
-  host.querySelectorAll('[data-from]').forEach(p=>p.classList.toggle('selected',p.dataset.from===id||p.dataset.to===id));
-  caption.querySelector('b').textContent=model.labels[id];caption.querySelector('p').textContent=model.nodes[id];
-  const links=caption.querySelector('.arch-connections');links.textContent='';connection.replaceChildren(new Option('Follow a connection…',''));
-  model.edges.filter(([a,b])=>a===id||b===id).forEach(([a,b])=>{const target=a===id?b:a,text=a===id?'→ '+model.labels[target]:model.labels[target]+' →';const link=document.createElement('button');link.type='button';link.textContent=text;link.dataset.archLink=target;link.onclick=()=>choose(target,true);links.append(link);connection.add(new Option(text,target));});
-  if(pan&&compact){host.classList.remove('diagram-overview');const viewport=shell.querySelector('.architecture-viewport'),n=host.querySelector(`[data-arch-node="${id}"] rect`),x=Number(n.getAttribute('x')),y=Number(n.getAttribute('y'));viewport.scrollTo({left:Math.max(0,x-viewport.clientWidth/2+Number(n.getAttribute('width'))/2),top:Math.max(0,y-viewport.clientHeight/2),behavior:reduced.matches?'instant':'smooth'});}
+ const model=JSON.parse(host.dataset.architecture),tip=host.parentElement.querySelector('.arch-tip');
+ const choose=id=>{
+  host.dataset.selected=id||'';
+  host.querySelectorAll('[data-arch-node]').forEach(n=>{const on=!!id&&n.dataset.archNode===id;n.classList.toggle('selected',on);n.setAttribute('aria-pressed',String(on));});
+  host.querySelectorAll('[data-from]').forEach(p=>p.classList.toggle('selected',!!id&&(p.dataset.from===id||p.dataset.to===id)));
+  if(!id){tip.hidden=true;return;}
+  tip.hidden=false;tip.querySelector('b').textContent=model.labels[id];tip.querySelector('p').textContent=model.nodes[id];
  };
- const overview=shell.querySelector('[data-architecture-overview]');overview.onclick=()=>{host.classList.add('diagram-overview');shell.querySelector('.architecture-viewport').scrollTo(0,0);};if(!host.dataset.selected)host.classList.add('diagram-overview');picker.onchange=()=>choose(picker.value,true);connection.onchange=()=>{if(connection.value)choose(connection.value,true);};
- host.querySelectorAll('[data-arch-node]').forEach(n=>{n.onclick=()=>choose(n.dataset.archNode);n.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();choose(n.dataset.archNode);}};});
- choose(host.dataset.selected||'hub');
+ host.querySelectorAll('[data-arch-node]').forEach(n=>{n.onclick=e=>{e.stopPropagation();choose(host.dataset.selected===n.dataset.archNode?'':n.dataset.archNode);};n.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();choose(host.dataset.selected===n.dataset.archNode?'':n.dataset.archNode);}};});
+ host.onclick=()=>choose('');tip.querySelector('button').onclick=e=>{e.stopPropagation();choose('');};
+ choose('');
 }
 
 
