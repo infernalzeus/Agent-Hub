@@ -218,8 +218,8 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
         b.onclick=async()=>{await POST('/api/yard/learners',{head:h,learner:l.learner});scores();};w.append(b);r.append(w);ct.append(r);}));
     const k=ch.router_knn||{},c2=ch.router_classifier||{};
     $('knn').textContent=k.ready?('Router, graded requests left out one at a time: nearest neighbours right on '+pct(k.knn)+(c2.ready?', trained classifier on '+pct(c2.classifier):'')+', current rules and tev on '+pct(k.current)+' ('+k.n+' graded).'):('Router: needs '+(k.needs||5)+' graded requests, has '+(k.n||0)+'.');
-    try{const v=await J('/api/yard/tev');$('tevline').textContent='tev fine-tune: '+(v.enough?'enough graded requests ('+v.rows+'), ':'needs '+v.needed+' graded requests, has '+v.rows+' ('+v.held_out+' held out). ')+(v.hardware.cuda?'a CUDA device is available. ':v.hardware.note+'. ')+'Nothing runs until you say go.';}catch(e){}
-    const g=j.gate||{};$('gateline').textContent='Gate for a new version: '+g.min_frozen+' held-out rows · zero forbidden presses · '+g.shadow_n+' watched live choices at '+pct(g.shadow_agree||0)+' · your yes.';}
+    const g=j.gate||{};$('gateline').textContent='Gate for a new version: '+g.min_frozen+' held-out rows · zero forbidden presses · '+g.shadow_n+' watched live choices at '+pct(g.shadow_agree||0)+' · your yes.';
+    try{const v=await J('/api/yard/tev');$('tevline').textContent='tev fine-tune: '+(v.enough?'enough graded requests ('+v.rows+'), ':'needs '+v.needed+' graded requests, has '+v.rows+' ('+v.held_out+' held out). ')+(v.hardware.cuda?'a CUDA device is available. ':v.hardware.note+'. ')+'Nothing runs until you say go.';}catch(e){}}
 
   // ---- tabs
   const TABS=['yard','teach','routines','scores'];

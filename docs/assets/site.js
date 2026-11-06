@@ -361,21 +361,29 @@ document.querySelectorAll('.work-agent').forEach(b=>b.addEventListener('click',(
  const emailPrompt=document.querySelector('[data-email-prompt]');
  if(emailPrompt){const invite='Learn to build your own Agent Hub',prompt='Type in your email';const show=()=>{emailPrompt.placeholder=prompt;};const restore=()=>{if(document.activeElement!==emailPrompt&&!emailPrompt.value)emailPrompt.placeholder=invite;};emailPrompt.addEventListener('pointerenter',show);emailPrompt.addEventListener('focus',show);emailPrompt.addEventListener('pointerleave',restore);emailPrompt.addEventListener('blur',restore);}
 
- /* Every portrait uses the same six-second clock, including newly opened readers.
-    Keep SVG paths as the source; stamp a shared phase into each image document. */
- const portraitSources=new Map();
+ /* Inline vectors share the page timeline; no independently timed image documents. */
+ const portraitSources=new Map();let portraitId=0;
  function syncPortraits(){
   document.querySelectorAll('img[src*="assets/agents/"]').forEach(img=>{
    const source=img.getAttribute('src');if(!/\/(smith|neo|doctor|orchestrator)\.svg(?:\?|$)/.test(source)||img.dataset.portraitClock)return;
    img.dataset.portraitClock='loading';
-   if(!portraitSources.has(source))portraitSources.set(source,fetch(source+'?portrait=20261106d').then(r=>{if(!r.ok)throw Error('Portrait '+r.status);return r.text();}));
-   portraitSources.get(source).then(svg=>{
+   if(!portraitSources.has(source))portraitSources.set(source,fetch(source+'?portrait=20261106-pen3').then(r=>{if(!r.ok)throw Error('Portrait '+r.status);return r.text();}));
+   portraitSources.get(source).then(text=>{
     if(!img.isConnected)return;
-    const phase=performance.now()%6000;
-    svg=svg.replace('</svg>','<style>*{animation-delay:-'+phase.toFixed(2)+'ms!important}</style></svg>');
-    const url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));
-    img.addEventListener('load',()=>URL.revokeObjectURL(url),{once:true});
-    img.dataset.portraitSource=source;img.dataset.portraitClock='shared';img.src=url;
+    const prefix='portrait-'+(++portraitId)+'-',svg=new DOMParser().parseFromString(text,'image/svg+xml').documentElement;
+    if(svg.localName!=='svg')throw Error('Invalid portrait');
+    const ids=[...svg.querySelectorAll('[id]')].map(e=>e.id),style=svg.querySelector('style');
+    let css=style?.textContent||'';const names=[...css.matchAll(/@keyframes\s+([\w-]+)/g)].map(m=>m[1]);
+    css=css.replace(/\.([a-zA-Z_][\w-]*)/g,(_,c)=>'.'+prefix+c);
+    for(const name of names)css=css.replaceAll('@keyframes '+name,'@keyframes '+prefix+name).replaceAll('animation:'+name+' ','animation:'+prefix+name+' ');
+    if(style)style.textContent=css;
+    svg.querySelectorAll('[class]').forEach(e=>e.setAttribute('class',e.getAttribute('class').split(/\s+/).map(c=>prefix+c).join(' ')));
+    for(const id of ids){svg.querySelectorAll('[id]').forEach(e=>{if(e.id===id)e.id=prefix+id;});svg.querySelectorAll('*').forEach(e=>{for(const a of [...e.attributes])if(a.value.includes('#'+id))e.setAttribute(a.name,a.value.replaceAll('#'+id,'#'+prefix+id));});}
+    svg.setAttribute('class',(img.className||'')+' agent-portrait');svg.setAttribute('data-agent-portrait',source.split('/').pop().replace('.svg',''));svg.setAttribute('data-portrait-clock','shared');
+    svg.setAttribute('aria-label',img.getAttribute('alt')||svg.querySelector('title')?.textContent||'Agent portrait');
+    for(const attr of ['width','height','style'])if(img.hasAttribute(attr))svg.setAttribute(attr,img.getAttribute(attr));
+    img.replaceWith(svg);
+    if(!reduced.matches)svg.getAnimations({subtree:true}).forEach(a=>{a.startTime=0;});
    }).catch(()=>{img.dataset.portraitClock='failed';});
   });
  }
