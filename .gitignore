@@ -206,3 +206,8 @@ hub/board_prefs.json
 # Captured public dashboard previews.
 !/docs/assets/previews/
 !/docs/assets/previews/*.png
+
+# Editable original circuit template used by the public architecture builder.
+!/tools/site_parts/
+/tools/site_parts/*
+!/tools/site_parts/architecture-original.svg

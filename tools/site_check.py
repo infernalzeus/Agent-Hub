@@ -15,7 +15,7 @@ PROBE = """(touch)=>{
  const sc=document.querySelector('.scene.active'),W=innerWidth,H=innerHeight,bad=[];
  const doc=document.scrollingElement;
  if(doc.scrollHeight>H+1||doc.scrollWidth>W+1)bad.push('document scrolls '+doc.scrollWidth+'x'+doc.scrollHeight);
- const skip=e=>e.closest('.flow,.zoom,.arch-open,.vol,canvas,.mark-host,noscript,.more-static');
+ const skip=e=>e.closest('.flow,.zoom,.arch-open,.vol,canvas,.mark-host,noscript,.more-static,.architecture-viewport .original-map');
  for(const e of sc.querySelectorAll('*')){
   if(skip(e))continue;const r=e.getBoundingClientRect();if(!r.width||!r.height)continue;
   const cs=getComputedStyle(e);if(cs.visibility==='hidden'||cs.display==='none')continue;

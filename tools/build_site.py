@@ -10,12 +10,13 @@ agent), no version numbers or counts, no claims about cloud, accounts or auto-up
 from __future__ import annotations
 
 import re
+import json
 
 from html import escape
 from pathlib import Path
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
-V = "20261105-layered-glass"
+V = "20261106-original-flow"
 REPO = "https://github.com/infernalzeus/Agent-Hub"
 AG = "assets/agents/"
 LEGEND = "Live: seen running on a real machine. Unit-tested: the logic is tested, not yet seen running. Built, not tried: built and tested without the real hardware."
@@ -81,7 +82,7 @@ STEPS = {'missions': [('Ask',
  'pc': [('Say it',
          'YOU → SMITH',
          'Smith hands the request to the Windows desktop agent.',
-         'Say: open Apple Music and play my liked songs.',
+         'Ask for the named Play control in Apple Music.',
          0),
         ('Look',
          'DESKTOP AGENT',
@@ -96,7 +97,7 @@ STEPS = {'missions': [('Ask',
         ('Act', 'WINDOWS MCP', 'The approved click or typing is sent to the app.', 'Watch the app respond.', 0),
         ('Check',
          'DESKTOP AGENT',
-         'The window must change for the press to count as a success.',
+         'A desktop music task checks Windows media-session playback state and the track, rather than trusting a changed button label.',
          'Review the result the agent reports.',
          0),
         ('Remember', 'HUB', 'A successful run is saved as a candidate routine.', 'Ask again later to use the saved routine.', 0)],
@@ -158,9 +159,9 @@ STEPS = {'missions': [('Ask',
             ('Write your own', 'YOU', 'A folder with a SKILL.md: name, when to use it, instructions.', 'Write the file, add the skill.', 0)]}
 
 TALK_PHONE = [
-    ("What's the weather in Leeds?", "A routine that worked before", "Smith answers from a saved routine. No model call, no agent started.", "Ask. That is all.", 0),
+    ("What's the weather in Leeds?", "A routine that worked before", "If a matching routine is available, Smith reuses the lookup. Otherwise the Hub chooses another route; this example does not imply a weather routine is preinstalled.", "Ask. That is all.", 0),
     ("Add a dark-mode toggle to settings", "This changes code, so it becomes a mission", "Smith starts a mission: planned and worked in a private copy. Your repo has not changed; the diff is waiting on you.", "Read the diff later and press APPLY.", 1),
-    ("Play my liked songs in Apple Music", "This needs the desktop, so it goes to PC control", "Smith hands it to the desktop agent, which finds the control, shows you the press, does it, and checks the window changed.", "Say yes to the press it shows.", 0),
+    ("Play my liked songs in Apple Music", "This needs the desktop, so it goes to PC control", "Smith hands it to the desktop agent, which inspects controls, operates the app step by step, and verifies Windows playback.", "Watch the task inspect the app, act and verify Windows playback.", 0),
     ("Save this video as audio", "A media job: a tool, not an agent", "Downloaded and converted on your PC. Open it in the browser, or copy it from your phone.", "Open the file or copy it.", 0),
     ("What did the agents change?", "A question about your repos: plain git", "One dot per project, read straight from git. Tap one to see exactly what an agent changed.", "Tap a dot.", 0),
     ("Every morning, summarise new PRs", "This runs on a clock", "Ran on its clock and stopped at review. Nothing applies while you sleep.", "Review it in the morning.", 1),
@@ -215,7 +216,10 @@ def agents_body():
             'neo':'Drafts an agent definition from a job description. Read and save the definition before using it.',
             'doctor':'Reads Hub facts and proposes a repair in a private copy. Review the diff and choose APPLY; restarting remains yours.'
         }[img]
-        lis.append('<li><button class="st card" type="button" data-t="%s" data-k="AGENCY" data-d="%s" data-you="%s" data-img="%s%s.png" aria-pressed="%s"><img class="av" src="%s%s.png" alt="" width="48" height="48"><span class="sb"><b>%s</b><em>%s</em></span></button></li>' % (escape(name,True),escape(role,True),escape(you,True),AG,img,'true' if i==0 else 'false',AG,img,escape(name),{'orchestrator':'Plans and delegates','smith':'Voice and chat','neo':'Designs agents','doctor':'Repairs the Hub'}[img]))
+        definition=role
+        if img in ('orchestrator','neo'):
+            definition=(Path(__file__).resolve().parent.parent/'hub/agent_knowledge/agents'/f'{img}.md').read_text(encoding='utf-8').split('---',2)[-1].strip()
+        lis.append('<li><button data-definition="%s" class="st card" type="button" data-t="%s" data-k="AGENCY" data-d="%s" data-you="%s" data-img="%s%s.png" aria-pressed="%s"><img class="av" src="%s%s.png" alt="" width="48" height="48"><span class="sb"><b>%s</b><em>%s</em></span></button></li>' % (escape(definition,True),escape(name,True),escape(role,True),escape(you,True),AG,img,'true' if i==0 else 'false',AG,img,escape(name),{'orchestrator':'Plans and delegates','smith':'Voice and chat','neo':'Designs agents','doctor':'Repairs the Hub'}[img]))
     agents=_auto_wrap(''.join(lis)).replace('class="auto"','class="auto agents-auto"',1)
     groups={
       'Code': ['coder','tester','reviewer','scout'],
@@ -232,7 +236,7 @@ def agents_body():
             description=re.search(r'^description:\s*(.+)$',definition,re.M)
             text=(about or description).group(1).strip().strip('"')
             rows.append('<button type="button" class="work-agent" data-work-group="%s" data-work-description="%s"%s><b>%s</b><span>%s</span></button>' % (group,escape(text,True),' hidden' if group!='Code' else '',escape(name),escape(text)))
-    work='<div class="work-panel"><nav class="work-categories" aria-label="Work types">'+''.join('<button type="button" class="ui-btn" data-work-category="%s" aria-pressed="%s">%s</button>' % (g,str(g=='Code').lower(),g) for g in groups)+'</nav><div class="work-list">'+''.join(rows)+'</div><p class="work-description" aria-live="polite">Choose a work agent to read its role. The orchestrator delegates scoped briefs to these agents.</p></div>'
+    work='<div class="work-panel"><nav class="work-categories" aria-label="Work types">'+''.join('<button type="button" class="ui-btn" data-work-category="%s" aria-pressed="%s">%s</button>' % (g,str(g=='Code').lower(),g) for g in groups)+'</nav><div class="work-list">'+''.join(rows)+'</div><div class="work-route" aria-label="Work-agent handoff"><span>Your goal</span><i>→</i><span>Orchestrator</span><i>→</i><span data-work-chosen>Work agent</span><i>→</i><span>Your review</span></div><p class="work-description" aria-live="polite">Choose a work agent to read its role. The orchestrator delegates scoped briefs to these agents.</p></div>'
     return '<div class="agency"><div class="tabs" role="tablist" aria-label="Agency"><button class="tab" role="tab" type="button" aria-selected="true" data-tab="agents">AGENTS</button><button class="tab" role="tab" type="button" aria-selected="false" data-tab="work">WORK AGENTS</button><button class="tab" role="tab" type="button" aria-selected="false" data-tab="skills">SKILLS</button></div><div class="tabpanel" data-panel="agents">%s</div><div class="tabpanel" data-panel="work" hidden>%s</div><div class="tabpanel" data-panel="skills" hidden>%s</div></div>' % (agents,work,auto(STEPS['skills']))
 
 def scene(sid, label, headline, chips_, line, runs, runs_line, body, wide=False, extra_head=""):
@@ -263,10 +267,10 @@ STEPS["hands"] = [
 
 STEPS['graph'] = [
  ("Project map", "YOUR PROJECTS", "Each dot represents a repository. Related projects can be connected; select a dot to inspect it.", "Choose a project in the example map.", 0),
- ("Connections", "PROJECT CONTEXT", "A relationship describes shared context between projects; it is separate from a git branch.", "Select a connected project to follow its context.", 0),
+ ("Connections", "PROJECT CONTEXT", "Project connections come from wikilinks between discovered projects’ entity pages. They are separate from branches and worktrees.", "Select a connected project to follow its context.", 0),
  ("New project", "MISSIONS", "Choose New Project in Missions. The Hub scaffolds a git repository before creating the mission's private worktree.", "Name a project in this browser-only example.", 0),
  ("Private work", "MISSION WORKTREE", "Agents change a separate git worktree. Your project's working files stay untouched until review.", "Inspect the working branch and its changed files.", 0),
- ("Review diff", "YOU", "Read the diff in Git Graph or the mission. APPLY and DISCARD remain your decision in Missions.", "Read the changed lines, or return to the map.", 1)]
+ ("Review diff", "YOU", "Read the project agent-branch diff and choose whether to merge it in Git Graph. Mission APPLY and DISCARD remain separate decisions in Missions.", "Read the changed lines, or return to the map.", 1)]
 
 STORY['talk']=("Press TALK, or choose an example below.","Smith answers or opens the tool that handles the request.","")
 STORY['hands']=("Choose HANDS in the dashboard, then point at a block.","Move the cursor, drag, zoom, turn and fit the board.","")
@@ -288,9 +292,22 @@ def talk_table():
     return '<table class="say-table"><caption>YOU SAY → SMITH SENDS IT → YOU GET</caption><thead><tr><th>You say</th><th>Smith sends it to</th><th>You get / you do</th></tr></thead><tbody>'+rows+'</tbody></table>'
 
 
+def skill_examples():
+    examples={
+      'debugging-methodology':'Example: a settings toggle does not persist.\n\n1. Reproduce the failure with one clear action.\n2. Compare the displayed setting with the saved value.\n3. Find where the two diverge.\n4. Make the smallest correction.\n5. Repeat the original action and check persistence.',
+      'testing-conventions':'Example: check a new settings toggle.\n\nCover the user-visible behavior: initial value, changing it, and reopening settings. Include a failure case that matters. Report the result and any remaining gap.',
+      'python-aiohttp-webapp':'Example: add a settings endpoint.\n\nValidate the incoming value, perform the intended change asynchronously, and return a clear result. The interface should show an actionable error if saving fails.',
+      'frontend-design':'Example: improve a project browser.\n\nDefine the main action, establish a readable hierarchy, use the existing brand, and make selected and empty states clear. Check the same task on a phone and desktop.',
+      'mcp-builder':'Example: expose a project-status tool.\n\nGive the tool a focused purpose, define its inputs, describe its result, and return useful errors. Keep its permissions appropriate to the job.',
+      'webapp-testing':'Example: review a project browser.\n\nOpen the map, select a project, inspect a changed file, and return. Check keyboard access, narrow layouts, errors and any unexpected overlap.',
+      'brag':'Example: explain a finished feature in a short launch video.\n\nChoose the user benefit, plan the shots, use relevant app footage, then review the rendered result. Launch videos is an optional catalogue skill; adding it is separate from browsing its entry.'}
+    return json.dumps(examples,ensure_ascii=False).replace('<','\\u003c')
+
+
 def build() -> str:
     machine = (Path(__file__).resolve().parent / "site_parts" / "machine.html").read_text(encoding="utf-8")
     machine = machine.replace("You say", "You say it to Smith").replace("The hub decides", "Smith decides").replace("split into briefs, run side by side", "split into briefs for worker agents")
+    machine = machine.replace('finds controls by name, not pixel','reads the app’s available controls').replace('Ask, then act','Act, then inspect').replace('shows the press, waits for yes','a named press can require approval').replace('the window must actually change','verify the requested outcome').replace('Saved as a routine, trusted after it works twice.','Successful steps can be kept as a routine.').replace('Found the control, showed you the press, did it,','Inspected the app, acted step by step,').replace('and checked the window changed.','and verified Windows playback.').replace('A routine that worked before','If a matching routine exists').replace('Answered from a saved routine.','A matching routine replays the lookup.').replace('weather, time — no model','reuse the lookup, not a stale answer')
     machine = re.sub(r'<span class="chip [^"]+">.*?</span>', "", machine)
     parts = []
     for sid, door, label, headline, ch, line, runs, runs_line in SCENES:
@@ -329,10 +346,11 @@ def build() -> str:
         '<form class="wishlist-form"><div><input id="wishlist-email" type="email" autocomplete="email" placeholder="Learn to build your own Agent Hub" aria-label="Email for the build guide wishlist" required><button type="submit">JOIN</button></div><p role="status" hidden></p></form>'
         '%s<nav class="doors" aria-label="The tools">%s</nav></div></section>' % (REPO, smith_btn, doors))
     body = ('<body><header class="site-header"><a class="brand" href="#" data-home aria-label="Agent Hub — return to landing"><img src="assets/agent-hub-mark.png" alt="" width="44" height="44">AGENT HUB</a>'
-            '<a class="projects" href="https://infernalzeus.github.io/" data-projects><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 5-7 7 7 7M3 12h18"/></svg><span>Infernal Zeus - Projects</span></a></header><main class="stage">%s%s</main>'
+            '<a class="projects" href="https://infernalzeus.github.io/" data-projects><span class="old-project-arrow" aria-hidden="true">←</span><span>INFERNALZEUS - PROJECTS</span></a></header><main class="stage">%s%s</main>'
             '<script src="assets/agent-hub-mark.min.js?v=20261105b" defer></script><script src="assets/depth-lift-site.js?v=%s" defer></script>'
             '<script src="assets/site.js?v=%s" defer></script></body></html>\n' % (landing, "".join(parts), V, V))
-    return head + body
+    payload='<script type="application/json" id="site-skill-library">'+skill_examples()+'</script>'
+    return head + body.replace('<script src="assets/agent-hub-mark',payload+'<script src="assets/agent-hub-mark',1)
 
 
 if __name__ == "__main__":
