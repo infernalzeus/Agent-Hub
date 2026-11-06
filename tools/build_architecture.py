@@ -13,34 +13,34 @@ ET.register_namespace('',NS)
 PARTS=Path(__file__).resolve().parent/'site_parts'
 # id, label, bounds in the ORIGINAL drawing, explanation
 NODES=[
- ('phone','PHONE',(46,150,86,34),'Your phone opens the same Hub interface through private device access.'),
- ('tablet','TABLET',(46,198,86,34),'Your tablet reaches the Hub on your PC; it does not run a separate agent backend.'),
- ('laptop','LAPTOP',(46,246,86,34),'Open the Hub from a laptop on the same private network.'),
- ('network','TAILSCALE',(174,183,96,34),'Tailscale connects your devices privately to the PC. It is the access boundary, not an agent or a processing step.'),
- ('hub','AGENT HUB',(300,150,148,100),'The Hub runs on your PC. Its dashboard opens apps, files, projects and controls directly; TALK is another input route.'),
- ('smith','TALK / SMITH',(350,330,112,32),'Smith receives typed or spoken requests. The router chooses a command, saved routine, app action or mission from what the request needs.'),
- ('router','ROUTER',(516,58,80,34),'Route an ask to the existing capability that can handle it. Code work can go directly to Missions; media and PC tasks take their own routes.'),
- ('missions','MISSIONS',(614,58,80,34),'Select a project or create a new one, describe the goal, and run work in a private git worktree. A question can pause the work for your answer.'),
- ('runtime','AGENT RUN',(712,58,80,34),'Run the chosen agent through a configured runtime, including OpenCode or Claude Code. Planning and delegation depend on the selected mission mode.'),
- ('worktree','WORKTREE',(810,58,80,34),'Implementation and checks happen in a separate working copy. A coding mission returns changed files and its diff.'),
- ('review','REVIEW',(908,58,80,34),'Read the result, review notes and changed lines before deciding whether to apply or discard the mission.'),
- ('apply','APPLY',(1006,58,80,34),'Applying merges the reviewed coding change. Discarding removes the mission copy. A suggested Hub repair does not restart your application for you.'),
- ('skills','SKILLS',(498,126,92,32),'Bundled, vendor and user-authored SKILL.md instructions are available to agents. Catalogue entries are distinct from skills already installed.'),
- ('orchestrator','ORCHESTRATOR',(664,126,108,32),'For an orchestrated mission, plan the goal and delegate scoped briefs to named work agents. It is one role, not the whole Hub.'),
- ('team','WORK AGENTS',(664,180,108,30),'Coding, testing, review, research, writing, delivery and design roles receive task-specific briefs. Their results return to the mission.'),
- ('graph','GIT GRAPH',(804,126,96,32),'Each dot is a discovered project. Project links come from wikilinks between project entity pages; branches and worktree diffs are separate from those links.'),
- ('pc','PC CONTROL',(516,290,104,34),'Desktop tasks inspect an app, choose a named control, act and inspect the result again. A named-control press can require approval; task-level desktop runs are a separate route.'),
- ('mcp','WINDOWS MCP',(670,290,118,34),'Windows MCP supplies desktop app, control, input and inspection tools. Music success is checked against Windows media-session playback state, not just a changed button label.'),
- ('download','YT-DLP',(516,400,92,34),'Download source media on the PC. Format selection, conversion and destination belong to the media job.'),
- ('convert','FFMPEG',(630,400,80,34),'Convert media to the selected output format on the PC.'),
- ('files','FILE BROWSER',(734,400,118,34),'Browse folders you allowed. It can show media outputs and incoming files; not every file passes through the media converter.'),
- ('smb','SHARED DRIVE',(876,400,72,34),'A configured shared drive is another file-access option. It is not a compulsory final step after every download.'),
- ('hands','HAND CONTROL',(44,408,236,42),'Camera landmarks control the browser board: pointer, pinch click and drag, fist rotation and open-palm fit. Hand control is a direct dashboard input, not an agent action.'),
- ('neo','NEO',(44,502,110,38),'Draft an agent persona from the job you describe. Review and save its instructions before adding it to your team.'),
- ('doctor','THE DOCTOR',(174,502,110,38),'Inspect Hub facts and propose a repair mission. You review its diff, choose APPLY and decide when to restart.'),
- ('apps','YOUR APPS',(310,502,152,38),'Open ingested web apps through the Hub address. An app can start on demand; it need not run a mission to open.'),
- ('routines','SAVED ROUTINES',(516,502,154,38),'Replay a saved action sequence when it matches the task and current machine. A failed replay can return to inspection instead of pretending it succeeded.'),
- ('schedule','SCHEDULE',(700,502,154,38),'A trigger decides when a request runs. Repetition does not automatically turn a single capability call into an agent mission.'),
+ ('phone','PHONE',(24,228,120,44),'Your phone opens the same Hub interface through the private network.'),
+ ('tablet','TABLET',(24,308,120,44),'Your tablet reaches the Hub on your PC; it does not run a separate agent backend.'),
+ ('laptop','LAPTOP',(24,388,120,44),'Open the Hub from a laptop on the same private network.'),
+ ('network','TAILSCALE',(190,14,300,28),'Tailscale connects your devices privately to the PC. It is the access boundary, not an agent or a processing step.'),
+ ('hub','AGENT HUB',(214,44,300,28),'The Hub runs on your PC. Its dashboard opens apps, files, projects and controls directly; TALK is another input route.'),
+ ('smith','TALK / SMITH',(232,130,118,34),'Smith receives typed or spoken requests. The router chooses a command, saved routine, app action or mission from what the request needs.'),
+ ('router','ROUTER',(392,240,100,56),'Route an ask to the existing capability that can handle it. Code work can go directly to Missions; media and PC tasks take their own routes.'),
+ ('missions','MISSIONS',(552,130,112,34),'Select a project or create a new one, describe the goal, and run work in a private git worktree. A question can pause the work for your answer.'),
+ ('runtime','AGENT RUN',(696,130,112,34),'Run the chosen agent through a configured runtime, including OpenCode or Claude Code. Planning and delegation depend on the selected mission mode.'),
+ ('worktree','WORKTREE',(840,130,112,34),'Implementation and checks happen in a separate working copy. A coding mission returns changed files and its diff.'),
+ ('review','REVIEW',(984,130,112,34),'Read the result, review notes and changed lines before deciding whether to apply or discard the mission.'),
+ ('apply','APPLY',(1128,130,112,34),'Applying merges the reviewed coding change. Discarding removes the mission copy. A suggested Hub repair does not restart your application for you.'),
+ ('skills','SKILLS',(696,64,112,34),'Bundled, vendor and user-authored SKILL.md instructions are available to agents. Catalogue entries are distinct from skills already installed.'),
+ ('orchestrator','ORCHESTRATOR',(552,196,112,34),'For an orchestrated mission, plan the goal and delegate scoped briefs to named work agents. It is one role, not the whole Hub.'),
+ ('team','WORK AGENTS',(696,196,112,34),'Coding, testing, review, research, writing, delivery and design roles receive task-specific briefs. Their results return to the mission.'),
+ ('graph','GIT GRAPH',(840,64,112,34),'Each dot is a discovered project. Project links come from wikilinks between project entity pages; branches and worktree diffs are separate from those links.'),
+ ('pc','PC CONTROL',(552,290,112,34),'Desktop tasks inspect an app, choose a named control, act and inspect the result again. A named-control press can require approval; task-level desktop runs are a separate route.'),
+ ('mcp','WINDOWS MCP',(696,290,112,34),'Windows MCP supplies desktop app, control, input and inspection tools. Music success is checked against Windows media-session playback state, not just a changed button label.'),
+ ('download','YT-DLP',(552,390,112,34),'Download source media on the PC. Format selection, conversion and destination belong to the media job.'),
+ ('convert','FFMPEG',(696,390,112,34),'Convert media to the selected output format on the PC.'),
+ ('files','FILE BROWSER',(840,390,112,34),'Browse folders you allowed. It can show media outputs and incoming files; not every file passes through the media converter.'),
+ ('smb','SHARED DRIVE',(984,390,112,34),'A configured shared drive is another file-access option. It is not a compulsory final step after every download.'),
+ ('hands','HAND CONTROL',(232,251,118,34),'Camera landmarks control the browser board. Point and pinch to click and drag; a fist takes control, then the open palm pans or zooms; in 3D a turn of the wrist rotates the board; two hands pinching zoom. A direct dashboard input, not an agent action.'),
+ ('neo','NEO',(840,196,112,34),'Draft an agent persona from the job you describe. Review and save its instructions before adding it to your team.'),
+ ('doctor','THE DOCTOR',(552,64,112,34),'Inspect Hub facts and propose a repair mission. You review its diff, choose APPLY and decide when to restart.'),
+ ('apps','YOUR APPS',(232,390,118,34),'Open ingested web apps through the Hub address. An app can start on demand; it need not run a mission to open.'),
+ ('routines','SAVED ROUTINES',(552,470,112,34),'Replay a saved action sequence when it matches the task and current machine. A failed replay can return to inspection instead of pretending it succeeded.'),
+ ('schedule','SCHEDULE',(552,530,112,34),'A trigger decides when a request runs. Repetition does not automatically turn a single capability call into an agent mission.'),
 ]
 EDGES=[
  ('phone','network','M132 167H145L152 174V193L159 200H174'),
@@ -84,40 +84,46 @@ def _add(root,tag,attrs,text=None):
     node.text=text
     return node
 
+DRAW=[  # (from, to, path, kind) -- curated, left to right; every pair in EDGES still feeds the connection picker
+ ('phone','hub','M144 250H214','n'),('tablet','hub','M144 330H214','n'),('laptop','hub','M144 410H214','n'),
+ ('smith','router','M350 147H372V268H392','n'),('hands','router','M350 268H392','d'),
+ ('router','missions','M492 268H520V147H552','n'),('router','pc','M520 268V307H552','n'),('router','download','M520 268V407H552','n'),
+ ('missions','runtime','M664 147H696','n'),('runtime','worktree','M808 147H840','n'),('worktree','review','M952 147H984','n'),('review','apply','M1096 147H1128','n'),
+ ('missions','orchestrator','M608 164V196','n'),('orchestrator','team','M664 213H696','n'),('team','runtime','M752 196V164','n'),('neo','team','M840 213H808','d'),
+ ('skills','runtime','M752 98V130','n'),('doctor','missions','M608 98V130','d'),('worktree','graph','M896 130V98','n'),
+ ('review','missions','M1040 164V258H536V147H552','d'),
+ ('pc','mcp','M664 307H696','n'),
+ ('download','convert','M664 407H696','n'),('convert','files','M808 407H840','n'),('files','smb','M952 407H984','n'),
+ ('routines','router','M552 487H452V296','d'),('schedule','router','M552 547H432V296','d'),
+]
+FACE=('router','missions','runtime','worktree','review','apply','orchestrator','team','skills','graph','pc','mcp','download','convert','files','smb','smith','hands','apps','neo','doctor','routines','schedule')
+CAPTIONS=[(232,120,'INPUTS'),(392,230,'ROUTE'),(618,122,'MISSIONS · private copy'),(552,282,'DESKTOP'),(552,382,'MEDIA'),(552,462,'REUSE + TIMING'),(24,216,'YOUR DEVICES')]
+
 def diagram(tall=False, interactive=False):
-    # Both exports deliberately keep the SAME left-to-right architecture.
-    root=ET.parse(PARTS/'architecture-original.svg').getroot()
-    root.set('viewBox','0 0 1120 580');root.attrib.pop('width',None)
-    root.set('aria-label','Agent Hub: original left-to-right circuit architecture, with current routes and private Tailscale access.')
-    root[0].set('height','580')
-    for el in list(root):
-        if el.tag.endswith('path') and el.attrib.get('stroke-linecap')=='round':root.remove(el)
-    replacements={
-      'OpenCode':'Router','Dispatch':'Agent run','Agent Team':'Work agents','SMB':'Drive',
-      'one app on your PC · binds 127.0.0.1':'one Hub on your PC',
-      'Every device reaches one address. Nothing is exposed to the internet.':'Your devices connect privately to the same Hub.',
-      'A successful run is kept as a routine and replayed next time.':'Inspect → act → verify. Reuse a routine when it fits.',
-      'the worktree diff, drawn live':'projects · links · worktree diffs',
-      're-plan and carry on, until you apply or discard':'review, answer or re-plan; APPLY remains your choice',
-      'Fetch it, convert it, and reach your drives from the phone in your hand.':'Download and convert on the PC; browse or receive files from your devices.',
-      'TALK':'SMITH / TALK'}
-    for el in root:
-        if el.tag.endswith('text') and el.text in replacements:el.text=replacements[el.text]
-    # Original diagram ends at y=492. Additions occupy its existing bottom margin
-    # and the space below ACCESS without moving ANY original component.
+    """Drawn fresh, left to right: devices -> private network (Tailscale) containing the Hub -> inputs -> router -> what it hands work to."""
+    root=ET.Element('{'+NS+'}svg',{'viewBox':'0 0 1310 650','role':'img','preserveAspectRatio':'xMidYMid meet',
+        'aria-label':'Agent Hub architecture, left to right: your phone, tablet and laptop reach the Hub through a private Tailscale network; inside the Hub, inputs go to the router, which hands work to missions, desktop control, media tools, saved routines and the schedule.'})
+    defs=_add(root,'defs',{})
+    mk=_add(defs,'marker',{'id':'ah','viewBox':'0 0 8 8','refX':7,'refY':4,'markerWidth':7,'markerHeight':7,'orient':'auto'})
+    _add(mk,'path',{'d':'M0 0L8 4L0 8Z','fill':'#00e676'})
+    _add(root,'rect',{'x':0,'y':0,'width':1310,'height':650,'fill':'#050914'})
+    # the two containers: the private network holds the Hub
+    _add(root,'rect',{'x':190,'y':14,'width':1098,'height':620,'rx':10,'fill':'#41ebff','fill-opacity':'.035','stroke':'#41ebff','stroke-opacity':'.55','stroke-dasharray':'6 5'})
+    _add(root,'text',{'x':204,'y':33,'fill':'#41ebff','font-family':'Orbitron,Segoe UI,sans-serif','font-size':'10','font-weight':'700'},'TAILSCALE · private network, nothing public')
+    _add(root,'rect',{'x':214,'y':44,'width':1050,'height':560,'rx':8,'fill':'#00e676','fill-opacity':'.035','stroke':'#00e676','stroke-opacity':'.6'})
+    _add(root,'text',{'x':228,'y':63,'fill':'#00e676','font-family':'Orbitron,Segoe UI,sans-serif','font-size':'10','font-weight':'700'},'AGENT HUB · runs on your PC')
+    for x,y,t in CAPTIONS:
+        _add(root,'text',{'x':x,'y':y,'fill':'#87bba3','font-size':9,'font-family':'Outfit,system-ui'},t)
+    wires=_add(root,'g',{'class':'original-wires','fill':'none'})
+    for a,b,d,kind in DRAW:
+        at={'d':d,'stroke':'#00e676','stroke-width':1.5,'stroke-opacity':'.75' if kind=='n' else '.5','marker-end':'url(#ah)','data-from':a,'data-to':b,'class':'original-trace'}
+        if kind=='d':at['stroke-dasharray']='5 4'
+        _add(wires,'path',at)
     for key,label,(x,y,w,h),description in NODES:
-        if key not in ('hands','neo','doctor','apps','routines','schedule'):continue
-        _add(root,'rect',dict(x=x,y=y,width=w,height=h,rx=2,fill='#0b1220',stroke='#00e676',**{'stroke-opacity':'.5'}))
-        _add(root,'text',dict(x=x+w/2,y=y+h/2+3,fill='#00e676',**{'text-anchor':'middle','font-family':'Orbitron,Segoe UI,sans-serif','font-size':'9','font-weight':'700'}),label)
-    _add(root,'text',{'x':44,'y':396,'fill':'#87bba3','font-size':9,'font-family':'Outfit,system-ui'},'DIRECT DASHBOARD INPUT')
-    _add(root,'text',{'x':44,'y':488,'fill':'#87bba3','font-size':9,'font-family':'Outfit,system-ui'},'HELPERS + APPS')
-    _add(root,'text',{'x':509,'y':488,'fill':'#87bba3','font-size':9,'font-family':'Outfit,system-ui'},'REUSE + TIMING')
-    _add(root,'text',{'x':712,'y':110,'fill':'#a8cbb9','font-size':8,'font-family':'Outfit,system-ui'},'OpenCode · Claude Code')
-    # Wiring is inserted behind the unchanged chip faces, never over their text.
-    wires=ET.Element('{'+NS+'}g',{'class':'original-wires','fill':'none'})
-    for a,b,d in EDGES:
-        _add(wires,'path',{'d':d,'stroke':'#00e676','stroke-width':1.4,'stroke-opacity':'.4','marker-end':'url(#ah)','data-from':a,'data-to':b,'class':'original-trace'})
-    root.insert(2,wires)
+        if key in ('network','hub'):continue
+        dev=key in ('phone','tablet','laptop')
+        _add(root,'rect',dict(x=x,y=y,width=w,height=h,rx=3,fill='#0b1220',stroke='#41ebff' if dev else '#00e676',**{'stroke-opacity':'.8' if dev or key=='router' else '.55','stroke-width':'1.6' if key=='router' else '1.2'}))
+        _add(root,'text',dict(x=x+w/2,y=y+h/2+3,fill='#41ebff' if dev else '#00e676',**{'text-anchor':'middle','font-family':'Orbitron,Segoe UI,sans-serif','font-size':'9.5' if key=='router' else '9','font-weight':'700'}),label)
     if interactive:
         for key,label,(x,y,w,h),description in NODES:
             g=_add(root,'g',{'data-arch-node':key,'class':'original-node','role':'button','tabindex':0,'aria-label':label,'aria-pressed':'false'})

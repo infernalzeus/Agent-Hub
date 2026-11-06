@@ -541,3 +541,35 @@ html.hub-legend-on .hands-log .hl-legend{display:block!important;opacity:1!impor
 .hs-det td:nth-child(4){display:table-cell}.hs-det td:nth-child(4) .hs-chip{margin:0 4px 4px 0;display:inline-block}
 .hs-flash td{background:#00e67626!important;transition:background .4s}
 @media(max-width:900px){.hs-rule{grid-template-columns:62px 1fr 34px}.hs-rule .hs-rsel,.hs-rule .hs-ruse{grid-column:1/-1}.hs-rhead{display:none}}
+
+/* hands menu round 7: ONE table, small type, a wide panel, small toolbar buttons */
+.hands-setup{width:min(1560px,calc(100vw - 16px))!important;max-width:calc(100vw - 16px)!important;font-size:11px}
+.hands-setup .hs-note{font-size:11px;margin:0 0 6px}
+.hs-tbar{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:0 0 6px}.hs-tbar-sp{flex:1 1 20px}
+.hs-sm{min-height:24px!important;height:24px;padding:0 9px!important;font:700 9px Orbitron,monospace!important;letter-spacing:.6px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.hs-sm.on,.hs-add{color:#00e676;border-color:#00e676}.hs-sm svg{flex:none}
+.hs-hint{margin:0 0 6px;color:#9fd8bd;font-size:10.5px;line-height:1.35}
+.hs-one{table-layout:fixed;width:100%;border-collapse:collapse;font-size:11px;margin:0}
+.hs-one th{font:700 8px Orbitron,monospace;letter-spacing:.8px;color:#8fcfb2;text-align:left;padding:3px 6px;border-bottom:1px solid #41ebff44}
+.hs-one th:nth-child(1){width:56px}.hs-one th:nth-child(2){width:50px}.hs-one th:nth-child(3){width:19%}.hs-one th:nth-child(4){width:15%}.hs-one th:nth-child(6){width:30px}
+.hs-one td{vertical-align:middle;padding:5px 6px;border-bottom:1px solid #41ebff1f;white-space:normal;overflow-wrap:anywhere;line-height:1.25}
+.hs-one tr.off td{opacity:.5}.hs-one tr.hs-any td{background:#41ebff0d}
+.hs-one .hs-sel{display:block;width:100%;box-sizing:border-box;min-height:24px;margin:0 0 3px;font:600 10.5px Outfit,system-ui,sans-serif;padding:2px 4px}
+.hs-one small{display:block;color:#ff9d3b;font-size:9.5px}
+.hs-one .hs-tog{display:block;width:100%;min-width:0;min-height:22px;padding:0;font-size:8.5px;text-align:center}
+.hs-pri{display:grid;grid-template-columns:18px 1fr 18px;align-items:center;justify-items:center;gap:2px;font:700 10px Orbitron,monospace;color:#8fcfb2}
+.hs-mini{display:grid;place-items:center;width:20px;height:20px;padding:0;background:transparent;border:1px solid #41ebff44;border-radius:4px;color:#41ebff;cursor:pointer}
+.hs-mini:hover:not(:disabled){background:#41ebff22}.hs-mini:disabled{opacity:.25;cursor:default}.hs-del{color:#ff9d9d;border-color:#ff9d9d55}
+.hs-dblk{display:grid;grid-template-columns:132px minmax(150px,1fr) minmax(0,2.2fr);gap:8px;align-items:center;padding:3px 0;border-bottom:1px dashed #41ebff1a}.hs-dblk:last-child{border-bottom:0}
+.hs-dn{font:700 10.5px Outfit,system-ui,sans-serif;color:#d6f5e6}
+.hs-dm{display:block;min-width:0}.hs-dm em{display:block;font:700 10px Outfit,system-ui,sans-serif;font-style:normal;color:#bfeaf4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hs-meter{position:relative;display:block;height:7px;background:#41ebff22;border-radius:3px;margin-top:10px}
+.hs-meter i{position:absolute;left:0;top:0;bottom:0;width:0;background:#00e676;border-radius:3px;transition:width .1s}
+.hs-meter u{position:absolute;top:-3px;bottom:-3px;width:2px;background:#ffb02e;text-decoration:none}
+.hs-meter u::after{content:attr(data-l);position:absolute;top:-10px;left:50%;transform:translateX(-50%);white-space:nowrap;width:max-content;font:700 7px Orbitron,monospace;color:#ffb02e}
+.hs-df{display:flex;flex-wrap:wrap;align-items:center;gap:3px 8px}
+.hs-df .hs-field{display:inline-flex;align-items:center;gap:4px;margin:0;font-size:9.5px;color:#8fcfb2;width:auto}
+.hs-df .hs-field input{width:50px;min-height:20px;box-sizing:border-box;background:#0a1230;color:#d6f5e6;border:1px solid #41ebff55;border-radius:3px;padding:1px 3px;font:11px Outfit,system-ui,sans-serif}
+@media(max-width:1000px){.hs-dblk{grid-template-columns:1fr}.hs-one th:nth-child(3){width:26%}}
+
+.hands-setup p.hs-hint{font-size:10.5px;line-height:1.35;margin:0 0 6px}.hands-setup .hb-glass-head{padding-bottom:2px}.hands-setup .hb-glass-head h2{font-size:11px}.hands-setup .hs-note{font-size:10.5px}
