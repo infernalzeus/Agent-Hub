@@ -29,7 +29,7 @@ SOFTWARE.
   // pinchOn / pinchOff are fractions of the hand's own size (wrist to the middle finger's knuckle), measured in the camera's own space and
   // including depth, so two fingertips that merely overlap in the picture but sit at different depths are not a pinch. 0.22 is about 2 cm on an
   // adult hand and 0.34 about 3.5 cm: a pinch starts below the first and ends above the second.
-  const TUNING=Object.freeze({pinchOn:.22,pinchOff:.40,pinchOnM:.28,pinchOffM:.42,tripleOn:.28,tripleOff:.40,tripleHoldMs:260,tripleTips:.30,rightIndexAway:.30,flatOn:1.45,flatOff:1.7,flatHoldMs:400,confirmMs:70,settleMs:220,poseHoldMs:200,aimLagMs:190,trailMs:500,clickSlop:20,fitHoldMs:1000,maxJump:.28,idleMs:60000,minScore:.6,minSize:.05,maxSize:.5,presentFrames:3,fistDist:.75,depthStep:.05,depthStill:250,panStart:40,ctlStillMs:500,rotGain:1,rollGain:1,tiltGain:4,rollTilt:0,extendRatio:1.12});
+  const TUNING=Object.freeze({pinchOn:.22,pinchOff:.40,pinchOnM:.28,pinchOffM:.42,tripleOn:.28,tripleOff:.40,tripleHoldMs:260,tripleTips:.30,rightIndexAway:.30,flatOn:1.45,flatOff:1.7,flatHoldMs:400,confirmMs:60,settleMs:140,poseHoldMs:200,aimLagMs:190,trailMs:500,clickSlop:20,fitHoldMs:1000,maxJump:.28,idleMs:60000,minScore:.6,minSize:.05,maxSize:.5,presentFrames:3,fistDist:.75,depthStep:.05,depthStill:250,panStart:40,ctlStillMs:500,rotGain:1,rollGain:1,tiltGain:-4,rollTilt:0,moveGain:.5,rotSmooth:.5,rotDead:.008,extendRatio:1.12});
   const CAMERA={w:640,h:480};
   const PALM=[0,5,9,13,17];
   class LowPass{constructor(){this.last=null;}filter(x,a){this.last=this.last===null?x:a*x+(1-a)*this.last;return this.last;}}
@@ -72,7 +72,7 @@ SOFTWARE.
         const pc=[0,1,2].map(k=>PALM.reduce((a,j)=>a+P[j][k],0)/PALM.length),dp=i=>Math.hypot(P[i][0]-pc[0],P[i][1]-pc[1],P[i][2]-pc[2]);
         const fistShape=[8,12,16,20].every(i=>dp(i)<t.fistDist*size);
         const fist=this.options.fistGrab&&s.pinched&&[[8,6],[12,10],[16,14],[20,18]].every(([a,b])=>d3(a,0)<d3(b,0)*1.05);
-        let wantsI=fist||(s.pinched?gap<t.pinchOff:gap<t.pinchOn),wantsM=(s.rpinched?gapM<t.pinchOffM:gapM<t.pinchOnM)&&(s.rpinched||(gap>=t.rightIndexAway&&(d3(16,0)>d3(14,0)*1.12||d3(20,0)>d3(18,0)*1.12)));      // a right press is the thumb on the middle fingertip with the index finger away; with the index finger touching too it is the zoom hold
+        let wantsI=fist||(s.pinched?gap<t.pinchOff:gap<t.pinchOn),wantsM=(s.rpinched?gapM<t.pinchOffM:gapM<t.pinchOnM)&&(s.rpinched||(gap>=t.rightIndexAway&&(d3(16,0)>d3(14,0)*.95||d3(20,0)>d3(18,0)*.95)));      // a right press is the thumb on the middle fingertip with the index finger away; with the index finger touching too it is the zoom hold
         // pointing with the MIDDLE finger (index, ring and little finger curled in) tucks the thumb against the curled index finger, which measures
         // as a thumb-to-index pinch. Traced 5 Nov: 44 frames of it read as left presses. That posture (middle clearly out, the other three clearly in)
         // is never a pinch; a pinch already held keeps going.
@@ -127,7 +127,7 @@ SOFTWARE.
         const flat=flatShape&&(s.flat||now-s.flatSince>=t.flatHoldMs);s.flat=flat;
         s.pinched=pinched;s.rpinched=rpinched;s.triple=triple;
         s.out={id,...pos,aimX:s.aim.x,aimY:s.aim.y,pinched,rpinched,triple,flat,hsize:rawSize,spread,sincePinch:s.lastPinchAt==null?1e9:now-s.lastPinchAt,gesture:s.held,points,span,fingers,pointerFinger:useMid?'middle':'index',handedness:label,palm,roll,twist,pitch,
-               depth,conf:typeof conf==='number'?conf:1,openScore:up/5,flatScore:clamp(1-(spread-t.flatOn)/(t.flatOff-t.flatOn),0,1),idxRatio:d3(8,0)/Math.max(1e-6,d3(6,0)),midRatio:d3(12,0)/Math.max(1e-6,d3(10,0)),fistRatio:[8,12,16,20].reduce((a,i)=>a+dp(i),0)/4/size,fistScore:clamp(1-([8,12,16,20].reduce((a,i)=>a+dp(i),0)/4/size-.35)/(.75-.35),0,1),closeness:clamp(1-(gap-t.pinchOn)/(t.pinchOff-t.pinchOn),0,1),closenessM:clamp(1-(gapM-t.pinchOnM)/(t.pinchOffM-t.pinchOnM),0,1),gap,gapM};
+               depth,conf:typeof conf==='number'?conf:1,openScore:up/5,flatScore:clamp(1-(spread-t.flatOn)/(t.flatOff-t.flatOn),0,1),near:clamp(1-(gap-t.pinchOn)/(t.pinchOff-t.pinchOn),0,1)>.3||clamp(1-(gapM-t.pinchOnM)/(t.pinchOffM-t.pinchOnM),0,1)>.3,idxRatio:d3(8,0)/Math.max(1e-6,d3(6,0)),midRatio:d3(12,0)/Math.max(1e-6,d3(10,0)),fistRatio:[8,12,16,20].reduce((a,i)=>a+dp(i),0)/4/size,fistScore:clamp(1-([8,12,16,20].reduce((a,i)=>a+dp(i),0)/4/size-.35)/(.75-.35),0,1),closeness:clamp(1-(gap-t.pinchOn)/(t.pinchOff-t.pinchOn),0,1),closenessM:clamp(1-(gapM-t.pinchOnM)/(t.pinchOffM-t.pinchOnM),0,1),gap,gapM};
         out.push(s.out);
       }
       for(const [id,s]of this.hands)if(!seen.has(id)){if(s.out)lost.push(s.out);this.hands.delete(id);}

@@ -1,7 +1,7 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');
 const Real=require('../hub/static/hand-gestures.js');
 // The synthetic hands below are sized for the original thresholds; the shipped defaults are the owner's own (5 Nov: pinch 0.10 / 0.40, middle 0.16, triple 0.10).
-const OLD={pinchOn:.22,pinchOff:.34,pinchOnM:.26,tripleOn:.28};
+const OLD={pinchOn:.22,pinchOff:.34,pinchOnM:.26,tripleOn:.28,confirmMs:70,settleMs:220};
 const G={...Real,Engine:class extends Real.Engine{constructor(o={}){super({...o,tuning:{...OLD,...(o.tuning||{})}});}}};
 test('the shipped pinch defaults are reachable by a real pinch (5 Nov trace: closest 0.14 index, 0.23 middle)',()=>{assert.equal(Real.TUNING.pinchOn,.22);assert.equal(Real.TUNING.pinchOff,.40);assert.equal(Real.TUNING.pinchOnM,.28);assert.equal(Real.TUNING.extendRatio,1.12);});
 // the older tests feed one frame at a time and expect the hand at once; the presence rule has its own test at the end
