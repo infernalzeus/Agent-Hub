@@ -509,3 +509,8 @@ html.hub-legend-on .hands-log .hl-legend{display:block!important;opacity:1!impor
 .hs-fields .hs-field{display:grid;grid-template-columns:1fr 58px;align-items:center;gap:4px;margin:0;width:auto;font-size:10.5px}
 .hs-fields .hs-field input{width:100%;box-sizing:border-box}
 .hs-fields .hs-reset{grid-column:1/-1;justify-self:start}
+
+.hs-gest th:nth-child(1){width:23%}.hs-gest th:nth-child(2){width:9%}.hs-gest th:nth-child(3){width:30%}.hs-gest th:nth-child(4){width:29%}.hs-gest th:nth-child(5){width:9%}
+.hs-gest td small{display:block;color:#ff9d3b;font-size:10.5px;margin-top:2px}
+.hs-gest td:nth-child(3) .hs-sel{margin-bottom:4px}
+.hs-gest .hs-reset{width:100%;padding:3px 0}

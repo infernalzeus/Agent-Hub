@@ -42,12 +42,27 @@ SOFTWARE.
   function mount({host,bar,fitButton}){
     styles();
     let typedAt=-Infinity,lastAction=-Infinity,alive=true,enabled=false,canvas=null,ctx=null,legend=null,status=null,legendTimer=0,used=false,zooming=false,interlock=false,cooldown=0,diagnostic=false,measurementLabel='MEASURING',hint='',hintAt=0,calibration=null;
-    let confLive=[];const isOff=k=>!!(profile.dis&&profile.dis[k]);const ctl={on:false,sawRelease:false,fistSince:null,fistLatched:false,lock:null,ref:null,sm:null,d0:0,still:null,lostAt:null,pp:null,t:0,id:0,zref:0,zlast:0},ctlInfo={travel:0,dchange:0,lock:''};let profile={v:PROFILE_VERSION,fist:false,orbit:true,palm:false};
+    let confLive=[];
+    // GESTURES ARE RULES. Each rule: first (the pose), when / then (for a fist: what follows it), does (the action). The ones below are what ships; the menu edits, adds and deletes them.
+    const DEFAULT_RULES=[
+      {id:'r1',on:true,first:'point',when:'',then:'',does:'left'},{id:'r2',on:true,first:'middle',when:'',then:'',does:'right'},
+      {id:'r3',on:true,first:'pinch',when:'',then:'',does:'left'},{id:'r4',on:true,first:'mpinch',when:'',then:'',does:'back'},
+      {id:'r5',on:true,first:'triple',when:'',then:'',does:'left'},{id:'r6',on:true,first:'open',when:'',then:'',does:'none'},
+      {id:'r7',on:true,first:'twohand',when:'',then:'',does:'zoom'},{id:'r8',on:true,first:'fist',when:'',then:'',does:'control'},
+      {id:'r9',on:true,first:'fist',when:'while',then:'wrist',does:'rotate'},{id:'r10',on:true,first:'fist',when:'while',then:'palm',does:'rotate'},
+      {id:'r11',on:true,first:'fist',when:'after',then:'palm',does:'pan'},{id:'r12',on:true,first:'fist',when:'after',then:'depth',does:'zoom'}];
+    const rules=()=>Array.isArray(profile.rules)?profile.rules:DEFAULT_RULES,hasRule=f=>rules().some(r=>r.on&&f(r));
+    const single=k=>rules().find(r=>r.on&&r.first===k&&!r.then&&r.does!=='control');
+    const isOff=k=>k==='hand'?!!(profile.dis&&profile.dis.hand):k==='twohand'?!hasRule(r=>r.first==='twohand'&&r.does==='zoom'):!single(k);
+    const fistRule=(when,then,does)=>hasRule(r=>r.first==='fist'&&r.when===when&&r.then===then&&r.does===does);
+    const ctlEnabled=()=>hasRule(r=>r.first==='fist'&&r.does==='control')&&hasRule(r=>r.first==='fist'&&r.when==='after'&&r.does!=='none');
+    const canPan=()=>fistRule('after','palm','pan'),canZoom=()=>fistRule('after','depth','zoom'),rotWrist=()=>fistRule('while','wrist','rotate'),rotMove=()=>fistRule('while','palm','rotate'),fistRotate=()=>rotWrist()||rotMove();
+const ctl={on:false,sawRelease:false,fistSince:null,fistLatched:false,lock:null,ref:null,sm:null,d0:0,still:null,lostAt:null,pp:null,t:0,id:0,zref:0,zlast:0},ctlInfo={travel:0,dchange:0,lock:''};let profile={v:PROFILE_VERSION,fist:false,orbit:true,palm:false};
     try{const saved=JSON.parse(localStorage.getItem('hub-hands-profile')||'null');if(saved&&saved.v===PROFILE_VERSION)profile={...profile,...saved};}catch(_){}      if(profile.tuning){const stale={pinchOn:.1,pinchOff:.4,pinchOnM:.16,tripleOn:.1};for(const k in stale)if(profile.tuning[k]===stale[k])delete profile.tuning[k];}      // an older profile was measured in other units: start again
     // what each pointing / pinching gesture does can be chosen in the hands menu; these are the defaults
     const ACTIONS=[['left','Left click and drag'],['right','Right click'],['back','Back: close the open menu, else fit'],['fit','Fit the board'],['tidy','Tidy'],['view','Switch 2D / 3D'],['none','Nothing'],['zoom','Zoom (hand up / down)']];
-    const act=()=>({pinch:'left',triple:'left',point:'left',middle:'right',mpinch:'back',open:'none',...(profile.act||{})}),actName=k=>(ACTIONS.find(a=>a[0]===k)||ACTIONS[6])[1],rWas=new Set(),lWas=new Set(),tWas=new Set();
-    const engine=new G.Engine({tripleZoom:profile.triple!==false,tuning:profile.tuning||{}}),detected=new Set(),presses=new Map(),btn=document.createElement('button');
+    const act=()=>{const o={};for(const k of ['pinch','mpinch','triple','point','middle','open']){const r=single(k);o[k]=r?r.does:'none';}return o;},actName=k=>(ACTIONS.find(a=>a[0]===k)||ACTIONS[6])[1],rWas=new Set(),lWas=new Set(),tWas=new Set();
+    const engine=new G.Engine({tripleZoom:!isOff('triple'),tuning:profile.tuning||{}}),detected=new Set(),presses=new Map(),btn=document.createElement('button');
     btn.type='button';btn.className='hb-btn hb-hands';btn.innerHTML=ICON+'<span>HANDS</span><i aria-hidden="true"></i>';btn.title='Optional local webcam hand control';btn.setAttribute('aria-pressed','false');bar.appendChild(btn);
     const setup=document.createElement('section');setup.className='hands-setup';setup.hidden=true;setup.setAttribute('role','dialog');setup.setAttribute('aria-label','Set up hand control');document.body.appendChild(setup);
     const configure=document.createElement('button');configure.type='button';configure.className='hb-btn';configure.textContent='HAND SETUP';configure.onclick=()=>calibrationPanel();bar.appendChild(configure);
@@ -243,9 +258,9 @@ SOFTWARE.
         if(pr.mode==='left')return {t:pr.scrolled?'SCROLL':pr.travel>=dead()?'DRAG':'CLICK OR DRAG',c:'#00e676'};
         if(pr.mode==='right')return {t:'RIGHT CLICK',c:'#f5c842'};}
       if(output0&&output0.zoom)return {t:'ZOOM',c:'#00e676'};
-      if(hand.closeness>.5&&!isOff('pinch'))return {t:'PINCH · '+actName(act().pinch).toUpperCase(),c:'#00e676',soft:true};
-      if(hand.closenessM>.5&&!isOff('mpinch'))return {t:'MIDDLE PINCH · '+actName(act().mpinch).toUpperCase(),c:'#f5c842',soft:true};
-      if(hand.gesture==='fist'&&profile.control!==false)return {t:'HOLD FIST · TAKE CONTROL',c:'#ff9d3b',soft:true};
+      if(hand.closeness>.5&&!isOff('pinch')&&act().pinch!=='none')return {t:'PINCH · '+actName(act().pinch).toUpperCase(),c:'#00e676',soft:true};
+      if(hand.closenessM>.5&&!isOff('mpinch')&&act().mpinch!=='none')return {t:'MIDDLE PINCH · '+actName(act().mpinch).toUpperCase(),c:'#f5c842',soft:true};
+      if(hand.gesture==='fist'&&ctlEnabled())return {t:'HOLD FIST · TAKE CONTROL',c:'#ff9d3b',soft:true};
       return null;
     }
     let output0=null;
@@ -291,7 +306,7 @@ SOFTWARE.
       const T=engine.tuning;
       if(!hand){if(ctl.on){ctl.lostAt=ctl.lostAt||now;if(now-ctl.lostAt>1500)ctlEnd(null,'hand lost');}return false;}
       ctl.lostAt=null;ctl.id=hand.id;
-      if(profile.control===false){if(ctl.on)ctlEnd(hand,'turned off');return false;}
+      if(!ctlEnabled()){if(ctl.on)ctlEnd(hand,'turned off');return false;}
       const fist=hand.gesture==='fist'&&!hand.pinched&&!hand.rpinched&&!hand.triple;
       if(fist){
         ctl.fistSince=ctl.fistSince==null?now:ctl.fistSince;
@@ -306,12 +321,12 @@ SOFTWARE.
       const gx=hand.palm;ctl.sm=ctl.sm==null?hand.depth:ctl.sm*.5+hand.depth*.5;
       if(!ctl.ref){ctl.ref={...gx};ctl.d0=ctl.sm;ctl.pp=null;}
       const dt=Math.max(16,now-(ctl.t||now)),sp=ctl.pp?G.distance(ctl.pp,gx)/dt*1000:0;ctl.t=now;ctl.pp={...gx};
-      const dd=Math.log(ctl.sm/ctl.d0),travel=G.distance(ctl.ref,gx),canPan=profile.ctlPan!==false,canZoom=profile.ctlZoom!==false;
+      const dd=Math.log(ctl.sm/ctl.d0),travel=G.distance(ctl.ref,gx),cp=canPan(),cz=canZoom();
       ctlInfo.travel=travel;ctlInfo.dchange=Math.abs(dd);ctlInfo.lock=ctl.lock||'';
       if(!ctl.lock){
         const pr=travel/T.panStart,zr=Math.abs(dd)/T.depthStep;
-        if(canPan&&pr>=1&&(!canZoom||pr>=zr)){ctl.lock='pan';ctl.still=null;beginPan(hand.id,hand);say('PAN: REST YOUR HAND TO FINISH THIS MOVE');}
-        else if(canZoom&&zr>=1&&(!canPan||zr>pr)){ctl.lock='zoom';ctl.zref=ctl.sm;ctl.zlast=now;say('ZOOM: HOLD STILL TO FINISH THIS ZOOM');}
+        if(cp&&pr>=1&&(!cz||pr>=zr)){ctl.lock='pan';ctl.still=null;beginPan(hand.id,hand);say('PAN: REST YOUR HAND TO FINISH THIS MOVE');}
+        else if(cz&&zr>=1&&(!cp||zr>pr)){ctl.lock='zoom';ctl.zref=ctl.sm;ctl.zlast=now;say('ZOOM: HOLD STILL TO FINISH THIS ZOOM');}
         return true;
       }
       if(ctl.lock==='pan'){
@@ -369,11 +384,11 @@ SOFTWARE.
             continue;
           }
           if(p.mode==='orbit'){
-            if(hand.gesture!=='fist'||hand.pinched||hand.rpinched||hand.triple){release(hand.id,false);continue;}
+            if(!(hand.gesture==='fist'||hand.fistRatio<engine.tuning.fistDist*1.2)||hand.pinched||hand.rpinched||hand.triple){release(hand.id,false);continue;}      // a fist that flickers to another label for a frame does not end the turn
             const Tn=engine.tuning,v=boardView(),sg=profile.twistSign===-1?-1:1;      // rotation only: turning the wrist turns the board, moving the hand does nothing
             const step=(cur,key)=>{const ref=p[key]==null?cur:p[key],d=cur-ref;if(Math.abs(d)<Tn.rotDead)return 0;p[key]=cur;return d;};      // slow turns add up until they pass the dead band: a trembling hand turns nothing
             const dT=step(hand.twist||0,'twist')*sg,dR=step(hand.roll,'roll'),dP=step(hand.pitch||0,'pitch');
-            const ox=(dT*Tn.rotGain+dR*Tn.rollGain)*ROLL_PX+(hand.palm.x-p.prev.x)*Tn.moveGain,oy=(dP*Tn.tiltGain+dR*Tn.rollTilt)*ROLL_PX+(hand.palm.y-p.prev.y)*Tn.moveGain;
+            const ww=rotWrist()?1:0,mm=rotMove()?1:0,ox=(dT*Tn.rotGain+dR*Tn.rollGain)*ROLL_PX*ww+(hand.palm.x-p.prev.x)*Tn.moveGain*mm,oy=(dP*Tn.tiltGain+dR*Tn.rollTilt)*ROLL_PX*ww+(hand.palm.y-p.prev.y)*Tn.moveGain*mm;
             p.sx=(p.sx||0)*Tn.rotSmooth+ox*(1-Tn.rotSmooth);p.sy=(p.sy||0)*Tn.rotSmooth+oy*(1-Tn.rotSmooth);      // and the board eases toward it instead of following every wobble
             if(v)v.orbitBy(p.sx,p.sy);p.prev={...hand.palm};continue;
           }
@@ -387,7 +402,7 @@ SOFTWARE.
         else if(hand.pinched&&!isOff('pinch')){pressOrAct(hand,'pinch',lWas);}
         else if(hand.rpinched&&!isOff('mpinch')){pressOrAct(hand,'mpinch',rWas);}
         else if(hand.triple&&!isOff('triple')&&act().triple!=='zoom'){pressOrAct(hand,'triple',tWas);}
-        else if(profile.orbit&&hand.gesture==='fist'&&hand.sincePinch>700){const v=boardView();if(v&&v.mode()==='3d')begin(hand.id,hand,'orbit');else say('FIST TILTS THE BOARD IN VIEW 3D: choose VIEW, then 3D');}
+        else if(fistRotate()&&hand.gesture==='fist'&&hand.sincePinch>700){const v=boardView();if(v&&v.mode()==='3d')begin(hand.id,hand,'orbit');else say('FIST TILTS THE BOARD IN VIEW 3D: choose VIEW, then 3D');}
         else{const r=resolve(hand.x,hand.y);if(r)emit({target:r.el,k:r.k,ox:r.ox,oy:r.oy,button:0},'pointermove',hand.id,hand.x,hand.y,false);}
       }
     }
@@ -422,7 +437,7 @@ SOFTWARE.
     }
 
     // ---- setup: nothing to save by hand; a choice or a calibration is kept in this browser at once
-    function saveProfile(){cancelAll();engine.reset();engine.options.fistGrab=!!profile.fist;engine.options.tripleZoom=profile.triple!==false;engine.tuning.pinchOn=G.TUNING.pinchOn;engine.tuning.pinchOff=G.TUNING.pinchOff;
+    function saveProfile(){cancelAll();engine.reset();engine.options.fistGrab=!!profile.fist;engine.options.tripleZoom=!isOff('triple');engine.tuning.pinchOn=G.TUNING.pinchOn;engine.tuning.pinchOff=G.TUNING.pinchOff;
       if(Number.isFinite(profile.pinchOn)&&profile.pinchOn>.05&&profile.pinchOff>profile.pinchOn&&profile.pinchOff<1.2){engine.tuning.pinchOn=profile.pinchOn;engine.tuning.pinchOff=profile.pinchOff;}
       Object.assign(engine.tuning,profile.tuning||{});profile.v=PROFILE_VERSION;try{localStorage.setItem('hub-hands-profile',JSON.stringify(profile));}catch(_){}interlock=true;}
     saveProfile();
@@ -472,33 +487,36 @@ SOFTWARE.
         c[2].append(wrap);
       }
       // ---------------- gestures
-      const gest=[
-        {n:'Point and hold, index',from:'Index finger out, fingertip still about a second.',...dis('point'),act:'point'},
-        {n:'Point and hold, middle',from:'Middle finger out, the others curled, still.',...dis('middle'),act:'middle'},
-        {n:'Pinch',from:'Thumb touches index.',...dis('pinch'),act:'pinch'},
-        {n:'Middle pinch',from:'Thumb touches middle, index away.',...dis('mpinch'),act:'mpinch'},
-        {n:'Three-finger pinch',from:'Thumb touches index and middle together.',on:()=>profile.triple!==false,flip:tog('triple',()=>profile.triple!==false),act:'triple'},
-        {n:'Open hand held',from:'Four or five fingers out, still for one second, no fist control active.',...dis('open'),act:'open'},
-        {n:'Two-hand pinch',from:'Both hands pinch; move them apart or together.',...dis('twohand'),fixed:'Zoom the board around the point between the hands.'},
-        {n:'Fist held',from:'Fingertips pulled to the palm for 0.3 s.',on:()=>profile.control!==false,flip:tog('control',()=>profile.control!==false),fixed:'Take control of the screen. Fist again, a point or a pinch gives it back.'},
-        {n:'Fist, then turn the wrist',from:'Fist during control, in VIEW 3D.',on:()=>profile.orbit!==false,flip:tog('orbit',()=>profile.orbit!==false),fixed:'Rotate the board and its panels (wrist turns, and the hand moving through space).'},
-        {n:'Fist, then palm moves',from:'Open the palm and move it.',on:()=>profile.ctlPan!==false,flip:tog('ctlPan',()=>profile.ctlPan!==false),fixed:'Pan the board. Rest to finish. Never with zoom.'},
-        {n:'Fist, then palm push / pull',from:'Open the palm toward or away from the camera.',on:()=>profile.ctlZoom!==false,flip:tog('ctlZoom',()=>profile.ctlZoom!==false),fixed:'Zoom the board. Hold still to finish. Never with pan.'}];
-      const gt=el('table','hs-table hs-gest');gt.createCaption().textContent='GESTURES · what a pose or combo does';
-      const gh=gt.insertRow();['Gesture','On','Built from','Does'].forEach(x=>gh.appendChild(el('th',null,x)));
-      for(const r of gest){
-        const tr=gt.insertRow(),c=[0,1,2,3].map(()=>tr.insertCell());
-        c[0].append(el('b',null,r.n));
-        const bt=el('button','hb-btn hs-tog'+(r.on()?' on':''),r.on()?'ON':'OFF');bt.type='button';bt.onclick=r.flip;c[1].append(bt);
-        c[2].textContent=r.from;
-        if(r.act){const sel=el('select','hs-sel');sel.title='What this gesture does';ACTIONS.filter(([k])=>k!=='zoom'||r.act==='triple').forEach(([k,t])=>{const o=el('option',null,t);o.value=k;if(act()[r.act]===k)o.selected=true;sel.append(o);});sel.onchange=()=>{profile.act={...act(),[r.act]:sel.value};saveProfile();repaint();};sel.onkeydown=e=>e.stopPropagation();c[3].append(sel);}
-        else c[3].textContent=r.fixed;
+      const FIRSTS=[['point','Point, index finger'],['middle','Point, middle finger'],['pinch','Thumb + index pinch'],['mpinch','Thumb + middle pinch'],['triple','Thumb + index + middle pinch'],['open','Open hand held'],['twohand','Two hands pinching'],['fist','Fist']];
+      const FOLLOW=[['','held'],['while:wrist','while held, wrist turns'],['while:palm','while held, hand moves'],['after:palm','then open palm moves'],['after:depth','then open palm push / pull']];
+      const lab=(f,k,t)=>k==='left'?(f==='point'||f==='middle'?'Click':'Click, drag and scroll'):k==='zoom'?'Zoom (hand up / down)':t;
+      const doesOf=r=>{const f=r.first;
+        if(f==='fist'){if(!r.then)return [['control','Take control of the screen']];if(r.when==='while')return [['rotate','Rotate board and panels (VIEW 3D)'],['none','Nothing']];return r.then==='palm'?[['pan','Pan the board'],['none','Nothing']]:[['zoom','Zoom the board'],['none','Nothing']];}
+        if(f==='twohand')return [['zoom','Zoom the board'],['none','Nothing']];
+        return ACTIONS.filter(([k])=>k!=='zoom'||f==='triple').map(([k,t])=>[k,lab(f,k,t)]);};
+      const fname=r=>(FIRSTS.find(x=>x[0]===r.first)||[0,r.first])[1]+(r.first==='fist'&&r.then?' · '+(FOLLOW.find(x=>x[0]===r.when+':'+r.then)||[0,''])[1]:'');
+      const setRules=fn=>{profile.rules=fn(rules().map(r=>({...r})));saveProfile();repaint();};
+      const edit=(id,fn)=>setRules(a=>{const x=a.find(y=>y.id===id);if(x)fn(x);return a;});
+      const fix=x=>{if(x.first!=='fist'){x.when='';x.then='';}const ok=doesOf(x).map(d=>d[0]);if(!ok.includes(x.does))x.does=ok[0];};
+      const gt=el('table','hs-table hs-gest');gt.createCaption().textContent='GESTURES · rules you can change, add and delete';
+      const gh=gt.insertRow();['Gesture','On','Built from','Does',''].forEach(x=>gh.appendChild(el('th',null,x)));
+      const selectOf=(opts,val,fn,title)=>{const sel=el('select','hs-sel');sel.title=title||'';opts.forEach(([k,t])=>{const o=el('option',null,t);o.value=k;if(k===val)o.selected=true;sel.append(o);});sel.onchange=()=>fn(sel.value);sel.onkeydown=e=>e.stopPropagation();return sel;};
+      for(const r of rules()){
+        const tr=gt.insertRow(),c=[0,1,2,3,4].map(()=>tr.insertCell());
+        c[0].append(el('b',null,fname(r)));
+        if(r.on&&!r.then&&r.does!=='control'&&single(r.first)!==r)c[0].append(el('small',null,'not used: an earlier rule with the same pose is active'));
+        const bt=el('button','hb-btn hs-tog'+(r.on?' on':''),r.on?'ON':'OFF');bt.type='button';bt.onclick=()=>edit(r.id,x=>{x.on=!x.on;});c[1].append(bt);
+        c[2].append(selectOf(FIRSTS,r.first,v=>edit(r.id,x=>{x.first=v;fix(x);}),'The pose that starts it'));
+        if(r.first==='fist')c[2].append(selectOf(FOLLOW,r.then?r.when+':'+r.then:'',v=>edit(r.id,x=>{const [w,t]=v.split(':');x.when=w||'';x.then=t||'';fix(x);}),'What follows the fist'));
+        c[3].append(selectOf(doesOf(r),r.does,v=>edit(r.id,x=>{x.does=v;}),'What it does'));
+        const del=el('button','hb-btn hs-reset','X');del.type='button';del.title='Delete this gesture';del.onclick=()=>setRules(a=>a.filter(y=>y.id!==r.id));c[4].append(del);
       }
       const tools=el('div','hs-tools');
       const tb2=(t,fn)=>{const x=el('button','hb-btn',t);x.type='button';x.onclick=fn;tools.append(x);};
       tb2(enabled?'CAMERA: ON (turn off)':'CAMERA: OFF (turn on)',()=>{btn.onclick();setTimeout(repaint,900);});
       tb2('SAVE LAST MINUTE',()=>{if(!enabled){p.textContent='Turn the camera on, use your hands for a minute, then come back here.';return;}saveTrace('free',p);});
       tb2('RECORD A TRACE (32 s)',()=>{if(!enabled){p.textContent='Turn the camera on first.';return;}p.textContent='Recording about 32 seconds. Follow the prompts at the top left.';setup.hidden=true;startTrace(p);});
+      tb2('ADD A GESTURE',()=>setRules(a=>{a.push({id:'u'+Date.now(),on:true,first:'pinch',when:'',then:'',does:'left'});return a;}));
       tb2('RESET EVERYTHING',()=>{profile={v:PROFILE_VERSION,fist:false,orbit:true,palm:false};saveProfile();for(const k of Object.keys(D))engine.tuning[k]=D[k];repaint();});
       const grid=el('div','hs-grid');grid.append(gt,dt);
       return [tools,grid];
