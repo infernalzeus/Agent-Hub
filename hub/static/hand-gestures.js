@@ -29,7 +29,7 @@ SOFTWARE.
   // pinchOn / pinchOff are fractions of the hand's own size (wrist to the middle finger's knuckle), measured in the camera's own space and
   // including depth, so two fingertips that merely overlap in the picture but sit at different depths are not a pinch. 0.22 is about 2 cm on an
   // adult hand and 0.34 about 3.5 cm: a pinch starts below the first and ends above the second.
-  const TUNING=Object.freeze({pinchOn:.22,pinchOff:.34,pinchOnM:.26,pinchOffM:.38,tripleOn:.28,tripleOff:.40,tripleHoldMs:260,tripleTips:.30,rightIndexAway:.30,flatOn:1.45,flatOff:1.7,flatHoldMs:400,confirmMs:70,settleMs:220,poseHoldMs:200,aimLagMs:190,trailMs:500,clickSlop:20,fitHoldMs:1000,maxJump:.28,idleMs:60000,minScore:.6,minSize:.05,maxSize:.5,presentFrames:3,fistDist:.75,depthStep:.04,depthStill:250});
+  const TUNING=Object.freeze({pinchOn:.22,pinchOff:.34,pinchOnM:.26,pinchOffM:.38,tripleOn:.28,tripleOff:.40,tripleHoldMs:260,tripleTips:.30,rightIndexAway:.30,flatOn:1.45,flatOff:1.7,flatHoldMs:400,confirmMs:70,settleMs:220,poseHoldMs:200,aimLagMs:190,trailMs:500,clickSlop:20,fitHoldMs:1000,maxJump:.28,idleMs:60000,minScore:.6,minSize:.05,maxSize:.5,presentFrames:3,fistDist:.75,depthStep:.05,depthStill:250,panStart:40,ctlStillMs:500,rotGain:1,tiltGain:1});
   const CAMERA={w:640,h:480};
   const PALM=[0,5,9,13,17];
   class LowPass{constructor(){this.last=null;}filter(x,a){this.last=this.last===null?x:a*x+(1-a)*this.last;return this.last;}}
@@ -113,6 +113,8 @@ SOFTWARE.
         // Depth: the hand's size in the picture from its flat knuckle line and wrist-to-knuckle length (2D only: the camera's z estimate is noisy and made push/pull jitter). Bigger = nearer.
         if(!s.depthF)s.depthF=new OneEuro(.5,.004);const d2=(a,b)=>Math.hypot((raw[a].x-raw[b].x)*cw,(raw[a].y-raw[b].y)*ch),depth=s.depthF.filter(Math.sqrt(d2(0,9)*Math.max(1,d2(5,17))),now/1000);
         if(!s.twistF)s.twistF=new OneEuro(.8,.01);const twist=s.twistF.filter(Math.atan2(raw[17].z-raw[5].z,Math.max(1e-4,Math.abs(raw[17].x-raw[5].x))),now/1000);
+        // Pitch: how far the hand is tipped toward or away from the camera (wrist to middle knuckle, depth against picture length). With roll and twist it is the whole wrist rotation.
+        if(!s.pitchF)s.pitchF=new OneEuro(.8,.01);const pitch=s.pitchF.filter(Math.atan2(raw[9].z-raw[0].z,Math.max(1e-4,Math.hypot(raw[9].x-raw[0].x,raw[9].y-raw[0].y))),now/1000);
         // a fist is four fingertips pulled in to the palm; a pinch with the other fingers curled is NOT one (the index fingertip stays about a
         // hand-size away from the palm), and neither is anything where the thumb touches a fingertip, so a pinch can never start a tilt
         const ext=(a,b)=>d3(a,0)>d3(b,0)*1.12;
@@ -124,7 +126,7 @@ SOFTWARE.
         if(flatShape){if(s.flatSince==null)s.flatSince=now;}else s.flatSince=null;
         const flat=flatShape&&(s.flat||now-s.flatSince>=t.flatHoldMs);s.flat=flat;
         s.pinched=pinched;s.rpinched=rpinched;s.triple=triple;
-        s.out={id,...pos,aimX:s.aim.x,aimY:s.aim.y,pinched,rpinched,triple,flat,hsize:rawSize,spread,sincePinch:s.lastPinchAt==null?1e9:now-s.lastPinchAt,gesture:s.held,points,span,fingers,pointerFinger:useMid?'middle':'index',handedness:label,palm,roll,twist,
+        s.out={id,...pos,aimX:s.aim.x,aimY:s.aim.y,pinched,rpinched,triple,flat,hsize:rawSize,spread,sincePinch:s.lastPinchAt==null?1e9:now-s.lastPinchAt,gesture:s.held,points,span,fingers,pointerFinger:useMid?'middle':'index',handedness:label,palm,roll,twist,pitch,
                depth,conf:typeof conf==='number'?conf:1,openScore:up/5,flatScore:clamp(1-(spread-t.flatOn)/(t.flatOff-t.flatOn),0,1),fistRatio:[8,12,16,20].reduce((a,i)=>a+dp(i),0)/4/size,fistScore:clamp(1-([8,12,16,20].reduce((a,i)=>a+dp(i),0)/4/size-.35)/(.75-.35),0,1),closeness:clamp(1-(gap-t.pinchOn)/(t.pinchOff-t.pinchOn),0,1),closenessM:clamp(1-(gapM-t.pinchOnM)/(t.pinchOffM-t.pinchOnM),0,1),gap,gapM};
         out.push(s.out);
       }
