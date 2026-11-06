@@ -37,9 +37,9 @@ NODES=[
  ('files','FILE BROWSER',(734,400,118,34),'Browse folders you allowed. It can show media outputs and incoming files; not every file passes through the media converter.'),
  ('smb','SHARED DRIVE',(876,400,72,34),'A configured shared drive is another file-access option. It is not a compulsory final step after every download.'),
  ('hands','HAND CONTROL',(44,408,236,42),'Camera landmarks control the browser board: pointer, pinch click and drag, fist rotation and open-palm fit. Hand control is a direct dashboard input, not an agent action.'),
- ('neo','NEO',(44,502,110,38),'Draft an agent persona from the job you describe. Review and save its instructions before adding it to your team.'),
- ('doctor','THE DOCTOR',(174,502,110,38),'Inspect Hub facts and propose a repair mission. You review its diff, choose APPLY and decide when to restart.'),
- ('apps','YOUR APPS',(310,502,152,38),'Open ingested web apps through the Hub address. An app can start on demand; it need not run a mission to open.'),
+ ('neo','NEO',(804,176,108,30),'Draft an agent persona from the job you describe. Review and save its instructions before adding it to your team.'),
+ ('doctor','THE DOCTOR',(44,502,150,38),'Inspect Hub facts and propose a repair mission. You review its diff, choose APPLY and decide when to restart.'),
+ ('apps','YOUR APPS',(226,502,180,38),'Open ingested web apps through the Hub address. An app can start on demand; it need not run a mission to open.'),
  ('routines','SAVED ROUTINES',(516,502,154,38),'Replay a saved action sequence when it matches the task and current machine. A failed replay can return to inspection instead of pretending it succeeded.'),
  ('schedule','SCHEDULE',(700,502,154,38),'A trigger decides when a request runs. Repetition does not automatically turn a single capability call into an agent mission.'),
 ]
@@ -70,14 +70,14 @@ EDGES=[
  ('hub','files','M330 250V368H793V400'),
  ('hub','smb','M318 250V480H912V434'),
  ('hands','hub','M162 408V316H300V224'),
- ('smith','neo','M350 346H300V486H99V502'),
- ('smith','doctor','M362 362V474H229V502'),
- ('doctor','missions','M284 521H292V16H654V58'),
- ('neo','team','M99 540V560H976V195H772'),
- ('hub','apps','M374 250V294H310V521'),
- ('router','routines','M584 92V114H970V486H593V502'),
- ('router','schedule','M576 92V118H984V478H777V502'),
- ('schedule','missions','M854 521H996V8H654V58'),
+ ('smith','neo','M462 346H488V166H858V176'),
+ ('smith','doctor','M350 346H294V468H119V502'),
+ ('doctor','missions','M119 502V482H286V8H654V58'),
+ ('neo','team','M804 191H790V195H772'),
+ ('hub','apps','M374 250V284H306V490H316V502'),
+ ('router','routines','M584 92V114H1074V486H593V502'),
+ ('router','schedule','M576 92V118H1090V478H777V502'),
+ ('schedule','missions','M854 521H1104V16H654V58'),
 ]
 
 def _add(root,tag,attrs,text=None):
@@ -88,6 +88,8 @@ def _add(root,tag,attrs,text=None):
 def diagram(tall=False, interactive=False):
     # Both exports deliberately keep the SAME left-to-right architecture.
     root=ET.parse(PARTS/'architecture-original.svg').getroot()
+    root.set('shape-rendering','geometricPrecision')
+    root.set('text-rendering','geometricPrecision')
     root.set('viewBox','0 0 1120 580');root.attrib.pop('width',None)
     root.set('aria-label','Agent Hub: original left-to-right circuit architecture, with current routes and private Tailscale access.')
     root[0].set('height','580')
@@ -125,8 +127,44 @@ def diagram(tall=False, interactive=False):
     # Wiring is inserted behind the unchanged chip faces, never over their text.
     wires=ET.Element('{'+NS+'}g',{'class':'original-wires','fill':'none'})
     for a,b,d in EDGES:
-        _add(wires,'path',{'d':d,'stroke':'#00e676','stroke-width':1.4,'stroke-opacity':'.4','marker-end':'url(#ah)','data-from':a,'data-to':b,'class':'original-trace'})
+        _add(wires,'path',{'d':d,'stroke':'#00e676','stroke-width':1.4,'stroke-opacity':'.72','marker-end':'url(#ah)','data-from':a,'data-to':b,'class':'original-trace'})
+    # Give crossing routes a visible gap: crossing lines are not junctions.
+    import re
+    def segments(d):
+        result=[];x=y=0
+        for op,numbers in re.findall(r'([MLHV])([^MLHV]+)',d):
+            values=[float(v) for v in re.findall(r'-?\d+(?:\.\d+)?',numbers)]
+            nx,ny=(values[0],values[1]) if op in 'ML' else (values[0],y) if op=='H' else (x,values[0])
+            if op!='M':result.append((x,y,nx,ny))
+            x,y=nx,ny
+        return result
+    routes=[segments(d) for _,_,d in EDGES]
+    for i,path in enumerate(wires):
+        rebuilt=[]
+        for x,y,nx,ny in routes[i]:
+            cuts=[]
+            if x==nx:
+                for j,other in enumerate(routes):
+                    if i==j:continue
+                    for ax,ay,bx,by in other:
+                        if ay==by and min(ax,bx)<x<max(ax,bx) and min(y,ny)<ay<max(y,ny):cuts.append(ay)
+            rebuilt.append(f'M{x} {y}')
+            if cuts:
+                direction=1 if ny>y else -1
+                for cut in sorted(set(cuts),reverse=direction<0):rebuilt.append(f'L{x} {cut-direction*3.5} M{x} {cut+direction*3.5}')
+            rebuilt.append(f'L{nx} {ny}')
+        path.set('d',' '.join(rebuilt))
+        path.attrib.pop('marker-end',None)
+    for i,(a,b,d) in enumerate(EDGES):
+        x,y,nx,ny=routes[i][-1]
+        import math
+        length=math.hypot(nx-x,ny-y)
+        _add(wires,'path',{'d':f'M{nx-(nx-x)/length*.1} {ny-(ny-y)/length*.1}L{nx} {ny}','stroke':'#00e676','stroke-width':1.4,'marker-end':'url(#ah)','data-from':a,'data-to':b,'class':'original-arrow'})
     root.insert(2,wires)
+    # Labels use the page's loaded fonts in both normal and enlarged views.
+    for el in root.iter():
+        if el.tag.endswith('text') and 'fill-opacity' in el.attrib:
+            el.set('fill-opacity',str(max(.85,float(el.get('fill-opacity')))))
     if interactive:
         for key,label,(x,y,w,h),description in NODES:
             g=_add(root,'g',{'data-arch-node':key,'class':'original-node','role':'button','tabindex':0,'aria-label':label,'aria-pressed':'false'})
@@ -135,7 +173,8 @@ def diagram(tall=False, interactive=False):
     return ET.tostring(root,encoding='unicode')
 
 def interactive():
-    return '<div class="architecture-shell static-architecture"><div class="architecture-viewport"><div class="original-map">'+diagram()+'</div></div></div>'
+    model=json.dumps({'labels':{n[0]:n[1] for n in NODES},'nodes':{n[0]:n[3] for n in NODES}})
+    return '<div class="architecture-shell static-architecture"><div class="architecture-viewport"><div class="original-map" data-architecture="'+escape(model,quote=True)+'">'+diagram(interactive=True)+'</div></div><aside class="arch-tip" hidden aria-live="polite"><b></b><p></p><button type="button" aria-label="Close architecture description">×</button></aside></div>'
 
 def wide():return diagram()
 def tall():return diagram(True)

@@ -5,7 +5,7 @@
  try{permission=sessionStorage.getItem('site:orientation')||'unknown';}catch(error){}
  const route=()=>document.getElementById(location.hash.slice(1))?.matches('.scene')?location.hash.slice(1):'landing';
  const MAX_TILT=4, REST_X=0, REST_Y=0, MOUSE_DEVICE=matchMedia('(hover:hover) and (pointer:fine)').matches, MOUSE_TILT=1.5, LANDING_MOUSE_TILT=2, PHONE_TILT=4, PERSPECTIVE=1600;
- const STEP=4200,DUR={talk:[10000,10000,10000,10000,10000,10000],hands:[4300,5900,8500,15900]};
+ const STEP=4200,DUR={agents:[8000,8000,8000,8000],talk:[10000,10000,10000,10000,10000,10000],hands:[4300,5900,8500,15900]};
  const stepMs=a=>(DUR[a.scene.id]||[])[a.i]||STEP;
 
  /* ---------- auto-playing step lists: they advance by themselves; a tap or hover pins one ---------- */
@@ -48,12 +48,13 @@
  const zoom=document.querySelector('#architecture .zoom');if(zoom)document.body.appendChild(zoom);
  const zoomOf=()=>zoom;
  let zoomWidth=1440;
- document.querySelectorAll('[data-zoom]').forEach(b=>b.addEventListener('click',()=>{zoom.hidden=false;zoomWidth=Math.max(1440,innerWidth);zoom.querySelector('img').style.width=zoomWidth+'px';zoom.querySelector('[data-zoom-close]').focus();}));
+ const resizeZoom=()=>{const map=zoom.querySelector('.zoom-map');map.style.width=zoomWidth+'px';};
+ document.querySelectorAll('[data-zoom]').forEach(b=>b.addEventListener('click',()=>{zoom.hidden=false;zoomWidth=Math.max(1440,innerWidth);const source=document.querySelector('#architecture .static-architecture');zoom.querySelector('.zoom-map').innerHTML=source.outerHTML.replace(/id="([^"]+)"/g,'id="zoom-$1"').replace(/url\(#([^)]*)\)/g,'url(#zoom-$1)');resizeZoom();drawArchitecture();zoom.querySelector('[data-zoom-close]').focus();}));
  zoom?.querySelector('[data-zoom-close]').addEventListener('click',()=>{zoom.hidden=true;document.querySelector('.enlarge').focus();});
- zoom?.querySelector('[data-zoom-in]').addEventListener('click',()=>{zoomWidth=Math.min(4000,zoomWidth*1.25);zoom.querySelector('img').style.width=zoomWidth+'px';});
- zoom?.querySelector('[data-zoom-out]').addEventListener('click',()=>{zoomWidth=Math.max(600,zoomWidth/1.25);zoom.querySelector('img').style.width=zoomWidth+'px';});
+ zoom?.querySelector('[data-zoom-in]').addEventListener('click',()=>{zoomWidth=Math.min(4000,zoomWidth*1.25);resizeZoom();});
+ zoom?.querySelector('[data-zoom-out]').addEventListener('click',()=>{zoomWidth=Math.max(600,zoomWidth/1.25);resizeZoom();});
  let pan=null;const scroll=zoom?.querySelector('.zoom-scroll');
- scroll?.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse')return;pan={x:e.clientX,y:e.clientY,left:scroll.scrollLeft,top:scroll.scrollTop};scroll.setPointerCapture(e.pointerId);e.preventDefault();});
+ scroll?.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse'||e.target.closest('[data-arch-node],button'))return;pan={x:e.clientX,y:e.clientY,left:scroll.scrollLeft,top:scroll.scrollTop};scroll.setPointerCapture(e.pointerId);e.preventDefault();});
  scroll?.addEventListener('pointermove',e=>{if(pan){scroll.scrollLeft=pan.left+pan.x-e.clientX;scroll.scrollTop=pan.top+pan.y-e.clientY;}});
  scroll?.addEventListener('pointerup',()=>{pan=null;});scroll?.addEventListener('pointercancel',()=>{pan=null;});
 
@@ -69,14 +70,14 @@
 
  /* ---------- the pulsing grid behind the landing page (the original page's grid, one ring every three seconds) ---------- */
  const canvas=document.getElementById('hub-grid'),gx=canvas&&canvas.getContext('2d'),landing=document.getElementById('landing'),doors=[...document.querySelectorAll('.door')];
- let gw=0,gh=0,gclick=0,gpos=[],graf=0,glast=0;
- function sizeGrid(){if(!canvas)return;const r=landing.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);gw=r.width;gh=r.height;canvas.width=gw*d;canvas.height=gh*d;gx.setTransform(d,0,0,d,0,0);
-  gpos=doors.map(el=>{const q=el.getBoundingClientRect();return{el,d:Math.hypot(q.left+q.width/2-r.left-gw/2,q.top+q.height/2-r.top-gh/2),v:0};});drawGrid(2000);}
+ let gcx=0,gcy=0,gw=0,gh=0,gclick=0,gpos=[],graf=0,glast=0;
+ function sizeGrid(){if(!canvas)return;const r=landing.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);gw=r.width;gh=r.height;canvas.width=gw*d;canvas.height=gh*d;gx.setTransform(d,0,0,d,0,0);const core=markHost.getBoundingClientRect();gcx=core.left+core.width/2-r.left;gcy=core.top+core.height/2-r.top;
+  gpos=doors.map(el=>{const q=el.getBoundingClientRect();return{el,d:Math.hypot(q.left+q.width/2-r.left-gcx,q.top+q.height/2-r.top-gcy),v:0};});drawGrid(2000);}
  function drawGrid(n){
   if(!gx||!gw)return;gx.clearRect(0,0,gw,gh);
   const max=Math.hypot(gw,gh)*.5,amb=(n%3000)/3000,ring=amb*max*1.25,fade=1-amb;
   for(let i=0;i<gw;i+=30)for(let j=0;j<gh;j+=30){
-   const dist=Math.hypot(i-gw/2,j-gh/2),dA=Math.abs(dist-ring);
+   const dist=Math.hypot(i-gcx,j-gcy),dA=Math.abs(dist-ring);
    let a=.05+Math.max(0,1-dA/80)*.42*fade+Math.sin(n/1400-dist/190)*.02,tq=0;
    if(gclick){const t=(n-gclick)/1500,r2=t*Math.hypot(gw,gh)*.55;tq=Math.max(0,1-Math.abs(dist-r2)/90)*.45*(1-t)*(1-t);if(t>1)gclick=0;}
    a=Math.max(.03,a);gx.strokeStyle='rgba(0,230,118,'+a+')';gx.lineWidth=a>.3?1.4:1;gx.strokeRect(i+.5,j+.5,30,30);
@@ -114,7 +115,7 @@ function drawVisual(a){
   const clipNames=['start','point','drag','control'];content=`<div class="hand-demo"><div class="hand-stage" data-clip="${clipNames[s]||'point'}"><div class="hand-boardwrap"><svg class="hand-board" viewBox="0 0 1000 380" aria-hidden="true"></svg></div><svg class="hand-skel" viewBox="0 0 1000 380" role="img" aria-label="Skeleton of a hand drawn over the board, from a real recording"></svg><span class="capture-label">Your hand drawn from a real recording (joint numbers only, no pictures). The board is an illustration.</span></div></div>`;
 
  }else if(m.sid==='pc'){
-  content=`<div class="pc-preview"><div class="ui-message"><img src="assets/agents/smith.svg" alt="Agent Smith"><div><b>Agent Smith → desktop control</b><p>Press the named Play control in Apple Music.</p></div></div>`;
+  content=`<div class="pc-preview"><div class="ui-message"><img src="assets/agents/smith.png" alt="Agent Smith"><div><b>Agent Smith → desktop control</b><p>Press the named Play control in Apple Music.</p></div></div>`;
   if(s===0)content+=field('Goal','Press Play in Apple Music')+button('Show proposed task','next');
   if(s===1)content+=`<div class="ui-section">NAMED CONTROLS</div>`+row('App','Apple Music')+row('Control','Play · button')+row('Next','Request permission');
   if(s===2)content+=`<div class="ui-proposal"><b>Approve this press?</b><p>Press Play in Apple Music.</p><div class="ui-actions">${button('Yes, press Play','approve')}${button('No, leave it','refuse')}</div></div>`;
@@ -167,7 +168,7 @@ function drawVisual(a){
  }else if(m.sid==='install'){
   content=`<div class="setup-preview"><div class="ui-section">${['CHOOSE YOUR SYSTEM','FIRST-RUN CHOICES','PRIVATE DEVICE ACCESS','OPEN YOUR HUB'][s]}</div>${s===0?'<div class="setup-os">Windows · macOS · Linux</div>':s===1?['Media tools','PC control · Windows','Speech','File Browser'].map(t=>`<div class="setup-option"><span>${t}</span>${button(a.setupChoices?.has(t)?'Selected':'Choose','choose',a.setupChoices?.has(t)?'selected':'')}</div>`).join(''):s===2?row('PC','Hub runs here')+row('Phone / tablet','Same private Tailscale network'):row('Browser','Open your Hub address')+row('Home screen','Save a bookmark')}<p class="ui-note">${s===0?'Choose a download above. macOS builds are unsigned.':'Choose the tools and folders you want during setup.'}</p></div>`;
  }else{
-  content=`<div class="talk-preview"><div class="ui-message"><img src="assets/agents/smith.svg" alt="Agent Smith"><div><b>Agent Smith</b><p>${esc(a.btns[s].dataset.t)}</p></div></div><div class="ui-proposal"><b>${esc(m.actor)}</b><p>${esc(m.description)}</p>${button('Explore this tool','tool')}</div></div>`;
+  content=`<div class="talk-preview"><div class="ui-message"><img src="assets/agents/smith.png" alt="Agent Smith"><div><b>Agent Smith</b><p>${esc(a.btns[s].dataset.t)}</p></div></div><div class="ui-proposal"><b>${esc(m.actor)}</b><p>${esc(m.description)}</p>${button('Explore this tool','tool')}</div></div>`;
  }
  host.innerHTML=`<div class="screen-toolbar"><span>${pageTitle}</span><div><button type="button" data-preview="replay" aria-label="Replay this preview">↻</button><button type="button" data-preview="pause" aria-label="Pause this preview">Ⅱ</button><button type="button" data-preview="next" aria-label="Next preview step">›</button></div></div><div class="screen-body">${content}</div>`;
  if(m.sid==='hands'&&window.HubHandPlayer)window.HubHandPlayer(host,s);
@@ -198,18 +199,17 @@ document.querySelectorAll('.machine .lane').forEach((lane,i)=>{lane.tabIndex=0;l
 document.querySelector('.wishlist-form')?.addEventListener('submit',e=>{e.preventDefault();const status=e.target.querySelector('[role=status]');status.hidden=false;status.textContent='Email collection is not connected yet.';});
 
 function drawArchitecture(){
- const host=document.querySelector('.scene.active .original-map[data-architecture]');if(!host)return;
- const model=JSON.parse(host.dataset.architecture),tip=host.parentElement.querySelector('.arch-tip');
+ document.querySelectorAll('.original-map[data-architecture]').forEach(host=>{
+ const model=JSON.parse(host.dataset.architecture),tip=host.closest('.architecture-shell').querySelector('.arch-tip');
  const choose=id=>{
   host.dataset.selected=id||'';
   host.querySelectorAll('[data-arch-node]').forEach(n=>{const on=!!id&&n.dataset.archNode===id;n.classList.toggle('selected',on);n.setAttribute('aria-pressed',String(on));});
   host.querySelectorAll('[data-from]').forEach(p=>p.classList.toggle('selected',!!id&&(p.dataset.from===id||p.dataset.to===id)));
-  if(!id){tip.hidden=true;return;}
-  tip.hidden=false;tip.querySelector('b').textContent=model.labels[id];tip.querySelector('p').textContent=model.nodes[id];
+  tip.hidden=!id;if(id){tip.querySelector('b').textContent=model.labels[id];tip.querySelector('p').textContent=model.nodes[id];}
  };
  host.querySelectorAll('[data-arch-node]').forEach(n=>{n.onclick=e=>{e.stopPropagation();choose(host.dataset.selected===n.dataset.archNode?'':n.dataset.archNode);};n.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();choose(host.dataset.selected===n.dataset.archNode?'':n.dataset.archNode);}};});
- host.onclick=()=>choose('');tip.querySelector('button').onclick=e=>{e.stopPropagation();choose('');};
- choose('');
+ host.onclick=()=>choose('');tip.querySelector('button').onclick=e=>{e.stopPropagation();choose('');};choose(host.dataset.selected||'');
+ });
 }
 
 
@@ -250,7 +250,7 @@ function drawArchitecture(){
  new MutationObserver(()=>{if(!busy&&pendingRoute!==null){const p=pendingRoute;pendingRoute=null;navigate(p,false);}}).observe(document.body,{attributes:true,attributeFilter:['data-turning']});
  document.addEventListener('keydown',e=>{
   if(busy){if(['Escape','ArrowLeft','ArrowRight','Enter',' '].includes(e.key))e.preventDefault();return;}
-  const z=zoomOf();if(z&&!z.hidden){if(e.key==='Escape'){e.preventDefault();z.hidden=true;document.querySelector('.enlarge').focus();}if(e.key==='Tab'){const bs=[...z.querySelectorAll('button')],i=bs.indexOf(document.activeElement);e.preventDefault();bs[(i+(e.shiftKey?-1:1)+bs.length)%bs.length].focus();}return;}
+  const z=zoomOf();if(z&&!z.hidden){if(e.key==='Escape'){e.preventDefault();z.hidden=true;document.querySelector('.enlarge').focus();}if(e.key==='Tab'){const bs=[...z.querySelectorAll('button,[tabindex="0"]')].filter(b=>b.getBoundingClientRect().width>0),i=bs.indexOf(document.activeElement);e.preventDefault();bs[(i+(e.shiftKey?-1:1)+bs.length)%bs.length].focus();}return;}
   if(active.id==='landing'&&e.key.toLowerCase()==='g'&&!e.ctrlKey&&!e.metaKey&&mark){shell=!mark.isShell();mark.setShell(shell);}
   if(e.key==='Escape'){e.preventDefault();navigate('landing');}
   if((e.key==='ArrowLeft'||e.key==='ArrowRight')&&!e.target.matches('input,textarea,select')){e.preventDefault();stepActive(e.key==='ArrowRight'?1:-1);}
@@ -300,7 +300,7 @@ function drawArchitecture(){
  });
  // A mouse anywhere in the window steers the tilt (the header is part of the window, so crossing it no longer resets it).
  document.addEventListener('pointermove',e=>{
-  if(busy||e.pointerType!=='mouse'||drag||e.buttons)return;if(e.target.closest('a,button')){cancelAnimationFrame(raf);raf=0;targetX=x;targetY=y;return;}const b=tiltEl();if(!b)return;const r=active.getBoundingClientRect(),m=maxFor(b,'mouse');
+  if(busy||e.pointerType!=='mouse'||drag||e.buttons)return;if(active.id!=='landing'&&e.target.closest('a,button')){cancelAnimationFrame(raf);raf=0;targetX=x;targetY=y;return;}const b=tiltEl();if(!b)return;let r=active.getBoundingClientRect();const m=maxFor(b,'mouse');if(active.id==='landing'){const core=markHost.getBoundingClientRect();r={left:core.left+core.width/2-innerWidth/2,top:core.top+core.height/2-innerHeight/2,width:innerWidth,height:innerHeight};}
   move(clamp(-((e.clientY-r.top)/r.height-.5)*2*m,m),clamp(((e.clientX-r.left)/r.width-.5)*2*m,m));
  });
  document.documentElement.addEventListener('mouseleave',()=>{if(!drag)move(0,0);});
@@ -323,6 +323,17 @@ function thickenPanels(){
   let depth=[...parent.children].find(x=>x.classList.contains('glass-depth')&&x._front===front);
   if(!depth){depth=document.createElement('div');depth.className='glass-depth';depth.setAttribute('aria-hidden','true');depth.innerHTML='<i class="glass-back"></i><i class="glass-right"></i><i class="glass-bottom"></i>';depth._front=front;parent.prepend(depth);}
   depth.hidden=false;front.classList.add('glass-front');Object.assign(depth.style,{left:front.offsetLeft+'px',top:front.offsetTop+'px',width:front.offsetWidth+'px',height:front.offsetHeight+'px'});
+  if(front.closest('.landing')){
+   const core=markHost.getBoundingClientRect(),f=front.getBoundingClientRect(),cx=core.left+core.width/2,cy=core.top+core.height/2;
+   const vx=cx-f.left-f.width/2,vy=cy-f.top-f.height/2,len=Math.hypot(vx,vy)||1,dx=vx/len*7,dy=vy/len*7,w=front.offsetWidth,h=front.offsetHeight;
+   depth.style.setProperty('--core-dx',dx+'px');depth.style.setProperty('--core-dy',dy+'px');depth.querySelector('.glass-back').style.transform=`translate(${dx}px,${dy}px) translateZ(-24px)`;
+   const polygon=points=>'polygon('+points.map(([x,y])=>`${x+8}px ${y+8}px`).join(',')+')';
+   const edge=dx>0?w:0,base=dy>0?h:0;
+   for(const [cls,points] of [['.glass-right',[[edge,0],[edge+dx,dy],[edge+dx,h+dy],[edge,h]]],['.glass-bottom',[[0,base],[w,base],[w+dx,base+dy],[dx,base+dy]]]]){
+    Object.assign(depth.querySelector(cls).style,{left:'-8px',top:'-8px',right:'auto',bottom:'auto',width:(w+16)+'px',height:(h+16)+'px',transform:'none',clipPath:polygon(points)});
+   }
+   const board=front.closest('.tilt-layer'),br=board.getBoundingClientRect();board.style.setProperty('--core-x',(cx-br.left)+'px');board.style.setProperty('--core-y',(cy-br.top)+'px');
+  }
  });
 }
 function wirePreview(a,host){

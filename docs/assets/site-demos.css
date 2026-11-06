@@ -338,3 +338,41 @@
 /* Let the flow rows size to their text, then fit the whole drawing once. */
 .js .talk-desktop .fit .flow{position:absolute;left:50%;top:0;width:960px;height:auto;transform-origin:top center;transform:translateX(-50%) scale(var(--s,.8))}
 .talk-desktop .flow .machine{height:auto;grid-template-rows:auto auto auto}.talk-desktop .flow .lanes{grid-template-rows:repeat(5,auto);min-height:0}.talk-desktop .flow .machine .lane{grid-template-columns:130px repeat(3,minmax(0,1fr)) minmax(0,1.2fr);min-height:76px}.talk-desktop .flow .machine .n{min-height:0;height:auto}
+
+/* Match the core: a brief green pulse every six seconds; retain original Smith pixels. */
+.smith-btn img,.smith-card img{animation:smith-core-pulse 6s ease-in-out infinite}
+@keyframes smith-core-pulse{0%,15%,36%,100%{filter:none}22%,29%{filter:hue-rotate(-65deg) drop-shadow(0 0 4px #24ff80)}}
+@media(prefers-reduced-motion:reduce){.smith-btn img,.smith-card img{animation:none!important}}
+
+/* The circuit stays in a flat vector layer; glass remains on its surrounding frame. */
+#architecture .board,#architecture .tilt-layer,#architecture .slabbox,#architecture .blk,#architecture .blk-b,#architecture .glass-front{transform:none!important;transform-style:flat!important;perspective:none!important;filter:none!important;backdrop-filter:none!important}
+#architecture .glass-depth{display:none!important}
+.static-architecture{position:relative;transform-style:flat!important}
+.static-architecture .original-node{pointer-events:all!important}
+.original-node rect{pointer-events:all;fill:transparent;stroke:transparent}
+.original-node.selected rect,.original-node:focus-visible rect{stroke:#41ebff;stroke-width:2;fill:#41ebff12}
+.original-trace.selected,.original-arrow.selected{stroke:#41ebff;stroke-opacity:1}
+.static-architecture .arch-tip{position:absolute;left:12px;right:12px;bottom:10px;z-index:4;background:#06131bf5;border:1px solid #41ebff80;padding:12px 44px 12px 14px;color:#c3e8dc;font:14px/1.5 Outfit,system-ui}
+.arch-tip[hidden]{display:none!important}.arch-tip b{color:#00eaff;font:700 11px Orbitron,system-ui}.arch-tip p{margin:5px 0 0}.arch-tip button{position:absolute;right:0;top:0;width:44px;height:44px;color:#00eaff;background:none}
+.zoom-map{flex:none;min-width:600px}.zoom-map .static-architecture{height:auto}.zoom-map .architecture-viewport{height:auto;overflow:visible}.zoom-map .original-map{width:100%;height:auto;aspect-ratio:1120/580}.zoom-map .original-map svg{height:auto;width:100%}.zoom-map .arch-tip{position:fixed;left:16px;right:16px;bottom:16px;max-width:900px;margin:auto}
+
+/* Five primary doors orbit the same core, on desktop and handheld layouts. */
+.js .landing .tilt-layer{inset:78px 30px 20px;max-width:1160px;margin:auto;padding:0;grid-template-columns:minmax(150px,230px) minmax(230px,1fr) minmax(150px,230px);grid-template-rows:auto minmax(60px,1fr) minmax(60px,1fr) auto auto auto auto auto;column-gap:30px;row-gap:8px;transform-origin:var(--core-x,50%) var(--core-y,40%)}
+.js .landing .hero-title{grid-column:2;grid-row:1}.js .landing .mark-host{grid-column:2;grid-row:2/4;width:min(32vw,34dvh,430px);height:min(32vw,34dvh,430px);max-width:100%;align-self:center}
+.js .landing .doors{display:contents}.js .landing .doorbox{position:relative;width:100%;align-self:center;justify-self:stretch}.js .landing .doorbox:nth-of-type(1){grid-column:1;grid-row:2}.js .landing .doorbox:nth-of-type(2){grid-column:3;grid-row:2}.js .landing .doorbox:nth-of-type(3){grid-column:1;grid-row:3}.js .landing .doorbox:nth-of-type(4){grid-column:3;grid-row:3}
+.js .landing .smithbox{position:relative;left:auto;top:auto;grid-column:2;grid-row:4;width:min(230px,100%);justify-self:center}.js .landing .smith-btn{width:100%;min-height:52px;justify-content:center}.js .landing .tagline{grid-column:1/-1;grid-row:5}.js .landing .actions{grid-column:1/-1;grid-row:6}.js .landing .more-links{grid-column:1/-1;grid-row:7}.js .landing .wishlist-form{grid-column:1/-1;grid-row:8}
+.js .landing .glass-back{inset:0;background:linear-gradient(135deg,#41ebff20,#00e6760b)}
+@media(max-width:650px),(max-height:540px){
+ .js .landing .tilt-layer{inset:76px 18px 16px;grid-template-columns:minmax(0,1fr) minmax(108px,1.2fr) minmax(0,1fr);grid-template-rows:auto minmax(44px,1fr) minmax(44px,1fr) auto auto auto auto auto;column-gap:8px;row-gap:5px}
+ .js .landing .hero-title{font-size:25px}.js .landing .mark-host{width:min(34vw,27dvh);height:min(34vw,27dvh)}.js .landing .door{min-height:48px;height:auto;padding:8px 5px;font-size:9px;line-height:1.5;text-align:center;white-space:normal}
+ .js .landing .smith-btn{min-height:46px;padding:3px 6px;gap:5px}.js .landing .smith-btn img{width:34px;height:34px}.js .landing .smith-btn b{font-size:11px}.js .landing .smith-btn em{display:none}.js .landing .tagline{font-size:11px;text-align:center}.js .landing .more-links a{font-size:7px;padding:0 5px}.js .landing .wishlist-form{width:min(380px,100%);padding:0}
+}
+@media(max-height:540px) and (orientation:landscape){
+ .js .landing .tilt-layer{inset:66px 30px 12px;grid-template-columns:minmax(130px,1fr) minmax(180px,1.2fr) minmax(130px,1fr);grid-template-rows:26px 45px 45px 44px 18px 44px 44px;column-gap:32px;row-gap:3px}
+ .js .landing .mark-host{width:100px;height:100px}.js .landing .hero-title{font-size:22px}.js .landing .smith-btn{min-height:44px}.js .landing .tagline{font-size:10px}.js .landing .actions{grid-column:1;grid-row:6}.js .landing .more-links{grid-column:2/4;grid-row:6}.js .landing .wishlist-form{grid-row:7}.js .landing .actions .action{padding:4px 6px;font-size:8px}.js .landing .more-links a{font-size:7px}
+}
+
+.js .landing .tilt-layer{--core-size:min(32vw,34dvh,430px);grid-template-rows:auto calc(var(--core-size)/2) calc(var(--core-size)/2) auto auto auto auto auto;align-content:center}
+.js .landing .hero-title{grid-column:1/-1}.js .landing .mark-host{width:var(--core-size);height:var(--core-size)}
+@media(max-width:650px),(max-height:540px){.js .landing .tilt-layer{--core-size:min(34vw,27dvh);grid-template-rows:auto calc(var(--core-size)/2) calc(var(--core-size)/2) auto auto auto auto auto}}
+@media(max-height:540px) and (orientation:landscape){.js .landing .tilt-layer{--core-size:100px;grid-template-rows:26px 50px 50px 48px 18px 44px 44px;align-content:center}.js .landing .smith-btn{min-height:48px}}

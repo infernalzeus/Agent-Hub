@@ -16,7 +16,7 @@ from html import escape
 from pathlib import Path
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
-V = "20261106-svg-agency"
+V = "20261106-clear-architecture"
 REPO = "https://github.com/infernalzeus/Agent-Hub"
 AG = "assets/agents/"
 LEGEND = "Live: seen running on a real machine. Unit-tested: the logic is tested, not yet seen running. Built, not tried: built and tested without the real hardware."
@@ -319,14 +319,14 @@ def build() -> str:
     parts = []
     for sid, door, label, headline, ch, line, runs, runs_line in SCENES:
         if sid == "talk":
-            smith = '<span class="smith-card"><span class="smith-input">Speak or type</span><img src="%ssmith.svg" alt="" width="52" height="52"><span class="smith-name">Smith</span></span>' % AG
+            smith = '<span class="smith-card"><span class="smith-input">Speak or type</span><img src="%ssmith.png" alt="" width="52" height="52"><span class="smith-name">Smith</span></span>' % AG
             body = story(sid, '<div class="talk-desktop"><div class="fit"><div class="flow">%s</div></div>%s</div><div class="talk-phone">%s</div>' % (machine, talk_table(), auto(TALK_PHONE)))
             parts.append(scene(sid, label, headline, ch, line, runs, runs_line, body, wide=True, extra_head=smith))
         elif sid == "agents":
             parts.append(scene(sid, label, headline, ch, line, runs, runs_line, story(sid, agents_body())))
         elif sid == "architecture":
             import build_architecture as ba
-            body = ba.interactive() + '<div class="zoom" role="dialog" aria-modal="true" aria-label="Enlarged architecture" hidden><div class="zoom-tools"><button class="zoom-x" type="button" data-zoom-close>Close ×</button><button type="button" data-zoom-in aria-label="Zoom in">+</button><button type="button" data-zoom-out aria-label="Zoom out">−</button></div><div class="zoom-scroll"><img src="architecture.svg" alt="Agent Hub architecture" width="1440" height="860"></div></div>'
+            body = ba.interactive() + '<div class="zoom" role="dialog" aria-modal="true" aria-label="Enlarged architecture" hidden><div class="zoom-tools"><button class="zoom-x" type="button" data-zoom-close>Close ×</button><button type="button" data-zoom-in aria-label="Zoom in">+</button><button type="button" data-zoom-out aria-label="Zoom out">−</button></div><div class="zoom-scroll"><div class="zoom-map"></div></div></div>'
             parts.append(scene(sid,label,headline,ch,line,runs,runs_line,body,wide=True,extra_head='<button class="enlarge" type="button" data-zoom>ENLARGE ⤢</button>'))
         elif sid == "install":
             download_buttons = '<div class="downloads">' + ''.join('<a class="action" href="%s/releases/latest/download/%s"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="3" width="18" height="13"/><path d="M12 16v5M7 21h10"/></svg>%s</a>' % (REPO, f, n) for n, f in [("Windows", "Agent-Hub-Setup.exe"),("macOS", "Agent-Hub-macOS.dmg"),("Linux", "Agent-Hub-Linux.tar.gz")]) + '</div>'
@@ -335,7 +335,7 @@ def build() -> str:
             parts.append(scene(sid, label, headline, ch, line, runs, runs_line, story(sid, auto(STEPS[sid]))))
     tiles = [s for s in SCENES if s[0] in ("missions", "pc", "media", "graph")]
     doors = "".join(slab('<a class="door blk" href="#%s">%s</a>' % (sid, escape(door)), "doorbox", 40, 52) for sid, door, *_ in tiles)
-    smith_btn = slab('<a class="smith-btn blk" href="#talk" aria-label="Talk to Agent Smith"><img src="%ssmith.svg" alt="" width="52" height="52"><span><b>TALK</b><em>Agent Smith</em></span></a>' % AG, "smithbox", 50, 30)
+    smith_btn = slab('<a class="smith-btn blk" href="#talk" aria-label="Talk to Agent Smith"><img src="%ssmith.png" alt="" width="52" height="52"><span><b>TALK</b><em>Agent Smith</em></span></a>' % AG, "smithbox", 50, 30)
     head = (
         '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
         '<meta name="description" content="Your most powerful PC tools at your fingertips, any device. Agent Hub brings autonomous LLM missions, desktop control, media and projects together.">'
