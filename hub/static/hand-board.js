@@ -42,7 +42,7 @@ SOFTWARE.
   function mount({host,bar,fitButton}){
     styles();
     let typedAt=-Infinity,lastAction=-Infinity,alive=true,enabled=false,canvas=null,ctx=null,legend=null,status=null,legendTimer=0,used=false,zooming=false,interlock=false,cooldown=0,diagnostic=false,measurementLabel='MEASURING',hint='',hintAt=0,calibration=null;
-    let confLive=[];
+    let confLive=[],menuTab='gestures';
     // GESTURES ARE RULES. Each rule: first (the pose), when / then (for a fist: what follows it), does (the action). The ones below are what ships; the menu edits, adds and deletes them.
     const DEFAULT_RULES=[
       {id:'r1',on:true,first:'point',when:'',then:'',does:'left'},{id:'r2',on:true,first:'middle',when:'',then:'',does:'right'},
@@ -446,13 +446,22 @@ const ctl={on:false,sawRelease:false,fistSince:null,fistLatched:false,lock:null,
       rows.forEach(r=>{const tr=tb.insertRow();r.cells.forEach(c=>{tr.insertCell().textContent=c;});if(r.fn){tr.className='hs-act';tr.tabIndex=0;tr.setAttribute('role','button');tr.onclick=r.fn;tr.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();r.fn();}};}});return tb;}
     // The two tables of the hands menu. The same ones are in the dialog and under HANDS in the log; `repaint` redraws whichever is showing.
     function handsTables(repaint,p){
-      // TWO TABLES. DETECTORS: what the camera can tell about the hand, each with a live meter and its thresholds.
-      // GESTURES: what you want done when detectors line up (a pose, a hold, a combo of two), each with ON / OFF and, where it can change, its action.
+      // THREE TABS. GESTURES: rules (what you want done). DETECTORS: what the camera measures, with the thresholds, and which gestures use each.
+      // CAMERA AND TOOLS: the camera, saving a trace, reset. A gesture lists the detectors it depends on; pressing one jumps to it.
       const D=G.TUNING,T=engine.tuning,save=()=>{try{localStorage.setItem('hub-hands-profile',JSON.stringify(profile));}catch(_){}};
-      const tog=(key,on)=>()=>{profile[key]=!on();saveProfile();repaint();},dis=key=>({on:()=>!isOff(key),flip:()=>{profile.dis={...(profile.dis||{}),[key]:!isOff(key)};saveProfile();repaint();}});
       const el=(tag,cls,txt)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;};
       const cnt=o=>o.hands.filter(x=>x.pinched).length;
-      confLive=[];
+      confLive=[];const detRows={};
+      const FIRSTS=[['point','Point, index finger'],['middle','Point, middle finger'],['pinch','Thumb + index pinch'],['mpinch','Thumb + middle pinch'],['triple','Thumb + index + middle pinch'],['open','Open hand held'],['twohand','Two hands pinching'],['fist','Fist']];
+      const FOLLOW=[['','held'],['while:wrist','while held, wrist turns'],['while:palm','while held, hand moves'],['after:palm','then open palm moves'],['after:depth','then open palm push / pull']];
+      const lab=(f,k,t)=>k==='left'?(f==='point'||f==='middle'?'Click':'Click, drag and scroll'):k==='zoom'?'Zoom (hand up / down)':t;
+      const doesOf=r=>{const f=r.first;
+        if(f==='fist'){if(!r.then)return [['control','Take control of the screen']];if(r.when==='while')return [['rotate','Rotate board and panels (VIEW 3D)'],['none','Nothing']];return r.then==='palm'?[['pan','Pan the board'],['none','Nothing']]:[['zoom','Zoom the board'],['none','Nothing']];}
+        if(f==='twohand')return [['zoom','Zoom the board'],['none','Nothing']];
+        return ACTIONS.filter(([k])=>k!=='zoom'||f==='triple').map(([k,t])=>[k,lab(f,k,t)]);};
+      const fname=r=>(FIRSTS.find(x=>x[0]===r.first)||[0,r.first])[1]+(r.first==='fist'&&r.then?' · '+(FOLLOW.find(x=>x[0]===r.when+':'+r.then)||[0,''])[1]:'');
+      const detsOf=r=>{const m={point:['Index finger out'],middle:['Middle finger out'],pinch:['Thumb to index'],mpinch:['Thumb to middle'],triple:['Thumb to index and middle','Fingers must reach'],open:['Open fingers'],twohand:['Two hands pinching'],fist:['Fist']}[r.first]||[];
+        const f=r.first==='fist'&&r.then?(r.then==='wrist'||(r.then==='palm'&&r.when==='while')?['Wrist rotation']:r.then==='palm'?['Palm travel']:['Palm push / pull']):[];return m.concat(f);};
       // ---------------- detectors
       const det=[
         {n:'Hand seen',tip:'The camera model must be at least this sure it is a hand, for this many frames in a row.',m:{v:h=>h.conf,max:1,tk:[['minScore','min']],f:h=>Math.round(h.conf*100)+'%'},k:[['minScore','min score',.05,0,1],['presentFrames','frames',1,1,10]]},
@@ -461,19 +470,20 @@ const ctl={on:false,sawRelease:false,fistSince:null,fistLatched:false,lock:null,
         {n:'Thumb to index',tip:'Distance between the two fingertips as a fraction of your hand size. Under ON it becomes a pinch; it stays one until it passes OFF.',m:{v:h=>h.gap,max:.8,tk:[['pinchOn','ON'],['pinchOff','OFF']],f:h=>h.gap.toFixed(2)+(h.pinched?' PINCH':'')},k:[['pinchOn','ON',.01,.05,.6],['pinchOff','OFF',.01,.1,.9],['confirmMs','hold ms',10,0,400]]},
         {n:'Thumb to middle',tip:'Same, thumb to middle fingertip, with the index finger kept away by at least the third number.',m:{v:h=>h.gapM,max:.8,tk:[['pinchOnM','ON'],['pinchOffM','OFF']],f:h=>h.gapM.toFixed(2)+(h.rpinched?' PINCH':'')},k:[['pinchOnM','ON',.01,.05,.6],['pinchOffM','OFF',.01,.1,.9],['rightIndexAway','index away',.01,.1,.9]]},
         {n:'Thumb to index and middle',tip:'Thumb touching both fingertips; must be held for the last number.',m:{v:h=>Math.max(h.gap,h.gapM),max:.8,tk:[['tripleOn','ON'],['tripleOff','OFF']],f:h=>Math.max(h.gap,h.gapM).toFixed(2)+(h.triple?' PINCH':'')},k:[['tripleOn','ON',.01,.05,.6],['tripleOff','OFF',.01,.1,.9],['tripleHoldMs','hold ms',20,0,800]]},
+        {n:'Fingers must reach',tip:'A three-finger pinch only counts while the index and middle fingertips are away from the palm. A fist brings every fingertip to the thumb, which looked like a three-finger pinch and made the fist drag things (your 6 Nov recording).',m:{v:h=>h.reach,max:1.2,tk:[['tripleReach','min']],f:h=>h.reach.toFixed(2)+(h.reach>=T.tripleReach?' reaching':' tucked in')},k:[['tripleReach','reach at least',.05,.1,1]]},
         {n:'Two hands pinching',tip:'Both hands in a thumb and index pinch at once; the distance between them is the zoom.',m:{v:(h,o)=>cnt(o),max:2,tk:[],f:(h,o)=>cnt(o)+' of 2'+(o.zoom?' · '+Math.round(o.zoom.distance)+' px apart':'')},k:[]},
         {n:'Fist',tip:'Average fingertip distance from the palm as a fraction of hand size. Under the mark it is a fist.',m:{v:h=>h.fistRatio,max:1.2,tk:[['fistDist','max']],f:h=>h.fistRatio.toFixed(2)},k:[['fistDist','fist under',.01,.3,1.2]]},
         {n:'Open fingers',tip:'How many of the five fingers are out, and how long a pose must hold before it counts.',m:{v:h=>h.openScore,max:1,tk:[],f:h=>Math.round(h.openScore*5)+' of 5'},k:[['poseHoldMs','hold ms',20,0,800]]},
         {n:'Wrist rotation',tip:'Twist = forearm turning. Roll = fist tilting like a steering wheel. Pitch = fist tipping toward the camera. The numbers say how far the board turns for each, a minus flips the direction; "hand moves" adds the fist travelling through space; smooth and ignore-under steady it.',m:{v:h=>Math.abs(h.twist)+Math.abs(h.roll)+Math.abs(h.pitch),max:1,tk:[],f:h=>'twist '+h.twist.toFixed(2)+' roll '+h.roll.toFixed(2)+' pitch '+h.pitch.toFixed(2)},k:[['rotGain','twist · left/right',.25,-6,6],['rollGain','roll · left/right',.25,-6,6],['tiltGain','pitch · up/down',.5,-12,12],['rollTilt','roll · up/down',.25,-6,6],['moveGain','hand moves',.1,-3,3],['rotSmooth','smooth',.05,0,.95],['rotDead','ignore under',.002,0,.05]]},
         {n:'Palm travel',tip:'How far the open palm has moved since the combo started. Past the start mark it locks to PAN. Resting for the rest time ends it.',m:{v:()=>ctlInfo.travel,max:150,tk:[['panStart','start']],f:()=>Math.round(ctlInfo.travel)+' px '+(ctlInfo.lock||'')},k:[['panStart','start px',5,10,200],['ctlStillMs','rest ms',50,100,2000],['depthStill','still under px/s',25,25,1000]]},
         {n:'Palm push / pull',tip:'Change of hand size in the picture (toward or away from the camera). Past the start mark it locks to ZOOM.',m:{v:()=>ctlInfo.dchange,max:.3,tk:[['depthStep','start']],f:()=>Math.round(ctlInfo.dchange*100)+'% '+(ctlInfo.lock||'')},k:[['depthStep','start change',.01,.01,.3]]}];
-      const dt=el('table','hs-table hs-det');dt.createCaption().textContent='DETECTORS · what the camera can tell (live)';
-      const dh=dt.insertRow();['Detector','Live','Thresholds'].forEach(x=>dh.appendChild(el('th',null,x)));
+      const dt=el('table','hs-table hs-det');
+      const dh=dt.insertRow();['Detector','Live','Thresholds','Used by'].forEach(x=>dh.appendChild(el('th',null,x)));
       for(const r of det){
-        const tr=dt.insertRow(),c=[tr.insertCell(),tr.insertCell(),tr.insertCell()];
-        c[0].append(el('b',null,r.n));c[0].title=r.tip;
+        const tr=dt.insertRow(),c=[tr.insertCell(),tr.insertCell(),tr.insertCell(),tr.insertCell()];detRows[r.n]=tr;
+        c[0].append(el('b',null,r.n));c[0].title=r.tip;c[0].append(el('small',null,r.tip));
         const m=el('div','hs-meter'),fill=document.createElement('i'),num=el('span',null,'no hand');m.append(fill);
-        const ticks=r.m.tk.map(([key,lab])=>{const u=document.createElement('u');u.dataset.l=lab;m.append(u);return {u,key};});
+        const ticks=r.m.tk.map(([key,lab2])=>{const u=document.createElement('u');u.dataset.l=lab2;m.append(u);return {u,key};});
         const place=()=>ticks.forEach(({u,key})=>{u.style.left=Math.min(100,T[key]/r.m.max*100)+'%';});place();c[1].append(num,m);
         confLive.push({cell:num,fill,fn:r.m.f,v:(h,o)=>Math.max(0,Math.min(1,r.m.v(h,o)/r.m.max))});
         const wrap=el('div','hs-fields');
@@ -485,41 +495,47 @@ const ctl={on:false,sawRelease:false,fistSince:null,fistLatched:false,lock:null,
         }
         if(r.k.length){const rs=el('button','hb-btn hs-reset','DEFAULT');rs.type='button';rs.onclick=()=>{for(const [key] of r.k){T[key]=D[key];if(profile.tuning)delete profile.tuning[key];}save();repaint();};wrap.append(rs);}
         c[2].append(wrap);
+        const users=rules().filter(x=>detsOf(x).includes(r.n));
+        if(users.length){for(const u of users){const b=el('button','hs-chip',fname(u));b.type='button';b.title='Show this gesture';b.onclick=()=>show('gestures');c[3].append(b);}}else c[3].append(el('small',null,'no gesture uses this'));
       }
-      // ---------------- gestures
-      const FIRSTS=[['point','Point, index finger'],['middle','Point, middle finger'],['pinch','Thumb + index pinch'],['mpinch','Thumb + middle pinch'],['triple','Thumb + index + middle pinch'],['open','Open hand held'],['twohand','Two hands pinching'],['fist','Fist']];
-      const FOLLOW=[['','held'],['while:wrist','while held, wrist turns'],['while:palm','while held, hand moves'],['after:palm','then open palm moves'],['after:depth','then open palm push / pull']];
-      const lab=(f,k,t)=>k==='left'?(f==='point'||f==='middle'?'Click':'Click, drag and scroll'):k==='zoom'?'Zoom (hand up / down)':t;
-      const doesOf=r=>{const f=r.first;
-        if(f==='fist'){if(!r.then)return [['control','Take control of the screen']];if(r.when==='while')return [['rotate','Rotate board and panels (VIEW 3D)'],['none','Nothing']];return r.then==='palm'?[['pan','Pan the board'],['none','Nothing']]:[['zoom','Zoom the board'],['none','Nothing']];}
-        if(f==='twohand')return [['zoom','Zoom the board'],['none','Nothing']];
-        return ACTIONS.filter(([k])=>k!=='zoom'||f==='triple').map(([k,t])=>[k,lab(f,k,t)]);};
-      const fname=r=>(FIRSTS.find(x=>x[0]===r.first)||[0,r.first])[1]+(r.first==='fist'&&r.then?' · '+(FOLLOW.find(x=>x[0]===r.when+':'+r.then)||[0,''])[1]:'');
+      // ---------------- gestures (rules)
       const setRules=fn=>{profile.rules=fn(rules().map(r=>({...r})));saveProfile();repaint();};
       const edit=(id,fn)=>setRules(a=>{const x=a.find(y=>y.id===id);if(x)fn(x);return a;});
       const fix=x=>{if(x.first!=='fist'){x.when='';x.then='';}const ok=doesOf(x).map(d=>d[0]);if(!ok.includes(x.does))x.does=ok[0];};
-      const gt=el('table','hs-table hs-gest');gt.createCaption().textContent='GESTURES · rules you can change, add and delete';
-      const gh=gt.insertRow();['Gesture','On','Built from','Does',''].forEach(x=>gh.appendChild(el('th',null,x)));
       const selectOf=(opts,val,fn,title)=>{const sel=el('select','hs-sel');sel.title=title||'';opts.forEach(([k,t])=>{const o=el('option',null,t);o.value=k;if(k===val)o.selected=true;sel.append(o);});sel.onchange=()=>fn(sel.value);sel.onkeydown=e=>e.stopPropagation();return sel;};
+      const rl=el('div','hs-rules');
+      const head=el('div','hs-rule hs-rhead');['On','Gesture','Pose and follow-up','Does','Uses detectors',''].forEach(x=>head.append(el('span',null,x)));rl.append(head);
       for(const r of rules()){
-        const tr=gt.insertRow(),c=[0,1,2,3,4].map(()=>tr.insertCell());
-        c[0].append(el('b',null,fname(r)));
-        if(r.on&&!r.then&&r.does!=='control'&&single(r.first)!==r)c[0].append(el('small',null,'not used: an earlier rule with the same pose is active'));
-        const bt=el('button','hb-btn hs-tog'+(r.on?' on':''),r.on?'ON':'OFF');bt.type='button';bt.onclick=()=>edit(r.id,x=>{x.on=!x.on;});c[1].append(bt);
-        c[2].append(selectOf(FIRSTS,r.first,v=>edit(r.id,x=>{x.first=v;fix(x);}),'The pose that starts it'));
-        if(r.first==='fist')c[2].append(selectOf(FOLLOW,r.then?r.when+':'+r.then:'',v=>edit(r.id,x=>{const [w,t]=v.split(':');x.when=w||'';x.then=t||'';fix(x);}),'What follows the fist'));
-        c[3].append(selectOf(doesOf(r),r.does,v=>edit(r.id,x=>{x.does=v;}),'What it does'));
-        const del=el('button','hb-btn hs-reset','X');del.type='button';del.title='Delete this gesture';del.onclick=()=>setRules(a=>a.filter(y=>y.id!==r.id));c[4].append(del);
+        const row=el('div','hs-rule'+(r.on?'':' off'));
+        const bt=el('button','hb-btn hs-tog'+(r.on?' on':''),r.on?'ON':'OFF');bt.type='button';bt.onclick=()=>edit(r.id,x=>{x.on=!x.on;});row.append(bt);
+        const nm=el('span','hs-rname');nm.append(el('b',null,fname(r)));
+        if(r.on&&!r.then&&r.does!=='control'&&single(r.first)!==r)nm.append(el('small',null,'not used: an earlier rule with the same pose is active'));row.append(nm);
+        const pose=el('span','hs-rsel');pose.append(selectOf(FIRSTS,r.first,v=>edit(r.id,x=>{x.first=v;fix(x);}),'The pose that starts it'));
+        if(r.first==='fist')pose.append(selectOf(FOLLOW,r.then?r.when+':'+r.then:'',v=>edit(r.id,x=>{const [w,t]=v.split(':');x.when=w||'';x.then=t||'';fix(x);}),'What follows the fist'));row.append(pose);
+        const dsel=el('span','hs-rsel');dsel.append(selectOf(doesOf(r),r.does,v=>edit(r.id,x=>{x.does=v;}),'What it does'));row.append(dsel);
+        const uses=el('span','hs-ruse');for(const d of detsOf(r)){const b=el('button','hs-chip',d);b.type='button';b.title='Show this detector and its thresholds';b.onclick=()=>{show('detectors');const tr=detRows[d];if(tr){tr.scrollIntoView({block:'center'});tr.classList.add('hs-flash');setTimeout(()=>tr.classList.remove('hs-flash'),1600);}};uses.append(b);}row.append(uses);
+        const del=el('button','hb-btn hs-x2');del.type='button';del.title='Delete this gesture';del.setAttribute('aria-label','Delete this gesture');del.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';del.onclick=()=>setRules(a=>a.filter(y=>y.id!==r.id));row.append(del);
+        rl.append(row);
       }
+      const addBar=el('div','hs-addbar');
+      const plus=el('button','hb-btn hs-plus');plus.type='button';plus.innerHTML='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span>ADD A GESTURE</span>';
+      plus.onclick=()=>setRules(a=>{a.push({id:'u'+Date.now(),on:true,first:'pinch',when:'',then:'',does:'left'});return a;});addBar.append(plus,el('span','hs-hint','A gesture is a pose, optionally followed by a move, that runs an action. Only a fist can have a follow-up.'));
+      const gPane=el('div','hs-pane');gPane.append(addBar,rl);
+      const dPane=el('div','hs-pane');dPane.append(el('p','hs-hint','What the camera measures, live. Each detector lists the gestures that depend on it; pressing one jumps to it.'),dt);
+      // ---------------- camera and tools
       const tools=el('div','hs-tools');
       const tb2=(t,fn)=>{const x=el('button','hb-btn',t);x.type='button';x.onclick=fn;tools.append(x);};
       tb2(enabled?'CAMERA: ON (turn off)':'CAMERA: OFF (turn on)',()=>{btn.onclick();setTimeout(repaint,900);});
       tb2('SAVE LAST MINUTE',()=>{if(!enabled){p.textContent='Turn the camera on, use your hands for a minute, then come back here.';return;}saveTrace('free',p);});
       tb2('RECORD A TRACE (32 s)',()=>{if(!enabled){p.textContent='Turn the camera on first.';return;}p.textContent='Recording about 32 seconds. Follow the prompts at the top left.';setup.hidden=true;startTrace(p);});
-      tb2('ADD A GESTURE',()=>setRules(a=>{a.push({id:'u'+Date.now(),on:true,first:'pinch',when:'',then:'',does:'left'});return a;}));
       tb2('RESET EVERYTHING',()=>{profile={v:PROFILE_VERSION,fist:false,orbit:true,palm:false};saveProfile();for(const k of Object.keys(D))engine.tuning[k]=D[k];repaint();});
-      const grid=el('div','hs-grid');grid.append(gt,dt);
-      return [tools,grid];
+      const tPane=el('div','hs-pane');tPane.append(el('p','hs-hint','The camera runs on this device only. A saved trace is numbers, no pictures; Claude reads it to see what went wrong.'),tools);
+      // ---------------- tabs
+      const panes={gestures:gPane,detectors:dPane,tools:tPane},tabs=el('div','hs-tabs'),tbtn={};
+      const show=name=>{menuTab=name;for(const k in panes){panes[k].hidden=k!==name;tbtn[k].classList.toggle('on',k===name);}};
+      [['gestures','GESTURES'],['detectors','DETECTORS'],['tools','CAMERA AND TOOLS']].forEach(([k,t])=>{const b=el('button','hb-btn hs-tab',t);b.type='button';b.onclick=()=>show(k);tbtn[k]=b;tabs.append(b);});
+      show(panes[menuTab]?menuTab:'gestures');
+      return [tabs,gPane,dPane,tPane];
     }
     // ONE hands menu (right-click on the hand; also under HANDS in the log): the controls and the gestures, as tables
     function closeMenu(){if(setup.hidden||!setup.querySelector('.hs-table'))return;calibration=null;diagnostic=false;engine.reset();interlock=true;setup.hidden=true;}

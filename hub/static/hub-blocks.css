@@ -514,3 +514,30 @@ html.hub-legend-on .hands-log .hl-legend{display:block!important;opacity:1!impor
 .hs-gest td small{display:block;color:#ff9d3b;font-size:10.5px;margin-top:2px}
 .hs-gest td:nth-child(3) .hs-sel{margin-bottom:4px}
 .hs-gest .hs-reset{width:100%;padding:3px 0}
+
+/* hands menu round 6: tabs, one aligned grid for the gesture rules, detectors linked to gestures */
+.hands-setup{width:min(1080px,calc(100vw - 24px))!important}
+.hs-tabs{display:flex;gap:6px;margin:0 0 12px;border-bottom:1px solid #41ebff33;padding-bottom:8px}
+.hs-tab{flex:1 1 0;min-height:34px;font-size:10px;letter-spacing:1px}.hs-tab.on{color:#00e676;border-color:#00e676;background:#00e67614}
+.hs-pane[hidden]{display:none}
+.hs-hint{margin:0 0 10px;color:#9fd8bd;font-size:12px;line-height:1.4}
+.hs-addbar{display:flex;align-items:center;gap:12px;margin:0 0 10px;flex-wrap:wrap}
+.hs-plus{display:inline-flex;align-items:center;gap:7px;color:#00e676;border-color:#00e676;min-height:34px;padding:0 14px}
+.hs-plus svg{flex:none}.hs-addbar .hs-hint{margin:0;flex:1 1 260px}
+.hs-rules{display:flex;flex-direction:column;gap:6px}
+.hs-rule{display:grid;grid-template-columns:62px minmax(150px,1.25fr) minmax(190px,1.6fr) minmax(170px,1.3fr) minmax(130px,1.1fr) 34px;gap:10px;align-items:center;padding:7px 8px;border:1px solid #41ebff26;border-radius:8px;background:#0a123055}
+.hs-rule.off{opacity:.55}
+.hs-rhead{border:0;background:none;padding:0 8px;font:700 8px Orbitron,monospace;letter-spacing:1px;color:#8fcfb2}
+.hs-rule .hs-tog{width:100%;min-width:0;margin:0;display:block;text-align:center}
+.hs-rname b{display:block;font-size:12.5px;line-height:1.25}.hs-rname small{display:block;color:#ff9d3b;font-size:10.5px;margin-top:2px}
+.hs-rsel{display:flex;flex-direction:column;gap:4px;min-width:0}.hs-rsel .hs-sel{width:100%;margin:0;box-sizing:border-box;min-height:28px}
+.hs-ruse{display:flex;flex-wrap:wrap;gap:4px}
+.hs-chip{background:#41ebff14;color:#41ebff;border:1px solid #41ebff55;border-radius:999px;padding:2px 8px;font:600 10.5px Outfit,system-ui,sans-serif;cursor:pointer}
+.hs-chip:hover{background:#41ebff30}
+.hs-x2{width:32px;height:32px;min-width:32px;min-height:32px;padding:0;display:grid;place-items:center;border-radius:50%;color:#ff9d9d;border-color:#ff9d9d66}
+.hs-det{table-layout:fixed;width:100%}.hs-det th:nth-child(1){width:24%}.hs-det th:nth-child(2){width:20%}.hs-det th:nth-child(3){width:34%}.hs-det th:nth-child(4){width:22%}
+.hs-det td{vertical-align:top;white-space:normal;overflow-wrap:anywhere;line-height:1.3;padding:7px;font-size:12px}
+.hs-det td small{display:block;color:#9fd8bd;font-size:10.5px;margin-top:3px;font-weight:400}
+.hs-det td:nth-child(4){display:table-cell}.hs-det td:nth-child(4) .hs-chip{margin:0 4px 4px 0;display:inline-block}
+.hs-flash td{background:#00e67626!important;transition:background .4s}
+@media(max-width:900px){.hs-rule{grid-template-columns:62px 1fr 34px}.hs-rule .hs-rsel,.hs-rule .hs-ruse{grid-column:1/-1}.hs-rhead{display:none}}
