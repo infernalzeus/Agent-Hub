@@ -231,6 +231,9 @@ _FOCUS = re.compile(r"\b(?:maximi[sz]e|focus(?: on)?|zoom (?:in )?(?:on|to)|enla
 _SLEEP = re.compile(r"\b(go to sleep|goodnight|good night|that'?s all|that is all|goodbye|stop listening|dismiss yourself)\b", re.I)
 _CLEAR = re.compile(r"\b(?:clear|hide|dismiss|close|remove|wipe|get rid of|take away)\b.*\b(?:dashboard|screen|everything|blocks?|panels?|cards?|these|that|them|display)\b|\bclear (?:it|that|all)\b", re.I)
 _HOME = re.compile(r"\b(?:enter|open|go|take me|show me|bring up|launch|switch)\b.*\b(?:home|hub|apps|main page|main screen|my apps)\b(?: ?page| ?screen)?|\bgo (?:in|inside)\b|^\W*(?:enter|come in)\W*$", re.I)
+# "Open the dashboard" means the main screen the ENTER button leads to (people call it the dashboard); "show the dashboard" stays the overview blocks on the landing page.
+# Only the bare phrase counts, so "open the compliance dashboard" is still an app and never lands here.
+_DASH = re.compile(r"^\W*(?:(?:please|can you|could you|would you|hey|ok|okay|now|and|so)\W+)*(?:enter|open|launch|go (?:to|into|in to)|take me (?:to|into)|bring me (?:to|into)|switch to|let me (?:in|into))\s+(?:up\s+)?(?:the |my |agent hub )?(?:main |home |hub )?(?:dashboard|board)(?:\s+(?:for me|please|now|again))?\W*$|^\W*(?:let me in|let me inside)\W*$", re.I)
 _DOCTOR = re.compile(r"\b(diagnos\w*|the doctor|doctor,|ask the doctor|something(?:'s| is) (?:wrong|broken|off)|(?:fix|repair|check|debug) (?:the |agent )?hub|hub (?:is )?(?:broken|not working|acting up|slow|stuck))\b", re.I)
 _APPLY = re.compile(r"\b(apply|install|accept|use|go with)\b.*\b(fix|change|patch|that|it)\b", re.I)
 _DISCARD = re.compile(r"\b(discard|throw away|drop|reject|forget)\b.*\b(fix|change|patch|that|it)\b", re.I)
@@ -342,7 +345,7 @@ def ui_for(text: str, say: str, scene: "list | None" = None) -> dict:
             if rx.search(t):
                 out["board"] = name
                 return out
-    if _HOME.search(t) and len(t) < 90:
+    if (_HOME.search(t) or _DASH.search(t)) and len(t) < 90:
         out["open"] = "home"
         return out
     m = _FOCUS.search(t)

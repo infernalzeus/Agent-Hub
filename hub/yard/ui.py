@@ -46,6 +46,7 @@ iframe.teach{width:100%;height:80vh;min-height:460px;border:1px solid var(--bord
 .krow .kv{font-size:11px;color:var(--amber)}.krow button.i{width:24px;height:24px;padding:0;border-radius:50%;font:700 12px Outfit,sans-serif;margin:0}
 details>summary{cursor:pointer;color:var(--accent);font:700 11px Orbitron,system-ui,sans-serif;letter-spacing:.08em;padding:6px 0}details h2{margin-top:8px}
 .rc .said{font-size:13.5px;margin-bottom:4px}.rc .why{font-size:11.5px;color:var(--mute);margin-top:3px}
+.wy{border:1px solid var(--border);border-radius:8px;padding:8px;margin:6px 0;background:rgba(0,0,0,.2)}.wy h4{margin:0 0 4px;font:600 12px Outfit,system-ui,sans-serif}.wy .cand{display:grid;grid-template-columns:minmax(250px,1.6fr) 150px 2fr;gap:8px;align-items:center;font-size:11.5px;margin:2px 0}.wy .bar{height:7px;border-radius:4px;background:rgba(255,255,255,.08)}.wy .bar i{display:block;height:100%;border-radius:4px;background:var(--accent)}.wy .cand.top .nm{color:var(--accent)}.wy .cand.pr .nm:after{content:"  ◀ pressed";color:#e0a53c}.wy .bc{color:var(--mute);font-size:10.5px}.wy .mv{font-size:11px;color:#9fe7c0;margin-top:3px}
 .band{background:rgba(0,230,118,.05);border:1px solid var(--border);border-radius:10px;padding:7px 10px;margin:0 0 8px}
 .sess{border:1px solid rgba(0,230,118,.45);border-radius:12px;padding:0;margin:14px 0 8px;background:rgba(8,12,40,.55);overflow:hidden}
 .sess-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--border);background:rgba(0,230,118,.06)}
@@ -55,7 +56,7 @@ button.big{background:var(--accent);color:#04120a;padding:8px 16px;font-size:11p
 .fnode.outside rect{stroke-dasharray:4 3;fill-opacity:.7}.fnode text.fl{fill:#9fe7c0}.fnode.outside text.fl{fill:#6c8f7d}
 .fnode .fi circle{fill:rgba(8,12,40,.9);stroke:var(--accent);stroke-width:1.3}.fnode .fi text{fill:var(--accent);font:700 12px Outfit,sans-serif;pointer-events:none}.fnode .fi{cursor:pointer}
 .fnode .fx{opacity:0;cursor:pointer;transition:opacity .15s}.fnode:hover .fx{opacity:.9}.fnode .fx circle{fill:rgba(8,12,40,.9);stroke:var(--mute);stroke-width:1.2}.fnode .fx text{fill:var(--mute);font:700 12px Outfit,sans-serif;pointer-events:none}
-.fnode{touch-action:none}.fnode.pulse{filter:none}
+.fedge .hit{stroke:transparent;stroke-width:12;fill:none;cursor:pointer}.fedge.sel path:not(.hit){stroke:var(--accent);stroke-width:2.2}.fnode{touch-action:none}.fnode.pulse{filter:none}
 .nh{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;margin-bottom:4px}.nh .sp{flex:1}.sub{font:700 10px Orbitron,system-ui,sans-serif;letter-spacing:.08em;color:var(--accent);margin:8px 0 2px}
 .inside{border:1px solid var(--border);border-radius:8px;padding:8px;margin:6px 0;background:rgba(0,0,0,.2)}.irow{font-size:11.5px;margin:2px 0}.irow b{color:var(--accent);font-weight:600}
 .chain{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:6px}.chain .arrow{color:var(--mute)}.chain .lay{border:1px solid var(--accent);border-radius:7px;padding:3px 8px;text-align:center;min-width:70px}.chain .ls{font:700 14px Orbitron,system-ui,sans-serif;color:var(--accent)}.chain .ln{font-size:10px;color:var(--mute)}
@@ -79,6 +80,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
 <section id="tab-routines" hidden>
 <div class="row"><span class="mute" id="freshnote"></span><button id="fresh" type="button" class="part">FRESH START</button></div>
 <div id="rlist"></div>
+<h2>RECENT LIVE TASKS</h2><div class="mute" id="livenote"></div><div id="livelist"></div>
 </section>
 
 <section id="tab-scores" hidden>
@@ -111,15 +113,56 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
   const at=n=>POS[n.id]||[n.x,n.y];
   function anchor(n,s){const [x,y]=at(n);return s==='left'?[x,y+n.height/2]:s==='right'?[x+n.width,y+n.height/2]:s==='top'?[x+n.width/2,y]:[x+n.width/2,y+n.height];}
   const dir=s=>s==='left'?[-1,0]:s==='right'?[1,0]:s==='top'?[0,-1]:[0,1];
-  function curve(a,b,sa,sb){const da=dir(sa),db=dir(sb),d=Math.max(34,Math.hypot(b[0]-a[0],b[1]-a[1])/3);return 'M'+a[0]+' '+a[1]+' C'+(a[0]+da[0]*d)+' '+(a[1]+da[1]*d)+' '+(b[0]+db[0]*d)+' '+(b[1]+db[1]*d)+' '+b[0]+' '+b[1];}
-  function redrawEdges(){eEls.forEach(x=>{const a=NODE[x.e.fromNode],b=NODE[x.e.toNode],gone=HID.has(a.id)||HID.has(b.id);x.g.style.display=gone?'none':'';if(!gone)x.p.setAttribute('d',curve(anchor(a,x.e.fromSide),anchor(b,x.e.toSide),x.e.fromSide,x.e.toSide));});}
+  // Arrows run in straight lines with square corners through the gaps between blocks, never across one: a small grid search per arrow, blocks as walls, a cost for each turn and for
+  // running along another arrow. It is redone whenever a block moves or is hidden, so the picture stays readable wherever you put things.
+  const GRID=10,PAD=7,SIDE={right:0,bottom:1,left:2,top:3};
+  function heapPush(h,x){h.push(x);let i=h.length-1;while(i>0){const q=(i-1)>>1;if(h[q][0]<=h[i][0])break;[h[q],h[i]]=[h[i],h[q]];i=q;}}
+  function heapPop(h){const top=h[0],last=h.pop();if(h.length){h[0]=last;let i=0;for(;;){const l=2*i+1,r=l+1;let m=i;if(l<h.length&&h[l][0]<h[m][0])m=l;if(r<h.length&&h[r][0]<h[m][0])m=r;if(m===i)break;[h[m],h[i]]=[h[i],h[m]];i=m;}}return top;}
+  function rounded(p,r){let d='M'+p[0][0]+' '+p[0][1];for(let i=1;i<p.length-1;i++){const a=p[i-1],b=p[i],c=p[i+1],l1=Math.hypot(b[0]-a[0],b[1]-a[1]),l2=Math.hypot(c[0]-b[0],c[1]-b[1]),k=Math.min(r,l1/2,l2/2);
+      d+=' L'+(b[0]+(a[0]-b[0])/l1*k)+' '+(b[1]+(a[1]-b[1])/l1*k)+' Q'+b[0]+' '+b[1]+' '+(b[0]+(c[0]-b[0])/l2*k)+' '+(b[1]+(c[1]-b[1])/l2*k);}
+    const z=p[p.length-1];return d+' L'+z[0]+' '+z[1];}
+  function routeAll(){
+    const vis=CV.nodes.filter(n=>!HID.has(n.id));if(!vis.length)return {};
+    let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;vis.forEach(n=>{const [x,y]=at(n);x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x+n.width);y1=Math.max(y1,y+n.height);});
+    const ox=Math.floor((x0-55)/GRID)*GRID+5,oy=Math.floor((y0-55)/GRID)*GRID+5,W=Math.ceil((x1-ox+60)/GRID),H=Math.ceil((y1-oy+60)/GRID),wall=new Uint8Array(W*H),used=new Uint8Array(W*H);
+    const cx=x=>Math.floor((x-ox)/GRID),cy=y=>Math.floor((y-oy)/GRID),inb=(i,j)=>i>=0&&j>=0&&i<W&&j<H;
+    vis.forEach(n=>{const [x,y]=at(n);for(let i=cx(x-PAD);i<=cx(x+n.width+PAD);i++)for(let j=cy(y-PAD);j<=cy(y+n.height+PAD);j++)if(inb(i,j))wall[j*W+i]=1;});
+    const D=[[1,0],[0,1],[-1,0],[0,-1]],out={};
+    // several arrows meeting one side of a block are spread along it (in the order of where they come from) instead of piling onto one point
+    const slot={};CV.edges.forEach(e=>{if(HID.has(e.fromNode)||HID.has(e.toNode))return;[[e.fromNode,e.fromSide,e.toNode,'f'],[e.toNode,e.toSide,e.fromNode,'t']].forEach(([n,s,o,w])=>{(slot[n+'|'+s]=slot[n+'|'+s]||[]).push([e.id+'#'+w,o]);});});
+    Object.keys(slot).forEach(k=>{const hz=k.endsWith('top')||k.endsWith('bottom');slot[k].sort((a,b)=>{const pa=at(NODE[a[1]]),pb=at(NODE[b[1]]);return (hz?pa[0]-pb[0]:pa[1]-pb[1])||(a[0]<b[0]?-1:1);});});
+    const anchorE=(e,w)=>{const n=w==='f'?e.fromNode:e.toNode,s=w==='f'?e.fromSide:e.toSide,L=slot[n+'|'+s],i=L.findIndex(q=>q[0]===e.id+'#'+w),hz=s==='top'||s==='bottom',o=(i-(L.length-1)/2)*(hz?40:20),p=anchor(NODE[n],s);return hz?[p[0]+o,p[1]]:[p[0],p[1]+o];};
+    const list=CV.edges.filter(e=>!HID.has(e.fromNode)&&!HID.has(e.toNode)).map(e=>{const pa=anchorE(e,'f'),pb=anchorE(e,'t');return {e,pa,pb,len:Math.abs(pa[0]-pb[0])+Math.abs(pa[1]-pb[1])};}).sort((p,q)=>p.len-q.len);
+    list.forEach(({e,pa,pb})=>{
+      const da=dir(e.fromSide),db=dir(e.toSide),gap=GRID*1.2,d0=SIDE[e.fromSide];
+      const sa=[pa[0]+da[0]*gap,pa[1]+da[1]*gap],sb=[pb[0]+db[0]*gap,pb[1]+db[1]*gap];
+      const s=[cx(sa[0]),cy(sa[1])],g=[cx(sb[0]),cy(sb[1])];
+      const key=(i,j,d)=>(j*W+i)*4+d,best=new Map(),from=new Map(),open=[],hh=(i,j)=>Math.abs(i-g[0])+Math.abs(j-g[1]);
+      best.set(key(s[0],s[1],d0),0);heapPush(open,[hh(s[0],s[1]),0,s[0],s[1],d0]);
+      let found=null,guard=0;
+      while(open.length&&guard++<80000){const [,c,i,j,d]=heapPop(open);if(c>(best.has(key(i,j,d))?best.get(key(i,j,d)):1e9))continue;if(i===g[0]&&j===g[1]){found=[i,j,d];break;}
+        for(let nd=0;nd<4;nd++){if((nd+2)%4===d)continue;const ni=i+D[nd][0],nj=j+D[nd][1];if(!inb(ni,nj))continue;
+          if(wall[nj*W+ni]&&!(ni===g[0]&&nj===g[1])&&!(ni===s[0]&&nj===s[1]))continue;
+          const nc=c+1+(nd!==d?5:0)+(used[nj*W+ni]?4:0),k=key(ni,nj,nd);
+          if(nc<(best.has(k)?best.get(k):1e9)){best.set(k,nc);from.set(k,[i,j,d]);heapPush(open,[nc+hh(ni,nj),nc,ni,nj,nd]);}}}
+      const cell=(i,j)=>[ox+i*GRID+GRID/2,oy+j*GRID+GRID/2];
+      let pts;
+      if(found){let cur=found;const rev=[];while(cur){rev.push([cur[0],cur[1]]);cur=from.get(key(cur[0],cur[1],cur[2]));}rev.reverse();pts=rev.map(c=>cell(c[0],c[1]));rev.forEach(c=>{used[c[1]*W+c[0]]=1;});}
+      else pts=[sa,sb];
+      const first=da[0]!==0?[pts[0][0],pa[1]]:[pa[0],pts[0][1]],last=db[0]!==0?[pts[pts.length-1][0],pb[1]]:[pb[0],pts[pts.length-1][1]];
+      const clean=[];[pa,first,...pts,last,pb].forEach(q=>{const n=clean.length;if(n&&Math.abs(clean[n-1][0]-q[0])<.5&&Math.abs(clean[n-1][1]-q[1])<.5)return;clean.push(q);});
+      let k=1;while(k<clean.length-1){const a=clean[k-1],b=clean[k],c=clean[k+1];if((Math.abs(a[0]-b[0])<.5&&Math.abs(b[0]-c[0])<.5)||(Math.abs(a[1]-b[1])<.5&&Math.abs(b[1]-c[1])<.5))clean.splice(k,1);else k++;}
+      out[e.id]=rounded(clean,8);});
+    return out;}
+  let rafE=0;
+  function redrawEdges(){if(rafE)return;rafE=requestAnimationFrame(()=>{rafE=0;const R=routeAll();eEls.forEach(x=>{const d=R[x.e.id];x.g.style.display=d?'':'none';if(d){x.p.setAttribute('d',d);x.h.setAttribute('d',d);}});});}
   function fitView(){const vis=CV.nodes.filter(n=>!HID.has(n.id));if(!vis.length)return;let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;vis.forEach(n=>{const [x,y]=at(n);x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x+n.width);y1=Math.max(y1,y+n.height);});
     $('flowsvg').setAttribute('viewBox',(x0-12)+' '+(y0-12)+' '+(x1-x0+24)+' '+(y1-y0+24));}
   async function loadFlow(){
     try{CV=await J('/api/yard/canvas?compact=1');KN=await J('/api/yard/knobs');}catch(e){$('result').textContent='Could not read the yard: '+e.message;return;}
     loadLayout();const svg=$('flowsvg');svg.replaceChildren();const defs=sv('defs',{}),mk=sv('marker',{id:'farrow',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:6,markerHeight:6,orient:'auto'});mk.appendChild(sv('path',{d:'M0 0L10 5L0 10z',fill:'#8fb3a0'}));defs.appendChild(mk);svg.appendChild(defs);
     NODE={};CV.nodes.forEach(n=>NODE[n.id]=n);gById={};eEls=[];
-    CV.edges.forEach(e=>{const g=sv('g',{class:'fedge','data-id':e.id}),p=sv('path',{'marker-end':'url(#farrow)'});g.appendChild(p);svg.appendChild(g);eEls.push({e,g,p});});
+    CV.edges.forEach(e=>{const g=sv('g',{class:'fedge','data-id':e.id}),p=sv('path',{'marker-end':'url(#farrow)'}),h=sv('path',{class:'hit'});g.appendChild(p);g.appendChild(h);g.appendChild(sv('title',{},NODE[e.fromNode].title+' → '+NODE[e.toNode].title+': '+e.label));h.onclick=()=>openEdge(e.id);svg.appendChild(g);eEls.push({e,g,p,h});});
     CV.nodes.forEach(n=>{const g=sv('g',{class:'fnode '+n.state+(n.outside?' outside':''),'data-id':n.id}),r=sv('rect',{width:n.width,height:n.height,rx:8});g.appendChild(r);
       g.appendChild(sv('text',{x:10,y:23,class:'ft'},n.title));const live=sv('text',{x:10,y:46,class:'fl'},n.outside?'outside a session':'');g.appendChild(live);g._live=live;
       const ib=sv('g',{class:'fi'});ib.appendChild(sv('circle',{cx:n.width-14,cy:14,r:9}));ib.appendChild(sv('text',{x:n.width-14,y:19,'text-anchor':'middle'},'i'));g.appendChild(ib);
@@ -127,7 +170,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       ib.onpointerdown=ev=>ev.stopPropagation();ib.onclick=ev=>{ev.stopPropagation();openNode(n.id,true);};
       xb.onpointerdown=ev=>ev.stopPropagation();xb.onclick=ev=>{ev.stopPropagation();HID.add(n.id);saveLayout();place();};
       let drag=null;g.onpointerdown=ev=>{if(ev.button)return;const m=svg.getScreenCTM(),[x,y]=at(n);drag={px:ev.clientX,py:ev.clientY,x,y,s:1/m.a,moved:false};g.setPointerCapture(ev.pointerId);};
-      g.onpointermove=ev=>{if(!drag)return;const dx=(ev.clientX-drag.px)*drag.s,dy=(ev.clientY-drag.py)*drag.s;if(!drag.moved&&Math.hypot(dx,dy)<4/ (1/drag.s))return;drag.moved=true;POS[n.id]=[Math.round(drag.x+dx),Math.round(drag.y+dy)];g.setAttribute('transform','translate('+POS[n.id][0]+' '+POS[n.id][1]+')');redrawEdges();};
+      g.onpointermove=ev=>{if(!drag)return;const dx=(ev.clientX-drag.px)*drag.s,dy=(ev.clientY-drag.py)*drag.s;if(!drag.moved&&Math.hypot(dx,dy)<4/ (1/drag.s))return;drag.moved=true;POS[n.id]=[Math.round((drag.x+dx)/10)*10,Math.round((drag.y+dy)/10)*10];g.setAttribute('transform','translate('+POS[n.id][0]+' '+POS[n.id][1]+')');redrawEdges();};
       g.onpointerup=ev=>{if(!drag)return;const moved=drag.moved;drag=null;if(moved){saveLayout();fitView();}else openNode(n.id,false);};
       svg.appendChild(g);gById[n.id]=g;});
     place();
@@ -152,11 +195,16 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       const box=el('div','irow');box.append(el('b',null,'versions: '));vs.slice(0,6).forEach(v=>{const inuse=s.in_use_version===v.n,b=el('button',inuse?'on':'skip',(inuse?'IN USE ':'RESTORE ')+'v'+v.n);b.title=Math.round(v.held*100)+' % on unseen words'+(v.methods?' · '+v.methods.linear:'');b.disabled=inuse;
         b.onclick=async()=>{if(!confirm('Make version '+v.n+' the one in use? Nothing is deleted.'))return;const r=await POST('/api/yard/rollback',{version:v.n});$('msg').hidden=false;$('msg').textContent=r.ok?'Version '+v.n+' is now in use.':(await r.text());loadResult();openNode('ver',true);};box.append(b,document.createTextNode(' '));});wrap.append(box);}catch(e){}}
   async function openNode(id,inn){try{const c=await J('/api/yard/canvas?compact=1');c.nodes.forEach(m=>{if(NODE[m.id])NODE[m.id].arch=m.arch;});KN=await J('/api/yard/knobs');}catch(e){}
-    sel=id;showInside=!!inn;Object.values(gById).forEach(g=>g.classList.toggle('sel',g.dataset.id===id));const n=NODE[id],box=$('nodebox');box.hidden=false;box.replaceChildren();
+    sel=id;showInside=!!inn;eEls.forEach(q=>q.g.classList.remove('sel'));Object.values(gById).forEach(g=>g.classList.toggle('sel',g.dataset.id===id));const n=NODE[id],box=$('nodebox');box.hidden=false;box.replaceChildren();
     const h=el('div','nh');h.append(el('b',null,n.title),document.createTextNode('  '+n.info),el('span','sp'));const tg=el('button',showInside?'on':'skip','INSIDE');tg.title='Layers, numbers and arithmetic';tg.onclick=()=>openNode(id,!showInside);h.append(tg);box.append(h);
     if(showInside)box.append(inside(n));
     const ks=n.knobs.map(name=>KN.knobs.find(k=>k.name===name)).filter(Boolean);
     if(ks.length){box.append(el('div','sub','SETTINGS'));ks.forEach(k=>box.append(knobRow(k)));}else box.append(el('div','mute','Nothing to adjust here.'));}
+  // an arrow: what travels along it and what the block at the other end does with it, then how often it lit in the last session
+  async function openEdge(id){const x=eEls.find(q=>q.e.id===id);if(!x)return;sel=null;Object.values(gById).forEach(g=>g.classList.remove('sel'));eEls.forEach(q=>q.g.classList.toggle('sel',q.e.id===id));
+    const e=x.e,box=$('nodebox');box.hidden=false;box.replaceChildren();const h=el('div','nh');h.append(el('b',null,NODE[e.fromNode].title+' → '+NODE[e.toNode].title),document.createTextNode('  '+e.label));box.append(h,el('div','irow',e.info||''));
+    const hist=el('div','mute','Looking at this session...');box.append(hist);
+    try{const j=await J('/api/yard/events?since=0'),mine=j.events.filter(v=>v.edge===id);hist.textContent=mine.length?('Seen '+mine.length+' time'+(mine.length>1?'s':'')+' since the Hub started. Latest: '+mine[mine.length-1].text):'Nothing has travelled along this arrow since the Hub started. Start a session and it lights.';}catch(err){hist.textContent='';}}
   const flash=(e,c,ms)=>{e.classList.add(c);setTimeout(()=>e.classList.remove(c),ms);};
   function showEvents(evs){evs.forEach(ev=>{const g=gById[ev.node];if(g){g._live.textContent=(ev.text||'').slice(0,34);flash(g,ev.improved?'improved':'pulse',ev.improved?3500:450);}
       const x=eEls.find(q=>q.e.id===ev.edge);if(x)flash(x.g,'lit',550);
@@ -177,6 +225,24 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
   function flowStart(){if(!CV)loadFlow().then(()=>refreshKnobs(true));loadResult();if(!timer)timer=setInterval(poll,500);poll();}
   function flowStop(){clearInterval(timer);timer=0;}
 
+  // ---- WHY: what the saved learner would press on each screen, with the features behind it and the weights a step would move
+  function whyView(j){
+    const box=el('div','wy');
+    if(j.error){box.append(el('div','mute',j.error));return box;}
+    box.append(el('div','mute',j.routine+': the learner would press the same control on '+j.agree+' of '+j.of+' steps. '+(j.note||'')));
+    j.steps.forEach(s=>{const d=el('div','wy');d.append(el('h4',null,'Step '+s.step+(s.routine_presses?' - the routine presses '+s.routine_presses:'')+(s.live_did?' - the live agent did: '+s.live_did:'')));
+      s.candidates.forEach(c=>{const r=el('div','cand'+(c.best?' top':'')+(c.pressed?' pr':''));r.append(el('span','nm',c.action),el('span','mute',pct(c.p)+' (score '+c.score+')'));const b=el('span','bar'),i=el('i');i.style.width=Math.max(1,Math.round(c.p*100))+'%';b.append(i);r.append(b);d.append(r);
+        if(c.best||c.pressed)d.append(el('div','bc','because: '+c.because.map(x=>x.feature+' '+(x.part>0?'+':'')+x.part).join('; ')));});
+      if(s.moves&&s.moves.length)d.append(el('div','mv','Learning from this press would move: '+s.moves.map(m=>m.weight+' '+(m.direction==='up'?'up':'down')+' '+Math.abs(m.change)).join('; ')));
+      box.append(d);});
+    return box;}
+  async function liveTasks(){
+    const L=$('livelist');L.replaceChildren();let j={tasks:[]};try{j=await J('/api/yard/why/live');}catch(e){}
+    $('livenote').textContent=j.tasks.length?'Tasks the live agent did while shadow mode was on. WHY shows each screen it was given and what the saved learner would have pressed.':'None kept yet: switch shadow mode on, then do a task by voice.';
+    j.tasks.forEach(t=>{const c=el('div','card rc');c.append(el('div','said',t.goal+' ('+t.steps+' steps)'),el('div','why',new Date(t.at*1000).toLocaleString()));const w=el('div'),b=el('button','skip','WHY');
+      b.onclick=async()=>{if(w.childNodes.length){w.replaceChildren();return;}w.append(el('div','mute','Working it out...'));try{w.replaceChildren(whyView(await J('/api/yard/why/live?goal='+encodeURIComponent(t.goal)+'&at='+t.at)));}catch(e){w.replaceChildren(el('div','mute','Could not explain this one.'));}};
+      c.append(b,w);L.append(c);});}
+
   // ---- ROUTINES
   async function routines(){
     const box=$('rlist');box.replaceChildren();let rows=[],gold={routines:[]},cands=[],s={};
@@ -190,13 +256,14 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       if(att.has(r.id)){m.append(document.createTextNode(' '),el('span','chip ok','attested: a check, never training'));}
       const k=chk[r.id];if(k){m.append(document.createTextNode(' '),el('span','chip '+(k.ready?'ok':'part'),k.ready?'yard: looks ready':'yard: not ready'));}
       c.append(m);if(k&&!k.ready)c.append(el('div','why',k.reasons.join('. ')+'.'));if(k&&k.ready)c.append(el('div','why','No forbidden control, replayed clean, and the learner agrees on '+(k.agree==null?'(no learner yet)':pct(k.agree))+' of its steps. Only you can approve it.'));
-      const st=el('div','why');c.append(st);const row=el('div','row'),see=el('button','skip','SHOW STEPS'),ok=el('button',null,'APPROVE'),off=el('button','part',r.status==='disabled'?'RE-ENABLE':'DISABLE'),del=el('button','no','DELETE'),rp=el('button','part','REPLAY');
+      const st=el('div','why'),wy=el('div'),why=el('button','skip','WHY');c.append(st,wy);const row=el('div','row'),see=el('button','skip','SHOW STEPS'),ok=el('button',null,'APPROVE'),off=el('button','part',r.status==='disabled'?'RE-ENABLE':'DISABLE'),del=el('button','no','DELETE'),rp=el('button','part','REPLAY');
       see.onclick=async()=>{try{const j=await J('/api/pc/routines/'+r.id+'/steps');st.textContent=(j.steps.length?j.steps.map(x=>(x.ordinal+1)+'. '+x.tool+' '+((x.target&&x.target.name)||'')).join('  >  '):'no steps (an app launch or an address)');}catch(e){st.textContent=String(e);}};
       ok.onclick=async()=>{await POST('/api/pc/routines/'+r.id+'/approve');routines();};
       off.onclick=async()=>{await POST('/api/pc/routines/'+r.id+'/status',{status:r.status==='disabled'?'candidate':'disabled'});routines();};
       del.onclick=async()=>{if(!confirm('Delete this routine for good? '+r.title))return;await fetch('/api/pc/routines/'+r.id,{method:'DELETE'});routines();};
       rp.onclick=async()=>{if(!confirm('Replay "'+r.title+'" now? It will press things on this PC.'))return;rp.disabled=true;st.textContent='Replaying...';try{const x=await POST('/api/pc/routines/'+r.id+'/run');st.textContent=x.ok?'It ran.':(await x.text());}catch(e){st.textContent=String(e);}rp.disabled=false;};
-      ok.hidden=r.status==='trusted';rp.hidden=!att.has(r.id);row.append(see,ok,off,rp,del);c.append(row);box.append(c);});}
+      ok.hidden=r.status==='trusted';rp.hidden=!att.has(r.id);why.onclick=async()=>{if(wy.childNodes.length){wy.replaceChildren();return;}wy.append(el('div','mute','Working it out...'));try{wy.replaceChildren(whyView(await J('/api/yard/why/routine/'+r.id)));}catch(e){wy.replaceChildren(el('div','mute','Could not explain this routine.'));}};
+      row.append(see,why,ok,off,rp,del);c.append(row);box.append(c);});}
 
   // ---- SCORES
   async function scores(){const t=$('fit');head(t,['Part','Score','95 % interval','Evidence','Needs','Compared with']);
@@ -225,7 +292,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
   const TABS=['yard','teach','routines','scores'];
   function tab(name){if(!TABS.includes(name))name='yard';document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===name));
     TABS.forEach(n=>$('tab-'+n).hidden=n!==name);if(name==='yard')flowStart();else flowStop();
-    if(name==='teach'){const f=$('teachframe');if(!f.src)f.src=f.dataset.src;}if(name==='routines')routines();if(name==='scores')scores();try{localStorage.setItem('hub-rl-tab',name);}catch(e){}}
+    if(name==='teach'){const f=$('teachframe');if(!f.src)f.src=f.dataset.src;}if(name==='routines'){routines();liveTasks();}if(name==='scores')scores();try{localStorage.setItem('hub-rl-tab',name);}catch(e){}}
   document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>tab(b.dataset.tab));
   let first='yard';try{first=localStorage.getItem('hub-rl-tab')||'yard';}catch(e){}
   switches();tab(first);

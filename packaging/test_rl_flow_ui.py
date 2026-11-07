@@ -72,13 +72,14 @@ def test_the_i_on_a_block_shows_its_inside_the_layers_the_numbers_and_the_arithm
 def test_blocks_can_be_moved_and_hidden_the_arrows_follow_and_the_layout_is_remembered(hub):
     with sync_playwright() as pw:
         b, pg, errors = _open(pw, hub)
-        edge = lambda: pg.locator("#flowsvg .fedge[data-id='upd>actor'] path").get_attribute("d")                  # noqa: E731
+        edge = lambda: pg.locator("#flowsvg .fedge[data-id='upd>actor'] path:not(.hit)").get_attribute("d")                  # noqa: E731
         before, tf0 = edge(), pg.locator(".fnode[data-id=actor]").get_attribute("transform")
         box = pg.locator(".fnode[data-id=actor] rect").bounding_box()
         pg.mouse.move(box["x"] + 60, box["y"] + 40)
         pg.mouse.down()
         pg.mouse.move(box["x"] + 60 + 90, box["y"] + 40 + 70, steps=6)
         pg.mouse.up()
+        pg.wait_for_function("(d)=>document.querySelector(\"#flowsvg .fedge[data-id='upd>actor'] path:not(.hit)\").getAttribute('d')!==d", arg=before)      # the arrows are re-routed on the next frame
         assert pg.locator(".fnode[data-id=actor]").get_attribute("transform") != tf0 and edge() != before         # it moved and the arrow went with it
         assert pg.locator("#nodebox").is_hidden()                                                                  # a drag is not a click
         assert pg.evaluate("JSON.parse(localStorage.getItem('hub-rl-flow')).pos.actor.length") == 2
@@ -87,7 +88,8 @@ def test_blocks_can_be_moved_and_hidden_the_arrows_follow_and_the_layout_is_reme
         assert pg.locator(".fnode[data-id=actor]").get_attribute("transform") != tf0                               # remembered
         pg.locator(".fnode[data-id=hind]").hover()
         pg.locator(".fnode[data-id=hind] .fx").click()                                                             # hide a block
-        assert pg.locator(".fnode[data-id=hind]").evaluate("e=>getComputedStyle(e).display") == "none" and pg.locator("#flowsvg .fedge[data-id='hind>rew']").evaluate("e=>getComputedStyle(e).display") == "none"
+        pg.wait_for_function("getComputedStyle(document.querySelector(\"#flowsvg .fedge[data-id='hind>rew']\")).display==='none'")
+        assert pg.locator(".fnode[data-id=hind]").evaluate("e=>getComputedStyle(e).display") == "none"
         assert "1 HIDDEN" in pg.inner_text("#showall")
         pg.click("#showall")
         assert pg.locator(".fnode[data-id=hind]").evaluate("e=>getComputedStyle(e).display") != "none" and pg.locator(".fnode[data-id=actor]").get_attribute("transform") == tf0
@@ -118,5 +120,24 @@ def test_a_real_short_session_lights_the_arrows_updates_the_blocks_and_offers_th
         pg.click("#kreset")
         pg.wait_for_function("document.getElementById('kreset').hidden")
         assert pg.evaluate("fetch('/api/yard/knobs').then(r=>r.json()).then(j=>j.knobs.find(k=>k.name==='win').value)") == 1.0
+        b.close()
+    assert errors == []
+
+
+def test_arrows_run_around_the_blocks_never_through_one_and_each_arrow_explains_itself(hub):
+    with sync_playwright() as pg_:
+        b, pg, errors = _open(pg_, hub)
+        crossed = pg.evaluate(r"""()=>{const svg=document.getElementById('flowsvg'),bad=[];
+          const rects=[...svg.querySelectorAll('.fnode')].map(g=>{const t=g.getAttribute('transform').match(/translate\(([-\d.]+) ([-\d.]+)\)/),r=g.querySelector('rect');return {id:g.dataset.id,x:+t[1]+2,y:+t[2]+2,w:+r.getAttribute('width')-4,h:+r.getAttribute('height')-4};});
+          svg.querySelectorAll('.fedge').forEach(e=>{const p=e.querySelector('path:not(.hit)'),L=p.getTotalLength(),[a,z]=e.dataset.id.split('>');
+            for(let s=6;s<L-6;s+=3){const q=p.getPointAtLength(s);for(const r of rects){if(q.x>r.x&&q.x<r.x+r.w&&q.y>r.y&&q.y<r.y+r.h)bad.push(e.dataset.id+' through '+r.id);}}});
+          return [...new Set(bad)];}""")
+        assert crossed == []
+        assert pg.locator("#flowsvg .fedge .hit").count() == 22
+        for eid, words in (("enc>actor", ("357", "only thing the actor")), ("upd>actor", ("A_t", "pressed control")), ("safety>gate", ("zero",))):
+            pg.evaluate("id=>document.querySelector(`#flowsvg .fedge[data-id='${id}'] .hit`).dispatchEvent(new MouseEvent('click',{bubbles:true}))", eid)     # an elbow's middle is not on the line, so click the arrow itself
+            assert _has(pg, *words, "since the Hub started")
+        pg.locator(".fnode[data-id=actor] rect").click()
+        assert _has(pg, "SETTINGS") and "since the Hub started" not in pg.inner_text("#nodebox")                # a block click replaces the arrow card
         b.close()
     assert errors == []

@@ -42,10 +42,25 @@ def routines() -> "list[dict]":
     return out
 
 
+def screens(rt: dict, rng: "random.Random", decoys: int = 4):
+    """The choices a routine presents, one per named-control step: yields (step number, step, screen dict `o`, control list, id of the routine's control)."""
+    from ..features import pc_control as PC
+    pressed: set = set()
+    for i, st in enumerate(rt["steps"]):
+        pool = [d for d in DECOYS + [(s["role"], s["name"]) for s in rt["steps"] if s["name"] != st["name"]] if d[1] != st["name"]]
+        controls = [(st["role"], st["name"])] + rng.sample(pool, min(decoys, len(pool)))
+        rng.shuffle(controls)
+        cl = [{"id": k + 1, "role": r, "name": n, "path": "", "row": ""} for k, (r, n) in enumerate(controls)]
+        goal = rt["title"] or "do the task"
+        o = {"goal": goal, "goal_words": PC.target_words(goal), "step": i, "controls": cl, "pressed": set(pressed), "unchanged": set(), "n_pressed": i,
+             "typed": False, "item_pressed": any(r == "list item" for r, _ in pressed), "last_changed": i > 0, "last_nothing": False, "playing": False}
+        yield i, st, o, cl, next(c["id"] for c in cl if c["name"] == st["name"])
+        pressed.add((st["role"], st["name"]))
+
+
 def agreement(lr, rts: "list[dict] | None" = None, seed: int = 0, decoys: int = 4) -> dict:
     """lr is a yard Learner. Returns {"routines", "steps", "agree", "rate"} and per-routine rows."""
     import numpy as np
-    from ..features import pc_control as PC
     from . import learner as L
     rts = routines() if rts is None else rts
     rng = random.Random(seed)
@@ -55,20 +70,10 @@ def agreement(lr, rts: "list[dict] | None" = None, seed: int = 0, decoys: int = 
         if not rt["steps"]:
             continue
         ok = 0
-        pressed: set = set()
-        for i, st in enumerate(rt["steps"]):
-            pool = [d for d in DECOYS + [(s["role"], s["name"]) for s in rt["steps"] if s["name"] != st["name"]] if d[1] != st["name"]]
-            controls = [(st["role"], st["name"])] + rng.sample(pool, min(decoys, len(pool)))
-            rng.shuffle(controls)
-            cl = [{"id": k + 1, "role": r, "name": n, "path": "", "row": ""} for k, (r, n) in enumerate(controls)]
-            goal = rt["title"] or "do the task"
-            o = {"goal": goal, "goal_words": PC.target_words(goal), "step": i, "controls": cl, "pressed": set(pressed), "unchanged": set(), "n_pressed": i,
-                 "typed": False, "item_pressed": any(r == "list item" for r, _ in pressed), "last_changed": i > 0, "last_nothing": False, "playing": False}
+        for i, st, o, cl, want in screens(rt, rng, decoys):
             acts, X = L.candidates(o, lr.letters)
             pick = acts[int(np.argmax(lr.actor.forward(X)[0]))]
-            want = next(c["id"] for c in cl if c["name"] == st["name"])
             ok += pick.get("do") == "click" and pick.get("id") == want
-            pressed.add((st["role"], st["name"]))
         rows.append({"id": rt["id"], "title": rt["title"], "steps": len(rt["steps"]), "agree": ok})
         total += len(rt["steps"])
         agree += ok

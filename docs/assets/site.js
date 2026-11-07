@@ -196,7 +196,6 @@ function drawVisual(a){
 }
 document.querySelectorAll('[data-talk-example]').forEach(b=>b.addEventListener('click',()=>{const a=autos.find(x=>x.scene.id==='talk');if(a)pin(a,Number(b.dataset.talkExample),12000);}));
 document.querySelectorAll('.machine .lane').forEach((lane,i)=>{lane.tabIndex=0;lane.setAttribute('role','button');lane.setAttribute('aria-label','Follow '+lane.querySelector('strong').textContent);const choose=()=>{const a=autos.find(x=>x.scene.id==='talk');if(a)pin(a,[0,1,2,3,4][i],12000);};lane.addEventListener('click',choose);lane.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();choose();}});});
-document.querySelector('.wishlist-form')?.addEventListener('submit',e=>{e.preventDefault();const status=e.target.querySelector('[role=status]');status.hidden=false;status.textContent='Email collection is not connected yet.';});
 
 function drawArchitecture(){
  document.querySelectorAll('.original-map[data-architecture]').forEach(host=>{
@@ -367,7 +366,7 @@ document.querySelectorAll('.work-agent').forEach(b=>b.addEventListener('click',(
   document.querySelectorAll('img[src*="assets/agents/"]').forEach(img=>{
    const source=img.getAttribute('src');if(!/\/(smith|neo|doctor|orchestrator)\.svg(?:\?|$)/.test(source)||img.dataset.portraitClock)return;
    img.dataset.portraitClock='loading';
-   if(!portraitSources.has(source))portraitSources.set(source,fetch(source+'?portrait=20261107-art-poses8').then(r=>{if(!r.ok)throw Error('Portrait '+r.status);return r.text();}));
+   if(!portraitSources.has(source))portraitSources.set(source,fetch(source+'?portrait=20261107-crew-polish').then(r=>{if(!r.ok)throw Error('Portrait '+r.status);return r.text();}));
    portraitSources.get(source).then(text=>{
     if(!img.isConnected)return;
     const prefix='portrait-'+(++portraitId)+'-',svg=new DOMParser().parseFromString(text,'image/svg+xml').documentElement;
@@ -393,3 +392,40 @@ document.querySelectorAll('.work-agent').forEach(b=>b.addEventListener('click',(
  enter(document.getElementById(route()));
  window.SiteBoard={get scene(){return active.id;},get permission(){return permission;},get tilt(){return {x,y,targetX,targetY,running:!!raf};}};
 })();
+document.querySelector('.wishlist-form')?.addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const status = form.querySelector('[role="status"]');
+  const button = form.querySelector('button[type="submit"]');
+  if (button.disabled) return;
+  status.hidden = false;
+  if (!form.dataset.endpoint) {
+    status.textContent = 'Email signup is not available yet.';
+    return;
+  }
+
+  const email = form.querySelector('#wishlist-email');
+  button.disabled = true;
+  status.textContent = 'Submitting…';
+  try {
+    const response = await fetch(form.dataset.endpoint, {
+      method: 'POST',
+      body: new URLSearchParams({ email: email.value.trim() }),
+      credentials: 'omit',
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) throw new Error('Signup request failed');
+    const { result } = await response.json();
+    if (result === 'invalid') {
+      status.textContent = 'Check your email address and try again.';
+      return;
+    }
+    if (result !== 'success') throw new Error('Signup write was not confirmed');
+    status.textContent = 'You have been added to the wish list. Agents will be in touch soon.';
+    email.value = '';
+  } catch {
+    status.textContent = 'Could not confirm your signup. Please try again.';
+  } finally {
+    button.disabled = false;
+  }
+});

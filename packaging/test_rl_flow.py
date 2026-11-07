@@ -482,7 +482,7 @@ def test_every_setting_belongs_to_exactly_one_block_and_each_block_has_an_inside
         async with TestClient(TestServer(app)) as c:
             j = await (await c.get("/api/yard/canvas?compact=1")).json()
             assert len(j["nodes"]) == 21 and all("arch" in n and "knobs" in n for n in j["nodes"]) and {n["id"] for n in j["nodes"] if n["outside"]} == flow.OUTSIDE
-            assert all(n["width"] == 200 and n["height"] == 62 for n in j["nodes"]) and not any("label" in e for e in j["edges"])
+            assert all(n["width"] == 200 and n["height"] == 60 for n in j["nodes"]) and all(e["label"] and e["info"].startswith("What travels") for e in j["edges"])
     _run(go())
 
 
@@ -537,9 +537,9 @@ def test_the_tev_plan_says_how_many_graded_requests_exist_and_whether_this_pc_ca
     rows = []
     for i in range(30):
         rows += [{"at": 1000.0 + i, "text": f"open the number {i} app", "bin": "launch_app"}, {"kind": "verdict", "at": 2000.0 + i, "of": 1000.0 + i, "ok": i % 3 != 0, "correct": "app_task", "by": "teach"}]
-    BIN.LOG.parent.mkdir(parents=True, exist_ok=True)
-    BIN.LOG.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
-    monkeypatch.setattr(BIN, "LOG", BIN.LOG)
+    log = tmp_path / "utterance_decisions.jsonl"      # never the real log: this test once wrote 60 made-up rows into the user's own
+    log.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    monkeypatch.setattr(BIN, "LOG", log)
     p = TD.plan()
     assert p["rows"] == 30 and p["train"] + p["held_out"] == 30 and p["held_out"] > 0 and p["enough"] is False and p["needed"] == 100
     assert "hardware" in p and "note" in p["hardware"] and "-(1/n) sum log p" in p["objective"]

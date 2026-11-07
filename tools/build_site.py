@@ -16,7 +16,7 @@ from html import escape
 from pathlib import Path
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
-V = "20261107-pen-poses"
+V = "20261107-wishlist-byline"
 REPO = "https://github.com/infernalzeus/Agent-Hub"
 AG = "assets/agents/"
 LEGEND = "Live: seen running on a real machine. Unit-tested: the logic is tested, not yet seen running. Built, not tried: built and tested without the real hardware."
@@ -347,10 +347,10 @@ def build() -> str:
         '<section class="scene landing active" id="landing" aria-labelledby="landing-title"><canvas id="hub-grid" aria-hidden="true"></canvas><div class="tilt-layer" data-tilt>'
         '<h1 class="hero-title" id="landing-title" tabindex="-1">Agent Hub</h1>'
         '<div class="mark-host" id="hero-mark" role="img" aria-label="Agent Hub globe and crystalline core"><noscript>Agent Hub</noscript></div>'
-        '<p class="tagline">Your most powerful PC tools at your fingertips, any device.</p>'
-        '<div class="actions"><a class="action primary" href="#install">DOWNLOAD</a><a class="action" href="%s">SOURCE ↗</a></div>'
-        '<nav class="more-links" aria-label="More"><a href="#agents">AGENCY</a><a href="#architecture">ARCHITECTURE</a><a href="#hands">HAND CONTROL</a></nav>'
-        '<form class="wishlist-form"><div><input id="wishlist-email" type="email" autocomplete="email" placeholder="Learn to build your own Agent Hub" title="Type in your email" data-email-prompt aria-label="Email for the build guide wishlist" required><button type="submit">JOIN</button></div><p role="status" hidden></p></form>'
+        '<p class="tagline">Your most powerful tools<br>At your fingertips<br>Any device</p>'
+        '<div class="landing-controls"><div class="actions"><a class="action primary" href="#install">DOWNLOAD</a><a class="action" href="%s">SOURCE ↗</a></div>'
+        '<form class="wishlist-form" data-endpoint="https://script.google.com/macros/s/AKfycbz2T9CWYAWuEUBqfz5awCmd7z4GSPKna63rh5Im9yg6lStm32PGHfylbPcYV4RnYYUypw/exec"><div><input id="wishlist-email" type="email" autocomplete="email" placeholder="Learn to build your own Agent Hub" title="Type in your email" data-email-prompt aria-label="Email for the build guide wishlist" required><button type="submit">JOIN</button></div><p role="status" hidden></p></form>'
+        '<nav class="more-links" aria-label="More"><a href="#agents">AGENCY</a><a href="#architecture">ARCHITECTURE</a><a href="#hands">HAND CONTROL</a></nav></div>'
         '%s<nav class="doors" aria-label="The tools">%s</nav></div></section>' % (REPO, smith_btn, doors))
     body = ('<body><header class="site-header"><a class="brand" href="#" data-home aria-label="Agent Hub — return to landing"><img src="assets/agent-hub-logo-176.png" alt="" width="44" height="44" decoding="async">AGENT HUB</a>'
             '<a class="projects" href="https://infernalzeus.github.io/" data-projects><span class="old-project-arrow" aria-hidden="true">←</span><span>INFERNALZEUS - PROJECTS</span></a></header><main class="stage">%s%s</main>'

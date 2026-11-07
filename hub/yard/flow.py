@@ -19,7 +19,7 @@ COLOUR = {"todo": "#ff5c5c", "built": "#e0a53c", "tested": "#3ba7ff", "user": "#
 W, H = 300, 150                                   # the cards of the Obsidian canvas file (large, so their text fits)
 COL = [0, 380, 760, 1140, 1520, 1900]
 ROW = [0, 240, 480, 720]
-CW, CH, CSTEP, RSTEP = 200, 62, 236, 96           # the compact blocks the yard panel draws
+CW, CH, CSTEP, RSTEP = 200, 60, 260, 110          # the compact blocks the yard panel draws
 
 # the settings that change what each block does (the rest are under "more settings" in the panel); a test checks every name exists
 NODE_KNOBS = {
@@ -74,6 +74,43 @@ EDGES = [
     ("learners", "fit", "top", "bottom", "scored on the log"), ("router", "fit", "top", "bottom", "scored on graded requests"),
     ("search", "fit", "top", "right", "scored candidates"), ("presets", "fit", "left", "right", "label-free reward"),
 ]
+
+
+# What travels along each arrow and what the block at the other end does with it. {…} are filled from the live settings, never typed in.
+EDGE_INFO = {
+    "live>mem": "What travels: each live PC task the agent did while shadow mode was on, with how sure the Hub is that it worked. Only a task you graded RIGHT, or one Windows confirmed at 0.9 or more, is let into memory; a task done by one of your attested routines never is.",
+    "mem>enc": "What travels: one screen at a time, as the agent saw it: the goal words, the step number, the controls listed (role, name, group, row) and what was already pressed.",
+    "enc>actor": "What travels: a row of {dim} numbers for every control the agent could press ({base} features about the control, each repeated for {nflag} step situations). This is the only thing the actor ever sees.",
+    "actor>soft": "What travels: one score per possible press, from the learned numbers: s = w . x (or through {hidden} tanh units when a hidden layer is used).",
+    "soft>env": "What travels: the one press that was chosen. While practising it is drawn at random in proportion to the scores, so it keeps trying things; when measuring it is the highest score.",
+    "env>rew": "What travels: what the pretend app did, as the app itself reports it: did the screen change, is the target playlist really playing, was the answer unusable, was a forbidden control pressed, was 'done' said too early.",
+    "rew>crit": "What travels: the reward for each press, summed backwards into the return G_t = r_t + {gamma} G_(t+1), so an early press is credited for the win that followed it.",
+    "crit>upd": "What travels: the advantage A_t = G_t - V(z_t): how much better this press turned out than the critic expected from where the task stood. Positive makes the press likelier, negative less likely.",
+    "upd>actor": "What travels: the new weights. Each weight moves by step x A_t x (the feature of the pressed control - the average of that feature over all the controls, weighted by their probability). Features that only the pressed control had move most.",
+    "repl>upd": "What travels: older episodes the learner was unsure about, learned from again every {replay_every} episodes (off when that number is 0).",
+    "hind>rew": "What travels: a failed task that ended up playing another playlist, relabelled as a success for that playlist: the controls pressed stay, only the goal words change.",
+    "upd>fit": "What travels: the learner as it is after this block of training, to be measured on layouts and words it has never seen.",
+    "fit>gate": "What travels: its win rate on the unseen layouts and words with a 95 % interval, against random and the rule of thumb the Hub already uses.",
+    "gate>ver": "What travels: keep or discard. A version replaces the one in use only if it is at least as good on unseen words (within 0.02) and passes the safety replay.",
+    "demos>gate": "What travels: how often the learner presses what your trusted routine presses, on pretend screens built from that routine's control names. A check only; the routine is never training data.",
+    "mem>upd": "What travels: the controls an approved live agent pressed. The actor is nudged towards them as well (imitation), weighted lower than a real win.",
+    "ver>safety": "What travels: the saved learner, to be shown screens that also list forbidden controls (Delete playlist, Sign out ...).",
+    "safety>gate": "What travels: the number of screens on which its top pick was a forbidden control. The gate needs zero.",
+    "learners>fit": "What travels: the other choice methods (tally, Thompson, LinUCB), each scored on choices already in the log, without repeating any test.",
+    "router>fit": "What travels: graded requests used to score nearest neighbours and a small classifier by leaving each one out and predicting it from the rest.",
+    "search>fit": "What travels: candidate numbers (thresholds, sampling settings), each tried and scored by the real evaluation; the best set is reported, never applied by itself.",
+    "presets>fit": "What travels: sampling presets for the language models, scored by a reward that needs no label: valid answer, not cut off, no repeating, checks passed, few tokens.",
+}
+
+
+def edge_info(eid: str) -> str:
+    from . import knobs as K
+    try:
+        from . import learner as L
+        dim, base, nflag = L.DIM, L.BASE, L.NFLAG
+    except ImportError:
+        dim, base, nflag = 357, 51, 7
+    return EDGE_INFO.get(eid, "").format(dim=dim, base=base, nflag=nflag, hidden=K.get("hidden_units"), gamma=K.get("gamma"), replay_every=K.get("replay_every"))
 
 
 def arch(nid: str) -> dict:
@@ -174,6 +211,9 @@ def write(path: str) -> None:
 async def api_canvas(request: web.Request) -> web.Response:
     compact = request.query.get("compact") == "1"
     c = canvas(compact)
+    for e in c["edges"]:
+        e["info"] = edge_info(e["id"])
+        e.setdefault("label", dict(((a_ + ">" + b_), lab) for a_, b_, _, _, lab in EDGES).get(e["id"], ""))
     for n in c["nodes"]:
         title, _, rest = n["text"].partition("\n\n")
         n["title"], n["info"] = title.lstrip("# ").strip(), rest.replace("*", "").strip()
