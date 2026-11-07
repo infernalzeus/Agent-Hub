@@ -113,7 +113,12 @@
  .skills-preview .skill-library-row{align-content:center;min-width:0;grid-template-columns:1fr}.skills-preview .skill-library-row b{font-size:10px;overflow-wrap:anywhere}.skills-preview .skill-library-row small{font-size:8px}
  .screen-body>.skills-preview:has(.skill-file){display:grid!important;grid-template-columns:1fr 1fr;grid-template-rows:1fr auto;gap:6px!important}
  .skills-preview:has(.skill-file)>.ui-field{grid-column:1;grid-row:1}.skills-preview:has(.skill-file)>.ui-btn{grid-column:1;grid-row:2}.skills-preview>.skill-file{grid-column:2;grid-row:1/3;padding:5px}.skill-file pre{margin:4px 0;font-size:10px;line-height:1.35}
- .git-diff{gap:6px}.git-diff header{font-size:10px;padding-bottom:2px}.git-diff code{font-size:10px;line-height:1.4;padding:3px}.screen-body>.graph-preview{gap:6px}
+ .git-diff{gap:6px}.git-diff header{font-size:10px;padding-bottom:2px}.git-diff code{font-size:10px;line-height:1.4;padding:3px}#graph .screen-body{animation:none;overflow:auto;padding:clamp(8px,1.2vw,18px);background:#070f20}
+.screen-body>.graph-preview{gap:8px}
+#graph :is(.board,.tilt-layer,.slabbox,.blk,.blk-b,.glass-parent,.glass-front,.auto-detail){
+ transform:none!important;transform-style:flat!important;perspective:none!important;
+ filter:none!important;backdrop-filter:none!important;will-change:auto!important
+}
 }
 
 .js .scene .auto .auto-detail .visual{container-type:size;container-name:preview}
@@ -276,12 +281,12 @@
 .fb-row svg{width:16px;height:16px;fill:none;stroke:#41ebff;stroke-width:2}.fb-row b{font-weight:600}.fb-row span{margin-left:auto;color:#87bba3;font-size:11px}
 /* ---- git graph: the Hub's project graph (status-coloured dots, wiki links, side panel, changed files) ---- */
 .graph-preview.real .gg-stage{display:flex;gap:10px;position:relative;min-height:0}
-.graph-preview.real .gg-stage:has(>.gg){display:grid;grid-template-columns:minmax(0,1fr)}
+.graph-preview.real .gg-stage:has(>.gg){display:grid;flex:1;grid-template-columns:minmax(0,1fr)}
 .graph-preview.real .gg-stage:has(>.gg-panel):has(>.gg){grid-template-columns:minmax(0,1fr) min(230px,44%)}
-.graph-preview.real .gg-stage > svg.gg{align-self:center;width:min(100%,200px);height:auto;aspect-ratio:1;margin-inline:auto;clip-path:circle(50%);background:radial-gradient(circle at 50% 50%,#0a1a33,#050b18)}
-.gg .rel{stroke:#6a3fd1;stroke-width:1.8}.gg .doc{stroke:#fff;stroke-width:1.5;stroke-dasharray:2 4;opacity:.8}
-.gg-node text{fill:#bfe9d2;font:600 10px Outfit,system-ui,sans-serif}.gg-node circle{stroke:#050b18;stroke-width:1}.gg-node.pick{cursor:pointer}.gg-node.sel circle{stroke:#fff;stroke-width:3}
-.gg-legend{display:flex;flex-wrap:wrap;gap:2px 12px;align-items:center;padding:5px 8px;background:rgba(5,11,24,.82);border:1px solid rgba(65,235,255,.2);font-size:9px;color:#87bba3}
+.graph-preview.real .gg-stage > svg.gg{align-self:center;width:min(100%,clamp(150px,calc(100cqh - 150px),400px));height:auto;aspect-ratio:1;margin-inline:auto;clip-path:circle(50%);background:radial-gradient(circle at 50% 50%,#0a1a33,#050b18)}
+.gg .rel{stroke:#9e80ee;stroke-width:2.2}.gg .doc{stroke:#fff;stroke-width:1.5;stroke-dasharray:2 4;opacity:.8}
+.gg-node text{fill:#eefcff;font:650 17px Outfit,system-ui,sans-serif;paint-order:stroke;stroke:#071222;stroke-width:3px;stroke-linejoin:round}.gg-node circle{stroke:#050b18;stroke-width:1}.gg-node.pick{cursor:pointer}.gg-node.sel circle{stroke:#fff;stroke-width:3}
+.gg-legend{display:flex;flex-wrap:wrap;gap:2px 12px;align-items:center;padding:5px 8px;background:rgba(5,11,24,.82);border:1px solid rgba(65,235,255,.2);font-size:11px;color:#c0d8e5}
 .gg-legend b{width:100%;font:700 8px Orbitron,sans-serif;letter-spacing:.1em}.gg-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}.gg-legend i.ring{background:#f5a623;box-shadow:0 0 0 2px #00e676}
 .gg-legend u{display:inline-block;width:16px;margin-right:4px;vertical-align:middle;border-top:2px solid #fff}.gg-legend u.dot{border-top-style:dotted}.gg-legend u.sol{border-top-color:#6a3fd1}
 .gg-panel{width:230px;flex:none;padding:12px;border:1px solid rgba(65,235,255,.3);background:#07122a;display:flex;flex-direction:column;gap:6px;font-size:12px;color:#d6efe3}
@@ -433,7 +438,7 @@ svg.agent-portrait *{transform-box:view-box!important}
 
 .js .landing .tagline {
  color: var(--cyan);
- font-family: Orbitron, system-ui, sans-serif;
+ font: clamp(9px, 1vw, 12px) Orbitron, system-ui, sans-serif;
  line-height: 1.25;
  margin-top: 8px;
 }
@@ -500,7 +505,7 @@ svg.agent-portrait *{transform-box:view-box!important}
  }
  .js .landing .smith-btn { min-height: 46px; }
  .js .landing .smith-btn :is(img, svg.agent-portrait) { width: 36px; height: 36px; }
- .js .landing .tagline { font-size: 11px; }
+ .js .landing .tagline { font-size: 10px; }
 }
 @media (max-width: 900px) and (orientation: portrait) {
  .js .landing .mark-host { max-width: min(53vw,27dvh); max-height: min(53vw,27dvh); }
