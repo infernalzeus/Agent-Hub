@@ -33,14 +33,14 @@
  function stepActive(delta){const a=autos.find(x=>x.scene===active&&x.live);if(a)pin(a,a.i+delta,8000);}
 
  /* the Agents / Skills tabs */
- document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{const ag=t.closest('.agency');ag.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));ag.querySelectorAll('.tabpanel').forEach(p=>p.hidden=p.dataset.panel!==t.dataset.tab);stopAutos();startAutos(active);if(t.dataset.tab==='work'){const foot=active.querySelector('.story-foot');foot.querySelector('.try-panel p').textContent='Choose a work type, then an agent.';foot.querySelector('.expect').textContent='The orchestrator delegates a scoped brief to the agent suited to the task.';}requestAnimationFrame(fit);}));
+ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{const ag=t.closest('.agency');ag.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));ag.querySelectorAll('.tabpanel').forEach(p=>p.hidden=p.dataset.panel!==t.dataset.tab);stopAutos();startAutos(active);if(t.dataset.tab==='work'){const foot=active.querySelector('.story-foot');foot.querySelector('.try-panel p').textContent='Choose a work type, then an agent.';foot.querySelector('.expect').textContent='Orchestrator assigns one brief or a set of dependent briefs. The examples show both.';}requestAnimationFrame(fit);}));
 
  document.querySelectorAll('[data-agent-jump]').forEach(b=>b.addEventListener('click',()=>{const a=autos.find(a=>a.scene.id==='agents'&&a.el.classList.contains('agents-auto'));if(a){const i=a.btns.findIndex(x=>(x.dataset.img||'').endsWith('/'+b.dataset.agentJump+'.svg'));if(i>=0)pin(a,i,10000);}}));
  /* small glass blocks open to show more */
 
  /* the animated machine on the TALK scene is drawn at one size and scaled to the room it has */
  function fitTalk(){const w=active.querySelector('.fit');if(w&&w.offsetParent){const f=w.firstElementChild,s=Math.min(w.clientWidth/f.offsetWidth,w.clientHeight/f.offsetHeight,1.2);f.style.setProperty('--s',s.toFixed(3));}}
- function fit(){fitTalk();autos.filter(a=>a.live).forEach(drawVisual);drawArchitecture();thickenPanels();fitTilt();}
+ function fit(){fitTalk();autos.filter(a=>a.live&&a.detail.querySelector('[data-visual]:empty')).forEach(drawVisual);drawArchitecture();thickenPanels();fitTilt();}
  addEventListener('resize',()=>{fit();sizeGrid();});
  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{fit();sizeGrid();});
 
@@ -98,21 +98,21 @@ function detailSymbol(a){
 }
 /* Dashboard-shaped previews. Camera, downloads and PC actions are never invoked here. */
 const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function stopDemo(a){cancelAnimationFrame(a.demoRaf);a.demoRaf=0;(a.demoTimers||[]).forEach(clearTimeout);a.demoTimers=[];}
+function stopDemo(a){a.stopHandPreview?.();a.stopHandPreview=null;(a.demoTimers||[]).forEach(clearTimeout);a.demoTimers=[];}
 function demoModel(a){const b=a.btns[a.i];return {sid:a.scene.id,title:b.dataset.t,actor:b.dataset.k,ask:b.dataset.you,description:b.dataset.d,image:b.dataset.img,key:(b.dataset.img||'').split('/').pop()?.replace(/\.(png|svg)$/,''),step:a.i};}
 function updateInsights(a,m){const f=a.scene.querySelector('.story-foot');if(f){f.querySelector('.try-panel>p').textContent=m.ask||'';f.querySelector('.expect').textContent=m.description||'';f.dataset.step=m.sid+'-'+m.step;}if(m.sid==='talk')a.scene.querySelectorAll('.say-table tbody tr').forEach((r,i)=>r.classList.toggle('example-active',i===a.i));}
 function syncTalk(a){if(a.scene.id!=='talk')return;const machine=a.scene.querySelector('.machine');if(!machine)return;machine.dataset.talkStep=String(a.i);requestAnimationFrame(fitTalk);const animations=machine.getAnimations({subtree:true});animations.forEach(x=>{x.currentTime=a.i*9000+100;x.playbackRate=1;if(reduced.matches)x.pause();else x.play();});if(!reduced.matches)a.demoTimers.push(setTimeout(()=>animations.forEach(x=>x.pause()),8800));}
 
 function drawVisual(a){
  stopDemo(a);const m=demoModel(a),host=a.detail.querySelector('[data-visual]');updateInsights(a,m);
- if(!host?.offsetParent){syncTalk(a);return;}
+ if(!host?.offsetParent){host?.replaceChildren();syncTalk(a);return;}
  const s=m.step;host.dataset.scenario=m.sid+'-'+(m.key||'step')+'-'+s;host.dataset.phase='ready';
  const button=(text,action,cls='')=>`<button type="button" class="ui-btn ${cls}" data-preview="${action}">${text}</button>`;
  const row=(label,value,cls='')=>`<div class="ui-row ${cls}"><span>${label}</span><strong>${value}</strong></div>`;
  const field=(label,value)=>`<label class="ui-field"><span>${label}</span><input value="${esc(value)}" readonly></label>`;
  let content='',pageTitle=m.sid==='agents'?(m.key?'AGENCY':'SKILLS'):{hands:'DASHBOARD · HAND CONTROL',pc:'PC CONTROL · NAMED PRESS',media:'MEDIA VAULT',graph:'GIT GRAPH',missions:'MISSIONS',install:'FIRST-RUN SETUP',talk:'AGENT SMITH'}[m.sid];
  if(m.sid==='hands'){
-  const clipNames=['start','point','drag','control'];content=`<div class="hand-demo"><div class="hand-stage" data-clip="${clipNames[s]||'point'}"><div class="hand-boardwrap"><svg class="hand-board" viewBox="0 0 1000 380" aria-hidden="true"></svg></div><svg class="hand-skel" viewBox="0 0 1000 380" role="img" aria-label="Skeleton of a hand drawn over the board, from a real recording"></svg><span class="capture-label">Your hand drawn from a real recording (joint numbers only, no pictures). The board is an illustration.</span></div></div>`;
+  const clipNames=['start','point','drag','control'];content=`<div class="hand-demo"><div class="hand-stage" data-clip="${clipNames[s]||'point'}"><div class="hand-boardwrap"><svg class="hand-board" viewBox="0 0 1000 380" aria-hidden="true"></svg></div><svg class="hand-skel" viewBox="0 0 1000 380" role="img" aria-label="Animated hand skeleton over the Hub board preview"></svg><span class="capture-label">Illustrated dashboard and gestures · camera off on this site</span></div><p class="hand-guide">${esc(m.description)}</p></div>`;
 
  }else if(m.sid==='pc'){
   content=`<div class="pc-preview"><div class="ui-message"><img src="assets/agents/smith.svg" alt="Agent Smith"><div><b>Agent Smith → desktop control</b><p>Press the named Play control in Apple Music.</p></div></div>`;
@@ -132,20 +132,36 @@ function drawVisual(a){
   else content=`<div class="media-preview real"><div class="yt-card fb"><span class="yt-ic">${ic.folder}</span><div><b>File Browser</b><em class="yt-status"><i></i>Phone inbox</em></div><span class="yt-toggle">OPEN</span></div><div class="file-preview"><div class="ui-breadcrumb">PHONE INBOX</div><div class="fb-row">${ic.file}<b>received-photo.jpg</b><span>from your phone</span></div><div class="fb-row">${ic.file}<b>received-note.pdf</b><span>from your phone</span></div><div class="ui-actions">${button('Inbox details','file')}${button('Browse folders','browse')}</div><p class="ui-note">Files you send from your phone land here on the PC. You can also open the shared drive.</p></div></div>`;
  }else if(m.sid==='graph'){
   a.projects ||= ['Agent Hub','Example web project','Example media project'];a.projectIndex ||= 0;
-  const N=[[210,184],[112,112],[310,112],[126,272],[294,272],[210,51],[210,330],[71,185]],NM=[a.projects[0],a.projects[1],a.projects[2],'Example data tool','Example game','Wiki notes','Sleep analysis','Mobile app'],ST=['#00e676','#f5a623','#00e676','#4aa3ff','#00e676','#8a96a8','#00e676','#4aa3ff'],READY=[0,0,1,0,0,0,0,0];
-  const REL=[[0,1],[0,2],[0,4],[1,3]],DOC=[[0,5],[6,3],[2,5]],drop=a.newProjectUnlinked?2:-1,sel=a.projectIndex;
-  const line=(p,q,cls)=>drop>=0&&(p===drop||q===drop)?'':`<line class="${cls}" x1="${N[p][0]}" y1="${N[p][1]}" x2="${N[q][0]}" y2="${N[q][1]}"/>`;
-  const spheres=[...new Set(ST)].map(color=>`<radialGradient id="gg-sphere-${color.slice(1)}" cx="34%" cy="28%" r="72%"><stop stop-color="#efffff"/><stop offset=".42" stop-color="${color}"/><stop offset="1" stop-color="#071222"/></radialGradient>`).join('');
-  const nodes=N.map(([x,y],i)=>`<g class="gg-node ${i<3?'pick':''} ${sel===i&&s>0?'sel':''}" ${i<3?`data-project="${i}" tabindex="0" role="button" aria-label="${esc(NM[i])}"`:''}><circle cx="${x}" cy="${y}" r="${i===0?15:11}" fill="url(#gg-sphere-${ST[i].slice(1)})" ${READY[i]?'stroke="#00e676" stroke-width="3"':''}/><text x="${x}" y="${y+(i===0?30:26)}" text-anchor="middle">${esc(NM[i].length>22?NM[i].slice(0,21)+"…":NM[i])}</text></g>`).join('');
-  const svg=`<svg class="gg" viewBox="0 0 420 420" role="img" aria-label="Example project graph"><defs>${spheres}</defs>${REL.map(([p,q])=>line(p,q,'rel')).join('')}${DOC.map(([p,q])=>line(p,q,'doc')).join('')}${nodes}</svg>`,legend=`<div class="gg-legend"><b>STATUS</b><span><i style="background:#00e676"></i>in sync</span><span><i style="background:#f5a623"></i>has diff</span><span><i style="background:#4aa3ff"></i>available</span><span><i class="ring"></i>ready to push</span><span><u class="dot"></u>documented in wiki</span><span><u class="sol"></u>related project</span></div>`;
-  const nm=a.projects[sel],CON={0:[['Wiki notes','Example web project'],['Example web project','Example media project','Example game']],1:[['Wiki notes'],['Agent Hub','Example data tool']],2:[['Wiki notes'],[]]}[sel]||[[],[]];
-  const links=l=>l.length?l.map(x=>`<a>${esc(x)}</a>`).join(', '):'<span class="muted">none</span>';
-  let panel='';
-  if(s===1)panel=`<aside class="gg-panel"><h4>${esc(nm)}</h4><span class="gg-badge ok">in sync (clean)</span><code>…/projects/${esc(nm.toLowerCase().replace(/ /g,'-'))}</code><div class="gg-sec">DOCUMENTS ${CON[0].length} PROJECT${CON[0].length===1?'':'S'}</div><p>${links(CON[0])}</p><div class="gg-sec">RELATED PROJECTS</div><p>${links(CON[1])}</p><button type="button" class="ui-btn" data-preview="new-project">DISPATCH A MISSION →</button></aside>`;
-  content=`<div class="graph-preview real"><nav class="ui-segment">${button('Project map','map',s<2?'selected':'')}${button(a.newProjectUnlinked&&a.projectIndex===2&&s<2?'Add example link':'New project',a.newProjectUnlinked&&a.projectIndex===2&&s<2?'link-project':'new-project',s===2?'selected':'')}${button('Changes','changes',s>2?'selected':'')}</nav>`;
-  if(s<2)content+=`<div class="gg-stage">${svg}${panel}</div>${legend}<div class="project-context"><b>${esc(nm)}</b><span>${s===1?'Project-to-project lines come from wikilinks in the projects’ entity pages. Branches and worktrees are inspected inside a repository.':'Example map · select a project to open its panel.'}</span></div>`;
-  else if(s===2)content+=`<form class="new-project-demo"><label class="ui-field"><span>New project name</span><input aria-label="New project name" value="my-new-project" maxlength="48" pattern="[A-Za-z0-9_-]+" required></label><button type="submit" class="ui-btn">Create example project</button><ol class="project-flow"><li>New mission</li><li>Git repository</li><li>Private worktree</li><li>Your review</li></ol><p class="ui-note">Browser-only demonstration. In the Hub, choose New Project from Missions.</p></form>`;
-  else content+=`<div class="gg-stage split"><aside class="gg-panel wide"><h4>${esc(nm)}</h4><span class="gg-badge diff">has diff (WIP)</span><div class="gg-sec">CHANGED FILES · agent/example-theme</div><div class="gg-file"><span class="b M">M</span><b>settings.css</b>${s===3?'<button type="button" class="ui-btn" data-preview="diff">Read diff</button>':'<span class="sel">viewing</span>'}</div><div class="gg-file"><span class="b A">A</span><b>theme-toggle.js</b><span class="muted">not read yet</span></div>${s===3?'<p class="ui-note">Agents work in a private copy; your project’s files stay untouched until you review.</p>':''}</aside>${s===4?`<div class="gg-diff"><header>settings.css</header><code class="diff-remove">− color-scheme: light;</code><code class="diff-add">+ color-scheme: light dark;</code><div class="ui-actions">${button('Push all reviewed changes','merge-branch')}${button('Return to map','map')}</div></div>`:'<div class="gg-diff empty">Select a file to read its diff.</div>'}</div>`;
+  const colors={clean:'#00e676',available:'#5b9bf5',diff:'#f5c842',readonly:'#e2544a',orphan:'#b07cd6'};
+  const rings={ready:'#97c459',update:'#ef9f27'};
+  const groups=[{x:250,y:55,label:'MY REPO'},{x:113,y:203,label:'COLLAB PROJECTS'},{x:386,y:203,label:'READ-ONLY',color:'#7c8797'}];
+  const projects=[
+   {x:165,y:99,label:a.projects[0],group:0,state:'clean'},
+   {x:334,y:101,label:a.projects[1],group:0,state:'diff',ring:'ready'},
+   {x:99,y:270,label:a.projects[2],group:1,state:'available'},
+   {x:199,y:190,label:'Example data tool',group:1,state:'diff',ring:'update'},
+   {x:315,y:241,label:'Example docs',group:2,state:'readonly'},
+   {x:458,y:245,label:'Wiki notes',group:2,state:'readonly'}
+  ];
+  const picked=projects[a.projectIndex],stateLabels={clean:'IN SYNC',available:'AVAILABLE',diff:'HAS DIFF',readonly:'READ-ONLY'};
+  const curve=(p,q,bend,cls)=>`<path class="${cls}" d="M${p.x} ${p.y} Q${(p.x+q.x)/2+(q.y-p.y)*bend} ${(p.y+q.y)/2-(q.x-p.x)*bend} ${q.x} ${q.y}"/>`;
+  const categoryEdges=projects.map((p,i)=>curve(p,groups[p.group],i%2?.16:-.16,'cluster-edge')).join('');
+  const relationships=curve(projects[0],projects[1],.15,'rel')+curve(projects[0],projects[5],.1,'doc')+(a.newProjectUnlinked?'':curve(projects[2],projects[3],.13,'rel'));
+  const hubs=groups.map(({x,y,label,color='#00e8ff'})=>`<g class="gg-hub" transform="translate(${x} ${y})" fill="${color}"><circle r="22" opacity=".12"/><circle r="13" opacity=".85"/><text y="33" text-anchor="middle">${label}</text></g>`).join('');
+  const nodes=projects.map((p,i)=>`<g class="gg-node pick ${a.projectIndex===i&&s>0?'sel':''}" data-project="${i}" transform="translate(${p.x} ${p.y})" tabindex="0" role="button" aria-label="${esc(p.label+', '+stateLabels[p.state])}" fill="${colors[p.state]}"><circle r="18" opacity=".14"/><circle class="gg-dot" r="9" ${p.ring?`style="stroke:${rings[p.ring]};stroke-width:3"`:''}/><text y="27" text-anchor="middle">${esc(p.label.length>20?p.label.slice(0,18)+'…':p.label)}</text></g>`).join('');
+  const svg=`<svg class="gg" viewBox="0 0 510 304" role="group" aria-label="Sample project graph by repository category">${categoryEdges}${relationships}${hubs}${nodes}</svg>`;
+  const key=(color,label,ring)=>`<span><i style="background:${color}${ring?';box-shadow:0 0 0 2px '+ring:''}"></i>${label}</span>`;
+  const legend=`<div class="gg-legend"><b>STATUS</b>${key(colors.readonly,'read-only')}${key(colors.available,'available')}${key(colors.diff,'has diff')}${key(colors.clean,'in sync')}${key(colors.diff,'ready to push',rings.ready)}${key(colors.diff,'needs update',rings.update)}${key(colors.orphan,'orphan worktree')}<span><u class="dot"></u>documented in wiki</span><span><u class="sol"></u>related project</span></div>`;
+  const nm=picked.label;
+  const connections=[['Wiki notes','Example web project'],['Agent Hub'],a.newProjectUnlinked?[]:['Example data tool'],[a.projects[2]],[],['Agent Hub']][a.projectIndex];
+  const panel=`<aside class="gg-panel"><h4>${esc(nm)}</h4><span class="gg-badge" style="color:${colors[picked.state]}">${stateLabels[picked.state]}</span><code>…/${esc(groups[picked.group].label.toLowerCase())}/${esc(nm.toLowerCase().replace(/ /g,'-'))}</code><div class="gg-sec">PROJECT CONNECTIONS</div><p>${connections.length?esc(connections.join(', ')):'No example connections'}</p>${picked.state==='diff'?button('Changed files','changes'):''}</aside>`;
+  content=`<div class="graph-preview real"><header class="gg-head"><b>PROJECT GRAPH</b><span>Sample repositories</span></header><nav class="ui-segment">${button('Project map','map',s<2?'selected':'')}${button(a.newProjectUnlinked&&a.projectIndex===2&&s<2?'Add example link':'New project',a.newProjectUnlinked&&a.projectIndex===2&&s<2?'link-project':'new-project',s===2?'selected':'')}${button('Changes','changes',s>2?'selected':'')}</nav>`;
+  if(s<2)content+=`<div class="gg-stage">${svg}${s===1?panel:''}</div>${legend}`;
+  else if(s===2)content+=`<form class="new-project-demo"><label class="ui-field"><span>New project name</span><input aria-label="New project name" value="my-new-project" maxlength="48" pattern="[A-Za-z0-9_-]+" required></label><button type="submit" class="ui-btn">Create example project</button><ol class="project-flow"><li>New mission</li><li>Git repository</li><li>Private worktree</li><li>Your review</li></ol><p class="ui-note">In the Hub, create the project from Missions.</p></form>`;
+  else {
+   const changed=picked.state==='diff'?nm:projects[1].label;
+   content+=`<div class="gg-stage split"><aside class="gg-panel wide"><h4>${esc(changed)}</h4><span class="gg-badge diff">HAS DIFF</span><div class="gg-sec">CHANGED FILES · agent/example-theme</div><div class="gg-file"><span class="b M">M</span><b>settings.css</b>${s===3?button('Read diff','diff'):'<span class="sel">viewing</span>'}</div><div class="gg-file"><span class="b A">A</span><b>theme-toggle.js</b></div></aside>${s===4?`<div class="gg-diff"><header>settings.css</header><code class="diff-remove">− color-scheme: light;</code><code class="diff-add">+ color-scheme: light dark;</code><div class="ui-actions">${button('Push all reviewed changes','merge-branch')}${button('Return to map','map')}</div></div>`:'<div class="gg-diff empty">Select a file to read its diff.</div>'}</div>`;
+  }
   content+='</div>';
 
  }else if(m.sid==='agents'&&m.key){
@@ -172,7 +188,7 @@ function drawVisual(a){
   content=`<div class="talk-preview"><div class="ui-message"><img src="assets/agents/smith.svg" alt="Agent Smith"><div><b>Agent Smith</b><p>${esc(a.btns[s].dataset.t)}</p></div></div><div class="ui-proposal"><b>${esc(m.actor)}</b><p>${esc(m.description)}</p>${button('Explore this tool','tool')}</div></div>`;
  }
  host.innerHTML=`<div class="screen-toolbar"><span>${pageTitle}</span><div><button type="button" data-preview="replay" aria-label="Replay this preview">↻</button><button type="button" data-preview="pause" aria-label="Pause this preview">Ⅱ</button><button type="button" data-preview="next" aria-label="Next preview step">›</button></div></div><div class="screen-body">${content}</div>`;
- if(m.sid==='hands'&&window.HubHandPlayer)window.HubHandPlayer(host,s);
+ if(m.sid==='hands'&&window.HubHandPlayer)a.stopHandPreview=window.HubHandPlayer(host);
  host.querySelectorAll('[data-preview]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const action=b.dataset.preview;clearTimeout(a.timer);clearTimeout(a.resume);a.pinned=true;
   const jump=i=>pin(a,i,12000);
   if(action==='next')jump(a.i+1);else if(action==='replay'){a.pinned=false;select(a,a.i);play(a);}else if(action==='pause'){stopDemo(a);host.getAnimations({subtree:true}).forEach(x=>x.pause());b.textContent='▶';b.setAttribute('aria-label','Resume preview');b.dataset.preview='replay';}
@@ -180,7 +196,7 @@ function drawVisual(a){
   else if(action==='skill'){
    const title=b.querySelector('b').textContent,origin=b.querySelector('small').textContent,description=b.querySelector('span').textContent,pane=host.querySelector('.skills-preview');
    const samples=JSON.parse(document.getElementById('site-skill-library').textContent),instructions=samples[title.includes('brag')?'brag':title]||description;
-   pane.classList.add('skill-reading');pane.innerHTML='<div class="skill-overview"><button type="button" class="ui-btn" data-skill-back>‹ Skill library</button><h4>'+esc(title)+'</h4><p class="ui-note">'+esc(origin)+' · illustrative task guide</p><pre class="skill-instructions">'+esc(instructions)+'</pre></div>';pane.querySelector('[data-skill-back]').addEventListener('click',()=>drawVisual(a));
+   pane.classList.add('skill-reading');pane.innerHTML='<div class="skill-overview"><button type="button" class="ui-btn" data-skill-back>‹ Skill library</button><h4>'+esc(title)+'</h4><p class="ui-note">'+esc(origin)+' · scope and worked example</p><pre class="skill-instructions">'+esc(instructions)+'</pre></div>';pane.querySelector('[data-skill-back]').addEventListener('click',()=>drawVisual(a));
 
   }else if(action==='definition'){const pane=host.querySelector('.agency-preview');pane.classList.add('reading-definition');pane.innerHTML='<div class="agency-profile"><img src="'+esc(m.image)+'" alt=""><h4>'+esc(m.title)+'</h4></div><div class="agency-definition">'+esc(a.btns[a.i].dataset.definition||m.description)+'</div><button type="button" class="ui-btn" data-agent-back>Back to role</button>';pane.querySelector('[data-agent-back]').onclick=()=>drawVisual(a);}
   else if(action==='handoffs'){const pane=host.querySelector('.agency-preview');pane.classList.add('reading-definition');pane.innerHTML='<div class="agency-profile"><img src="'+esc(m.image)+'" alt=""><h4>'+esc(m.title)+'</h4></div><div class="demo-flow">'+(a.handoff||'').split('→').map(t=>'<div><b>'+esc(t.trim())+'</b></div>').join('')+'</div><button type="button" class="ui-btn" data-agent-back>Back to role</button>';pane.querySelector('[data-agent-back]').onclick=()=>drawVisual(a);}
@@ -218,9 +234,9 @@ function drawArchitecture(){
  function enter(scene){
   clearTimeout(settleTimer);scenes.forEach(s=>s.classList.remove('settling'));if(!reduced.matches){scene.classList.add('settling');settleTimer=setTimeout(()=>scene.classList.remove('settling'),1200);}
   active=scene;scenes.forEach(s=>{s.classList.remove('leaving');s.classList.toggle('active',s===active);s.setAttribute('aria-hidden',s===active?'false':'true');s.inert=s!==active;});
-  stopAutos();startAutos(active);fit();requestAnimationFrame(fit);if(active.id==='landing'){mountMark();sizeGrid();startGrid();}else unmountMark();
+  stopAutos();startAutos(active);fit();updateMotionControl();requestAnimationFrame(fit);if(active.id==='landing'){mountMark();sizeGrid();startGrid();}else unmountMark();
   setTimeout(()=>move(0,0),60);
-  const back=document.querySelector('[data-projects]');if(back){const home=scene.id==='landing';back.innerHTML=home?'<span class="old-project-arrow" aria-hidden="true">←</span><span>INFERNALZEUS - PROJECTS</span>':'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';back.classList.toggle('close-scene',!home);back.classList.remove('route-hidden');back.inert=false;back.setAttribute('href',home?'https://infernalzeus.github.io/':'#');back.setAttribute('aria-label',home?'Back to the projects page':'Close card and return to Agent Hub');}
+  const back=document.querySelector('[data-projects]');if(back){const home=scene.id==='landing';back.innerHTML=home?'<span class="old-project-arrow" aria-hidden="true">←</span><span><span class="projects-owner">INFERNALZEUS - </span>PROJECTS</span>':'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';back.classList.toggle('close-scene',!home);back.classList.remove('route-hidden');back.inert=false;back.setAttribute('href',home?'https://infernalzeus.github.io/':'#');back.setAttribute('aria-label',home?'Back to the projects page':'Close card and return to Agent Hub');}
  }
  async function navigate(id,push=true){
   if(busy)return;const next=document.getElementById(id)||scenes[0];if(next===active)return;
@@ -237,14 +253,16 @@ function drawArchitecture(){
  function askSensor(){
   if(permission!=='unknown')return;
   const Sensor=window.DeviceOrientationEvent;
-  if(!Sensor){permission='missing';return;}
-  if(typeof Sensor.requestPermission==='function'){
-   permission='pending';
-   const save=value=>{permission=value;try{sessionStorage.setItem('site:orientation',value);}catch(error){}};
-   try{Sensor.requestPermission().then(value=>save(value==='granted'?'granted':'denied'),()=>save('denied'));}catch(error){save('denied');}
-  }else permission='granted';
+  if(!Sensor?.requestPermission||reduced.matches)return;
+  permission='pending';updateMotionControl();
+  const save=value=>{permission=value;pose=null;updateMotionControl();try{sessionStorage.setItem('site:orientation',value);}catch(error){}};
+  try{Sensor.requestPermission().then(value=>save(value==='granted'?'granted':'denied'),()=>save('denied'));}catch(error){save('denied');}
  }
- document.addEventListener('click',e=>{const a=e.target.closest('a[href^="#"]');if(!a)return;e.preventDefault();if(busy)return;if(a.closest('.landing'))askSensor();navigate(a.hash.slice(1)||'landing');});
+ const motionControl=document.querySelector('[data-motion]');
+ if(permission==='unknown'&&window.DeviceOrientationEvent&&!window.DeviceOrientationEvent.requestPermission&&!MOUSE_DEVICE)permission='granted';
+ function updateMotionControl(){motionControl.hidden=MOUSE_DEVICE||reduced.matches||!window.DeviceOrientationEvent?.requestPermission||permission!=='unknown'||!tiltEl();}
+ motionControl.addEventListener('click',askSensor);
+ document.addEventListener('click',e=>{const a=e.target.closest('a[href^="#"]');if(!a)return;e.preventDefault();if(busy)return;navigate(a.hash.slice(1)||'landing');});
  addEventListener('popstate',()=>{if(busy){pendingRoute=route();return;}navigate(route(),false);});
  addEventListener('hashchange',()=>{if(busy){pendingRoute=route();return;}navigate(route(),false);});
  new MutationObserver(()=>{if(!busy&&pendingRoute!==null){const p=pendingRoute;pendingRoute=null;navigate(p,false);}}).observe(document.body,{attributes:true,attributeFilter:['data-turning']});
@@ -294,7 +312,7 @@ function drawArchitecture(){
    if(busy||sc!==active||!drag||drag.id!==e.pointerId)return;const b=el();if(!b)return;drag.dx=e.clientX-drag.x;drag.dy=e.clientY-drag.y;const p=maxFor(b,'phone');
    if(permission!=='granted'||!hasOrientation)move(clamp(-drag.dy*.14,p),clamp(drag.dx*.14,p));
   });
-  sc.addEventListener('pointerdown',e=>{if(busy||sc!==active||e.target.closest('button,a,input,select,textarea,.architecture-viewport,.zoom,.mark-host'))return;drag={id:e.pointerId,x:e.clientX,y:e.clientY,dx:0,dy:0};try{if(e.pointerType!=='mouse')sc.setPointerCapture(e.pointerId);}catch(error){}});
+  sc.addEventListener('pointerdown',e=>{if(busy||sc!==active||e.target.closest('button,a,input,select,textarea,[role="button"],.screen-body,.work-reading,.architecture-viewport,.zoom,.mark-host'))return;drag={id:e.pointerId,x:e.clientX,y:e.clientY,dx:0,dy:0};try{if(e.pointerType!=='mouse')sc.setPointerCapture(e.pointerId);}catch(error){}});
   function end(e){if(!drag||drag.id!==e.pointerId)return;const d=drag;drag=null;if(Math.abs(d.dx)>70&&Math.abs(d.dx)>Math.abs(d.dy)*1.5)stepActive(d.dx<0?1:-1);move(0,0);}
   sc.addEventListener('pointerup',end);sc.addEventListener('pointercancel',()=>{drag=null;move(0,0);});
  });
@@ -340,7 +358,11 @@ function wirePreview(a,host){
  const missionProject=host.querySelector('[data-mission-project]');if(missionProject){missionProject.value=a.missionProject||'Example web project';missionProject.onchange=()=>{a.missionProject=missionProject.value;};}
  const mediaUrl=host.querySelector('[data-media-url]');if(mediaUrl)mediaUrl.oninput=()=>{a.mediaUrl=mediaUrl.value;};
  const hold=()=>{clearTimeout(a.timer);clearTimeout(a.resume);a.pinned=true;a.el.classList.remove('playing');};host.onpointerdown=hold;host.onfocusin=hold;
- host.querySelectorAll('[data-project]').forEach(b=>b.addEventListener('click',()=>{a.projectIndex=Number(b.dataset.project);pin(a,1,15000);}));
+ host.querySelectorAll('[data-project]').forEach(b=>{
+  const choose=()=>{a.projectIndex=Number(b.dataset.project);pin(a,1,15000);host.querySelector('[data-project="'+a.projectIndex+'"]')?.focus({preventScroll:true});};
+  b.addEventListener('click',choose);
+  b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();choose();}});
+ });
  host.querySelector('.new-project-demo')?.addEventListener('submit',e=>{
   e.preventDefault();const name=e.target.querySelector('input').value.trim();if(!/^[a-z\d_-]{1,48}$/i.test(name))return;
   // This demonstration has no filesystem or network writes.
@@ -351,11 +373,30 @@ function wirePreview(a,host){
 document.querySelectorAll('[data-work-category]').forEach(b=>b.addEventListener('click',()=>{
  const panel=b.closest('.work-panel');panel.querySelectorAll('[data-work-category]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
  panel.querySelectorAll('[data-work-group]').forEach(x=>{x.hidden=x.dataset.workGroup!==b.dataset.workCategory;});
- panel.querySelector('.work-list').dataset.count=panel.querySelectorAll('.work-agent:not([hidden])').length;panel.querySelector('.work-list').style.setProperty('--work-count',panel.querySelectorAll('.work-agent:not([hidden])').length);panel.querySelector('.work-description').textContent='Choose an operative to read its role.';panel.querySelector('[data-work-chosen]').textContent='Work agent';panel.querySelectorAll('.work-agent').forEach(x=>x.setAttribute('aria-pressed','false'));{const d=panel.querySelector('.work-definition');if(d)d.hidden=true;}requestAnimationFrame(thickenPanels);
+  const count=panel.querySelectorAll('.work-agent:not([hidden])').length,list=panel.querySelector('.work-list');
+ list.dataset.count=count;list.style.setProperty('--work-count',count);
+ showWorkExamples(panel);requestAnimationFrame(thickenPanels);
 }));
 document.querySelectorAll('.work-agent').forEach(b=>b.addEventListener('click',()=>{
- const panel=b.closest('.work-panel');panel.querySelector('.work-description').textContent=b.querySelector('b').textContent+' — '+b.dataset.workDescription;const def=panel.querySelector('.work-definition');if(def){def.textContent=b.dataset.workDefinition||'';def.hidden=!b.dataset.workDefinition;}panel.querySelector('[data-work-chosen]').textContent=b.querySelector('b').textContent;
+ const panel=b.closest('.work-panel');
+ panel.querySelector('.work-description').textContent=b.querySelector('b').textContent+' · '+b.dataset.workDescription;
+ panel.querySelector('.work-definition').textContent=b.dataset.workDefinition;
+ panel.querySelector('.work-examples').hidden=true;panel.querySelector('.work-role').hidden=false;
+ panel.querySelector('.work-reading').scrollTop=0;
  panel.querySelectorAll('.work-agent').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+}));
+function showWorkExamples(panel){
+ panel.querySelector('.work-role').hidden=true;panel.querySelector('.work-examples').hidden=false;
+ panel.querySelector('.work-reading').scrollTop=0;
+ panel.querySelectorAll('.work-agent').forEach(b=>b.setAttribute('aria-pressed','false'));
+}
+document.querySelectorAll('[data-work-examples-back]').forEach(b=>b.addEventListener('click',()=>{
+ const panel=b.closest('.work-panel');showWorkExamples(panel);panel.querySelector('[data-work-example][aria-pressed="true"]').focus();
+}));
+document.querySelectorAll('[data-work-example]').forEach(b=>b.addEventListener('click',()=>{
+ const examples=b.closest('.work-examples');
+ examples.querySelectorAll('[data-work-example]').forEach(choice=>choice.setAttribute('aria-pressed',String(choice===b)));
+ examples.querySelectorAll('[data-work-scenario]').forEach(scenario=>{scenario.hidden=scenario.dataset.workScenario!==b.dataset.workExample;});
 }));
 
  const emailPrompt=document.querySelector('[data-email-prompt]');

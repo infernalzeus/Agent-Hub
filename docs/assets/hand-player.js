@@ -66,12 +66,12 @@
   /* ---------- the scenes: key poses over time. Numbers between keys are eased, so motion is smooth by construction ---------- */
   var OPEN = [0.04, 0.04, 0.04, 0.04], POINT = [0, 1, 1, 1], FIST = [1, 1, 1, 1], TRI = [0.58, 0.62, 0.3, 0.3];
   function K(t, at, o) { var k = { t: t, at: at, c: OPEN, th: 0, w: 0, sp: 1, a: 0, s: HS, mode: '', tag: '' }; for (var q in o) k[q] = o[q]; if (o.s) k.s = o.s * HS; return k; }
-  var BL = [[40, 24], [750, 24], [40, 240], [750, 240]], BW = 210, BH = 112;
-  var CL = [BL[1][0] + 105, BL[1][1] + 62];
+  var BL = [[22, 78], [730, 78], [22, 245], [245, 245]], BW = 205, BH = 106;
+  var CL = [BL[1][0] + 61, BL[1][1] + 83];
   var SCENES = {
     start: { dur: 3600, on: 'palm', keys: [
       K(0, [900, 470], { s: .95, a: 10 }), K(1200, [520, 215], {}), K(2600, [500, 200], { a: -3 }), K(3600, [500, 200], {})],
-      note: 'Camera on. Your hand appears as a skeleton; T I M R P name the fingertips.' },
+      note: 'In the Hub, start Hands explicitly. T, I, M, R and P label the fingertips.' },
     point: { dur: 5200, on: 'idx', keys: [
       K(0, [900, 470], { c: POINT, th: .8, s: .95 }), K(900, [560, 250], { c: POINT, th: .8 }), K(1900, CL, { c: POINT, th: .8, tag: 'aim' }),
       K(3100, CL, { c: POINT, th: .8, tag: 'dwell' }), K(3400, CL, { c: POINT, th: .8, tag: 'click' }), K(4400, [900, 470], { c: POINT, th: .8 }), K(5200, [900, 470], { c: POINT, th: .8 })],
@@ -90,7 +90,7 @@
       K(11900, [500, 200], { c: FIST, th: 1, mode: 'control', tag: 'fist' }), K(12400, [500, 200], { c: FIST, th: 1, a: -26, mode: 'rotate', tag: 'rot' }),
       K(13300, [500, 200], { c: FIST, th: 1, a: 26, mode: 'rotate', tag: 'rot' }), K(14000, [500, 200], { c: FIST, th: 1, a: 0, mode: 'rotate', tag: 'rot' }),
       K(14500, [500, 200], {}), K(15200, [500, 200], {})],
-      note: 'A fist takes control. Then the open palm pans, pushing or pulling zooms, and turning the fist rotates the board.' }
+      note: 'With fist control enabled, open your palm to pan or zoom. Turn a closed fist in View: 3D to tilt.' }
   };
 
   function sample(sc, ms) {
@@ -106,19 +106,58 @@
     var sc = SCENES[name]; if (!sc) return;
     var boardSvg = stage.querySelector('.hand-board'), handSvg = stage.querySelector('.hand-skel'), wrap = stage.querySelector('.hand-boardwrap'), cap = stage.querySelector('.capture-label');
     boardSvg.textContent = ''; handSvg.textContent = '';
+    var closeUp = {start:'330 0 630 355',point:'570 25 430 325',drag:'0 20 645 360',control:'195 0 610 380'};
+    function frameBoard() {
+      var view = stage.clientWidth < 450 ? closeUp[name] : '0 0 1000 380';
+      boardSvg.setAttribute('viewBox', view);
+      handSvg.setAttribute('viewBox', view);
+    }
+    frameBoard();
+    var resize = new ResizeObserver(frameBoard);
+    resize.observe(stage);
     if (cap) cap.textContent = sc.note;
-    var g = el('g', {}, boardSvg), gx, gy;
-    for (gx = 0; gx <= W; gx += 100) el('line', { x1: gx, y1: 0, x2: gx, y2: H, stroke: '#41ebff', 'stroke-opacity': .09 }, g);
-    for (gy = 0; gy <= H; gy += 100) el('line', { x1: 0, y1: gy, x2: W, y2: gy, stroke: '#41ebff', 'stroke-opacity': .09 }, g);
-    var NAMES = ['MISSIONS', 'GIT GRAPH', 'AGENTS', 'HANDS'];
-    var blocks = NAMES.map(function (n, i) {
-      var bg = el('g', {}, g);
-      var box = el('rect', { width: BW, height: BH, rx: 10, fill: '#0b1220', stroke: '#00e676', 'stroke-opacity': .65, 'stroke-width': 2.5 }, bg);
-      el('rect', { width: BW, height: 28, rx: 10, fill: '#00e676', 'fill-opacity': .15 }, bg);
-      var t = el('text', { x: 12, y: 19, fill: '#00e676', 'font-family': 'Orbitron,sans-serif', 'font-size': 13, 'font-weight': 700 }, bg); t.textContent = n;
-      for (var r = 0; r < 3; r++) el('rect', { x: 14, y: 46 + r * 21, width: 130 + r * 8, height: 7, rx: 3.5, fill: '#41ebff', 'fill-opacity': .25 }, bg);
-      return { g: bg, box: box, x: BL[i][0], y: BL[i][1], x0: BL[i][0], y0: BL[i][1] };
-    });
+    var defs = el('defs', {}, boardSvg);
+    var dots = el('pattern', { id: 'hand-grid', width: 23, height: 23, patternUnits: 'userSpaceOnUse' }, defs);
+    el('circle', { cx: 1, cy: 1, r: 1.2, fill: '#00e676', opacity: .22 }, dots);
+    el('rect', { width: W, height: H, fill: '#07091d' }, boardSvg);
+    el('rect', { width: W, height: H, fill: 'url(#hand-grid)' }, boardSvg);
+    var g = el('g', {}, boardSvg);
+    function text(parent, x, y, value, size, fill) {
+      var t = el('text', { x: x, y: y, fill: fill || '#00e676', 'font-family': 'Outfit, sans-serif', 'font-size': size }, parent);
+      t.textContent = value;
+    }
+    function control(parent, x, y, w, label, lit) {
+      el('rect', { x: x, y: y, width: w, height: 24, rx: 6, fill: lit ? '#0a352d' : '#090e29', stroke: '#00e676', 'stroke-opacity': .48 }, parent);
+      text(parent, x + 8, y + 16, label, 12);
+    }
+    function block(x, y, width, height, name, copy, detail) {
+      var bg = el('g', { transform: 'translate(' + x + ' ' + y + ')' }, g);
+      var box = el('rect', { width: width, height: height, rx: 5, fill: '#0a1028', 'fill-opacity': .9, stroke: '#00e676', 'stroke-opacity': .65, 'stroke-width': 2 }, bg);
+      text(bg, 12, 22, name, 15);
+      text(bg, width - 42, 22, '−  ×', 15, '#65ae94');
+      el('path', { d: 'M0 30H' + width, stroke: '#00e676', 'stroke-opacity': .18 }, bg);
+      text(bg, 12, 56, copy, 14, '#aed8cb');
+      if (detail) control(bg, 12, 70, 98, detail);
+      return { g: bg, box: box, x: x, y: y, x0: x, y0: y };
+    }
+    var blocks = [
+      block(BL[0][0], BL[0][1], BW, BH, 'NEEDS ATTENTION', 'Nothing needs you right now.'),
+      block(BL[1][0], BL[1][1], BW, BH, 'HEALTH', '● Hub running', 'SETTINGS'),
+      block(BL[2][0], BL[2][1], BW, 73, 'Auto-LLM', 'Open missions'),
+      block(BL[3][0], BL[3][1], BW, 73, 'File Browser', 'Open files')
+    ];
+    block(245, 78, 168, 86, 'RUNS', '0 missions running');
+    block(430, 78, 282, 86, 'SESSIONS', 'No sessions need attention.');
+    var chrome = el('g', {}, boardSvg);
+    control(chrome, 383, 12, 173, 'AGENT HUB   ·   LIVE', true);
+    control(chrome, 843, 12, 95, 'HANDS');
+    control(chrome, 875, 202, 98, name === 'control' ? 'VIEW: 3D' : 'VIEW: 2D');
+    control(chrome, 875, 233, 98, 'FIT');
+    control(chrome, 875, 264, 98, 'TIDY');
+    control(chrome, 875, 295, 98, 'BLOCKS');
+    control(chrome, 875, 326, 98, 'LOG');
+    var status = el('text', { x: 22, y: 353, fill: '#8edbc0', 'font-family': 'Outfit, sans-serif', 'font-size': 14 }, chrome);
+    status.textContent = 'HANDS · LOCAL TRACKING PREVIEW';
     var palmPoly = el('polygon', { fill: '#41ebff', 'fill-opacity': .07, stroke: 'none' }, handSvg);
     var flash = el('circle', { r: 10, fill: 'none', stroke: AC.left, 'stroke-width': 4, opacity: 0 }, handSvg);
     var bones = BONES.map(function () { return el('line', { stroke: '#41ebff', 'stroke-width': 3.2, 'stroke-linecap': 'round', opacity: .6 }, handSvg); });
@@ -130,7 +169,7 @@
       x.textContent = t[1]; return { c: c, t: x, k: t[0] };
     });
     var pill = el('rect', { rx: 3, height: 20, fill: '#080c28', 'fill-opacity': .92, 'stroke-width': 1.4 }, handSvg), label = el('text', { 'text-anchor': 'middle', 'font-family': 'Orbitron,monospace', 'font-size': 12, 'font-weight': 700 }, handSvg);
-    var t0 = performance.now(), pause = 700, held = null;
+    var t0 = performance.now(), pause = 700, held = null, frame = 0;
 
     function draw(ms) {
       var S = sample(sc, ms), P = place(S.p), J = P.J, tag = S.tag, mode = S.mode;
@@ -191,14 +230,15 @@
       if (ms > sc.dur) ms = sc.dur;
       if (ms < 40) { held = null; blocks.forEach(function (b) { b.x = b.x0; b.y = b.y0; }); }
       draw(ms);
-      requestAnimationFrame(tick);
+      frame = requestAnimationFrame(tick);
     }
-    if (reduce) { draw(name === 'control' ? 2500 : name === 'drag' ? 3000 : name === 'point' ? 3200 : 2400); return; }
-    requestAnimationFrame(tick);
+    if (reduce) draw(name === 'control' ? 2500 : name === 'drag' ? 3000 : name === 'point' ? 3200 : 2400);
+    else frame = requestAnimationFrame(tick);
+    return function () { cancelAnimationFrame(frame); resize.disconnect(); };
   }
 
   window.HubHandPlayer = function (host) {
     var stage = host && host.querySelector('.hand-stage');
-    if (stage) build(stage, stage.dataset.clip);
+    if (stage) return build(stage, stage.dataset.clip);
   };
 })();

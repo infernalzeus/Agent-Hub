@@ -16,7 +16,7 @@ from html import escape
 from pathlib import Path
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
-V = "20261107-graph-readability"
+V = "20261107-agency-motion"
 REPO = "https://github.com/infernalzeus/Agent-Hub"
 AG = "assets/agents/"
 LEGEND = "Live: seen running on a real machine. Unit-tested: the logic is tested, not yet seen running. Built, not tried: built and tested without the real hardware."
@@ -244,14 +244,33 @@ def agents_body():
             about=re.search(r'^about:\s*(.+)$',definition,re.M)
             description=re.search(r'^description:\s*(.+)$',definition,re.M)
             text=(about or description).group(1).strip().strip('"')
-            rows.append('<button type="button" class="work-agent" data-work-group="%s" data-work-description="%s" data-work-definition="%s"%s><b>%s</b><span>%s</span></button>' % (group,escape(text,True),escape(definition.split('---',2)[-1].strip()[:4200],True),' hidden' if group!='Code' else '',escape(name),escape(text)))
-    work='<div class="work-panel"><nav class="work-categories" aria-label="Work types">'+''.join('<button type="button" class="ui-btn" data-work-category="%s" aria-pressed="%s">%s</button>' % (g,str(g=='Code').lower(),g) for g in groups)+'</nav><div class="work-list">'+''.join(rows)+'</div><section class="work-reading"><div class="work-route" aria-label="Work-agent handoff"><span>Your goal</span><i>→</i><span>Orchestrator</span><i>→</i><span data-work-chosen>Work agent</span><i>→</i><span>Your review</span></div><p class="work-description" aria-live="polite">Choose a work agent to read its role. The orchestrator delegates scoped briefs to these agents.</p><pre class="work-definition" hidden></pre></section></div>'
+            rows.append('<button type="button" class="work-agent" data-work-group="%s" data-work-description="%s" data-work-definition="%s"%s><b>%s</b><span>%s</span></button>' % (group,escape(text,True),escape(definition.split('---',2)[-1].strip(),True),' hidden' if group!='Code' else '',escape(name),escape(text)))
+    examples = (
+        '<div class="work-examples"><div class="work-examples-controls" role="group" aria-label="Example requests">'
+        '<button type="button" class="ui-btn" data-work-example="calculator" aria-pressed="true">Simple ask</button>'
+        '<button type="button" class="ui-btn" data-work-example="launch" aria-pressed="false">Bigger ask</button></div>'
+        '<article data-work-scenario="calculator"><h3>Build a simple calculator</h3>'
+        '<p>Orchestrator briefs one coder to build a calculator with four operations and handle invalid input. The coder returns the working change for your review.</p>'
+        '<ol class="work-briefs"><li><b>Coder</b><span>Implement the calculator and check the basic cases.</span></li></ol></article>'
+        '<article data-work-scenario="launch" hidden><h3>Build and launch a calculator site</h3>'
+        '<p>Orchestrator breaks the request into briefs. The crew grows with the task, and briefs that depend on earlier work run after it.</p>'
+        '<ol class="work-briefs"><li><b>Designer</b><span>Sketch the interface for phone and desktop.</span></li>'
+        '<li><b>Coder</b><span>Build the calculator and integrate the design.</span></li>'
+        '<li><b>Copywriter</b><span>Draft the launch page and social copy for the intended audience.</span></li>'
+        '<li><b>Tester</b><span>Check calculations, edge cases and keyboard access.</span></li>'
+        '<li><b>Reviewer</b><span>Assess the proposed changes before you decide what to apply.</span></li></ol></article></div>'
+    )
+    work = ('<div class="work-panel"><nav class="work-categories" aria-label="Work types">'
+            + ''.join('<button type="button" class="ui-btn" data-work-category="%s" aria-pressed="%s">%s</button>'
+                      % (g, str(g == 'Code').lower(), g) for g in groups)
+            + '</nav><div class="work-list">' + ''.join(rows) + '</div><section class="work-reading">'
+            + examples + '<div class="work-role" hidden><div class="work-role-head"><p class="work-description" aria-live="polite"></p>'
+            '<button type="button" class="ui-btn" data-work-examples-back>Examples</button></div><pre class="work-definition"></pre></div></section></div>')
     return '<div class="agency"><div class="tabs" role="tablist" aria-label="Agency"><button class="tab" role="tab" type="button" aria-selected="true" data-tab="agents">CORE CREW</button><button class="tab" role="tab" type="button" aria-selected="false" data-tab="work">OPERATIVES</button><button class="tab" role="tab" type="button" aria-selected="false" data-tab="skills">SKILLS</button></div><div class="tabpanel" data-panel="agents">%s</div><div class="tabpanel" data-panel="work" hidden>%s</div><div class="tabpanel" data-panel="skills" hidden>%s</div></div>' % (agents,work,auto(STEPS['skills']))
 
 def scene(sid, label, headline, chips_, line, runs, runs_line, body, wide=False, extra_head=""):
     main = ('<article class="blk main-block"><header class="blk-h"><p class="label">%s</p><h2 id="%s-title" tabindex="-1">%s</h2>%s</header><div class="blk-b">%s</div></article>' % (escape(label),sid,escape(headline),extra_head,body))
-    result = '<section class="scene" id="%s" aria-labelledby="%s-title"><div class="board wide" data-tilt>%s</div></section>' % (sid,sid,slab(main,"main"))
-    return result.replace(' data-tilt',' data-static-architecture') if sid=='architecture' else result
+    return '<section class="scene" id="%s" aria-labelledby="%s-title"><div class="board wide" data-tilt>%s</div></section>' % (sid,sid,slab(main,"main"))
 
 
 # Ordered stories. Each row separates the responsible actor, the result and the user's action.
@@ -266,14 +285,14 @@ STORY = {
  "install": ("Choose your system, then open the first-run wizard.","Tool choices, private-device access and a Hub bookmark.","Unsigned macOS builds. Desktop control is Windows only.")}
 
 STEPS["hands"] = [
- ("Start", "YOU", "Choose HANDS in your dashboard to start the camera. It runs on your own device; nothing is recorded or sent anywhere. Your hand appears as a skeleton and T, I, M, R, P name the fingertips.", "Start the camera explicitly in your Hub.", 1),
+ ("Start", "YOU", "Start Hands from the dashboard or the Hands tab of the log. The camera is opt-in and tracking runs on your device. The board overlays a hand skeleton with labelled fingertips.", "Start the camera explicitly in your Hub.", 1),
  ("Point", "INDEX FINGER", "The fingertip is your cursor. Hold it still over a control and a ring fills, then it clicks.", "Point at a control and hold still.", 0),
  ("Drag", "THUMB + INDEX + MIDDLE", "Bring thumb, index and middle together. The point between them carries the block, window or panel under it; open your fingers to drop it.", "Pinch three fingers, move, then let go.", 0),
- ("Take control", "FIST, THEN OPEN PALM", "A fist takes control. Then the open palm pans the board, pushing or pulling it zooms (never both at once), and turning the fist in 3D rotates the board. A fist again, a point or a pinch hands control back.", "Make a fist, then open your hand and move it.", 0)]
+ ("Take control", "FIST, THEN OPEN PALM", "With fist control enabled, make a fist and then open your palm to pan or zoom. In View: 3D, turn a closed fist to tilt the board. Hand Setup lets you inspect and change gesture rules.", "Make a fist, then open your hand and move it.", 0)]
 
 
 STEPS['graph'] = [
- ("Project map", "YOUR PROJECTS", "Each dot represents a repository. Related projects can be connected; select a dot to inspect it.", "Choose a project in the example map.", 0),
+ ("Project map", "YOUR PROJECTS", "Projects orbit category hubs such as My Repo and Collab Projects. Select a project to see its status, links and available work.", "Choose a project in the example map.", 0),
  ("Connections", "PROJECT CONTEXT", "Project connections come from wikilinks between discovered projects’ entity pages. They are separate from branches and worktrees.", "Select a connected project to follow its context.", 0),
  ("New project", "MISSIONS", "Choose New Project in Missions. The Hub scaffolds a git repository before creating the mission's private worktree.", "Name a project in this browser-only example.", 0),
  ("Private work", "MISSION WORKTREE", "Agents change a separate git worktree. Your project's working files stay untouched until review.", "Inspect the working branch and its changed files.", 0),
@@ -282,8 +301,8 @@ STEPS['graph'] = [
 STORY['talk']=("Press TALK, or choose an example below.","Smith answers or opens the tool that handles the request.","")
 STORY['hands']=("Choose HANDS in the dashboard, then point at a block.","Pan, zoom, drag and turn the board with your hand.","Every gesture can be switched off or changed in the HANDS menu.")
 STEPS['skills']=[
- ("Hub library","SKILLS","Browse skills by topic, search for a name, and read its instructions.","Choose a topic or search the skill library.",0),
- ("Open-source skills","OPEN SOURCE","Browse third-party skills by publisher and licence, including Apache-2.0 and MIT. Catalogue entries remain separate from installed skills.","Open a skill to read its instructions and origin.",0),
+ ("Hub library","SKILLS","Preview a skill’s purpose and example workflow. In your Hub, open the installed skill to read its instructions.","Choose a topic or search the skill library.",0),
+ ("Open-source skills","OPEN SOURCE","Browse third-party skills by publisher and licence, including Apache-2.0 and MIT. Catalogue entries remain separate from installed skills.","Open a skill to see its scope, origin and a worked example.",0),
  ("Add a skill","CATALOGUE","Launch videos (brag) is available through the Hub catalogue from latent-spaces.","Review the skill and add it when it fits your work.",0),
  ("Write your own","NEW SKILL","Describe a reusable task, read the drafted SKILL.md, then save it.","Describe the task and review the instructions before saving.",0)]
 
@@ -308,6 +327,16 @@ def skill_examples():
       'mcp-builder':'Example: expose a project-status tool.\n\nGive the tool a focused purpose, define its inputs, describe its result, and return useful errors. Keep its permissions appropriate to the job.',
       'webapp-testing':'Example: review a project browser.\n\nOpen the map, select a project, inspect a changed file, and return. Check keyboard access, narrow layouts, errors and any unexpected overlap.',
       'brag':'Example: explain a finished feature in a short launch video.\n\nChoose the user benefit, plan the shots, use relevant app footage, then review the rendered result. Launch videos is an optional catalogue skill; adding it is separate from browsing its entry.'}
+    scope = {
+      'debugging-methodology': 'Use this for failures and regressions. Reduce the repro, read the exception chain, bisect against a known good case and instrument the boundary where values diverge. Verify that the original failure and nearby cases pass.',
+      'testing-conventions': 'Use this to choose meaningful checks. Assert observable behaviour, isolate external dependencies at their boundaries and cover edge cases. Use real temporary storage when persistence itself is under test.',
+      'python-aiohttp-webapp': 'Use this for async Hub-style web services. Keep blocking work off the event loop, reuse the app’s routing pattern, use async subprocesses and release resources in the cleanup hook.',
+      'frontend-design': 'Use this to design or substantially reshape an interface. Define its audience and main job, build a visual hierarchy from its content, and make typography, interaction and responsive layout work together.',
+      'mcp-builder': 'Use this to design an MCP server for an external service. Map useful workflows to tool inputs and results, implement permissions and informative errors, and evaluate tasks an agent should be able to complete.',
+      'webapp-testing': 'Use this to exercise a local web app through a real browser. Check the rendered state, interact with controls and inspect screenshots and console output when behaviour differs from expectations.',
+      'brag': 'This optional catalogue entry covers launch-video production. It is an example of a skill you can browse separately from the skills already installed in your Hub.'
+    }
+    examples = {name: scope[name] + chr(10) * 2 + example for name, example in examples.items()}
     return json.dumps(examples,ensure_ascii=False).replace('<','\\u003c')
 
 
@@ -353,7 +382,8 @@ def build() -> str:
         '<nav class="more-links" aria-label="More"><a href="#agents">AGENCY</a><a href="#architecture">ARCHITECTURE</a><a href="#hands">HAND CONTROL</a></nav></div>'
         '%s<nav class="doors" aria-label="The tools">%s</nav></div></section>' % (REPO, smith_btn, doors))
     body = ('<body><header class="site-header"><a class="brand" href="#" data-home aria-label="Agent Hub — return to landing"><img src="assets/agent-hub-logo-176.png" alt="" width="44" height="44" decoding="async">AGENT HUB</a>'
-            '<a class="projects" href="https://infernalzeus.github.io/" data-projects><span class="old-project-arrow" aria-hidden="true">←</span><span>INFERNALZEUS - PROJECTS</span></a></header><main class="stage">%s%s</main>'
+            '<button class="motion-opt-in" type="button" data-motion aria-label="Enable phone tilt" hidden>Tilt</button>'
+            '<a class="projects" href="https://infernalzeus.github.io/" data-projects><span class="old-project-arrow" aria-hidden="true">←</span><span><span class="projects-owner">INFERNALZEUS - </span>PROJECTS</span></a></header><main class="stage">%s%s</main>'
             '<script src="assets/agent-hub-mark.min.js?v=20261105b" defer></script><script src="assets/depth-lift-site.js?v=%s" defer></script>'
             '<script src="assets/hand-player.js?v=%s" defer></script>'
             '<script src="assets/site.js?v=%s" defer></script></body></html>\n' % (landing, "".join(parts), V, V, V))

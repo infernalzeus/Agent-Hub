@@ -115,10 +115,6 @@
  .skills-preview:has(.skill-file)>.ui-field{grid-column:1;grid-row:1}.skills-preview:has(.skill-file)>.ui-btn{grid-column:1;grid-row:2}.skills-preview>.skill-file{grid-column:2;grid-row:1/3;padding:5px}.skill-file pre{margin:4px 0;font-size:10px;line-height:1.35}
  .git-diff{gap:6px}.git-diff header{font-size:10px;padding-bottom:2px}.git-diff code{font-size:10px;line-height:1.4;padding:3px}#graph .screen-body{animation:none;overflow:auto;padding:clamp(8px,1.2vw,18px);background:#070f20}
 .screen-body>.graph-preview{gap:8px}
-#graph :is(.board,.tilt-layer,.slabbox,.blk,.blk-b,.glass-parent,.glass-front,.auto-detail){
- transform:none!important;transform-style:flat!important;perspective:none!important;
- filter:none!important;backdrop-filter:none!important;will-change:auto!important
-}
 }
 
 .js .scene .auto .auto-detail .visual{container-type:size;container-name:preview}
@@ -352,7 +348,7 @@
 @media(prefers-reduced-motion:reduce){.smith-btn :is(img,svg.agent-portrait),.smith-card :is(img,svg.agent-portrait){animation:none!important}}
 
 /* The circuit stays in a flat vector layer; glass remains on its surrounding frame. */
-#architecture .board,#architecture .tilt-layer,#architecture .slabbox,#architecture .blk,#architecture .blk-b,#architecture .glass-front{transform:none!important;transform-style:flat!important;perspective:none!important;filter:none!important;backdrop-filter:none!important}
+#architecture .static-architecture{transform-style:flat}
 #architecture .glass-depth{display:none!important}
 .static-architecture{position:relative;transform-style:flat!important}
 .static-architecture .original-node{pointer-events:all!important}
@@ -421,16 +417,15 @@ svg.agent-portrait *{transform-box:view-box!important}
 @media(max-width:900px) and (orientation:portrait) and (max-height:740px){.js .landing .tilt-layer{grid-template-rows:32px 48px minmax(90px,1fr) 52px 22px 47px 47px 47px;row-gap:5px}}
 
 @media(max-width:900px) and (orientation:portrait){
- .js .landing .tilt-layer{grid-template-rows:40px 64px minmax(96px,1fr) 52px 64px 24px 47px 47px 47px}
+ .js .landing .tilt-layer{grid-template-rows:auto minmax(48px,auto) minmax(90px,1fr) minmax(48px,auto) minmax(48px,auto) auto auto auto auto;row-gap:10px}
  .js .landing .doorbox:nth-of-type(3),.js .landing .doorbox:nth-of-type(4){grid-row:5}
  .js .landing .tagline{grid-row:6}.js .landing .actions{grid-row:7}.js .landing .more-links{grid-row:8}.js .landing .wishlist-form{grid-row:9}
 }
-@media(max-width:900px) and (orientation:portrait) and (max-height:740px){.js .landing .tilt-layer{grid-template-rows:28px 48px minmax(90px,1fr) 48px 48px 22px 47px 47px 47px;row-gap:6px}}
+@media(max-width:900px) and (orientation:portrait) and (max-height:740px){
+ .js .landing .tilt-layer{inset:67px 16px 16px;grid-template-rows:auto minmax(44px,auto) minmax(70px,1fr) minmax(44px,auto) minmax(44px,auto) auto auto auto auto;row-gap:7px}
+ .js .landing .mark-host{margin-bottom:0}.js .landing .smithbox{margin-top:0}
+}
 
-/* Agency copy is a flat, full-resolution text layer; bevels retain their offset. */
-#agents .board,#agents .slabbox,#agents .blk,#agents .blk-b,#agents .glass-parent,#agents .glass-front,#agents .auto-detail{transform:none!important;transform-style:flat!important;perspective:none!important;filter:none!important;backdrop-filter:none!important;will-change:auto!important}
-#agents .glass-depth{transform-style:flat!important}#agents .glass-back{transform:none!important}
-#agents .screen-body{animation:none!important}
 
 
 /* Keep the hero axes independent of the bottom utility row. */
@@ -524,3 +519,69 @@ svg.agent-portrait[data-agent-portrait="doctor"] { overflow: hidden; }
 @media (min-width: 901px) and (min-height: 541px) and (prefers-reduced-motion: reduce) {
  .js .landing .tilt-layer { transform: none !important; }
 }
+
+/* Keep preview hit-testing in one plane while the outer card tilts. */
+.js .scene:not(.landing) .auto.glass-parent{transform-style:flat}
+.js .scene:not(.landing) .auto-detail{isolation:isolate}
+.motion-opt-in {
+ position:absolute;left:50%;translate:-50% 0;min-width:44px;min-height:44px;
+ padding:0 9px;color:var(--cyan);font-size:12px;white-space:nowrap
+}
+.motion-opt-in:hover,.motion-opt-in:focus-visible{color:var(--ink);text-decoration:underline}
+#agents .work-panel{grid-template-columns:minmax(100px,29%) minmax(0,1fr)}
+#agents .work-reading{display:block;overflow:auto;overscroll-behavior:contain;padding:clamp(8px,1.6vw,18px)}
+#agents .work-role-head{display:flex;align-items:flex-start;gap:8px;margin-bottom:12px}
+#agents .work-role-head .work-description{flex:1;font:14px/1.5 Outfit,system-ui,sans-serif}
+#agents .work-role .work-definition{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.55 Outfit,system-ui,sans-serif;margin:0}
+.work-examples-controls{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px}
+.work-examples-controls [aria-pressed=true]{border-color:var(--cyan);background:#41ebff1a;color:var(--cyan)}
+.work-examples article{font-size:14px;line-height:1.45}
+.work-examples article h3{font:700 clamp(13px,1.5vw,19px) Orbitron,system-ui,sans-serif;color:var(--cyan);margin-bottom:7px}
+.work-briefs{padding-inline-start:20px;margin:10px 0 0}
+.work-briefs li{padding:6px 4px;border-top:1px solid #41ebff26}
+.work-briefs b{display:block;color:#a8f6e0}
+.graph-preview.real .gg-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 8px;color:var(--green);font-size:11px;border-bottom:1px solid #00e67644}
+.gg-head b{font-family:Orbitron,system-ui,sans-serif;letter-spacing:.07em}
+.gg-head span{color:var(--muted)}
+.graph-preview.real .gg-stage > svg.gg{width:100%;max-height:100%;min-height:120px;aspect-ratio:510/304;clip-path:none;background:#05060f;border:1px solid #00e67622}
+.gg path{fill:none}
+.gg .cluster-edge{stroke:#fff;stroke-width:1;stroke-dasharray:1 3;opacity:.32}
+.gg .rel{stroke:#6a3fd1;stroke-width:1.8;opacity:.86}
+.gg .doc{stroke-dasharray:1 3;opacity:.6}
+.gg-hub text{font:600 12px Orbitron,system-ui,sans-serif;letter-spacing:.04em}
+.gg-node text{fill:inherit;font:600 15px Outfit,system-ui,sans-serif;stroke:#05060f}
+.gg-node.sel .gg-dot,.gg-node:focus-visible .gg-dot{stroke:#fff;stroke-width:2.5}
+#graph .gg-panel{overflow:auto}
+#hands .hand-stage .capture-label{min-height:25px;height:auto;line-height:1.25;padding:4px 6px}
+#hands .hand-stage .hand-boardwrap{bottom:25px}
+#hands .hand-stage .hand-skel{bottom:25px;height:calc(100% - 25px)}
+@media(max-width:650px) and (orientation:portrait){
+ .js .landing .tagline{margin:0;font-size:11px;line-height:1.35}
+ .js .landing .landing-controls .actions{gap:10px}
+ .js .landing .more-links{gap:6px}
+ .js .scene:not(.landing){padding-inline:13px}
+ .js .blk-h{padding-block:9px}
+ .js .story-foot{gap:8px}
+ #agents .work-panel{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr)}
+ #agents .work-list{grid-column:1;grid-row:2;grid-template-columns:repeat(var(--work-count,4),minmax(0,1fr));grid-template-rows:1fr!important;gap:5px}
+ #agents .work-agent{min-width:0;padding:5px}
+ #agents .work-reading{grid-column:1;grid-row:3}
+ .work-examples article,#agents .work-role-head .work-description,#agents .work-role .work-definition{font-size:12px}
+ #agents .work-role-head{flex-wrap:wrap}
+ #agents .work-role-head .work-description{flex:1 1 100%}
+ .graph-preview.real .gg-stage:has(>.gg-panel):has(>.gg){grid-template-columns:1fr}
+ .graph-preview.real .gg-stage > svg.gg{min-height:155px}
+ .graph-preview.real .gg-stage:has(>.gg-panel){min-height:230px}
+ .gg-node text{font-size:17px}
+ .gg-legend{gap:3px 9px}
+}
+
+#hands .screen-body{overflow:auto}
+.hand-guide{font:13px/1.45 Outfit,system-ui,sans-serif;color:#b9dfd2;padding:3px 6px}
+@media(max-width:650px) and (orientation:portrait){
+ .site-header:has(.motion-opt-in:not([hidden])) .projects-owner{display:none}
+ #hands .hand-stage{flex:0 0 clamp(135px,33dvh,235px)}
+ .hand-guide{font-size:12px}
+}
+
+@media(max-width:350px){.motion-opt-in{left:54%}}
