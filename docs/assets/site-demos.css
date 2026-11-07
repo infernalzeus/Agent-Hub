@@ -276,14 +276,16 @@
 .fb-row svg{width:16px;height:16px;fill:none;stroke:#41ebff;stroke-width:2}.fb-row b{font-weight:600}.fb-row span{margin-left:auto;color:#87bba3;font-size:11px}
 /* ---- git graph: the Hub's project graph (status-coloured dots, wiki links, side panel, changed files) ---- */
 .graph-preview.real .gg-stage{display:flex;gap:10px;position:relative;min-height:0}
-.gg{flex:1;min-width:0;height:auto;max-height:280px;background:radial-gradient(circle at 50% 50%,#0a1a33,#050b18)}
+.graph-preview.real .gg-stage:has(>.gg){display:grid;grid-template-columns:minmax(0,1fr)}
+.graph-preview.real .gg-stage:has(>.gg-panel):has(>.gg){grid-template-columns:minmax(0,1fr) min(230px,44%)}
+.graph-preview.real .gg-stage > svg.gg{align-self:center;width:min(100%,200px);height:auto;aspect-ratio:1;margin-inline:auto;clip-path:circle(50%);background:radial-gradient(circle at 50% 50%,#0a1a33,#050b18)}
 .gg .rel{stroke:#6a3fd1;stroke-width:1.8}.gg .doc{stroke:#fff;stroke-width:1.5;stroke-dasharray:2 4;opacity:.8}
 .gg-node text{fill:#bfe9d2;font:600 10px Outfit,system-ui,sans-serif}.gg-node circle{stroke:#050b18;stroke-width:1}.gg-node.pick{cursor:pointer}.gg-node.sel circle{stroke:#fff;stroke-width:3}
 .gg-legend{display:flex;flex-wrap:wrap;gap:2px 12px;align-items:center;padding:5px 8px;background:rgba(5,11,24,.82);border:1px solid rgba(65,235,255,.2);font-size:9px;color:#87bba3}
 .gg-legend b{width:100%;font:700 8px Orbitron,sans-serif;letter-spacing:.1em}.gg-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}.gg-legend i.ring{background:#f5a623;box-shadow:0 0 0 2px #00e676}
 .gg-legend u{display:inline-block;width:16px;margin-right:4px;vertical-align:middle;border-top:2px solid #fff}.gg-legend u.dot{border-top-style:dotted}.gg-legend u.sol{border-top-color:#6a3fd1}
 .gg-panel{width:230px;flex:none;padding:12px;border:1px solid rgba(65,235,255,.3);background:#07122a;display:flex;flex-direction:column;gap:6px;font-size:12px;color:#d6efe3}
-.gg-panel.wide{width:300px}.gg-panel h4{margin:0;font:700 14px Orbitron,sans-serif;color:#00e676}.gg-panel code{font-size:10px;color:#87bba3;word-break:break-all}
+.gg-stage:not(.split)>.gg-panel{width:auto}.gg-panel.wide{width:300px}.gg-panel h4{margin:0;font:700 14px Orbitron,sans-serif;color:#00e676}.gg-panel code{font-size:10px;color:#87bba3;word-break:break-all}
 .gg-badge{align-self:flex-start;padding:3px 8px;font:700 9px Orbitron,sans-serif;letter-spacing:.06em}.gg-badge.ok{background:#00e67622;color:#00e676}.gg-badge.diff{background:#f5a62322;color:#f5a623}
 .gg-sec{margin-top:6px;font:700 9px Orbitron,sans-serif;color:#87bba3;letter-spacing:.1em}.gg-panel p{margin:0;line-height:1.5}.gg-panel a{color:#41ebff}.muted{color:#6c8a7d}
 .gg-file{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid rgba(65,235,255,.18)}.gg-file b{font-weight:600;font-size:12px}.gg-file .ui-btn,.gg-file .sel,.gg-file .muted{margin-left:auto;font-size:10px}

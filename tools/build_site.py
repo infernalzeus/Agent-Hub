@@ -16,7 +16,7 @@ from html import escape
 from pathlib import Path
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
-V = "20261107-wishlist-byline"
+V = "20261107-circle-icon"
 REPO = "https://github.com/infernalzeus/Agent-Hub"
 AG = "assets/agents/"
 LEGEND = "Live: seen running on a real machine. Unit-tested: the logic is tested, not yet seen running. Built, not tried: built and tested without the real hardware."
@@ -339,10 +339,10 @@ def build() -> str:
     head = (
         '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
         '<meta name="description" content="Your most powerful PC tools at your fingertips, any device. Agent Hub brings autonomous LLM missions, desktop control, media and projects together.">'
-        '<title>Agent Hub — InfernalZeus</title><link rel="icon" href="assets/favicon-32.png" sizes="32x32"><link rel="icon" href="assets/favicon.ico" sizes="any">'
+        '<title>Agent Hub — InfernalZeus</title><link rel="icon" href="assets/favicon-32.png?v=%s" sizes="32x32" type="image/png"><link rel="icon" href="assets/favicon.svg?v=%s" sizes="any" type="image/svg+xml">'
         '<link rel="apple-touch-icon" href="assets/favicon-180.png"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
         '<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">'
-        '<link rel="stylesheet" href="assets/flow.css?v=%s"><link rel="stylesheet" href="assets/site.css?v=%s"><link rel="stylesheet" href="assets/site-demos.css?v=%s"></head>\n' % (V, V, V))
+        '<link rel="stylesheet" href="assets/flow.css?v=%s"><link rel="stylesheet" href="assets/site.css?v=%s"><link rel="stylesheet" href="assets/site-demos.css?v=%s"></head>\n' % (V, V, V, V, V))
     landing = (
         '<section class="scene landing active" id="landing" aria-labelledby="landing-title"><canvas id="hub-grid" aria-hidden="true"></canvas><div class="tilt-layer" data-tilt>'
         '<h1 class="hero-title" id="landing-title" tabindex="-1">Agent Hub</h1>'
