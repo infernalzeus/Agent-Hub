@@ -419,3 +419,8 @@ svg.agent-portrait *{transform-box:view-box!important}
  .js .landing .tagline{grid-row:6}.js .landing .actions{grid-row:7}.js .landing .more-links{grid-row:8}.js .landing .wishlist-form{grid-row:9}
 }
 @media(max-width:900px) and (orientation:portrait) and (max-height:740px){.js .landing .tilt-layer{grid-template-rows:28px 48px minmax(90px,1fr) 48px 48px 22px 47px 47px 47px;row-gap:6px}}
+
+/* Agency copy is a flat, full-resolution text layer; bevels retain their offset. */
+#agents .board,#agents .slabbox,#agents .blk,#agents .blk-b,#agents .glass-parent,#agents .glass-front,#agents .auto-detail{transform:none!important;transform-style:flat!important;perspective:none!important;filter:none!important;backdrop-filter:none!important;will-change:auto!important}
+#agents .glass-depth{transform-style:flat!important}#agents .glass-back{transform:none!important}
+#agents .screen-body{animation:none!important}
