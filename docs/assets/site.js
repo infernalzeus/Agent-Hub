@@ -367,7 +367,7 @@ document.querySelectorAll('.work-agent').forEach(b=>b.addEventListener('click',(
   document.querySelectorAll('img[src*="assets/agents/"]').forEach(img=>{
    const source=img.getAttribute('src');if(!/\/(smith|neo|doctor|orchestrator)\.svg(?:\?|$)/.test(source)||img.dataset.portraitClock)return;
    img.dataset.portraitClock='loading';
-   if(!portraitSources.has(source))portraitSources.set(source,fetch(source+'?portrait=20261106-downward6').then(r=>{if(!r.ok)throw Error('Portrait '+r.status);return r.text();}));
+   if(!portraitSources.has(source))portraitSources.set(source,fetch(source+'?portrait=20261107-art-poses8').then(r=>{if(!r.ok)throw Error('Portrait '+r.status);return r.text();}));
    portraitSources.get(source).then(text=>{
     if(!img.isConnected)return;
     const prefix='portrait-'+(++portraitId)+'-',svg=new DOMParser().parseFromString(text,'image/svg+xml').documentElement;
