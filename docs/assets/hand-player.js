@@ -176,7 +176,7 @@
       settings.className = 'hand-click-result';
       settings.hidden = true;
       settings.setAttribute('aria-label', 'Demo Settings screen');
-      settings.innerHTML = '<span>CLICK CONFIRMED</span><h4>Settings</h4><p>The dwell click opened Settings.</p>';
+      settings.innerHTML = '<img src="assets/previews/hand-click-settings.png" alt="Agent Hub Settings showing the Appearance section">';
       stage.appendChild(settings);
     }
     var t0 = performance.now(), pause = 700, held = null, frame = 0;

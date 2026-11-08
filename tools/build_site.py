@@ -16,7 +16,7 @@ from html import escape
 from pathlib import Path
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
-V = "20261108-hand-click"
+V = "20261108-original-layout"
 REPO = "https://github.com/infernalzeus/Agent-Hub"
 AG = "assets/agents/"
 LEGEND = "Live: seen running on a real machine. Unit-tested: the logic is tested, not yet seen running. Built, not tried: built and tested without the real hardware."
@@ -286,7 +286,7 @@ STORY = {
 
 STEPS["hands"] = [
  ("Start", "YOU", "Start Hands from the dashboard or the Hands tab of the log. The camera is opt-in and tracking runs on your device. The board overlays a hand skeleton with labelled fingertips.", "Start the camera explicitly in your Hub.", 1),
- ("Point", "INDEX FINGER", "The fingertip is your cursor. Hold it still over Settings. The ring fills, then the click opens the example Settings screen.", "Point at a control and hold still.", 0),
+ ("Point", "INDEX FINGER", "The fingertip is your cursor. Hold your finger still over Settings. The ring fills, then Settings opens.", "Point at a control and hold still.", 0),
  ("Drag", "THUMB + INDEX + MIDDLE", "Bring thumb, index and middle together. The point between them carries the block, window or panel under it; open your fingers to drop it.", "Pinch three fingers, move, then let go.", 0),
  ("Take control", "FIST, THEN OPEN PALM", "With fist control enabled, make a fist and then open your palm to pan or zoom. In View: 3D, turn a closed fist to tilt the board. Hand Setup lets you inspect and change gesture rules.", "Make a fist, then open your hand and move it.", 0)]
 
