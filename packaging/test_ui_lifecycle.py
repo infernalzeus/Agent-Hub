@@ -22,12 +22,16 @@ def hub(tmp_path_factory):
  if up():pytest.skip('Isolated test port is already in use')
  state=tmp_path_factory.mktemp('ui-lifecycle')
  env={**os.environ,'AGENTHUB_STATE_DIR':str(state),'AGENTHUB_NO_LEGACY':'1','HUB_PORT':str(port),'TAILDROP_DIR':str(state/'inbox'),'TAILSCALE_EXE':str(state/'unavailable.exe'),'PYTHONUTF8':'1'}
- proc=subprocess.Popen([sys.executable,'app.py'],cwd=ROOT,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+ cmd=[os.environ['AGENTHUB_TEST_EXE']] if os.environ.get('AGENTHUB_TEST_EXE') else [sys.executable,'app.py']      # AGENTHUB_TEST_EXE: run the same tests against an INSTALLED Hub
+ proc=subprocess.Popen(cmd,cwd=ROOT,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
  try:
   for _ in range(150):
    if up():break
    time.sleep(.2)
   else:pytest.fail('Isolated Hub did not start')
+  if os.environ.get('AGENTHUB_TEST_EXE'):      # a fresh installed Hub opens its first-run setup; answer 'set up later' the way a person would, so the pages under test are the real ones
+   try:urllib.request.urlopen(urllib.request.Request(base+'/api/onboarding/choice',data=b'{"mode":"deferred"}',headers={'Content-Type':'application/json','Origin':base}),timeout=10).close()
+   except Exception:pass
   yield base
  finally:
   if proc.poll() is None:

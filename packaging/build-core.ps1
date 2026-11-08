@@ -64,16 +64,53 @@ try {
     $dllPath = Join-Path $baseLibrary $dll
     if (Test-Path -LiteralPath $dllPath) { $nativeBinaries += @('--add-binary', "$dllPath;.") }
   }
-  & $corePython -m PyInstaller @nativeBinaries --noconfirm --clean --onedir --noconsole --name AgentHub --optimize 2 `
+  # Every data file the Hub reads from beside its own code (hub\commands.json, hub\media_sources.json, hub\apps.default.json, anything added later) goes in without being listed
+  # here. This used to be one file by name, so 0.1.14 shipped without commands.json: the installed Hub had only the eight built-in voice commands and no media sources.
+  # Folders that are added whole below (static, agent_knowledge) are left out of this loop.
+  $dataFiles = @()
+  Get-ChildItem -LiteralPath "$stage\hub" -Recurse -File | Where-Object {
+    $_.Extension -notin '.py', '.pyc' -and $_.FullName -notmatch '\\(static|agent_knowledge)\\'
+  } | ForEach-Object {
+    $dataFiles += @('--add-data', ($_.FullName + ';' + $_.DirectoryName.Substring($stage.Length + 1)))
+  }
+  & $corePython -m PyInstaller @nativeBinaries @dataFiles --noconfirm --clean --onedir --noconsole --name AgentHub --optimize 2 `
     --paths $stage --icon "$stage\favicon.ico" --distpath $out --workpath "$work\build" --specpath $work `
     --exclude-module hub.local_settings --exclude-module PyQt5 --exclude-module PySide6 --exclude-module tkinter `
+    --collect-submodules hub `
     --add-data "$stage\favicon.png;." --add-data "$stage\favicon-64.png;." --add-data "$stage\favicon-256.png;." `
-    --add-data "$stage\hub\apps.default.json;hub" --add-data "$stage\hub\static;hub\static" `
+    --add-data "$stage\hub\static;hub\static" `
     --add-data "$stage\hub\agent_knowledge;hub\agent_knowledge" --add-data "$stage\file-browser;file-browser" `
     --add-data "$stage\youtube;youtube" --add-data "$stage\packaging\speech_worker.py;packaging" `
     --add-data "$stage\requirements-youtube.txt;." `
     --add-data "$stage\payloads;payloads" "$stage\packaging\agenthub_launcher.py"
   if ($LASTEXITCODE -ne 0) { throw 'Freezing failed; no installer will be produced.' }
+  # Look inside what was frozen: every data file the staged tree carries must be there. A file that is staged but not frozen is the silent kind of loss.
+  $inside = Join-Path $out 'AgentHub\_internal'
+  $lost = @(Get-ChildItem -LiteralPath "$stage\hub" -Recurse -File | Where-Object {
+      $_.Extension -notin '.py', '.pyc' -and -not (Test-Path -LiteralPath (Join-Path $inside $_.FullName.Substring($stage.Length + 1)))
+    } | ForEach-Object { $_.FullName.Substring($stage.Length + 1) })
+  if ($lost.Count) { throw ('Staged but not in the frozen app: ' + ($lost -join ', ')) }
+  # Start the frozen app the way a user would and see it answer. The staged-source checks above cannot catch what only breaks once the code is compiled into the app
+  # (0.2.0 first failed here: hub\ui.py read its own source file, which a frozen app does not have). The installer is not compiled unless this passes.
+  $smokePort = 18099
+  $env:HUB_PORT = "$smokePort"
+  $frozenExe = Join-Path $out 'AgentHub\AgentHub.exe'
+  $frozen = Start-Process -FilePath $frozenExe -PassThru -WindowStyle Hidden
+  $answered = $false
+  try {
+    for ($i = 0; $i -lt 60 -and -not $frozen.HasExited; $i++) {
+      Start-Sleep -Seconds 1
+      try {
+        $r = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$smokePort/" -TimeoutSec 3
+        if ($r.StatusCode -eq 200) { $answered = $true; break }
+      } catch { }
+    }
+  } finally {
+    if (-not $frozen.HasExited) { Stop-Process -Id $frozen.Id -Force }
+    Remove-Item Env:HUB_PORT -ErrorAction SilentlyContinue
+  }
+  if (-not $answered) { throw 'The frozen app did not start and answer on its page. No installer will be produced.' }
+  Write-Host 'Frozen app started and answered.'
 } finally {
   $env:AGENTHUB_STATE_DIR = $previousState
   $env:AGENTHUB_WORK_ROOT = $previousRoot

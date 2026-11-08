@@ -101,12 +101,15 @@ def limits() -> list:
               "with the app's name and the goal. You see the app's real controls and check the result, so do not say you cannot control it.")
     return [pc,
             "Add, edit or remove MCP servers by voice: NOT built. You can only report them and switch PC control on or off.",
-            "Change folder locations by voice: NOT built; you can open the Locations page.",
+            "Change folder locations by voice: NOT built; you can open the Settings page.",
             "Read out or take a web address reliably from speech: NOT reliable; ask the user to type the URL in the text box.",
             "Edit code or documents directly: NOT possible; that is what an ask (a mission) is for."]
 
 
 # rule patterns for the obvious commands (matched against the lower-cased utterance)
+# "ingest an app" captured "an" as the app's name and said "Reading an." The words that are not a name:
+_NOT_AN_APP_NAME = {"", "a", "an", "the", "app", "apps", "application", "one", "it", "something"}
+
 _REGEX_COMMANDS = [          # kept only as a fallback if hub/commands.json is missing or unreadable
     {"id": "open_missions", "action": ("open_page", {"page": "missions"}), "rx": [r"\b(open|show|go to|take me to|bring up|view)\b.*\b(missions?|asks?)\b", r"^(the )?missions?( page)?$"]},
     {"id": "open_agents", "action": ("open_page", {"page": "agents"}), "rx": [r"\b(open|show|go to|take me to|bring up|view)\b.*\bagents?\b", r"^(the )?agents?( page)?$"]},
@@ -1045,7 +1048,7 @@ async def _chat(text: str, history: "list | None" = None, mission_id: "str | Non
         args = {"text": arg} if aid == "new_ask" else ({"name": (re.search(r"https?://\S+|git@\S+|\b[\w.-]+/[\w.-]+\b", text) or [arg])[0] if aid == "ingest_installed" and arg else arg}
                 if aid in ("ingest_installed", "open_address", "rename_routine") else dict(args or {}))
         say = {"status": status_line(), "pause": "Pause every running ask? Say yes to confirm.",
-               "ingest_installed": f"Reading {args.get('name') or 'it'}.",
+               "ingest_installed": (f"Reading {args.get('name')}." if str(args.get("name") or "").casefold() not in _NOT_AN_APP_NAME else "Which app should I read?"),
                "open_address": f"Opening {args.get('name')} through its address.",
                "rename_routine": f"Renaming it to {args.get('name')}.",
                "start_mission": f"Start a mission on {args.get('project')}?",

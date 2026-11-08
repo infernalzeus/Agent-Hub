@@ -33,3 +33,9 @@ def test_these_are_not_a_request_to_enter(text):
 def test_spoken_open_the_dashboard_reaches_the_screen_as_open_home(hub):
     got = _chat(hub, "Open Dashboard for me.")
     assert got["say"] == "Opening Home." and got["ui"]["open"] == "home" and got["backend"] == "rules"      # no router, no model, no "Which app?"
+
+
+def test_ingest_an_app_asks_which_app_instead_of_reading_one_called_an(hub):
+    got = _chat(hub, "ingest an app")
+    assert got["say"] == "Which app should I read?"
+    assert "Reading an" not in got["say"]

@@ -14,7 +14,7 @@ _HTML = r"""<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="color-scheme" content="dark"><meta name="theme-color" content="#080c28">
-<title>AGENT HUB — Locations</title>
+<title>AGENT HUB — Settings</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -121,10 +121,12 @@ input[type=text]:focus,select:focus{border-color:var(--accent)}select{flex:0 0 a
   .pane{grid-template-columns:minmax(0,1fr);gap:12px}
   .nav{position:static;flex-direction:row;overflow-x:auto;gap:6px;padding-bottom:4px;-webkit-overflow-scrolling:touch}
   .nav button{width:auto;flex:0 0 auto;white-space:nowrap;border-color:var(--border-dim)}}
+/* every word on this page is set in Orbitron, like the rest of the Hub; the size is a notch smaller because Orbitron is wide */
+*{font-family:'Orbitron',monospace !important;letter-spacing:.2px}body{font-size:12px}
 </style><link rel="stylesheet" href="/theme.css">
 </head><body>
 <div class="bar"><a class="btn" href="/"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>HUB</a>
-  <span class="brand">LOCATIONS</span><span style="flex:1"></span><a class="btn" href="/missions">MISSIONS</a></div>
+  <span class="brand">SETTINGS</span><span style="flex:1"></span><a class="btn" href="/missions">MISSIONS</a></div>
 <main id="main"><div style="color:var(--text-muted)">loading…</div></main>
 <div class="sticky"><span class="msg" id="msg">Nothing changes until you press SAVE.</span><button class="btn go" id="save"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>SAVE</button></div>
 <div class="scrim" id="scrim"></div>
@@ -145,7 +147,7 @@ const GROUPS = ['PROJECTS','MISSIONS','KNOWLEDGE','FILES','TOOLS'];
 // The left rail. `group` is the settings group a section shows (null = none of
 // the saved locations, just cards). Order is the order you meet them.
 const SECTIONS = [
-  {id:'hub',       label:'This hub',   group:null},
+  {id:'hub',       label:'Agent Hub',  group:null},
   {id:'projects',  label:'Projects',   group:'PROJECTS'},
   {id:'missions',  label:'Missions',   group:'MISSIONS'},
   {id:'files',     label:'Files',      group:'FILES'},
@@ -857,7 +859,7 @@ window.addEventListener('hashchange', () => {
   if(want && want !== SEC && SECTIONS.some(x => x.id === want)){ SEC = want; render(); }
 });
 
-load().catch(e => { $('main').innerHTML = '<div class="err">Could not load locations: '+esc(e.message)+'</div>'; });
+load().catch(e => { $('main').innerHTML = '<div class="err">Could not load settings: '+esc(e.message)+'</div>'; });
 </script></body></html>"""
 
 

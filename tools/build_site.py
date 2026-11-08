@@ -16,7 +16,7 @@ from html import escape
 from pathlib import Path
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
-V = "20261107-agency-motion"
+V = "20261108-hand-click"
 REPO = "https://github.com/infernalzeus/Agent-Hub"
 AG = "assets/agents/"
 LEGEND = "Live: seen running on a real machine. Unit-tested: the logic is tested, not yet seen running. Built, not tried: built and tested without the real hardware."
@@ -286,7 +286,7 @@ STORY = {
 
 STEPS["hands"] = [
  ("Start", "YOU", "Start Hands from the dashboard or the Hands tab of the log. The camera is opt-in and tracking runs on your device. The board overlays a hand skeleton with labelled fingertips.", "Start the camera explicitly in your Hub.", 1),
- ("Point", "INDEX FINGER", "The fingertip is your cursor. Hold it still over a control and a ring fills, then it clicks.", "Point at a control and hold still.", 0),
+ ("Point", "INDEX FINGER", "The fingertip is your cursor. Hold it still over Settings. The ring fills, then the click opens the example Settings screen.", "Point at a control and hold still.", 0),
  ("Drag", "THUMB + INDEX + MIDDLE", "Bring thumb, index and middle together. The point between them carries the block, window or panel under it; open your fingers to drop it.", "Pinch three fingers, move, then let go.", 0),
  ("Take control", "FIST, THEN OPEN PALM", "With fist control enabled, make a fist and then open your palm to pan or zoom. In View: 3D, turn a closed fist to tilt the board. Hand Setup lets you inspect and change gesture rules.", "Make a fist, then open your hand and move it.", 0)]
 
@@ -382,7 +382,6 @@ def build() -> str:
         '<nav class="more-links" aria-label="More"><a href="#agents">AGENCY</a><a href="#architecture">ARCHITECTURE</a><a href="#hands">HAND CONTROL</a></nav></div>'
         '%s<nav class="doors" aria-label="The tools">%s</nav></div></section>' % (REPO, smith_btn, doors))
     body = ('<body><header class="site-header"><a class="brand" href="#" data-home aria-label="Agent Hub — return to landing"><img src="assets/agent-hub-logo-176.png" alt="" width="44" height="44" decoding="async">AGENT HUB</a>'
-            '<button class="motion-opt-in" type="button" data-motion aria-label="Enable phone tilt" hidden>Tilt</button>'
             '<a class="projects" href="https://infernalzeus.github.io/" data-projects><span class="old-project-arrow" aria-hidden="true">←</span><span><span class="projects-owner">INFERNALZEUS - </span>PROJECTS</span></a></header><main class="stage">%s%s</main>'
             '<script src="assets/agent-hub-mark.min.js?v=20261105b" defer></script><script src="assets/depth-lift-site.js?v=%s" defer></script>'
             '<script src="assets/hand-player.js?v=%s" defer></script>'

@@ -49,10 +49,10 @@
  const zoomOf=()=>zoom;
  let zoomWidth=1440;
  const resizeZoom=()=>{const map=zoom.querySelector('.zoom-map');map.style.width=zoomWidth+'px';};
- document.querySelectorAll('[data-zoom]').forEach(b=>b.addEventListener('click',()=>{zoom.hidden=false;zoomWidth=Math.max(1440,innerWidth);const source=document.querySelector('#architecture .static-architecture');zoom.querySelector('.zoom-map').innerHTML=source.outerHTML.replace(/id="([^"]+)"/g,'id="zoom-$1"').replace(/url\(#([^)]*)\)/g,'url(#zoom-$1)');resizeZoom();drawArchitecture();zoom.querySelector('[data-zoom-close]').focus();}));
+ document.querySelectorAll('[data-zoom]').forEach(b=>b.addEventListener('click',()=>{zoom.hidden=false;zoomWidth=zoom.querySelector('.zoom-scroll').clientWidth;const source=document.querySelector('#architecture .static-architecture');zoom.querySelector('.zoom-map').innerHTML=source.outerHTML.replace(/id="([^"]+)"/g,'id="zoom-$1"').replace(/url\(#([^)]*)\)/g,'url(#zoom-$1)');zoom.querySelector('.circuit-layout').removeAttribute('data-bound');resizeZoom();drawArchitecture();zoom.querySelector('[data-zoom-close]').focus();}));
  zoom?.querySelector('[data-zoom-close]').addEventListener('click',()=>{zoom.hidden=true;document.querySelector('.enlarge').focus();});
  zoom?.querySelector('[data-zoom-in]').addEventListener('click',()=>{zoomWidth=Math.min(4000,zoomWidth*1.25);resizeZoom();});
- zoom?.querySelector('[data-zoom-out]').addEventListener('click',()=>{zoomWidth=Math.max(600,zoomWidth/1.25);resizeZoom();});
+ zoom?.querySelector('[data-zoom-out]').addEventListener('click',()=>{zoomWidth=Math.max(zoom.querySelector('.zoom-scroll').clientWidth,zoomWidth/1.25);resizeZoom();});
  let pan=null;const scroll=zoom?.querySelector('.zoom-scroll');
  scroll?.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse'||e.target.closest('[data-arch-node],button'))return;pan={x:e.clientX,y:e.clientY,left:scroll.scrollLeft,top:scroll.scrollTop};scroll.setPointerCapture(e.pointerId);e.preventDefault();});
  scroll?.addEventListener('pointermove',e=>{if(pan){scroll.scrollLeft=pan.left+pan.x-e.clientX;scroll.scrollTop=pan.top+pan.y-e.clientY;}});
@@ -214,17 +214,45 @@ function drawVisual(a){
 document.querySelectorAll('[data-talk-example]').forEach(b=>b.addEventListener('click',()=>{const a=autos.find(x=>x.scene.id==='talk');if(a)pin(a,Number(b.dataset.talkExample),12000);}));
 document.querySelectorAll('.machine .lane').forEach((lane,i)=>{lane.tabIndex=0;lane.setAttribute('role','button');lane.setAttribute('aria-label','Follow '+lane.querySelector('strong').textContent);const choose=()=>{const a=autos.find(x=>x.scene.id==='talk');if(a)pin(a,[0,1,2,3,4][i],12000);};lane.addEventListener('click',choose);lane.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();choose();}});});
 
-function drawArchitecture(){
- document.querySelectorAll('.original-map[data-architecture]').forEach(host=>{
- const model=JSON.parse(host.dataset.architecture),tip=host.closest('.architecture-shell').querySelector('.arch-tip');
- const choose=id=>{
-  host.dataset.selected=id||'';
-  host.querySelectorAll('[data-arch-node]').forEach(n=>{const on=!!id&&n.dataset.archNode===id;n.classList.toggle('selected',on);n.setAttribute('aria-pressed',String(on));});
-  host.querySelectorAll('[data-from]').forEach(p=>p.classList.toggle('selected',!!id&&(p.dataset.from===id||p.dataset.to===id)));
-  tip.hidden=!id;if(id){tip.querySelector('b').textContent=model.labels[id];tip.querySelector('p').textContent=model.nodes[id];}
- };
- host.querySelectorAll('[data-arch-node]').forEach(n=>{n.onclick=e=>{e.stopPropagation();choose(host.dataset.selected===n.dataset.archNode?'':n.dataset.archNode);};n.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();choose(host.dataset.selected===n.dataset.archNode?'':n.dataset.archNode);}};});
- host.onclick=()=>choose('');tip.querySelector('button').onclick=e=>{e.stopPropagation();choose('');};choose(host.dataset.selected||'');
+function drawArchitecture() {
+ document.querySelectorAll('.circuit-layout[data-architecture]').forEach(host => {
+  if (host.dataset.bound) return;
+  host.dataset.bound = 'true';
+  const model = JSON.parse(host.dataset.architecture);
+  const tip = host.closest('.architecture-shell').querySelector('.arch-tip');
+  const ports = tip.querySelector('.circuit-ports');
+  const nodes = Array.from(host.querySelectorAll('[data-arch-node]'));
+  function choose(id) {
+   host.dataset.selected = id || '';
+   nodes.forEach(node => node.setAttribute('aria-pressed', String(node.dataset.archNode === id)));
+   tip.hidden = !id;
+   if (!id) return;
+   tip.querySelector('b').textContent = model.labels[id];
+   tip.querySelector('p').textContent = model.nodes[id];
+   ports.replaceChildren();
+   for (const [from, to] of model.edges) {
+    if (from !== id && to !== id) continue;
+    const outgoing = from === id;
+    const peer = outgoing ? to : from;
+    const port = document.createElement('button');
+    port.type = 'button';
+    port.className = 'circuit-port';
+    port.textContent = (outgoing ? 'To ' : 'From ') + model.labels[peer];
+    port.onclick = () => {
+     choose(peer);
+     const target = nodes.find(node => node.dataset.archNode === peer);
+     target.focus({preventScroll: true});
+     target.scrollIntoView({block: 'nearest', inline: 'nearest'});
+    };
+    ports.append(port);
+   }
+  }
+  nodes.forEach(node => node.onclick = () => choose(host.dataset.selected === node.dataset.archNode ? '' : node.dataset.archNode));
+  tip.querySelector('button[aria-label]').onclick = () => {
+   nodes.find(node => node.dataset.archNode === host.dataset.selected)?.focus({preventScroll: true});
+   choose('');
+  };
+  choose(host.dataset.selected || '');
  });
 }
 
@@ -234,7 +262,7 @@ function drawArchitecture(){
  function enter(scene){
   clearTimeout(settleTimer);scenes.forEach(s=>s.classList.remove('settling'));if(!reduced.matches){scene.classList.add('settling');settleTimer=setTimeout(()=>scene.classList.remove('settling'),1200);}
   active=scene;scenes.forEach(s=>{s.classList.remove('leaving');s.classList.toggle('active',s===active);s.setAttribute('aria-hidden',s===active?'false':'true');s.inert=s!==active;});
-  stopAutos();startAutos(active);fit();updateMotionControl();requestAnimationFrame(fit);if(active.id==='landing'){mountMark();sizeGrid();startGrid();}else unmountMark();
+  stopAutos();startAutos(active);fit();requestAnimationFrame(fit);if(active.id==='landing'){mountMark();sizeGrid();startGrid();}else unmountMark();
   setTimeout(()=>move(0,0),60);
   const back=document.querySelector('[data-projects]');if(back){const home=scene.id==='landing';back.innerHTML=home?'<span class="old-project-arrow" aria-hidden="true">←</span><span><span class="projects-owner">INFERNALZEUS - </span>PROJECTS</span>':'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';back.classList.toggle('close-scene',!home);back.classList.remove('route-hidden');back.inert=false;back.setAttribute('href',home?'https://infernalzeus.github.io/':'#');back.setAttribute('aria-label',home?'Back to the projects page':'Close card and return to Agent Hub');}
  }
@@ -250,18 +278,7 @@ function drawArchitecture(){
   active.querySelector('h1,h2')?.focus({preventScroll:true});
   if(pendingRoute!==null){const p=pendingRoute;pendingRoute=null;navigate(p,false);}
  }
- function askSensor(){
-  if(permission!=='unknown')return;
-  const Sensor=window.DeviceOrientationEvent;
-  if(!Sensor?.requestPermission||reduced.matches)return;
-  permission='pending';updateMotionControl();
-  const save=value=>{permission=value;pose=null;updateMotionControl();try{sessionStorage.setItem('site:orientation',value);}catch(error){}};
-  try{Sensor.requestPermission().then(value=>save(value==='granted'?'granted':'denied'),()=>save('denied'));}catch(error){save('denied');}
- }
- const motionControl=document.querySelector('[data-motion]');
  if(permission==='unknown'&&window.DeviceOrientationEvent&&!window.DeviceOrientationEvent.requestPermission&&!MOUSE_DEVICE)permission='granted';
- function updateMotionControl(){motionControl.hidden=MOUSE_DEVICE||reduced.matches||!window.DeviceOrientationEvent?.requestPermission||permission!=='unknown'||!tiltEl();}
- motionControl.addEventListener('click',askSensor);
  document.addEventListener('click',e=>{const a=e.target.closest('a[href^="#"]');if(!a)return;e.preventDefault();if(busy)return;navigate(a.hash.slice(1)||'landing');});
  addEventListener('popstate',()=>{if(busy){pendingRoute=route();return;}navigate(route(),false);});
  addEventListener('hashchange',()=>{if(busy){pendingRoute=route();return;}navigate(route(),false);});

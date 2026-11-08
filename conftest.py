@@ -27,7 +27,30 @@ def _the_users_learning_data_is_never_a_test_scratchpad(tmp_path, monkeypatch):
     except ImportError:
         pass
     try:
+        from hub.features import pc_control as PC                       # the saved routines: a test that looked them up found the real ADHD one and tried to replay it
+        monkeypatch.setattr(PC, "DB_PATH", mine / "pc_control.sqlite")
+    except ImportError:
+        pass
+    try:
         from hub.features import binning as BIN
         monkeypatch.setattr(BIN, "LOG", mine / "utterance_decisions.jsonl")
     except ImportError:
         pass
+
+
+def pytest_configure(config):
+    """AGENTHUB_TEST_BROWSER=bundled runs the browser tests on Playwright's own Chromium instead of the system Edge. A box where Edge cannot be launched by a script (a locked-down
+    profile, or an agent's sandbox) otherwise fails the first browser test, and the leaked Playwright loop turns every later test into an error."""
+    import os
+    if os.environ.get("AGENTHUB_TEST_BROWSER") != "bundled":
+        return
+    try:
+        from playwright.sync_api import BrowserType
+    except ImportError:
+        return
+    original = BrowserType.launch
+
+    def launch(self, *args, **kwargs):
+        kwargs.pop("channel", None)
+        return original(self, *args, **kwargs)
+    BrowserType.launch = launch

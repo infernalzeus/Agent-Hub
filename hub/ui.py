@@ -33,10 +33,19 @@ _WAKE_JS = (_BLOCKS_JS + "\n" + (Path(__file__).parent / "static" / "voice-fx.js
             + (Path(__file__).parent / "static" / "wake.js").read_text(encoding="utf-8"))
 _DEPTH_LIFT_SOURCE = (Path(__file__).parent / "static" / "depth-lift.js").read_text(encoding="utf-8")
 # The build id decides when a long-lived host page must be replaced. It covers everything a retained view can have
+def _own_source() -> str:
+    """This file's own text, for the build id. A frozen installer carries it compiled, not as a file, so reading it crashed the installed Hub at start (the 0.2.0 installer test found it);
+    there the id is built from the pages' other parts, which change with every release."""
+    try:
+        return Path(__file__).read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
 # cached - this file (both pages), the mark and the controller - not just the controller, so a mark- or page-only
 # update can no longer leave an old landing/Home alive inside a host that still thinks it is current.
 _DEPTH_LIFT_BUILD = hashlib.sha256(
-    (_PHONE_CSS + "\0" + _DEPTH_LIFT_SOURCE + "\0" + _MARK_JS + "\0" + _WAKE_JS + "\0" + _HOME_PANELS_JS + "\0" + _HOME_BOARD_JS + "\0" + Path(__file__).read_text(encoding="utf-8")).encode()).hexdigest()[:16]
+    (_PHONE_CSS + "\0" + _DEPTH_LIFT_SOURCE + "\0" + _MARK_JS + "\0" + _WAKE_JS + "\0" + _HOME_PANELS_JS + "\0" + _HOME_BOARD_JS + "\0" + _own_source()).encode()).hexdigest()[:16]
 _DEPTH_LIFT_JS = _DEPTH_LIFT_SOURCE.replace("__DL_BUILD__", _DEPTH_LIFT_BUILD)
 # Retire old midpoint-resume tickets. The whole turn now finishes before navigation.
 _DL_ARRIVE = """<script>
@@ -252,6 +261,15 @@ __SETUP_LINK__
   catch (e) { mark = null; }
   if (!mark) host.classList.add('mark-fallback');
   window.dormantGlobe = mark;
+  // A globe that has been destroyed, or restored from the page cache, has no pointer listeners: it draws but ignores the pointer (the hover that stopped working after the Hub
+  // was closed in the installed app window). Whenever the page comes back to the dormant state, or is shown again from the cache, it is built afresh.
+  window.__remountDormant = function () {
+    try { if (mark && mark.destroy) mark.destroy(); } catch (e) {}
+    try { if (window.AgentHubMark) { host.classList.remove('mark-fallback'); mark = AgentHubMark.mount(host, {state: 'dormant', touchLock: true, shell: on}); } } catch (e) { mark = null; }
+    if (!mark) host.classList.add('mark-fallback');
+    window.dormantGlobe = mark;
+  };
+  window.addEventListener('pageshow', function (ev) { if (ev.persisted && window.__remountDormant && !window.__hubViewSuspended) window.__remountDormant(); });
   // Hover readout. The installed app has no address bar, so: triple-click the word under the globe (DORMANT / ONLINE), or add #hover-debug to the address.
   // It shows what the globe really receives: pointer type, events on the globe itself and on the page above it, and WHAT ELSE is under the pointer.
   var dbgOn = false;
@@ -475,8 +493,10 @@ function showState(st) {
   const up = st === 'up';
   if (up) bootDone();
   if (st === shown && wakeBtn.getAttribute('data-s') === (up ? 'enter' : 'start') && wakeBtn.disabled === (!up && !onPc)) return;
+  const wasUp = shown === 'up';
   shown = st;
   document.documentElement.classList.toggle('hub-up', up);
+  if (wasUp && !up && window.__remountDormant) window.__remountDormant();      // the Hub went away under an open page: a fresh globe that listens to the pointer
   if (window.dormantGlobe && window.dormantGlobe.setState) {
     try { window.dormantGlobe.setState(up ? 'live' : 'dormant'); } catch (e) {}
   }
@@ -1001,8 +1021,8 @@ __SETUP_LINK__
   <button type="button" class="restart-btn" id="edit-toggle" title="Tidy board; drag a block here to hide it in the tray" aria-label="Tidy board / block bin">
     <svg viewBox="0 0 24 24"><path d="M16.5 2.8a2.1 2.1 0 0 1 3 3L7.2 18 3.2 19l1-4Z"/><path class="ul" d="M3 22.2h18"/></svg>
   </button>
-  <a class="restart-btn" id="loc-btn" href="/setup" title="Locations: where Agent Hub reads and writes" aria-label="Locations">
-    <svg viewBox="0 0 24 24"><path d="M12 21.5s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z"/><circle class="loc-marker" cx="12" cy="10.5" r="2.35"/></svg>
+  <a class="restart-btn" id="loc-btn" href="/setup" title="Settings" aria-label="Settings">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.4"/><path d="M19.4 13.5a7.7 7.7 0 0 0 0-3l2-1.5-2-3.4-2.3.9a7.7 7.7 0 0 0-2.6-1.5L14 2.5h-4l-.5 2.5a7.7 7.7 0 0 0-2.6 1.5l-2.3-.9-2 3.4 2 1.5a7.7 7.7 0 0 0 0 3l-2 1.5 2 3.4 2.3-.9a7.7 7.7 0 0 0 2.6 1.5l.5 2.5h4l.5-2.5a7.7 7.7 0 0 0 2.6-1.5l2.3.9 2-3.4Z"/></svg>
   </a>
   <button type="button" class="restart-btn" id="restart-btn" title="Restart Agent Hub" aria-label="Restart Agent Hub">
     <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.36"/><path d="M21 4v5h-5"/></svg>

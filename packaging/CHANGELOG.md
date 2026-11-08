@@ -4,11 +4,21 @@ Written by `Build-Release.cmd`. The newest entry at the top is what the next Git
 Release uses as its description, so what you type at build time is what people read on the
 release page.
 
-The installer filename never changes ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â it is always `Agent-Hub-Setup.exe`, because the
+The installer filename never changes ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â it is always `Agent-Hub-Setup.exe`, because the
 portfolio links to `releases/latest/download/Agent-Hub-Setup.exe` and that resolves by
 name. The version lives here, in `release-manifest.json`, and in the build folder name.
 
 <!-- BUILD-RELEASE:INSERT-BELOW -->
+
+## 0.2.0
+
+_8 November 2026_
+
+- Experimental learning layer (off by default, switch on in Settings): the yard drawn as a reinforcement-learning system, arrows that explain themselves, WHY views of what the learner would press and which weights a step would move
+- Landing page: Smith's icon is the wake button and pops up when you say Smith; the page goes quiet as you enter the dashboard
+- Voice: "open the dashboard" and similar phrases enter the main screen
+- Saved play routines are found again whatever the wording of the request
+- Installer: every data file the Hub reads (voice commands, media sources) is now bundled automatically, and the build stops if anything would be silently left out; anything the repository ignores (personal layout and settings) is never packaged
 
 ## 0.1.14
 

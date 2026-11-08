@@ -353,13 +353,21 @@
   (function buildSlot() {
     var slot = document.createElement('button'); slot.type = 'button'; slot.id = 'smith-slot'; slot.className = 'smith-slot';
     slot.setAttribute('aria-label', 'Smith: switch the wake word on or off');
-    var img = document.createElement('img'); img.src = '/smith-icon.png'; img.alt = ''; img.draggable = false; slot.appendChild(img);
+    var img = document.createElement('img'); img.alt = ''; img.draggable = false; slot.appendChild(img); SM.img = img; SM.loaded = false; SM.tried = 0;
+    img.onload = function () { SM.loaded = true; }; img.onerror = function () { SM.loaded = false; };
     btn.parentNode.insertBefore(slot, btn); btn.classList.add('smith-held');
     slot.onclick = function () { if (btn.offsetParent !== null) btn.onclick(); };
     SM.slot = slot;
   })();
   function smithUp() { return btn.offsetParent !== null; }
+  // The page can be loaded while the Hub is down (from the cache): the first request for his picture then fails and used to leave a broken image for good. It is asked for only
+  // while the Hub is up, and again every few seconds until it arrives.
+  function fetchSmith() {
+    if (!SM.img || SM.loaded || !smithUp() || Date.now() - SM.tried < 3000) return;
+    SM.tried = Date.now(); SM.img.src = '/smith-icon.png?' + SM.tried;
+  }
   function syncSmith() {
+    fetchSmith();
     var talking = S.state === 'convo' || S.state === 'think' || S.state === 'speak', icon = smithUp() && (S.state === 'off' || talking);
     if (SM.slot) { SM.slot.classList.toggle('gone', !icon); SM.slot.title = S.on ? 'Click to switch the wake word off' : 'Click to switch the wake word on'; SM.iconOn = icon; }
   }
@@ -373,10 +381,18 @@
     if (SM.slot) SM.slot.style.display = 'none';
   }
   enterBtn.addEventListener('click', quietForEnter, true);
+  // Back from the dashboard (the page restored from the cache, or the landing page shown again): everything quietForEnter put away comes back, and the wake word is off, as on a fresh page.
+  function unquiet() {
+    var ring = document.getElementById('wake-ring'); if (ring) { ring.style.animation = ''; ring.style.transition = ''; ring.style.opacity = ''; }
+    if (SM.slot) SM.slot.style.display = '';
+    S.on = false; S.run++; S.pending = null; try { watchDoctor(); } catch (e) {}
+    setState('off'); syncSmith();
+  }
+  addEventListener('pageshow', function (ev) { if (ev.persisted) unquiet(); });
   btn.onclick = function () { if (S.on) stopAll(); else start(); };
   // It keeps listening when another window comes in front (opening an app by voice used to switch it off); only leaving the page ends it.
   addEventListener('pagehide', function () { if (S.on) stopAll(); });
   addEventListener('resize', function () { if (blocks.length) clearBlocks(); });
-  window.__hubWake = { stop: function(){stopAll(false);}, state: function () { return S.state; }, smith: function () { return { icon: SM.iconOn, state: S.state }; }, _leave: quietForEnter, mic: function () { return !!S.stream; }, _set: function (s) { S.on = s !== 'off'; if (s === 'convo') S.convoUntil = Date.now() + 20000; setState(s); }, blocks: function () { return blocks.length; }, say: function (t) { return ask(t); } };
+  window.__hubWake = { stop: function(){stopAll(false);}, state: function () { return S.state; }, smith: function () { return { icon: SM.iconOn, state: S.state }; }, _leave: quietForEnter, _back: unquiet, mic: function () { return !!S.stream; }, _set: function (s) { S.on = s !== 'off'; if (s === 'convo') S.convoUntil = Date.now() + 20000; setState(s); }, blocks: function () { return blocks.length; }, say: function (t) { return ask(t); } };
   setState('off');
 })();

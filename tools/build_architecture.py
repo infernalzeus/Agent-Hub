@@ -193,8 +193,49 @@ def diagram(tall=False, interactive=False):
     return ET.tostring(root,encoding='unicode')
 
 def interactive():
-    model=json.dumps({'labels':{n[0]:n[1] for n in NODES},'nodes':{n[0]:n[3] for n in NODES}})
-    return '<div class="architecture-shell static-architecture"><div class="architecture-viewport"><div class="original-map" data-architecture="'+escape(model,quote=True)+'">'+diagram(interactive=True)+'</div></div><aside class="arch-tip" hidden aria-live="polite"><b></b><p></p><button type="button" aria-label="Close architecture description">×</button></aside></div>'
+    labels = {key: label for key, label, _, _ in NODES}
+    model = json.dumps({
+        'labels': labels,
+        'nodes': {key: description for key, _, _, description in NODES},
+        'edges': [(start, end) for start, end, _ in EDGES],
+    })
+
+    def chip(key):
+        return (f'<button type="button" class="circuit-chip" data-arch-node="{key}" '
+                f'aria-pressed="false">{escape(labels[key])}</button>')
+
+    def row(keys, wired):
+        cells = ''.join(f'<li>{chip(key)}</li>' for key in keys)
+        return f'<ul class="circuit-row{" circuit-run" if wired else ""}">{cells}</ul>'
+
+    # Local traces connect successive stages only. Cross-lane connections are
+    # inspectable ports, so feedback and alternate routes never cross the board.
+    lanes = [
+        ('Private access', 'Devices enter through Tailscale.', [
+            (('phone', 'tablet', 'laptop'), False), (('network', 'hub'), True)]),
+        ('Autonomous LLM', 'From request to reviewed change.', [
+            (('router', 'missions', 'runtime', 'worktree', 'review', 'apply'), True)]),
+        ('Desktop control', 'Inspect, act, then verify.', [(('pc', 'mcp'), True)]),
+        ('Media vault', 'Download and convert on the PC.', [
+            (('download', 'convert', 'files'), True), (('smb',), False)]),
+        ('Agency', 'Specialists and supporting tools.', [
+            (('orchestrator', 'team'), True), (('skills', 'neo', 'doctor'), False)]),
+        ('Dashboard ports', 'Input, inspection and reusable work.', [
+            (('smith', 'hands', 'apps', 'graph', 'routines', 'schedule'), False)]),
+    ]
+    layout = ''.join(
+        f'<section class="circuit-lane"><h3>{title}</h3><p>{note}</p>'
+        + ''.join(row(keys, wired) for keys, wired in rows) + '</section>'
+        for title, note, rows in lanes
+    )
+    return (
+        '<div class="architecture-shell static-architecture circuit-shell">'
+        '<div class="architecture-viewport" tabindex="0" aria-label="Architecture circuit board">'
+        f'<div class="circuit-layout" data-architecture="{escape(model, quote=True)}">{layout}</div>'
+        '</div><aside class="arch-tip" hidden aria-live="polite"><b></b><p></p>'
+        '<div class="circuit-ports"></div><button type="button" '
+        'aria-label="Close architecture description">×</button></aside></div>'
+    )
 
 def wide():return diagram()
 def tall():return diagram(True)

@@ -18,8 +18,8 @@ routes = web.RouteTableDef()
 COLOUR = {"todo": "#ff5c5c", "built": "#e0a53c", "tested": "#3ba7ff", "user": "#00e676", "now": "#41ebff"}
 W, H = 300, 150                                   # the cards of the Obsidian canvas file (large, so their text fits)
 COL = [0, 380, 760, 1140, 1520, 1900]
-ROW = [0, 240, 480, 720]
-CW, CH, CSTEP, RSTEP = 200, 60, 260, 110          # the compact blocks the yard panel draws
+ROW = [0, 240, 480, 720, 960]
+CW, CH, CSTEP, RSTEP = 210, 70, 260, 130          # the compact blocks the yard panel draws
 
 # the settings that change what each block does (the rest are under "more settings" in the panel); a test checks every name exists
 NODE_KNOBS = {
@@ -31,6 +31,7 @@ NODE_KNOBS = {
     "repl": ["replay_every", "replay_batch", "replay_priority"], "hind": ["hindsight"], "demos": ["candidate_agree"], "fit": ["eval_per_cell"],
     "gate": ["min_frozen", "shadow_n", "shadow_agree"], "ver": ["ema_alpha", "soup_top"], "safety": ["hide_forbidden"],
     "learners": ["min_n", "thompson_draws", "linucb_alpha", "linucb_lambda", "ope_cap", "ope_boot"], "router": ["knn_k", "held_out_tenths", "clf_epochs", "clf_l2", "clf_lr"],
+    "td3": [],
     "search": ["cma_sigma0", "cma_repeat", "bo_init", "bo_length", "bo_noise"], "presets": ["rw_valid_json", "rw_not_truncated", "rw_no_repeat", "rw_checks", "rw_tokens"],
 }
 
@@ -56,12 +57,29 @@ NODES = {
 
 NODES.update({
     "safety": (1, 3, "tested", "Safety replay", "After a session the saved learner is shown pretend screens that also list forbidden controls (Delete playlist, Sign out ...) and it is counted how often its top pick is one. The gate needs zero. The real never-press list, the taint gate and the confirm rule stay in force whatever this says, and no learned number can loosen them.", "Event: replayed, with how many screens picked a forbidden control. Adjust: Hide forbidden controls from the live agent."),
-    "learners": (2, 3, "tested", "Choice methods", "Tally, Thompson and LinUCB sit behind one interface for the model choice and the way a PC task is done. They are scored against each other on the choices already logged, without repeating any test (a weight-capped estimate of what each would have done). Choosing one only picks which is watched; no live choice changes.", "Shown in SCORES, not during a session. Adjust: tries before trust, draws, optimism, the weight cap."),
-    "router": (3, 3, "tested", "Router yardstick", "Nearest neighbours and a small classifier trained by gradient descent on every graded request, each judged by leaving a request out and predicting it from the rest, against the current rules and tev. A fine-tune of tev has to beat these to be worth doing.", "Shown in SCORES, not during a session. Adjust: neighbours, share held out, classifier passes, penalty and step size."),
-    "search": (4, 3, "tested", "Number search", "CMA-ES and Bayesian optimisation look for the best set of a few numbers (hand and speech thresholds, sampling settings) when each try is slow and noisy. Built and tested on made-up numbers; applied to no real number until there are labelled traces to score against.", "Not run in a session. Adjust: first step, repeats, random starts, smoothness, noise."),
-    "presets": (5, 3, "tested", "Sampling presets", "Five named sets of the eight language-model settings, and a reward that needs no label (valid answer, not cut off, no repeating, checks passed, few tokens) to learn which suits which agent role. Built and tested; not yet called by a live request.", "Not run in a session. Adjust: the five reward weights."),
+    "learners": (1, 4, "tested", "Choice methods", "Tally, Thompson and LinUCB sit behind one interface for the model choice and the way a PC task is done. They are scored against each other on the choices already logged, without repeating any test (a weight-capped estimate of what each would have done). Choosing one only picks which is watched; no live choice changes.", "Shown in SCORES, not during a session. Adjust: tries before trust, draws, optimism, the weight cap."),
+    "router": (2, 4, "tested", "Router yardstick", "Nearest neighbours and a small classifier trained by gradient descent on every graded request, each judged by leaving a request out and predicting it from the rest, against the current rules and tev. A fine-tune of tev has to beat these to be worth doing.", "Shown in SCORES, not during a session. Adjust: neighbours, share held out, classifier passes, penalty and step size."),
+    "search": (4, 4, "tested", "Number search", "CMA-ES and Bayesian optimisation look for the best set of a few numbers (hand and speech thresholds, sampling settings) when each try is slow and noisy. Built and tested on made-up numbers; applied to no real number until there are labelled traces to score against.", "Not run in a session. Adjust: first step, repeats, random starts, smoothness, noise."),
+    "presets": (3, 4, "tested", "Sampling presets", "Five named sets of the eight language-model settings, and a reward that needs no label (valid answer, not cut off, no repeating, checks passed, few tokens) to learn which suits which agent role. Built and tested; not yet called by a live request.", "Not run in a session. Adjust: the five reward weights."),
 })
-OUTSIDE = {"learners", "router", "search", "presets", "safety", "live", "demos"}      # blocks that do not run inside a training session (they are fed by, or score, the session)
+NODES["td3"] = (5, 4, "todo", "TD3", "Twin Delayed DDPG: a policy-and-value method for actions that are numbers, not a pick from a list. It would tune things like a hand or speech threshold, or a sampling temperature, where the action is a real number. NOT BUILT: every choice in the yard is a pick from a list of controls, which an actor with a softmax (A2C) fits; TD3 does not. The number-tuning job is done by CMA-ES and Bayesian optimisation, which need no network.", "Not built. TD3 is DDPG plus three fixes (two value networks and take the smaller, update the policy every second step, add clipped noise to the target action), so it replaces DDPG rather than working alongside it.")
+
+# what each block is, in the words the field uses; shown on the block itself
+KIND = {
+    "live": "real-world log", "mem": "dataset (state, action)", "enc": "state encoder", "actor": "policy network (actor)", "soft": "action sampler (softmax)",
+    "env": "environment", "rew": "reward function", "crit": "value network (critic)", "upd": "A2C update (advantage)", "repl": "replay buffer", "hind": "hindsight relabelling",
+    "knobs": "settings", "demos": "expert checks (validation)", "fit": "evaluation", "gate": "promotion gate", "ver": "checkpoints", "safety": "safety check",
+    "learners": "bandits (tally, Thompson, LinUCB)", "router": "classifier (kNN, softmax)", "search": "black-box optimiser", "presets": "bandit over presets", "td3": "continuous actor-critic",
+}
+# the frames drawn behind blocks: which part of a reinforcement-learning system each belongs to
+GROUPS = [
+    ("data", "DATA AND SETTINGS", ["live", "mem", "knobs", "demos"]),
+    ("agent", "AGENT: what learns", ["enc", "actor", "soft", "repl", "upd", "crit"]),
+    ("environment", "ENVIRONMENT", ["env", "rew", "hind"]),
+    ("release", "EVALUATION AND RELEASE", ["ver", "gate", "fit", "safety"]),
+    ("others", "OTHER LEARNERS (not part of the session)", ["learners", "router", "search", "presets", "td3"]),
+]
+OUTSIDE = {"learners", "router", "search", "presets", "td3", "safety", "live", "demos"}      # blocks that do not run inside a training session (they are fed by, or score, the session)
 
 EDGES = [
     ("live", "mem", "right", "left", "approved live tasks"), ("mem", "enc", "right", "left", "what the agent sees"), ("enc", "actor", "right", "left", "numbers per control"),
@@ -72,7 +90,7 @@ EDGES = [
     ("mem", "upd", "bottom", "top", "imitate approved steps"),
     ("ver", "safety", "bottom", "top", "the saved learner"), ("safety", "gate", "right", "bottom", "forbidden presses"),
     ("learners", "fit", "top", "bottom", "scored on the log"), ("router", "fit", "top", "bottom", "scored on graded requests"),
-    ("search", "fit", "top", "right", "scored candidates"), ("presets", "fit", "left", "right", "label-free reward"),
+    ("search", "fit", "top", "right", "scored candidates"), ("presets", "fit", "left", "right", "label-free reward"), ("td3", "fit", "top", "bottom", "would be scored like the rest"),
 ]
 
 
@@ -99,6 +117,7 @@ EDGE_INFO = {
     "learners>fit": "What travels: the other choice methods (tally, Thompson, LinUCB), each scored on choices already in the log, without repeating any test.",
     "router>fit": "What travels: graded requests used to score nearest neighbours and a small classifier by leaving each one out and predicting it from the rest.",
     "search>fit": "What travels: candidate numbers (thresholds, sampling settings), each tried and scored by the real evaluation; the best set is reported, never applied by itself.",
+    "td3>fit": "What travels, once it is built: a continuous-action learner scored on the same held-out evaluation as everything else, so it earns its place only by beating the methods already there.",
     "presets>fit": "What travels: sampling presets for the language models, scored by a reward that needs no label: valid answer, not cut off, no repeating, checks passed, few tokens.",
 }
 
@@ -179,6 +198,9 @@ def arch(nid: str) -> dict:
     elif nid == "presets":
         rows = [("presets", "precise, balanced, varied, terse, long"), ("eight settings", "temperature, top_k, top_p, min_p, presence penalty, frequency penalty, max tokens, stop sequences")]
         formula = [f"reward = {g('rw_valid_json')} valid + {g('rw_not_truncated')} not cut off + {g('rw_no_repeat')} (1 - repeats) + {g('rw_checks')} checks - {g('rw_tokens')} tokens used"]
+    elif nid == "td3":
+        rows = [("state", "not built"), ("why not the same as the actor here", "its action is a real number; the yard's action is one control out of a list"), ("what it adds to DDPG", "two value networks (the smaller one is used), the policy updated every second step, noise added to the target action"), ("DDPG", "its predecessor: TD3 replaces it, the two are not used together")]
+        formula = ["y = r + gamma min(Q1', Q2')(s', pi'(s') + clipped noise)", "policy update every 2nd critic update"]
     elif nid == "knobs":
         rows = [("episodes", f"{g('episodes')} pretend tasks per learner"), ("seed", str(g("seed")))]
     return {"layers": [{"name": a_, "size": b_} for a_, b_ in layers], "rows": [{"label": a_, "value": b_} for a_, b_ in rows], "formula": formula}
@@ -193,6 +215,11 @@ def canvas(compact: bool = False) -> dict:
             nodes.append({"id": nid, "type": "text", "x": c * CSTEP, "y": r * RSTEP, "width": CW, "height": CH, "color": COLOUR[st], "text": text})
         else:
             nodes.append({"id": nid, "type": "text", "x": COL[c], "y": ROW[r], "width": W, "height": H, "color": COLOUR[st], "text": text})
+    if not compact:
+        for gid, label, members in GROUPS:
+            xs = [COL[NODES[m][0]] for m in members]
+            ys = [ROW[NODES[m][1]] for m in members]
+            nodes.insert(0, {"id": "group-" + gid, "type": "group", "label": label, "x": min(xs) - 30, "y": min(ys) - 60, "width": max(xs) - min(xs) + W + 60, "height": max(ys) - min(ys) + H + 90})
     edges = []
     for a_, b_, fs, ts, lab in EDGES:
         e = {"id": a_ + ">" + b_, "fromNode": a_, "fromSide": fs, "toNode": b_, "toSide": ts, "toEnd": "arrow"}
@@ -214,16 +241,19 @@ async def api_canvas(request: web.Request) -> web.Response:
     for e in c["edges"]:
         e["info"] = edge_info(e["id"])
         e.setdefault("label", dict(((a_ + ">" + b_), lab) for a_, b_, _, _, lab in EDGES).get(e["id"], ""))
-    for n in c["nodes"]:
+    for n in [x for x in c["nodes"] if x["type"] == "text"]:
         title, _, rest = n["text"].partition("\n\n")
         n["title"], n["info"] = title.lstrip("# ").strip(), rest.replace("*", "").strip()
         if compact:
-            n["info"] = n["info"].split(". ")[0].rstrip(".") + "."                  # one sentence in the panel; the whole text is in the Obsidian canvas
+            if n["color"] != COLOUR["todo"]:                                         # one sentence in the panel (the whole text is in the Obsidian canvas); a block that is not built says everything
+                n["info"] = n["info"].split(". ")[0].rstrip(".") + "."
             n.pop("text", None)
         n["state"] = next(k for k, v in COLOUR.items() if v == n["color"])
         n["knobs"] = NODE_KNOBS.get(n["id"], [])
         n["outside"] = n["id"] in OUTSIDE
         n["arch"] = arch(n["id"])
+        n["kind"] = KIND.get(n["id"], "")
+    c["groups"] = [{"id": g, "label": lab, "members": m} for g, lab, m in GROUPS]
     return web.json_response(c)
 
 

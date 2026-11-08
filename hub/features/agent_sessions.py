@@ -117,6 +117,28 @@ def _title(recs: "list[dict]") -> str:
     return ""
 
 
+def _own_title(recs: "list[dict]", path: Path) -> str:
+    """The name the session itself carries (Claude Code writes a `custom-title` when you rename it and an `ai-title` it makes up), not the last thing typed to it. Looked for in the
+    recent records first, then through the file, newest record winning; empty when it has none."""
+    def of(r: dict) -> str:
+        return str(r.get("customTitle") or r.get("aiTitle") or "") if r.get("type") in ("custom-title", "ai-title") else ""
+    for r in reversed(recs):
+        if of(r):
+            return _short(of(r), 70)
+    best = ""
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if '-title"' in line:
+                    try:
+                        best = of(json.loads(line)) or best
+                    except ValueError:
+                        pass
+    except OSError:
+        pass
+    return _short(best, 70) if best else ""
+
+
 def _cwd(recs: "list[dict]", path: Path) -> str:
     """The folder the session works in. Claude Code writes it on every record; Codex writes it once, in the first line (session_meta)."""
     for r in reversed(recs):
@@ -221,13 +243,14 @@ def scan(now: "float | None" = None, limit: int = 10) -> "list[dict]":
         age = now - m
         state, ask = (_claude_state if agent == "claude" else _codex_state)(recs, age)
         cwd = _cwd(recs, p)
-        title = _title(recs) or (_first_asked(p) if agent == "codex" else "")
+        asked = _title(recs) or (_first_asked(p) if agent == "codex" else "")
+        title = (_own_title(recs, p) if agent == "claude" else "") or asked
         last = _last_said(recs)
         if agent == "codex" and _helper_session(title, last):
             continue
         rows.append({
             "agent": agent, "project": _project_name(p.parent.name) if agent == "claude" else (Path(cwd).name or "Codex"),
-            "title": title, "state": state, "ask": ask, "age_s": int(age), "id": p.stem[:12],
+            "title": title, "asked": asked, "state": state, "ask": ask, "age_s": int(age), "id": p.stem[:12],
             "cwd": cwd, "last": last,
         })
     return rows

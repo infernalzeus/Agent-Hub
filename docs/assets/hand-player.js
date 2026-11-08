@@ -169,6 +169,16 @@
       x.textContent = t[1]; return { c: c, t: x, k: t[0] };
     });
     var pill = el('rect', { rx: 3, height: 20, fill: '#080c28', 'fill-opacity': .92, 'stroke-width': 1.4 }, handSvg), label = el('text', { 'text-anchor': 'middle', 'font-family': 'Orbitron,monospace', 'font-size': 12, 'font-weight': 700 }, handSvg);
+    // The dwell click opens the same illustrative Settings screen on every viewport.
+    var settings = null;
+    if (name === 'point') {
+      settings = document.createElement('section');
+      settings.className = 'hand-click-result';
+      settings.hidden = true;
+      settings.setAttribute('aria-label', 'Demo Settings screen');
+      settings.innerHTML = '<span>CLICK CONFIRMED</span><h4>Settings</h4><p>The dwell click opened Settings.</p>';
+      stage.appendChild(settings);
+    }
     var t0 = performance.now(), pause = 700, held = null, frame = 0;
 
     function draw(ms) {
@@ -204,6 +214,7 @@
       dwell.setAttribute('opacity', prog > 0 && prog < 1 ? 1 : 0); dwell.setAttribute('stroke', AC.left);
       var a = -Math.PI / 2, b = a + Math.max(prog, .001) * Math.PI * 1.999, r = 28;
       dwell.setAttribute('d', 'M' + (tip[0] + r * Math.cos(a)) + ' ' + (tip[1] + r * Math.sin(a)) + ' A' + r + ' ' + r + ' 0 ' + (prog > .5 ? 1 : 0) + ' 1 ' + (tip[0] + r * Math.cos(b)) + ' ' + (tip[1] + r * Math.sin(b)));
+      if (settings) settings.hidden = ms < 3400;
       var fl = isPoint && ms > 3400 && ms < 4200 ? (ms - 3400) / 800 : -1;
       flash.setAttribute('opacity', fl >= 0 ? 1 - fl : 0); flash.setAttribute('cx', tip[0]); flash.setAttribute('cy', tip[1]); flash.setAttribute('r', 14 + Math.max(0, fl) * 60);
       // the board answers the hand: the palm pans it, the hand's size zooms it, the fist's turn rotates it
@@ -232,7 +243,7 @@
       draw(ms);
       frame = requestAnimationFrame(tick);
     }
-    if (reduce) draw(name === 'control' ? 2500 : name === 'drag' ? 3000 : name === 'point' ? 3200 : 2400);
+    if (reduce) draw(name === 'control' ? 2500 : name === 'drag' ? 3000 : name === 'point' ? 3900 : 2400);
     else frame = requestAnimationFrame(tick);
     return function () { cancelAnimationFrame(frame); resize.disconnect(); };
   }

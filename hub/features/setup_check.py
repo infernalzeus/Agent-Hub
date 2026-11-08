@@ -69,13 +69,13 @@ def _check() -> list[dict]:
     for o in LOC.outside_hub():                 # the hub is meant to stay inside its own folder; say so for every place it is set to leave it
         issues.append({"severity": "warn", "title": f"{o['label']} is outside the Agent Hub folder",
                        "detail": f"{o['path']} ({why.get(o['source'], o['source'])}). The hub writes files there. Move it under {LOC.BASE} in LOCATIONS unless you mean it.",
-                       "action": {"kind": "link", "label": "Review in LOCATIONS", "href": "/setup"}})
+                       "action": {"kind": "link", "label": "Review in SETTINGS", "href": "/setup"}})
     if LOC.configured():
         for r in LOC.REGISTRY:
             st = LOC.validate(r["key"], LOC.get(r["key"]))
             if st["level"] == "error":
                 issues.append({"severity": "warn", "title": f"{r['label']}: {st['msg']}", "detail": r["purpose"],
-                               "action": {"kind": "link", "label": "Fix in LOCATIONS", "href": "/setup"}})
+                               "action": {"kind": "link", "label": "Fix in SETTINGS", "href": "/setup"}})
 
     if Path(OPENCODE_EXE).is_file():
         ver = _opencode_version()

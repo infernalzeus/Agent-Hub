@@ -554,7 +554,8 @@ def _save(goal: str, app: str, got: dict) -> "dict | None":
         return None
     steps = _trim([s for s in got["steps"] if s["tool"] in ("Click", "Type", "Shortcut")])
     try:
-        row = PC.save_ui_routine(PC.do_intent(app, goal), f"{PC.display_app_name(app)}: {goal}".strip(), window, steps,
+        old = PC.routine_for_do(app, goal)                    # keep the routine this wording already has, whatever key it was stored under
+        row = PC.save_ui_routine(old["intent"] if old else PC.do_intent(app, goal), f"{PC.display_app_name(app)}: {goal}".strip(), window, steps,
                                  PC.ui_signature(PC.flatten(first), window))
     except Exception as exc:  # noqa: BLE001
         logger.info("desktop_agent: could not save the routine: %s", exc)

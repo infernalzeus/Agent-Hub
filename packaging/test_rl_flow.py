@@ -120,8 +120,12 @@ def test_events_are_numbered_and_only_the_newest_come_back():
 
 def test_the_canvas_is_valid_json_canvas_and_every_arrow_a_session_names_exists_on_it(tmp_path):
     c = flow.canvas()
-    ids = {n["id"] for n in c["nodes"]}
-    assert len(ids) == 21 and all({"x", "y", "width", "height", "text", "color"} <= set(n) for n in c["nodes"]) and all(n["type"] == "text" for n in c["nodes"])
+    text = [n for n in c["nodes"] if n["type"] == "text"]
+    ids = {n["id"] for n in text}
+    assert len(ids) == 22 and all({"x", "y", "width", "height", "text", "color"} <= set(n) for n in text)
+    groups = [n for n in c["nodes"] if n["type"] == "group"]
+    assert len(groups) == len(flow.GROUPS) and all(n["label"] for n in groups)                              # Obsidian draws the frames too
+    assert {m for _, _, ms in flow.GROUPS for m in ms} == ids and sum(len(ms) for _, _, ms in flow.GROUPS) == 22      # every block is in exactly one frame
     assert all(e["fromNode"] in ids and e["toNode"] in ids and e["fromSide"] in ("left", "right", "top", "bottom") for e in c["edges"])
     edge_ids = {e["id"] for e in c["edges"]}
     src = open(P.__file__, encoding="utf-8").read()
@@ -134,7 +138,7 @@ def test_the_canvas_is_valid_json_canvas_and_every_arrow_a_session_names_exists_
     assert shipped == c, "hub/yard/learning.canvas is out of date: run  python -m hub.yard.flow hub/yard/learning.canvas"
     flow.write(str(tmp_path / "learning.canvas"))
     again = json.loads((tmp_path / "learning.canvas").read_text(encoding="utf-8"))
-    assert again == c and all(n["text"].startswith("## ") for n in again["nodes"])
+    assert again == c and all(n["text"].startswith("## ") for n in again["nodes"] if n["type"] == "text")
 
     async def go():
         app = web.Application()
@@ -481,8 +485,8 @@ def test_every_setting_belongs_to_exactly_one_block_and_each_block_has_an_inside
         app.add_routes(flow.routes)
         async with TestClient(TestServer(app)) as c:
             j = await (await c.get("/api/yard/canvas?compact=1")).json()
-            assert len(j["nodes"]) == 21 and all("arch" in n and "knobs" in n for n in j["nodes"]) and {n["id"] for n in j["nodes"] if n["outside"]} == flow.OUTSIDE
-            assert all(n["width"] == 200 and n["height"] == 60 for n in j["nodes"]) and all(e["label"] and e["info"].startswith("What travels") for e in j["edges"])
+            assert len(j["nodes"]) == 22 and all("arch" in n and "knobs" in n and n["kind"] for n in j["nodes"]) and {n["id"] for n in j["nodes"] if n["outside"]} == flow.OUTSIDE
+            assert all(n["width"] == 210 and n["height"] == 70 for n in j["nodes"]) and len(j["groups"]) == 5 and all(e["label"] and e["info"].startswith("What travels") for e in j["edges"])
     _run(go())
 
 

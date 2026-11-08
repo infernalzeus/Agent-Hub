@@ -37,7 +37,7 @@ iframe.teach{width:100%;height:80vh;min-height:460px;border:1px solid var(--bord
 #top-shadow.on{background:var(--accent);color:#04120a}
 .flowwrap{overflow-x:auto;border:1px solid var(--border);border-radius:10px;background:rgba(8,12,40,.6);margin:6px 0}#flowsvg{width:100%;min-width:720px;height:auto;display:block}
 .fnode{cursor:pointer}.fnode rect{fill:rgba(8,12,40,.92);stroke-width:1.8}.fnode.tested rect{stroke:#3ba7ff}.fnode.built rect{stroke:#e0a53c}.fnode.user rect{stroke:#00e676}.fnode.todo rect{stroke:#ff5c5c;stroke-dasharray:6 4}.fnode.now rect{stroke:#41ebff;stroke-dasharray:3 4}
-.fnode text.ft{fill:#d6f5e6;font:700 14px Orbitron,system-ui,sans-serif}.fnode text.fl{fill:#9fe7c0;font:12px Outfit,system-ui,sans-serif}
+.fnode text{pointer-events:none}.fnode text.ft{fill:#d6f5e6;font:700 14px Orbitron,system-ui,sans-serif}.fnode text.fl{fill:#9fe7c0;font:12px Outfit,system-ui,sans-serif}
 .fnode.sel rect{stroke-width:3.4}.fnode.pulse rect{fill:rgba(20,40,70,.95);stroke-width:3.2}.fnode.improved rect{stroke:#00e676;stroke-width:4;filter:drop-shadow(0 0 7px #00e676)}
 .fedge path{stroke:#6c8f7d;stroke-width:1.6;fill:none}.fedge.lit path{stroke:#41ebff;stroke-width:3.4;stroke-dasharray:10 6;animation:fdash .5s linear infinite}
 @keyframes fdash{to{stroke-dashoffset:-16}}@media (prefers-reduced-motion:reduce){.fedge.lit path{animation:none}}
@@ -47,6 +47,8 @@ iframe.teach{width:100%;height:80vh;min-height:460px;border:1px solid var(--bord
 details>summary{cursor:pointer;color:var(--accent);font:700 11px Orbitron,system-ui,sans-serif;letter-spacing:.08em;padding:6px 0}details h2{margin-top:8px}
 .rc .said{font-size:13.5px;margin-bottom:4px}.rc .why{font-size:11.5px;color:var(--mute);margin-top:3px}
 .wy{border:1px solid var(--border);border-radius:8px;padding:8px;margin:6px 0;background:rgba(0,0,0,.2)}.wy h4{margin:0 0 4px;font:600 12px Outfit,system-ui,sans-serif}.wy .cand{display:grid;grid-template-columns:minmax(250px,1.6fr) 150px 2fr;gap:8px;align-items:center;font-size:11.5px;margin:2px 0}.wy .bar{height:7px;border-radius:4px;background:rgba(255,255,255,.08)}.wy .bar i{display:block;height:100%;border-radius:4px;background:var(--accent)}.wy .cand.top .nm{color:var(--accent)}.wy .cand.pr .nm:after{content:"  ◀ pressed";color:#e0a53c}.wy .bc{color:var(--mute);font-size:10.5px}.wy .mv{font-size:11px;color:#9fe7c0;margin-top:3px}
+.rhead{display:flex;flex-wrap:wrap;gap:8px;align-items:center;cursor:pointer}.rhead .tw{color:var(--accent);width:12px}.rhead .said{margin:0;flex:1;min-width:180px}.rchips{display:flex;gap:4px;flex-wrap:wrap}.rbody{margin-top:8px;border-top:1px solid var(--border);padding-top:8px}
+.steps{margin:4px 0}.step{display:flex;gap:4px;align-items:center;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px}.step .sl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.step .sn{color:var(--accent)}.step button.i:disabled{opacity:.25}
 .band{background:rgba(0,230,118,.05);border:1px solid var(--border);border-radius:10px;padding:7px 10px;margin:0 0 8px}
 .sess{border:1px solid rgba(0,230,118,.45);border-radius:12px;padding:0;margin:14px 0 8px;background:rgba(8,12,40,.55);overflow:hidden}
 .sess-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--border);background:rgba(0,230,118,.06)}
@@ -56,6 +58,7 @@ button.big{background:var(--accent);color:#04120a;padding:8px 16px;font-size:11p
 .fnode.outside rect{stroke-dasharray:4 3;fill-opacity:.7}.fnode text.fl{fill:#9fe7c0}.fnode.outside text.fl{fill:#6c8f7d}
 .fnode .fi circle{fill:rgba(8,12,40,.9);stroke:var(--accent);stroke-width:1.3}.fnode .fi text{fill:var(--accent);font:700 12px Outfit,sans-serif;pointer-events:none}.fnode .fi{cursor:pointer}
 .fnode .fx{opacity:0;cursor:pointer;transition:opacity .15s}.fnode:hover .fx{opacity:.9}.fnode .fx circle{fill:rgba(8,12,40,.9);stroke:var(--mute);stroke-width:1.2}.fnode .fx text{fill:var(--mute);font:700 12px Outfit,sans-serif;pointer-events:none}
+.fgroup{fill:rgba(143,179,160,.035);stroke:rgba(143,179,160,.38);stroke-width:1;stroke-dasharray:3 4}.fgl{fill:#7fa896;font:700 9.5px Orbitron,system-ui,sans-serif;letter-spacing:.14em;pointer-events:none}.fnode text.fk{fill:#8fcfb2;font:600 10.5px Outfit,system-ui,sans-serif;letter-spacing:.02em}.fnode.todo text.fk{fill:#ff9c9c}.fgd{fill:#8fcfb2}.fgl2{stroke:#3d6b57;stroke-width:.8}.fnode.todo .fgd{fill:#ff7a7a}.fedge.todo path:not(.hit){stroke:#c86a6a;stroke-dasharray:4 3}#legend{padding:2px 12px 10px;font-size:11px;line-height:1.5}
 .fedge .hit{stroke:transparent;stroke-width:12;fill:none;cursor:pointer}.fedge.sel path:not(.hit){stroke:var(--accent);stroke-width:2.2}.fnode{touch-action:none}.fnode.pulse{filter:none}
 .nh{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;margin-bottom:4px}.nh .sp{flex:1}.sub{font:700 10px Orbitron,system-ui,sans-serif;letter-spacing:.08em;color:var(--accent);margin:8px 0 2px}
 .inside{border:1px solid var(--border);border-radius:8px;padding:8px;margin:6px 0;background:rgba(0,0,0,.2)}.irow{font-size:11.5px;margin:2px 0}.irow b{color:var(--accent);font-weight:600}
@@ -71,6 +74,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
 <div class="mute" id="result"></div>
 <div class="flowwrap"><svg id="flowsvg" role="img" aria-label="The learning layer"></svg></div>
 <div class="mute" id="flog"></div>
+<div class="mute" id="legend">Frames show which part of a reinforcement-learning system a block belongs to. Under each name is what the block is called in the field. A dashed box is not part of a training session. Colours: red not built, orange built and never tested, blue tested by Claude, green tested by you. Click a block for what it is and its settings, its i for the inside (layers, numbers, arithmetic), an arrow for what travels along it.</div>
 </div>
 <div class="card" id="nodebox" hidden></div>
 </section>
@@ -105,7 +109,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
     $('top-note').textContent=sh.forced_off_by_environment?'Held off by an environment variable.':sh.on?'Observing. Nothing is pressed.':'Off. Nothing is recorded.';}catch(e){}}
 
   // ---- YARD: the architecture as small blocks you can move, with the inside of each block one click away
-  let CV=null,KN=null,gById={},eEls=[],lastN=0,timer=0,wasRunning=false,flog=[],sel=null,showInside=false,saveT={},POS={},HID=new Set(),NODE={};
+  let CV=null,KN=null,gById={},eEls=[],GR=[],lastN=0,timer=0,wasRunning=false,flog=[],sel=null,showInside=false,saveT={},POS={},HID=new Set(),NODE={};
   const NS='http://www.w3.org/2000/svg',sv=(t,a,x)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(x!=null)e.textContent=x;return e;};
   const LS='hub-rl-flow';
   function loadLayout(){try{const j=JSON.parse(localStorage.getItem(LS)||'{}');POS=j.pos||{};HID=new Set(j.hid||[]);}catch(e){POS={};HID=new Set();}}
@@ -155,16 +159,24 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       out[e.id]=rounded(clean,8);});
     return out;}
   let rafE=0;
-  function redrawEdges(){if(rafE)return;rafE=requestAnimationFrame(()=>{rafE=0;const R=routeAll();eEls.forEach(x=>{const d=R[x.e.id];x.g.style.display=d?'':'none';if(d){x.p.setAttribute('d',d);x.h.setAttribute('d',d);}});});}
+  function redrawEdges(){if(rafE)return;rafE=requestAnimationFrame(()=>{rafE=0;placeGroups();const R=routeAll();eEls.forEach(x=>{const d=R[x.e.id];x.g.style.display=d?'':'none';if(d){x.p.setAttribute('d',d);x.h.setAttribute('d',d);}});});}
+  function placeGroups(){GR.forEach(({g,r,t:tx})=>{const m=g.members.map(id=>NODE[id]).filter(n=>n&&!HID.has(n.id));r.style.display=tx.style.display=m.length?'':'none';if(!m.length)return;
+      let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;m.forEach(n=>{const [x,y]=at(n);x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x+n.width);y1=Math.max(y1,y+n.height);});
+      r.setAttribute('x',x0-14);r.setAttribute('y',y0-30);r.setAttribute('width',x1-x0+28);r.setAttribute('height',y1-y0+44);tx.setAttribute('x',x0-4);tx.setAttribute('y',y0-14);});}
   function fitView(){const vis=CV.nodes.filter(n=>!HID.has(n.id));if(!vis.length)return;let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;vis.forEach(n=>{const [x,y]=at(n);x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x+n.width);y1=Math.max(y1,y+n.height);});
-    $('flowsvg').setAttribute('viewBox',(x0-12)+' '+(y0-12)+' '+(x1-x0+24)+' '+(y1-y0+24));}
+    $('flowsvg').setAttribute('viewBox',(x0-26)+' '+(y0-40)+' '+(x1-x0+52)+' '+(y1-y0+68));}
+  // a small drawing of the layers, only on the blocks that are networks (the real sizes are in the block's inside)
+  const GLY={actor:[5,4,1],crit:[4,1],router:[5,3],td3:[3,3,1]};
+  function glyph(g,n){const L=GLY[n.id];if(!L)return;const x0=n.width-64,w=40,y0=34,h=28,pts=L.map((k,i)=>Array.from({length:k},(_,j)=>[x0+i*(w/(L.length-1)),y0+(k===1?h/2:j*(h/(k-1)))]));
+    const gg=sv('g',{class:'fgly'});for(let i=0;i<pts.length-1;i++)pts[i].forEach(a=>pts[i+1].forEach(b=>gg.appendChild(sv('line',{class:'fgl2',x1:a[0],y1:a[1],x2:b[0],y2:b[1]}))));
+    pts.forEach(col=>col.forEach(a=>gg.appendChild(sv('circle',{class:'fgd',cx:a[0],cy:a[1],r:2.1}))));g.appendChild(gg);}
   async function loadFlow(){
     try{CV=await J('/api/yard/canvas?compact=1');KN=await J('/api/yard/knobs');}catch(e){$('result').textContent='Could not read the yard: '+e.message;return;}
     loadLayout();const svg=$('flowsvg');svg.replaceChildren();const defs=sv('defs',{}),mk=sv('marker',{id:'farrow',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:6,markerHeight:6,orient:'auto'});mk.appendChild(sv('path',{d:'M0 0L10 5L0 10z',fill:'#8fb3a0'}));defs.appendChild(mk);svg.appendChild(defs);
-    NODE={};CV.nodes.forEach(n=>NODE[n.id]=n);gById={};eEls=[];
-    CV.edges.forEach(e=>{const g=sv('g',{class:'fedge','data-id':e.id}),p=sv('path',{'marker-end':'url(#farrow)'}),h=sv('path',{class:'hit'});g.appendChild(p);g.appendChild(h);g.appendChild(sv('title',{},NODE[e.fromNode].title+' → '+NODE[e.toNode].title+': '+e.label));h.onclick=()=>openEdge(e.id);svg.appendChild(g);eEls.push({e,g,p,h});});
+    NODE={};CV.nodes.forEach(n=>NODE[n.id]=n);gById={};eEls=[];GR=[];(CV.groups||[]).forEach(g=>{const r=sv('rect',{class:'fgroup',rx:14}),tx=sv('text',{class:'fgl'},g.label);svg.appendChild(r);svg.appendChild(tx);GR.push({g,r,t:tx});});
+    CV.edges.forEach(e=>{const g=sv('g',{class:'fedge'+((NODE[e.fromNode].state==='todo'||NODE[e.toNode].state==='todo')?' todo':''),'data-id':e.id}),p=sv('path',{'marker-end':'url(#farrow)'}),h=sv('path',{class:'hit'});g.appendChild(p);g.appendChild(h);g.appendChild(sv('title',{},NODE[e.fromNode].title+' → '+NODE[e.toNode].title+': '+e.label));h.onclick=()=>openEdge(e.id);svg.appendChild(g);eEls.push({e,g,p,h});});
     CV.nodes.forEach(n=>{const g=sv('g',{class:'fnode '+n.state+(n.outside?' outside':''),'data-id':n.id}),r=sv('rect',{width:n.width,height:n.height,rx:8});g.appendChild(r);
-      g.appendChild(sv('text',{x:10,y:23,class:'ft'},n.title));const live=sv('text',{x:10,y:46,class:'fl'},n.outside?'outside a session':'');g.appendChild(live);g._live=live;
+      g.appendChild(sv('text',{x:10,y:24,class:'ft'},n.title));g.appendChild(sv('text',{x:10,y:41,class:'fk'},n.kind||''));const live=sv('text',{x:10,y:60,class:'fl'},'');g.appendChild(live);g._live=live;glyph(g,n);
       const ib=sv('g',{class:'fi'});ib.appendChild(sv('circle',{cx:n.width-14,cy:14,r:9}));ib.appendChild(sv('text',{x:n.width-14,y:19,'text-anchor':'middle'},'i'));g.appendChild(ib);
       const xb=sv('g',{class:'fx'});xb.appendChild(sv('circle',{cx:n.width-14,cy:n.height-12,r:8}));xb.appendChild(sv('text',{x:n.width-14,y:n.height-8,'text-anchor':'middle'},'×'));g.appendChild(xb);
       ib.onpointerdown=ev=>ev.stopPropagation();ib.onclick=ev=>{ev.stopPropagation();openNode(n.id,true);};
@@ -196,7 +208,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
         b.onclick=async()=>{if(!confirm('Make version '+v.n+' the one in use? Nothing is deleted.'))return;const r=await POST('/api/yard/rollback',{version:v.n});$('msg').hidden=false;$('msg').textContent=r.ok?'Version '+v.n+' is now in use.':(await r.text());loadResult();openNode('ver',true);};box.append(b,document.createTextNode(' '));});wrap.append(box);}catch(e){}}
   async function openNode(id,inn){try{const c=await J('/api/yard/canvas?compact=1');c.nodes.forEach(m=>{if(NODE[m.id])NODE[m.id].arch=m.arch;});KN=await J('/api/yard/knobs');}catch(e){}
     sel=id;showInside=!!inn;eEls.forEach(q=>q.g.classList.remove('sel'));Object.values(gById).forEach(g=>g.classList.toggle('sel',g.dataset.id===id));const n=NODE[id],box=$('nodebox');box.hidden=false;box.replaceChildren();
-    const h=el('div','nh');h.append(el('b',null,n.title),document.createTextNode('  '+n.info),el('span','sp'));const tg=el('button',showInside?'on':'skip','INSIDE');tg.title='Layers, numbers and arithmetic';tg.onclick=()=>openNode(id,!showInside);h.append(tg);box.append(h);
+    const h=el('div','nh');h.append(el('b',null,n.title),el('span','mute',' ('+(n.kind||'')+') '),document.createTextNode(n.info),el('span','sp'));const tg=el('button',showInside?'on':'skip','INSIDE');tg.title='Layers, numbers and arithmetic';tg.onclick=()=>openNode(id,!showInside);h.append(tg);box.append(h);
     if(showInside)box.append(inside(n));
     const ks=n.knobs.map(name=>KN.knobs.find(k=>k.name===name)).filter(Boolean);
     if(ks.length){box.append(el('div','sub','SETTINGS'));ks.forEach(k=>box.append(knobRow(k)));}else box.append(el('div','mute','Nothing to adjust here.'));}
@@ -251,19 +263,49 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
     $('fresh').onclick=async()=>{if(!confirm('FRESH START: learners read only new rows from now on, and the routines trusted right now become attested checks. Nothing is deleted.'))return;await POST('/api/yard/settings',{fresh:true});routines();};
     const att=new Set((gold.routines||[]).map(r=>r.id)),chk={};cands.forEach(c=>chk[c.id]=c);
     if(!rows.length){box.append(el('div','card','No routines yet.'));return;}
-    rows.forEach(r=>{const c=el('div','card rc');c.append(el('div','said',r.title));const m=el('div');
-      m.append(el('span','chip '+(r.status==='trusted'?'ok':r.status==='disabled'?'no':'part'),r.status.toUpperCase()),document.createTextNode(' '),el('span','chip',r.successes+' good · '+r.failures+' bad'),document.createTextNode(' '),el('span','chip',r.updated?('last used '+new Date(r.updated*1000).toLocaleDateString()):'never used'));
-      if(att.has(r.id)){m.append(document.createTextNode(' '),el('span','chip ok','attested: a check, never training'));}
+    let openId=null;try{openId=sessionStorage.getItem('hub-rl-open');}catch(e){}
+    rows.forEach(r=>{
+      const c=el('div','card rc'),head=el('div','rhead'),tw=el('span','tw','▸'),body=el('div','rbody');body.hidden=true;
+      head.append(tw,el('span','said',r.title));
+      const m=el('span','rchips');
+      m.append(el('span','chip '+(r.status==='trusted'?'ok':r.status==='disabled'?'no':'part'),r.status.toUpperCase()),document.createTextNode(' '),el('span','chip',r.successes+' good · '+r.failures+' bad'));
+      if(att.has(r.id)){m.append(document.createTextNode(' '),el('span','chip ok','attested'));}
       const k=chk[r.id];if(k){m.append(document.createTextNode(' '),el('span','chip '+(k.ready?'ok':'part'),k.ready?'yard: looks ready':'yard: not ready'));}
-      c.append(m);if(k&&!k.ready)c.append(el('div','why',k.reasons.join('. ')+'.'));if(k&&k.ready)c.append(el('div','why','No forbidden control, replayed clean, and the learner agrees on '+(k.agree==null?'(no learner yet)':pct(k.agree))+' of its steps. Only you can approve it.'));
-      const st=el('div','why'),wy=el('div'),why=el('button','skip','WHY');c.append(st,wy);const row=el('div','row'),see=el('button','skip','SHOW STEPS'),ok=el('button',null,'APPROVE'),off=el('button','part',r.status==='disabled'?'RE-ENABLE':'DISABLE'),del=el('button','no','DELETE'),rp=el('button','part','REPLAY');
-      see.onclick=async()=>{try{const j=await J('/api/pc/routines/'+r.id+'/steps');st.textContent=(j.steps.length?j.steps.map(x=>(x.ordinal+1)+'. '+x.tool+' '+((x.target&&x.target.name)||'')).join('  >  '):'no steps (an app launch or an address)');}catch(e){st.textContent=String(e);}};
+      head.append(m);c.append(head,body);
+      // the buttons are the first thing in the body, so what they open appears under them and never needs a scroll to be closed again
+      const bar=el('div','row'),rp=el('button','part','REPLAY'),stepsBtn=el('button','skip','STEPS'),why=el('button','skip','WHY'),ok=el('button',null,'APPROVE'),off=el('button','part',r.status==='disabled'?'RE-ENABLE':'DISABLE'),del=el('button','no','DELETE');
+      rp.title='Run it now, on this PC, to watch how it works. It does not count for or against the routine.';
+      const note=el('div','why'),stepsBox=el('div'),wy=el('div');
+      if(k&&!k.ready)note.textContent=k.reasons.join('. ')+'.';
+      if(k&&k.ready)note.textContent='No forbidden control, replayed clean, and the learner agrees on '+(k.agree==null?'(no learner yet)':pct(k.agree))+' of its steps. Only you can approve it.';
+      bar.append(rp,stepsBtn,why,ok,off,del);body.append(bar,note,stepsBox,wy);
+      const setOpen=v=>{body.hidden=!v;tw.textContent=v?'▾':'▸';c.classList.toggle('open',v);try{if(v)sessionStorage.setItem('hub-rl-open',r.id);else if(sessionStorage.getItem('hub-rl-open')===r.id)sessionStorage.removeItem('hub-rl-open');}catch(e){}};
+      head.onclick=()=>setOpen(body.hidden);
+      // the steps, as a list you can change: drop a step, move it, or say which control it presses
+      const showSteps=async()=>{stepsBox.replaceChildren(el('div','mute','Reading the steps...'));
+        try{const j=await J('/api/pc/routines/'+r.id+'/steps'),list=el('div','steps');
+          if(!j.steps.length){stepsBox.replaceChildren(el('div','mute','No steps: an app launch or an address.'));return;}
+          const edit=async(ord,body2)=>{const x=await POST('/api/pc/routines/'+r.id+'/steps/'+ord,body2);if(!x.ok){note.textContent=await x.text();}await showSteps();};
+          j.steps.forEach((x,i)=>{const row=el('div','step'),nm=(x.target&&x.target.name)||'';
+            const label=el('span','sl');label.append(el('b',null,(i+1)+'. '),document.createTextNode(x.tool.toLowerCase()+' '),el('span','sn','“'+(nm.length>48?nm.slice(0,48)+'…':nm)+'”'),el('span','mute',(x.target&&x.target.control?'  '+x.target.control:'')+(x.target&&x.target.path?' in '+x.target.path:'')));label.title=nm;
+            const up=el('button','i','↑'),dn=el('button','i','↓'),rn=el('button','i','✎'),rm=el('button','i','✕');up.title='Move up';dn.title='Move down';rn.title='Change which control it presses';rm.title='Remove this step';
+            up.disabled=i===0;dn.disabled=i===j.steps.length-1;
+            up.onclick=()=>edit(x.ordinal,{to:i-1});dn.onclick=()=>edit(x.ordinal,{to:i+1});
+            rn.onclick=()=>{const v=prompt('The control this step presses (as it is named on screen):',nm);if(v&&v.trim()&&v!==nm)edit(x.ordinal,{name:v.trim()});};
+            rm.onclick=async()=>{const y=await fetch('/api/pc/routines/'+r.id+'/steps/'+x.ordinal,{method:'DELETE'});if(!y.ok)note.textContent=await y.text();await showSteps();routinesStatus();};
+            row.append(label,up,dn,rn,rm);list.append(row);});
+          stepsBox.replaceChildren(list,el('div','mute',r.status==='trusted'?'Changing a step makes this a candidate again with a clean record: it has to be approved or replayed twice before it is trusted.':'Press REPLAY to watch the steps run.'));
+        }catch(e){stepsBox.replaceChildren(el('div','mute',String(e)));}};
+      const routinesStatus=()=>{};
+      stepsBtn.onclick=()=>{if(stepsBox.childNodes.length){stepsBox.replaceChildren();return;}showSteps();};
       ok.onclick=async()=>{await POST('/api/pc/routines/'+r.id+'/approve');routines();};
       off.onclick=async()=>{await POST('/api/pc/routines/'+r.id+'/status',{status:r.status==='disabled'?'candidate':'disabled'});routines();};
       del.onclick=async()=>{if(!confirm('Delete this routine for good? '+r.title))return;await fetch('/api/pc/routines/'+r.id,{method:'DELETE'});routines();};
-      rp.onclick=async()=>{if(!confirm('Replay "'+r.title+'" now? It will press things on this PC.'))return;rp.disabled=true;st.textContent='Replaying...';try{const x=await POST('/api/pc/routines/'+r.id+'/run');st.textContent=x.ok?'It ran.':(await x.text());}catch(e){st.textContent=String(e);}rp.disabled=false;};
-      ok.hidden=r.status==='trusted';rp.hidden=!att.has(r.id);why.onclick=async()=>{if(wy.childNodes.length){wy.replaceChildren();return;}wy.append(el('div','mute','Working it out...'));try{wy.replaceChildren(whyView(await J('/api/yard/why/routine/'+r.id)));}catch(e){wy.replaceChildren(el('div','mute','Could not explain this routine.'));}};
-      row.append(see,why,ok,off,rp,del);c.append(row);box.append(c);});}
+      rp.onclick=async()=>{if(!confirm('Replay "'+r.title+'" now? It will press things on this PC, so have the app ready.'))return;rp.disabled=true;note.textContent='Replaying...';
+        try{const x=await POST('/api/pc/routines/'+r.id+'/run?test=1');const j=x.ok?await x.json():null;note.textContent=x.ok?((j.ok?'It ran. ':'It did not work: ')+(j.say||'')+' (a test: it did not change the routine)'):(await x.text());}catch(e){note.textContent=String(e);}rp.disabled=false;};
+      ok.hidden=r.status==='trusted';
+      why.onclick=async()=>{if(wy.childNodes.length){wy.replaceChildren();return;}wy.append(el('div','mute','Working it out...'));try{wy.replaceChildren(whyView(await J('/api/yard/why/routine/'+r.id)));}catch(e){wy.replaceChildren(el('div','mute','Could not explain this routine.'));}};
+      box.append(c);if(openId===r.id)setOpen(true);});}
 
   // ---- SCORES
   async function scores(){const t=$('fit');head(t,['Part','Score','95 % interval','Evidence','Needs','Compared with']);

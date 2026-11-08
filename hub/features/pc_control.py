@@ -1223,8 +1223,19 @@ async def run_routine(rid: str, request: str = "manual run") -> dict:
 async def api_run_routine(request: web.Request) -> web.Response:
     t0 = time.time()
     before = await _snap()                                        # EXPERIMENTAL shadow mode only: a picture before, evidence after
+    rid = request.match_info["id"]
+    keep = None
+    if request.query.get("test") == "1":                                  # a tester's replay: it must not promote the routine, or disable it
+        with _db() as db:
+            r0 = db.execute("SELECT status, successes, failures FROM pc_routines WHERE id=?", (rid,)).fetchone()
+        keep = dict(r0) if r0 else None
     try:
-        got = await run_routine(request.match_info["id"])
+        try:
+            got = await run_routine(request.match_info["id"])
+        finally:
+            if keep:
+                with _db() as db:
+                    db.execute("UPDATE pc_routines SET status=?, successes=?, failures=? WHERE id=?", (keep["status"], keep["successes"], keep["failures"], rid))
         try:
             with _db() as db:
                 row = db.execute("SELECT title FROM pc_routines WHERE id=?", (request.match_info["id"],)).fetchone()
@@ -1317,6 +1328,71 @@ async def api_approve_routine(request: web.Request) -> web.Response:
         except Exception:  # noqa: BLE001
             pass
         return web.json_response({"ok": True, "routine": dict(db.execute("SELECT * FROM pc_routines WHERE id=?", (row["id"],)).fetchone())})
+
+
+# ── editing a routine's steps ───────────────────────────────────────────────────────────────────
+# A routine recorded from an agent run can carry detours (6 steps where 3 are needed). The person who reads it can drop a step, move one, or change the name of the control it presses.
+# Editing a trusted routine makes it a candidate again: it is not the routine that was approved any more, so it earns trust again (an approval, or two clean replays).
+def _steps_changed(db, rid: str) -> None:
+    for i, row in enumerate(db.execute("SELECT id FROM pc_steps WHERE routine_id=? ORDER BY ordinal, id", (rid,)).fetchall()):
+        db.execute("UPDATE pc_steps SET ordinal=? WHERE id=?", (i, row["id"]))
+    db.execute("UPDATE pc_routines SET status=CASE WHEN status='disabled' THEN status ELSE 'candidate' END, successes=0, failures=0, updated=? WHERE id=?", (time.time(), rid))      # it has to earn trust again
+
+
+def delete_step(rid: str, ordinal: int) -> bool:
+    with _db() as db:
+        n = db.execute("DELETE FROM pc_steps WHERE routine_id=? AND ordinal=?", (rid, int(ordinal))).rowcount
+        if n:
+            _steps_changed(db, rid)
+    return bool(n)
+
+
+def move_step(rid: str, ordinal: int, to: int) -> bool:
+    with _db() as db:
+        rows = [r["id"] for r in db.execute("SELECT id FROM pc_steps WHERE routine_id=? ORDER BY ordinal, id", (rid,)).fetchall()]
+        ordinal, to = int(ordinal), int(to)
+        if not (0 <= ordinal < len(rows) and 0 <= to < len(rows)) or ordinal == to:
+            return False
+        moved = rows.pop(ordinal)
+        rows.insert(to, moved)
+        for i, sid in enumerate(rows):
+            db.execute("UPDATE pc_steps SET ordinal=? WHERE id=?", (i, sid))
+        _steps_changed(db, rid)
+    return True
+
+
+def edit_step(rid: str, ordinal: int, name: str) -> bool:
+    """Change the name of the control a step presses. A routine can only press a control that is on the screen, so a name that is not there makes the step stop, never click elsewhere."""
+    name = " ".join(str(name or "").split())[:200]
+    if not name:
+        return False
+    with _db() as db:
+        row = db.execute("SELECT id, target_json FROM pc_steps WHERE routine_id=? AND ordinal=?", (rid, int(ordinal))).fetchone()
+        if not row:
+            return False
+        target = json.loads(row["target_json"] or "{}")
+        target["name"] = name
+        db.execute("UPDATE pc_steps SET target_json=? WHERE id=?", (json.dumps(target), row["id"]))
+        _steps_changed(db, rid)
+    return True
+
+
+@routes.delete("/api/pc/routines/{id}/steps/{ordinal}")
+async def api_delete_step(request: web.Request) -> web.Response:
+    if not delete_step(request.match_info["id"], int(request.match_info["ordinal"])):
+        raise web.HTTPNotFound(text="no such step")
+    return web.json_response({"ok": True})
+
+
+@routes.post("/api/pc/routines/{id}/steps/{ordinal}")
+async def api_edit_step(request: web.Request) -> web.Response:
+    """{"name": "ADHD"} renames the control the step presses; {"to": 1} moves the step to that position (counting from 0)."""
+    body = await request.json()
+    rid, ordinal = request.match_info["id"], int(request.match_info["ordinal"])
+    ok = move_step(rid, ordinal, body["to"]) if "to" in body else edit_step(rid, ordinal, body.get("name"))
+    if not ok:
+        raise web.HTTPBadRequest(text="nothing changed: check the step number and the new name")
+    return web.json_response({"ok": True})
 
 
 @routes.get("/api/pc/routines/{id}/steps")
@@ -1515,7 +1591,41 @@ def do_intent(app: str, then: str) -> str:
     # "play the ADHD playlist" and "open the ADHD playlist" name the same thing but are different jobs: the first must not be
     # answered by a routine that only opens the page.
     verb = "play:" if re.match(r"^\s*(?:play|resume|shuffle|put on)\b", then or "", re.I) else ""
-    return "do:" + canonical_app_name(app) + ":" + verb + " ".join(sorted(content_words(then)))
+    return "do:" + canonical_app_name(app) + ":" + verb + " ".join(_key_words(then, verb))
+
+
+# Words that say how a play request was phrased, not what to play: "play something from the ADHD playlist", "play music from ADHD" and "play the ADHD list" are one job.
+# Left in the key they made each wording a different job, so a routine that worked was never found again and the slow, step-by-step agent ran every time.
+_PHRASING = {"play", "resume", "shuffle", "put", "something", "anything", "music", "song", "songs", "track", "tracks", "tunes", "stuff", "random", "whatever", "good", "nice", "playlist", "playlists", "list"}
+
+
+def _key_words(then: str, verb: str = "play:") -> "list[str]":
+    words = sorted(content_words(then))
+    if not verb:
+        return words
+    core = [w for w in words if w not in _PHRASING]
+    return core or words
+
+
+def routine_for_do(app: str, then: str) -> "dict | None":
+    """The taught follow-on for this request: the one stored under today's key, or one stored under an older key (before the wording was ignored) that means the same.
+    A trusted one wins over a candidate."""
+    row = _routine(do_intent(app, then))
+    if row:
+        return row
+    if not re.match(r"^\s*(?:play|resume|shuffle|put on)\b", then or "", re.I):
+        return None
+    prefix = "do:" + canonical_app_name(app) + ":play:"
+    want = set(_key_words(then))
+    best = None
+    with _db() as db:
+        rows = [dict(r) for r in db.execute("SELECT * FROM pc_routines WHERE intent LIKE ? AND status!='disabled'", (prefix + "%",)).fetchall()]
+    for r in rows:
+        words = set(r["intent"][len(prefix):].split())
+        words = {w for w in words if w not in _PHRASING} or words
+        if words == want and (best is None or (r["status"] == "trusted", r["successes"]) > (best["status"] == "trusted", best["successes"])):
+            best = r
+    return best
 
 
 def _ask(say: str, action: str, args: dict, label: str, detail: str = "") -> dict:
@@ -1642,7 +1752,7 @@ async def after(app: str, then: str, request: str, tree=None) -> dict:
         # "play some music" names nothing. Guessing wastes a minute on a library full of choices; one short question does not.
         return _ask(f"{name} is open. You did not name anything, so I can shuffle your whole library, or start a radio station. Shall I shuffle your library?",
                     "desktop_task", {"app": app, "goal": "shuffle all songs in my library"}, "Shuffle my library")
-    taught = _routine(do_intent(app, then))
+    taught = routine_for_do(app, then)
     if taught and taught["tool"] == "surface" and taught["status"] != "disabled":
         from . import machine_routines as MR
         got = await MR.replay_machine_routine(taught, request=request)

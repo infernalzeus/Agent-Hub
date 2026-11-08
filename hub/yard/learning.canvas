@@ -1,6 +1,51 @@
 {
  "nodes": [
   {
+   "id": "group-others",
+   "type": "group",
+   "label": "OTHER LEARNERS (not part of the session)",
+   "x": 350,
+   "y": 900,
+   "width": 1880,
+   "height": 240
+  },
+  {
+   "id": "group-release",
+   "type": "group",
+   "label": "EVALUATION AND RELEASE",
+   "x": 350,
+   "y": 420,
+   "width": 1120,
+   "height": 480
+  },
+  {
+   "id": "group-environment",
+   "type": "group",
+   "label": "ENVIRONMENT",
+   "x": 1870,
+   "y": -60,
+   "width": 360,
+   "height": 720
+  },
+  {
+   "id": "group-agent",
+   "type": "group",
+   "label": "AGENT: what learns",
+   "x": 730,
+   "y": -60,
+   "width": 1120,
+   "height": 480
+  },
+  {
+   "id": "group-data",
+   "type": "group",
+   "label": "DATA AND SETTINGS",
+   "x": -30,
+   "y": -60,
+   "width": 740,
+   "height": 480
+  },
+  {
    "id": "live",
    "type": "text",
    "x": 0,
@@ -173,8 +218,8 @@
   {
    "id": "learners",
    "type": "text",
-   "x": 760,
-   "y": 720,
+   "x": 380,
+   "y": 960,
    "width": 300,
    "height": 150,
    "color": "#3ba7ff",
@@ -183,8 +228,8 @@
   {
    "id": "router",
    "type": "text",
-   "x": 1140,
-   "y": 720,
+   "x": 760,
+   "y": 960,
    "width": 300,
    "height": 150,
    "color": "#3ba7ff",
@@ -194,7 +239,7 @@
    "id": "search",
    "type": "text",
    "x": 1520,
-   "y": 720,
+   "y": 960,
    "width": 300,
    "height": 150,
    "color": "#3ba7ff",
@@ -203,12 +248,22 @@
   {
    "id": "presets",
    "type": "text",
-   "x": 1900,
-   "y": 720,
+   "x": 1140,
+   "y": 960,
    "width": 300,
    "height": 150,
    "color": "#3ba7ff",
    "text": "## Sampling presets\n\nFive named sets of the eight language-model settings, and a reward that needs no label (valid answer, not cut off, no repeating, checks passed, few tokens) to learn which suits which agent role. Built and tested; not yet called by a live request.\n\n*Not run in a session. Adjust: the five reward weights.*"
+  },
+  {
+   "id": "td3",
+   "type": "text",
+   "x": 1900,
+   "y": 960,
+   "width": 300,
+   "height": 150,
+   "color": "#ff5c5c",
+   "text": "## TD3\n\nTwin Delayed DDPG: a policy-and-value method for actions that are numbers, not a pick from a list. It would tune things like a hand or speech threshold, or a sampling temperature, where the action is a real number. NOT BUILT: every choice in the yard is a pick from a list of controls, which an actor with a softmax (A2C) fits; TD3 does not. The number-tuning job is done by CMA-ES and Bayesian optimisation, which need no network.\n\n*Not built. TD3 is DDPG plus three fixes (two value networks and take the smaller, update the policy every second step, add clipped noise to the target action), so it replaces DDPG rather than working alongside it.*"
   }
  ],
  "edges": [
@@ -409,6 +464,15 @@
    "toSide": "right",
    "toEnd": "arrow",
    "label": "label-free reward"
+  },
+  {
+   "id": "td3>fit",
+   "fromNode": "td3",
+   "fromSide": "top",
+   "toNode": "fit",
+   "toSide": "bottom",
+   "toEnd": "arrow",
+   "label": "would be scored like the rest"
   }
  ]
 }

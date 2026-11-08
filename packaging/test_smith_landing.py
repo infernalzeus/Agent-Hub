@@ -109,3 +109,39 @@ def test_entering_the_dashboard_is_no_slower_while_he_is_listening(hub):
         plain = min(_enter(pw, hub, False) for _ in range(2))
         listening = min(_enter(pw, hub, True) for _ in range(2))
     assert listening < plain + 600, (plain, listening)                                             # headless uses software graphics, so only a large gap would be real
+
+
+def test_his_picture_arrives_even_when_the_first_request_for_it_failed(hub):
+    """The page can be opened while the Hub is down. The first request for his picture then failed and left a broken image for good."""
+    with sync_playwright() as pw:
+        b = pw.chromium.launch(headless=True, args=["--autoplay-policy=no-user-gesture-required"])
+        ctx = b.new_context(service_workers="block", viewport={"width": 1100, "height": 900})
+        ctx.add_init_script(FAKE_MIC)
+        pg = ctx.new_page()
+        seen = {"n": 0}
+
+        def flaky(route):
+            seen["n"] += 1
+            route.abort() if seen["n"] == 1 else route.continue_()
+        pg.route("**/smith-icon.png*", flaky)
+        pg.goto(hub + "/offline.html")
+        pg.wait_for_selector("#smith-slot", state="visible", timeout=20000)
+        pg.wait_for_function("(()=>{const i=document.querySelector('#smith-slot img');return i.complete&&i.naturalWidth>0})()", timeout=15000)
+        assert seen["n"] >= 2                                                                     # it asked again
+        b.close()
+
+
+def test_coming_back_to_the_landing_page_from_the_dashboard_his_button_works_again(hub):
+    with sync_playwright() as pw:
+        b, pg = _landing(pw, hub)
+        pg.click("#smith-slot")
+        pg.wait_for_function("window.__hubWake.state() === 'wake'", timeout=15000)
+        pg.evaluate("window.__hubWake._leave()")                                                   # ENTER pressed: the page goes quiet and his button is put away
+        assert pg.evaluate("getComputedStyle(document.getElementById('smith-slot')).display") == "none"
+        pg.evaluate("window.dispatchEvent(new PageTransitionEvent('pageshow', {persisted: true}))")   # back from the page cache
+        assert pg.evaluate("getComputedStyle(document.getElementById('smith-slot')).display") != "none"
+        assert pg.evaluate("getComputedStyle(document.getElementById('wake-ring')).animationName") != "none" or not pg.evaluate("document.getElementById('wake-ring').classList.contains('on')")
+        _shown(pg)
+        pg.click("#smith-slot")                                                                    # and it is clickable: the wake word switches on again
+        pg.wait_for_function("window.__hubWake.state() === 'wake' && window.__hubWake.mic()", timeout=15000)
+        b.close()

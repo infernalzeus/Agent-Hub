@@ -484,7 +484,7 @@
       if(h.stale_code){var restartNote=el('button','hb-btn hb-health-restart','RESTART NEEDED');restartNote.type='button';restartNote.onclick=restartChip.onclick;hb._in.appendChild(restartNote);}hb._in.appendChild(li('', 'Hub v' + h.version, 'up ' + ago(h.uptime_s)));
       hb._in.appendChild(li(h.local_model && h.local_model.listening ? '' : 'o', 'Local model', h.local_model && h.local_model.listening ? 'listening' : 'off'));
       hb._in.appendChild(li(h.recent_problems ? 'a' : '', 'Warnings', String(h.recent_problems)));
-      hb._in.appendChild(li('o', 'Graphics card', 'not measured'));notices();blockActions(hb._in,[['SETTINGS','/setup'],['LOCATIONS','/setup'],['RESTART',function(){document.getElementById('restart-btn').click();}]]);
+      hb._in.appendChild(li('o', 'Graphics card', 'not measured'));notices();blockActions(hb._in,[['SETTINGS','/setup'],['RESTART',function(){document.getElementById('restart-btn').click();}]]);
       if (h.apps.failed.length) hb._in.appendChild(li('r', 'Failed to start', h.apps.failed.join(', ')));
       Object.keys(blocks).forEach(function (id) { var b = blocks[id]; if (!b.dataset.loading) return; delete b.dataset.loading; if (motion.allowed()) b._in.animate([{opacity:0},{opacity:1}],{duration:220}); });
       syncTiles(); relayout(); if (!touched) fit(false); legacy();

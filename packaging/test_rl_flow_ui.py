@@ -29,7 +29,7 @@ def _open(pw, hub, w=1300, h=950):
     pg.evaluate("localStorage.removeItem('hub-rl-flow')")
     _post(pg, "/api/yard/knobs/reset", {})
     pg.reload()
-    pg.wait_for_function("document.querySelectorAll('#flowsvg .fnode').length===21")
+    pg.wait_for_function("document.querySelectorAll('#flowsvg .fnode').length===22")
     return b, pg, errors
 
 
@@ -39,9 +39,9 @@ def test_the_session_is_set_apart_from_the_menu_and_every_setting_sits_on_a_bloc
         assert pg.locator(".band #top-shadow").count() == 1 and pg.locator(".band #go").count() == 0           # the menu band holds the switch only
         assert pg.locator(".sess #go").count() == 1 and pg.locator(".sess .flowwrap").count() == 1             # the session card holds the start button and the flow
         assert pg.locator("#more").count() == 0 and pg.locator("details").count() == 0                           # no "more settings" bucket
-        assert pg.locator("#flowsvg .fedge").count() == 22 and pg.locator("#nodebox").is_hidden()
+        assert pg.locator("#flowsvg .fedge").count() == 23 and pg.locator("#nodebox").is_hidden()
         assert pg.locator(".fnode[data-id=actor] rect").evaluate("e=>e.getBoundingClientRect().width") < 170      # small blocks
-        assert pg.locator(".fnode.outside").count() == 7                                                       # blocks that do not run inside a session are drawn dashed
+        assert pg.locator(".fnode.outside").count() == 8                                                       # blocks that do not run inside a session are drawn dashed
         pg.locator(".fnode[data-id=live] rect").click()
         assert _has(pg, "Weight: Windows says it is playing", "Ceiling without Windows confirming")
         pg.locator(".fnode[data-id=router] rect").click()
@@ -84,7 +84,7 @@ def test_blocks_can_be_moved_and_hidden_the_arrows_follow_and_the_layout_is_reme
         assert pg.locator("#nodebox").is_hidden()                                                                  # a drag is not a click
         assert pg.evaluate("JSON.parse(localStorage.getItem('hub-rl-flow')).pos.actor.length") == 2
         pg.reload()
-        pg.wait_for_function("document.querySelectorAll('#flowsvg .fnode').length===21")
+        pg.wait_for_function("document.querySelectorAll('#flowsvg .fnode').length===22")
         assert pg.locator(".fnode[data-id=actor]").get_attribute("transform") != tf0                               # remembered
         pg.locator(".fnode[data-id=hind]").hover()
         pg.locator(".fnode[data-id=hind] .fx").click()                                                             # hide a block
@@ -133,11 +133,34 @@ def test_arrows_run_around_the_blocks_never_through_one_and_each_arrow_explains_
             for(let s=6;s<L-6;s+=3){const q=p.getPointAtLength(s);for(const r of rects){if(q.x>r.x&&q.x<r.x+r.w&&q.y>r.y&&q.y<r.y+r.h)bad.push(e.dataset.id+' through '+r.id);}}});
           return [...new Set(bad)];}""")
         assert crossed == []
-        assert pg.locator("#flowsvg .fedge .hit").count() == 22
+        assert pg.locator("#flowsvg .fedge .hit").count() == 23
         for eid, words in (("enc>actor", ("357", "only thing the actor")), ("upd>actor", ("A_t", "pressed control")), ("safety>gate", ("zero",))):
             pg.evaluate("id=>document.querySelector(`#flowsvg .fedge[data-id='${id}'] .hit`).dispatchEvent(new MouseEvent('click',{bubbles:true}))", eid)     # an elbow's middle is not on the line, so click the arrow itself
             assert _has(pg, *words, "since the Hub started")
         pg.locator(".fnode[data-id=actor] rect").click()
         assert _has(pg, "SETTINGS") and "since the Hub started" not in pg.inner_text("#nodebox")                # a block click replaces the arrow card
+        b.close()
+    assert errors == []
+
+
+def test_the_picture_reads_as_a_reinforcement_learning_system_frames_names_for_each_block_and_td3_marked_not_built(hub):
+    with sync_playwright() as pw:
+        b, pg, errors = _open(pw, hub)
+        frames = pg.evaluate("[...document.querySelectorAll('#flowsvg .fgl')].map(e=>e.textContent)")
+        assert frames == ["DATA AND SETTINGS", "AGENT: what learns", "ENVIRONMENT", "EVALUATION AND RELEASE", "OTHER LEARNERS (not part of the session)"]
+        kinds = pg.evaluate("Object.fromEntries([...document.querySelectorAll('#flowsvg .fnode')].map(g=>[g.dataset.id,g.querySelector('.fk').textContent]))")
+        assert kinds["actor"] == "policy network (actor)" and kinds["crit"] == "value network (critic)" and kinds["env"] == "environment" and kinds["repl"] == "replay buffer"
+        assert all(kinds.values())
+        # a frame really surrounds its blocks: the actor sits inside the AGENT frame, the environment block inside ENVIRONMENT
+        pg.wait_for_function("[...document.querySelectorAll('#flowsvg .fgroup')].every(e=>+e.getAttribute('width')>0)")                  # frames are placed on the next frame
+        inside = pg.evaluate("""()=>{const r=n=>document.querySelector('.fnode[data-id='+n+'] rect').getBoundingClientRect(),f=[...document.querySelectorAll('#flowsvg .fgroup')].map(e=>e.getBoundingClientRect());
+          const within=(a,o)=>a.left>=o.left&&a.right<=o.right&&a.top>=o.top&&a.bottom<=o.bottom;return [f.filter(o=>within(r('actor'),o)).length,f.filter(o=>within(r('env'),o)).length]}""")
+        assert inside == [1, 1]
+        assert pg.locator(".fnode[data-id=actor] .fgly circle").count() >= 8 and pg.locator(".fnode[data-id=crit] .fgly").count() == 1    # the networks are drawn as networks
+        assert pg.locator(".fnode.todo[data-id=td3]").count() == 1 and pg.locator("#flowsvg .fedge.todo").count() == 1                     # TD3: red, dashed arrow
+        pg.locator(".fnode[data-id=td3] rect").click()
+        assert _has(pg, "continuous actor-critic", "NOT BUILT", "DDPG")
+        pg.locator(".fnode[data-id=td3] .fi").click()
+        assert _has(pg, "min(Q1", "replaces DDPG")
         b.close()
     assert errors == []
