@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import ctypes
+import hashlib
 import io
 import json
 import re
@@ -289,7 +290,13 @@ async def api_frame(request: web.Request) -> web.Response:
     got = await asyncio.to_thread(capture, int(request.match_info["id"]), w, q)
     if not got:
         raise web.HTTPNotFound(text="that window is gone, minimised, or drew nothing")
-    return web.Response(body=got[0], content_type=got[1], headers={"Cache-Control": "no-store"})
+    headers = {"Cache-Control": "no-store"}
+    if request.query.get("dedup") == "1":
+        tag = '"' + hashlib.blake2s(got[0], digest_size=12).hexdigest() + '"'
+        headers["ETag"] = tag
+        if request.headers.get("If-None-Match") == tag:
+            return web.Response(status=304, headers=headers)
+    return web.Response(body=got[0], content_type=got[1], headers=headers)
 
 
 @routes.get("/api/windows/{id}/stream")
@@ -434,8 +441,18 @@ select,button,label{background:rgba(6,10,36,.7);border:1px solid rgba(0,230,118,
 .t{margin:6px 0;padding:7px 9px;border-radius:9px;border:1px solid rgba(0,230,118,.2);background:rgba(8,12,40,.6);white-space:pre-wrap;word-break:break-word;line-height:1.45}
 .t.you{border-color:rgba(65,235,255,.45)}.t b{color:var(--accent);font-size:9px;letter-spacing:1px}
 .grow{flex:1}.opts{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.opts label{display:flex;gap:4px;align-items:center;padding:3px 6px}.opts select{padding:3px 4px;font-size:9.5px}
-.kb{display:flex;gap:4px;align-items:center;flex-wrap:wrap}#kbrow{flex:1 1 100%}.kb textarea{flex:1 1 100%;background:rgba(6,10,36,.7);border:1px solid rgba(0,230,118,.35);border-radius:8px;color:var(--ink);padding:7px 9px;font:13px/1.45 Outfit,system-ui,sans-serif;min-height:64px;max-height:36vh;resize:vertical;white-space:pre-wrap;overflow-wrap:anywhere}
+.kb{display:flex;gap:4px;align-items:center;flex-wrap:wrap}#kbrow{flex:1 1 100%}#kbrow[hidden]{display:none}.kb textarea{flex:1 1 100%;background:rgba(6,10,36,.7);border:1px solid rgba(0,230,118,.35);border-radius:8px;color:var(--ink);padding:7px 9px;font:13px/1.45 Outfit,system-ui,sans-serif;min-height:64px;max-height:36vh;resize:vertical;white-space:pre-wrap;overflow-wrap:anywhere}
 .note-row{display:flex;gap:10px;padding:3px 8px;font-size:9.5px;border-bottom:1px solid rgba(0,230,118,.12)}.view img{transition:none}
+html:has(.mirror-inline){height:100%;background:#070d20}
+body.mirror-inline{height:100%;overflow:hidden}
+.mirror-settings{flex:0 0 auto;max-height:46%;overflow:auto;background:#0a1028}
+.mirror-settings summary{padding:9px 10px;color:var(--accent);cursor:pointer;touch-action:manipulation}
+.mirror-inline .note-row{flex:0 0 auto;overflow:hidden;white-space:nowrap}
+.mirror-inline .view{padding:2px}
+.mirror-inline .view img.fit{margin-inline:auto}
+.mirror-inline .view img.fit{width:auto!important;height:auto;max-height:100%}
+.mirror-inline .view:has(img.board-zoom.fit){position:relative;overflow:hidden}
+.mirror-inline .view img.board-zoom.fit{position:absolute;left:calc(50% + var(--mirror-pan-x,0px));top:calc(50% + var(--mirror-pan-y,0px));transform:translate(-50%,-50%);width:var(--mirror-board-width)!important;max-width:none!important;max-height:none}
 </style>"""
 
 _MIRROR = _STYLE + """<title>Window</title><body>
@@ -465,12 +482,19 @@ const SKEY='hubMirror:'+(q.get('id')||'x'),defaults={fps:'5',det:'1.5',qual:'85'
 // A phone has a small memory budget for pictures. The log of the first phone session showed 340 KB pictures, 1800 px wide, five a second: Safari ran out of memory and the page died
 // ('A problem repeatedly occurred'). So a phone gets a budget: at most 1400 px wide, quality 75, 5 pictures a second, one picture at a time, and the old one is released before the next shows.
 const PHONE=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/Macintosh/.test(navigator.userAgent));
-if(PHONE)Object.assign(defaults,{fps:'2',det:'1',qual:'65'});
+const MOBILE_PANEL=PHONE&&window!==top, SMALL_PHONE=MOBILE_PANEL&&/iPhone|iPod/i.test(navigator.userAgent);
+if(PHONE)Object.assign(defaults,{fps:MOBILE_PANEL?'5':'2',det:'1',qual:'65'});
+if(MOBILE_PANEL){
+  document.body.classList.add('mirror-inline');
+  const bar=document.querySelector('.bar'),settings=document.createElement('details'),summary=document.createElement('summary');
+  settings.className='mirror-settings';summary.textContent='WINDOW SETTINGS';
+  bar.before(settings);settings.append(summary,bar);
+}
 let cfg=Object.assign({},defaults);try{cfg=Object.assign(cfg,JSON.parse(localStorage.getItem('hubMirrorCfg')||'{}'));}catch(e){}
 // a window remembers its own rate: Claude Desktop is for typing and needs one picture a second; a video needs ten or more
 function cfgKey(){return sel?('hubMirror:'+sel.exe):'hubMirror:x';}
 function loadCfg(){let c=Object.assign({},defaults);const saved=localStorage.getItem(cfgKey());try{c=Object.assign(c,JSON.parse(saved||'{}'));}catch(e){}
-  if(!saved&&innerWidth<700&&sel&&sel.w>900)c.zoom='100';        // a phone: fitting a wide window into the screen makes the text unreadable, so it opens at full size and you move around it
+  if(!MOBILE_PANEL&&!saved&&innerWidth<700&&sel&&sel.w>900)c.zoom='100';        // a phone: fitting a wide window into the screen makes the text unreadable, so it opens at full size and you move around it
   cfg=c;['fps','det','qual','zoom'].forEach(k=>{$(k).value=cfg[k];});}
 function saveCfg(){try{localStorage.setItem(cfgKey(),JSON.stringify(cfg));}catch(e){}}
 async function list(){const j=await (await fetch('/api/windows')).json();const s=$('pick');s.replaceChildren();
@@ -484,16 +508,97 @@ $('focus').onclick=()=>fetch('/api/windows/'+cur+'/focus',{method:'POST'});
 ['fps','det','qual','zoom'].forEach(k=>{$(k).onchange=()=>{cfg[k]=$(k).value;saveCfg();start();};});
 // ---- the stream: one request, frames pushed at the chosen rate (the Hub skips a picture that has not changed)
 const pic=$('pic');let sw=0;
-function start(){if(!cur||!alive)return;
+let mobileTimer=0,mobileGen=0,mobileRequest=null,mobileURL='',mobileTag='',unchanged=0,moving=false;
+let visible=!MOBILE_PANEL,active=true;
+function gestureMode(){
+  if(SMALL_PHONE)$('stage').style.touchAction=!$('ctl').checked&&cfg.zoom==='fit'?'none':'auto';
+}
+function clearMobile(keepPicture=false){
+  mobileGen++;clearTimeout(mobileTimer);mobileRequest?.abort();mobileRequest=null;
+  mobileTag='';unchanged=0;pic.onload=pic.onerror=null;if(!keepPicture)pic.removeAttribute('src');
+  if(!keepPicture&&mobileURL){URL.revokeObjectURL(mobileURL);mobileURL='';}
+}
+async function mobileFrame(w,gen){
+  if(gen!==mobileGen)return;
+  const controller=new AbortController(),began=performance.now();
+  mobileRequest=controller;
+  const next=ms=>{if(gen===mobileGen)mobileTimer=setTimeout(()=>mobileFrame(w,gen),ms);};
+  const delay=()=>Math.max(30,1000/fpsNow()-(performance.now()-began));
+  function retry(){ $('note').textContent='That window is gone or minimised.';next(1500); }
+  try{
+    const headers=mobileTag?{'If-None-Match':mobileTag}:{};
+    const r=await fetch('/api/windows/'+cur+'/frame?w='+w+'&q='+qualNow()+'&dedup=1',{cache:'no-store',signal:controller.signal,headers});
+    if(gen!==mobileGen)return;
+    if(r.status===304){unchanged++;next(SMALL_PHONE&&unchanged>=3?Math.max(250,delay()):delay());return;}
+    if(!r.ok)throw new Error('frame unavailable');
+    const blob=await r.blob();
+    if(gen!==mobileGen)return;
+    const url=URL.createObjectURL(blob), decoded=new Image();
+    decoded.src=url;
+    try{await decoded.decode();}catch(e){URL.revokeObjectURL(url);if(gen===mobileGen)retry();return;}
+    if(gen!==mobileGen){URL.revokeObjectURL(url);return;}
+    const previous=mobileURL;
+    mobileURL=url;pic.src=url;
+    if(previous)URL.revokeObjectURL(previous);
+    unchanged=0;mobileTag=r.headers.get('ETag')||'';
+    $('note').textContent='A live picture of the window, no sound.';next(delay());
+  }catch(e){if(gen===mobileGen)retry();}
+  finally{if(mobileRequest===controller)mobileRequest=null;}
+}
+if(MOBILE_PANEL){
+  if(SMALL_PHONE)window.setMirrorBoardZoom=(zoom,fit,x,y)=>{
+    if(cfg.zoom!=='fit'||!pic.naturalWidth)return fit;
+    const stage=$('stage'),aspect=pic.naturalWidth/pic.naturalHeight;
+    if(!fit){
+      if(stage.clientWidth<40||stage.clientHeight<40)return null;
+      fit={zoom,width:Math.min(stage.clientWidth-4,(stage.clientHeight-4)*aspect)};
+    }
+    const width=Math.round(Math.min(1600,fit.width*zoom/fit.zoom));
+    const offset=(value,space)=>Math.round(Math.max(-space,Math.min(space,value)));
+    const panX=offset(x,Math.max(0,(width-stage.clientWidth)/2));
+    const panY=offset(y,Math.max(0,(width/aspect-stage.clientHeight)/2));
+    const style=width+'_'+panX+'_'+panY;
+    if(pic.dataset.boardGeometry!==style){
+      pic.dataset.boardGeometry=style;
+      pic.style.setProperty('--mirror-board-width',width+'px');
+      pic.style.setProperty('--mirror-pan-x',panX+'px');
+      pic.style.setProperty('--mirror-pan-y',panY+'px');
+    }
+    pic.classList.add('board-zoom');
+    return fit;
+  };
+  window.setMirrorMoving=value=>{if(moving!==value){moving=value;start(true);}};
+  window.setMirrorActive=value=>{if(active!==value){active=value;start();}};
+  try{
+    const frame=window.frameElement;
+    active=frame.dataset.mirrorActive!=='false';
+    const observer=new parent.IntersectionObserver(([entry])=>{
+      const next=entry.isIntersecting&&entry.intersectionRatio>0;
+      if(next!==visible){visible=next;start();}
+    });
+    observer.observe(frame);
+    addEventListener('pagehide',()=>observer.disconnect());
+    addEventListener('pageshow',e=>{if(e.persisted)observer.observe(frame);});
+  }catch(e){visible=true;}
+  document.addEventListener('visibilitychange',start);
+  addEventListener('pageshow',e=>{if(e.persisted){alive=true;start();}});
+}
+function start(keepPicture=false){if(!cur||!alive)return;
   const dpr=Math.min(2,devicePixelRatio||1),shown=cfg.zoom==='fit'?Math.max(300,$('stage').clientWidth):Math.round((sel?sel.w:1200)*Number(cfg.zoom)/100);
-  const det=Number(cfg.det),w=PHONE?Math.min(1400,Math.round(shown*dpr*(det||1))):(det===0?3000:Math.min(2600,Math.round(shown*dpr*det)));
-  pic.style.width=cfg.zoom==='fit'?'100%':shown+'px';pic.style.maxWidth=cfg.zoom==='fit'?'100%':'none';
+  const det=Number(cfg.det),w=SMALL_PHONE?864:MOBILE_PANEL?Math.min(900,Math.round(shown*dpr*(det||1))):PHONE?Math.min(1400,Math.round(shown*dpr*(det||1))):(det===0?3000:Math.min(2600,Math.round(shown*dpr*det)));
+  pic.classList.toggle('fit',cfg.zoom==='fit');pic.style.width=cfg.zoom==='fit'?'100%':shown+'px';pic.style.maxWidth=cfg.zoom==='fit'?'100%':'none';
+  if(MOBILE_PANEL){
+    clearMobile(keepPicture===true||moving);gestureMode();
+    if(visible&&!moving&&active&&!document.hidden)mobileFrame(w,mobileGen);
+    $('stat').textContent=fpsNow()+' / s, up to '+w+' px wide (single pictures)';
+    return;
+  }
   clearTimeout(streamT);mode=(PHONE||sessionStorage.getItem('hubMirrorPoll')==='1')?'poll':'stream';pic.onload=null;pollGen++;
   if(mode==='poll'){poll(w);}
   else{pic.src='/api/windows/'+cur+'/stream?fps='+fpsNow()+'&w='+w+'&q='+qualNow()+'&t='+Date.now();
     streamT=setTimeout(()=>{if(!(pic.naturalWidth>0)){try{sessionStorage.setItem('hubMirrorPoll','1');}catch(e){}mode='poll';poll(w);}},4500);}
   $('stat').textContent=fpsNow()+' / s, up to '+w+' px wide'+(mode==='poll'?' (single pictures)':'');}
-const fpsNow=()=>PHONE?Math.min(5,Number(cfg.fps)):Number(cfg.fps),qualNow=()=>PHONE?Math.min(75,Number(cfg.qual)):Number(cfg.qual);
+const fpsNow=()=>PHONE?Math.min(SMALL_PHONE?(MOBILE_PANEL?8:3):5,Number(cfg.fps)):Number(cfg.fps),qualNow=()=>PHONE?Math.min(SMALL_PHONE?70:MOBILE_PANEL?65:75,Number(cfg.qual)):Number(cfg.qual);
 let streamT=0,mode='stream';
 let pollGen=0;
 function poll(w){if(!alive||mode!=='poll')return;const gen=pollGen,t0=Date.now();
@@ -504,13 +609,13 @@ function poll(w){if(!alive||mode!=='poll')return;const gen=pollGen,t0=Date.now()
     pic.onload=()=>{if(old)URL.revokeObjectURL(old);$('note').textContent='A live picture of the window, no sound.';next(Math.max(30,1000/fpsNow()-(Date.now()-t0)));};
     pic.onerror=()=>{URL.revokeObjectURL(u);next(1500);};
     pic.dataset.blob=u;pic.src=u;}).catch(()=>{$('note').textContent='That window is gone or minimised.';next(1500);});}
-addEventListener('pagehide',()=>{alive=false;pollGen++;const u=pic.dataset.blob;if(u)URL.revokeObjectURL(u);pic.removeAttribute('src');});
+addEventListener('pagehide',()=>{alive=false;if(MOBILE_PANEL)clearMobile();pollGen++;const u=pic.dataset.blob;if(u)URL.revokeObjectURL(u);pic.removeAttribute('src');});
 pic.onerror=()=>{$('note').textContent='That window is gone or minimised.';setTimeout(start,2000);};
-addEventListener('resize',()=>{clearTimeout(sw);sw=setTimeout(start,400);});
+addEventListener('resize',()=>{if(SMALL_PHONE&&cfg.zoom==='fit')return;clearTimeout(sw);sw=setTimeout(start,400);});
 // ---- clicks, keys, wheel
 const post=(p,b)=>fetch('/api/windows/'+cur+p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
 function on(){return $('ctl').checked&&cur;}
-$('ctl').onchange=()=>{$('kbrow').hidden=!$('ctl').checked;};
+$('ctl').onchange=()=>{$('kbrow').hidden=!$('ctl').checked;gestureMode();};
 // A phone raises its keyboard only for a focus that happens inside the tap itself, so the typing box is focused at once, before the click is sent.
 function focusKb(){if($('ctl').checked)$('kb').focus({preventScroll:true});}
 pic.addEventListener('pointerdown',focusKb);pic.addEventListener('touchstart',focusKb,{passive:true});
