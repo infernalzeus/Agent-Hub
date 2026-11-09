@@ -423,6 +423,7 @@ document.querySelectorAll('[data-work-example]').forEach(b=>b.addEventListener('
 
  document.documentElement.classList.add('js');
  enter(document.getElementById(route()));
+ document.documentElement.classList.remove('site-boot');
  window.SiteBoard={get scene(){return active.id;},get permission(){return permission;},get tilt(){return {x,y,targetX,targetY,running:!!raf};}};
 })();
 document.querySelector('.wishlist-form')?.addEventListener('submit', async event => {

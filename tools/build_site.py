@@ -16,7 +16,7 @@ from html import escape
 from pathlib import Path
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
-V = "20261109-architecture-routing"
+V = "20261109-architecture-first-paint"
 REPO = "https://github.com/infernalzeus/Agent-Hub"
 AG = "assets/agents/"
 LEGEND = "Live: seen running on a real machine. Unit-tested: the logic is tested, not yet seen running. Built, not tried: built and tested without the real hardware."
@@ -367,6 +367,8 @@ def build() -> str:
     smith_btn = slab('<a class="smith-btn blk" href="#talk" aria-label="Talk to Agent Smith"><img src="%ssmith.svg" alt="" width="52" height="52"><span><b>TALK</b><em>Agent Smith</em></span></a>' % AG, "smithbox", 50, 30)
     head = (
         '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
+        '<style>html.site-boot{background:#080c28}html.site-boot :is(.site-header,.stage){opacity:0;pointer-events:none}</style>'
+        '<script>document.documentElement.classList.add("site-boot");setTimeout(()=>document.documentElement.classList.remove("site-boot"),5000)</script>'
         '<meta name="description" content="Your most powerful PC tools at your fingertips, any device. Agent Hub brings autonomous LLM missions, desktop control, media and projects together.">'
         '<title>Agent Hub — InfernalZeus</title><link rel="icon" href="assets/favicon-32.png?v=%s" sizes="32x32" type="image/png"><link rel="icon" href="assets/favicon.svg?v=%s" sizes="any" type="image/svg+xml">'
         '<link rel="apple-touch-icon" href="assets/favicon-180.png"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'

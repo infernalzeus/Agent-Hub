@@ -17,7 +17,7 @@ NODES=[
  ('phone','PHONE',(46,150,86,34),'Your phone opens the same Hub interface through private device access.'),
  ('tablet','TABLET',(46,198,86,34),'Your tablet reaches the Hub on your PC; it does not run a separate agent backend.'),
  ('laptop','LAPTOP',(46,246,86,34),'Open the Hub from a laptop on the same private network.'),
- ('network','TAILSCALE',(174,183,96,34),'Tailscale connects your devices privately to the PC. It is the access boundary, not an agent or a processing step.'),
+ ('network','TAILSCALE',(174,198,96,34),'Tailscale connects your devices privately to the PC. It is the access boundary, not an agent or a processing step.'),
  ('hub','AGENT HUB',(300,150,148,100),'The Hub runs on your PC. Its dashboard opens apps, files, projects and controls directly; TALK is another input route.'),
  ('smith','TALK / SMITH',(516,20,86,25),'Smith receives typed or spoken requests. The router chooses a command, saved routine, app action or mission from what the request needs.'),
  ('router','ROUTER',(516,58,80,34),'Route an ask to the existing capability that can handle it. Code work can go directly to Missions; media and PC tasks take their own routes.'),
@@ -34,8 +34,8 @@ NODES=[
  ('mcp','WINDOWS MCP',(670,372,118,34),'Windows MCP supplies desktop app, control, input and inspection tools. Music success is checked against Windows media-session playback state, not just a changed button label.'),
  ('download','YT-DLP',(516,482,92,34),'Download source media on the PC. Format selection, conversion and destination belong to the media job.'),
  ('convert','FFMPEG',(630,482,80,34),'Convert media to the selected output format on the PC.'),
- ('files','FILE BROWSER',(734,482,118,34),'Browse folders you allowed. It can show media outputs and incoming files; not every file passes through the media converter.'),
- ('smb','SHARED DRIVE',(876,482,98,34),'A configured shared drive is another file-access option. It is not a compulsory final step after every download.'),
+ ('files','FILE BROWSER',(758,482,118,34),'Browse folders you allowed. It can show media outputs and incoming files; not every file passes through the media converter.'),
+ ('smb','SHARED DRIVE',(918,482,98,34),'A configured shared drive is another file-access option. It is not a compulsory final step after every download.'),
  ('hands','HAND CONTROL',(44,408,236,42),'Camera landmarks control the browser board: pointer, pinch click and drag, fist rotation and open-palm fit. Hand control is a direct dashboard input, not an agent action.'),
  ('neo','NEO',(804,190,108,30),'Draft an agent persona from the job you describe. Review and save its instructions before adding it to your team.'),
  ('doctor','THE DOCTOR',(516,190,118,34),'Inspect Hub facts and propose a repair mission. You review its diff, choose APPLY and decide when to restart.'),
@@ -44,10 +44,10 @@ NODES=[
  ('schedule','SCHEDULE',(700,254,154,34),'A trigger decides when a request runs. Repetition does not automatically turn a single capability call into an agent mission.'),
 ]
 EDGES=[
- ('phone','network','M132 167H145L152 174V200'),
- ('tablet','network','M132 215H143L152 200'),
- ('laptop','network','M132 263H145L152 256V200'),
- ('network','hub','M270 200H300'),
+ ('phone','network','M132 167H145L152 174V215'),
+ ('tablet','network','M132 215H152'),
+ ('laptop','network','M132 263H145L152 256V215'),
+ ('network','hub','M270 215H300'),
  ('hub','smith','M448 160H456V32H516'),
  ('hub','router','M448 180H466V75H516'),
  ('smith','router','M556 45V58'),
@@ -66,9 +66,8 @@ EDGES=[
  ('pc','mcp','M620 389H670'),
  ('router','download','M516 81H474V456H562V482'),
  ('download','convert','M608 499H630'),
- ('convert','files','M710 499H734'),
- ('hub','files','M330 250V438H793V482'),
- ('files','smb','M852 499H876'),
+ ('hub','files','M330 250V438H817V482'),
+ ('files','smb','M876 499H918'),
  ('hands','hub','M162 408V316H300V224'),
  ('router','neo','M596 75H606V166H657V182H858V190'),
  ('router','doctor','M556 92V178H575V190'),
@@ -106,20 +105,24 @@ def diagram(tall=False, interactive=False):
         old_smith_pin = x == 403.5 and y == 250
         old_access_joint = el.tag.endswith('circle') and x == 152
         if x>=494 or old_smith or old_smith_pin or old_access_joint:root.remove(el)
+        elif (169 <= x <= 275 and 180 <= y <= 220) or (x == 295 and y == 197.5):
+            # Keep Tailscale and its pins centered on the tablet row.
+            el.set('transform', 'translate(0 15)')
         elif el.tag.endswith('image'):
             defs=next(e for e in root if e.tag.endswith('defs'))
             clip=_add(defs,'clipPath',{'id':'hub-round-icon','clipPathUnits':'userSpaceOnUse'})
             _add(clip,'circle',{'cx':374,'cy':184,'r':17.25});el.set('clip-path','url(#hub-round-icon)')
-    for label,y,w,h in [('AUTONOMOUS LLM',8,608,316),('MCP CONTROL',354,330,76),('MEDIA VAULT',464,500,76)]:
-        _add(root,'rect',{'x':494,'y':y,'width':w,'height':h,'rx':2,'fill':'#00e676','fill-opacity':.022,'stroke':'#00e676','stroke-opacity':.3,'stroke-dasharray':'7 5'})
-        _add(root,'rect',{'x':502,'y':y-6,'width':126,'height':13,'fill':'#05070c'})
-        _add(root,'text',{'x':509,'y':y+4,'fill':'#00e676','font-family':'Orbitron,Segoe UI,sans-serif','font-size':8.5,'font-weight':700,'letter-spacing':1.6},label)
+    for label,y,w,h in [('AUTONOMOUS LLM',8,608,316),('MCP CONTROL',354,330,76),('MEDIA VAULT',464,236,76),('FILE ACCESS',464,342,76)]:
+        _add(root,'rect',{'x':742 if label=='FILE ACCESS' else 494,'y':y,'width':w,'height':h,'rx':2,'fill':'#00e676','fill-opacity':.022,'stroke':'#00e676','stroke-opacity':.3,'stroke-dasharray':'7 5'})
+        _add(root,'rect',{'x':750 if label=='FILE ACCESS' else 502,'y':y-6,'width':126,'height':13,'fill':'#05070c'})
+        _add(root,'text',{'x':757 if label=='FILE ACCESS' else 509,'y':y+4,'fill':'#00e676','font-family':'Orbitron,Segoe UI,sans-serif','font-size':8.5,'font-weight':700,'letter-spacing':1.6},label)
     for key,label,(x,y,w,h),description in NODES:
         if x<494:continue
         _add(root,'rect',{'x':x,'y':y,'width':w,'height':h,'rx':2,'fill':'#0b1220','stroke':'#00e676','stroke-opacity':.55})
         _add(root,'text',{'x':x+w/2,'y':y+h/2+3,'text-anchor':'middle','fill':'#00e676','font-family':'Orbitron,Segoe UI,sans-serif','font-size':8 if key=='orchestrator' else 8.5,'font-weight':700},label)
-    for y,text in [(316,'Select a component to inspect its routes.'),(445,'Inspect → act → verify. Reuse a routine when it fits.'),(553,'Download and convert on the PC; browse or receive files from your devices.')]:
+    for y,text in [(316,'Select a component to inspect its routes.'),(445,'Inspect → act → verify. Reuse a routine when it fits.'),(553,'Download and convert on the PC.')]:
         _add(root,'text',{'x':509,'y':y,'fill':'#a8cbb9','font-family':'Outfit,Segoe UI,sans-serif','font-size':9},text)
+    _add(root,'text',{'x':751,'y':553,'fill':'#a8cbb9','font-family':'Outfit,Segoe UI,sans-serif','font-size':9},'Browse files, receive uploads, or open a shared drive.')
     for el in list(root):
         if el.tag.endswith('path') and el.attrib.get('stroke-linecap')=='round':root.remove(el)
     replacements={
@@ -180,9 +183,9 @@ def diagram(tall=False, interactive=False):
         path.set('d',' '.join(rebuilt))
         path.attrib.pop('marker-end',None)
     # Three branches end at one junction. The shared trunk carries one arrow.
-    _add(wires,'path',{'d':'M152 200H174','stroke':'#00e676','stroke-width':1.4,
+    _add(wires,'path',{'d':'M152 215H174','stroke':'#00e676','stroke-width':1.4,
                        'marker-end':'url(#ah)','class':'access-trunk','data-access-trunk':''})
-    _add(wires,'circle',{'cx':152,'cy':200,'r':3,'fill':'#00e676',
+    _add(wires,'circle',{'cx':152,'cy':215,'r':3,'fill':'#00e676',
                          'stroke':'#08121b','class':'access-junction','data-access-trunk':''})
     for i,(a,b,d) in enumerate(EDGES):
         if b == 'network':
