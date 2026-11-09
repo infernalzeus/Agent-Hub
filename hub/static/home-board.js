@@ -455,7 +455,14 @@
       for (var i = defs.length - 1; i >= 0; i--) if (defs[i][0] === id) defs.splice(i, 1);
       resolve(null); trayDraw(); stackDepth(); if (nav) nav.refresh();
     }
-    function frame(url, id) { var f = el('iframe', 'hk-fr'); f.src = embedUrl(url); f.setAttribute('loading', /^\/(mirror|session)\b/.test(String(url)) ? 'eager' : 'lazy'); f.title = 'Embedded Hub tool'; f.addEventListener('load', function () { hookFrame(f, id); }); if (motion) motion.frame(f); return f; }
+    // A live window does not run inside the dashboard on a phone. The dashboard is a 3D board of layers, and a picture that changes twice a second inside one of them cost the phone's page its
+    // memory (twice, in the Hub's log: the page died while the board was scrolled). The panel there is a card with a button; the live view opens on a page of its own, where nothing is layered.
+    function phoneUA() { return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent)); }
+    function liveCard(url) {
+      var d = el('div', 'hk-fr hk-wait'), p = el('p', '', 'On a phone a live window opens in its own tab, as Movie Clipper and Auto LLM can. Inside the dashboard it kept running out of memory.'), bt = el('button', 'hb-btn', 'OPEN IN ITS OWN TAB');
+      bt.type = 'button'; bt.onclick = function () { var u = String(url).split('#')[0]; if (!window.open(u, '_blank')) location.href = u; }; d.style.cssText = 'display:flex;flex-direction:column;align-items:flex-start;gap:12px;overflow:auto'; d.append(p, bt); return d;
+    }
+    function frame(url, id) { if (phoneUA() && /^\/mirror(?:[?\/]|$)/.test(String(url))) return liveCard(url); var f = el('iframe', 'hk-fr'); f.src = embedUrl(url); f.setAttribute('loading', /^\/(mirror|session)\b/.test(String(url)) ? 'eager' : 'lazy'); f.title = 'Embedded Hub tool'; f.addEventListener('load', function () { hookFrame(f, id); }); if (motion) motion.frame(f); return f; }
     function expand(id) {
       var b = blocks[id], l = L[id], sp = b._spec; if (!sp) return;
       if (l.exp) { collapse(id); return; }

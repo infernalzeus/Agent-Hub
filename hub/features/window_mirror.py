@@ -429,7 +429,7 @@ _STYLE = """<meta charset="utf-8"><meta name="viewport" content="width=device-wi
 body{margin:0;background:transparent;color:var(--ink);font-size:12px;height:100vh;display:flex;flex-direction:column}
 .bar{display:flex;gap:6px;align-items:center;padding:6px;border-bottom:1px solid rgba(0,230,118,.25);background:rgba(8,12,40,.55);flex-wrap:wrap}
 select,button,label{background:rgba(6,10,36,.7);border:1px solid rgba(0,230,118,.35);border-radius:8px;color:var(--ink);padding:5px 8px;font-size:10px;letter-spacing:.5px}
-button{cursor:pointer}button:hover{border-color:var(--accent);box-shadow:0 0 8px rgba(0,230,118,.3)}.mute{color:var(--mute)}
+#back{font:inherit;font-size:11px;letter-spacing:1px;color:var(--accent);border:1px solid var(--border,rgba(0,230,118,.35));border-radius:8px;padding:5px 9px;text-decoration:none}#back[hidden]{display:none}button{cursor:pointer}button:hover{border-color:var(--accent);box-shadow:0 0 8px rgba(0,230,118,.3)}.mute{color:var(--mute)}
 .view{flex:1;min-height:0;overflow:auto;padding:6px}img{max-width:100%;display:block;border:1px solid rgba(0,230,118,.3);border-radius:8px}
 .t{margin:6px 0;padding:7px 9px;border-radius:9px;border:1px solid rgba(0,230,118,.2);background:rgba(8,12,40,.6);white-space:pre-wrap;word-break:break-word;line-height:1.45}
 .t.you{border-color:rgba(65,235,255,.45)}.t b{color:var(--accent);font-size:9px;letter-spacing:1px}
@@ -454,7 +454,7 @@ _MIRROR = _STYLE + """<title>Window</title><body>
   <label>DETAIL <select id="det"><option value="1">FIT</option><option value="1.5">SHARP</option><option value="2">VERY SHARP</option><option value="0">NATIVE</option></select></label>
   <label>QUALITY <select id="qual"><option value="65">NORMAL</option><option value="85">HIGH</option><option value="95">MAX</option></select></label>
   <label>ZOOM <select id="zoom"><option value="fit">FIT</option><option value="50">50 %</option><option value="75">75 %</option><option value="100">100 %</option><option value="150">150 %</option></select></label>
-  <button id="close" type="button">CLOSE PANEL</button>
+  <a id="back" href="/?enter=1" hidden>DASHBOARD</a><button id="close" type="button">CLOSE PANEL</button>
  </span>
 </div>
 <div class="note-row"><span class="mute" id="note">A live picture of the window, no sound.</span><span class="mute" id="stat"></span></div>
@@ -537,7 +537,8 @@ $('stage').addEventListener('keydown',e=>{if(!on()||e.target.id==='kb')return;
   else if(e.ctrlKey&&e.key.length===1){e.preventDefault();post('/keys',{key:e.key,ctrl:true});}
   else if(['Enter','Backspace','Tab','Escape','ArrowLeft','ArrowUp','ArrowRight','ArrowDown','Delete','Home','End','PageUp','PageDown'].includes(e.key)){e.preventDefault();post('/keys',{key:e.key});}});
 $('stage').addEventListener('wheel',e=>{if(!on())return;e.preventDefault();const r=pic.getBoundingClientRect();post('/wheel',{x:(e.clientX-r.left)/r.width,y:(e.clientY-r.top)/r.height,delta:-Math.sign(e.deltaY)*120});},{passive:false});
-$('close').onclick=async()=>{await fetch('/api/windows/panels?url='+encodeURIComponent(location.pathname+location.search),{method:'DELETE'});try{parent.postMessage({hubWindowClose:location.pathname+location.search},'*');}catch(e){}};
+if(window===top)$('back').hidden=false;      // on a page of its own (a phone opens it so), there is a way back
+$('close').onclick=async()=>{await fetch('/api/windows/panels?url='+encodeURIComponent(location.pathname+location.search),{method:'DELETE'});try{parent.postMessage({hubWindowClose:location.pathname+location.search},'*');}catch(e){}if(window===top)location.href='/?enter=1';};
 list().then(()=>setInterval(list,8000));
 addEventListener('pagehide',()=>{alive=false;pic.removeAttribute('src');});
 </script>

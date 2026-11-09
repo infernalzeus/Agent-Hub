@@ -260,7 +260,7 @@ def _open_panel_sized(hub, viewport, mobile, win_w, win_h):
         pg.goto(hub + "/?enter=1")
         pg.wait_for_function("!!window.__hubBoard && !!window.__hubBoard.active", timeout=20000)
         pg.evaluate("window.__hubBoard.applyUi({window: {title: 'Sized', url: '/mirror?id=77'}})")
-        pg.wait_for_selector(".hk[data-id^='extra:win-sized'] iframe", timeout=10000)
+        pg.wait_for_selector(".hk[data-id^='extra:win-sized'] .hk-fr", timeout=10000)
         pg.wait_for_timeout(1500)
         res = pg.evaluate("""()=>{const sel=".hk[data-id^='extra:win-sized']",p=document.querySelector(sel);const r=p.getBoundingClientRect();
           const o=[...document.querySelectorAll('.hk')].filter(n=>n!==p&&!n.hidden&&getComputedStyle(n).display!=='none'&&getComputedStyle(n).visibility!=='hidden'&&getComputedStyle(n).opacity!=='0').map(n=>{const q=n.getBoundingClientRect();return {id:n.dataset.id,left:q.left,right:q.right,top:q.top,bottom:q.bottom,width:q.width,height:q.height};})
@@ -335,3 +335,26 @@ def test_the_hub_itself_holds_a_phone_to_its_picture_budget_whatever_the_page_as
             await c.get("/api/windows/12/frame?w=1800&q=95", headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/120"})
     asyncio.run(go())
     assert seen == [(1400, 75), (1800, 95)]
+
+
+def test_on_a_phone_the_dashboard_holds_a_card_not_a_live_window_and_the_button_opens_the_live_view(hub):
+    """The phone's page died twice with a live picture inside the 3D board. There the panel is a card; the live view is a page of its own."""
+    with sync_playwright() as pw:
+        b = pw.chromium.launch(headless=True)
+        ctx = b.new_context(service_workers="block", viewport={"width": 390, "height": 760}, has_touch=True, is_mobile=True, user_agent=IPHONE)
+        pg = ctx.new_page()
+        asked = []
+        pg.route("**/api/windows/*/frame*", lambda r: (asked.append(r.request.url), r.fulfill(status=200, content_type="image/gif", body=GIF))[1])
+        pg.route("**/api/windows/*/stream*", lambda r: (asked.append(r.request.url), r.fulfill(status=200, content_type="image/jpeg", body=b""))[1])
+        pg.route("**/api/windows", lambda r: r.fulfill(json={"supported": True, "windows": [{"id": 5, "title": "Claude", "exe": "claude.exe", "w": 1900, "h": 1000, "minimised": False}]}))
+        pg.route("**/mirror?id=5*", lambda r: r.fulfill(content_type="text/html", body="<body>the live view</body>"))
+        pg.goto(hub + "/?enter=1")
+        pg.wait_for_function("!!window.__hubBoard && !!window.__hubBoard.active", timeout=20000)
+        pg.evaluate("window.__hubBoard.applyUi({window: {title: 'Claude', url: '/mirror?id=5'}})")
+        pg.wait_for_selector(".hk[data-id^='extra:win-claude'] .hk-fr button", timeout=10000)
+        pg.wait_for_timeout(2500)
+        assert pg.locator(".hk[data-id^='extra:win-claude'] iframe").count() == 0 and asked == []     # nothing is fetched for the board
+        with ctx.expect_page() as popup:
+            pg.locator(".hk[data-id^='extra:win-claude'] .hk-fr button").dispatch_event("click")                  # its own tab, as the block's OPEN IN ITS OWN TAB does
+        popup.value.wait_for_url("**/mirror?id=5", timeout=10000)
+        b.close()
