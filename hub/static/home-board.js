@@ -434,7 +434,7 @@
       document.addEventListener('pointerdown', function (e) { if (!list.hidden && !list.contains(e.target) && !bt.contains(e.target)) { list.hidden = true; bt.setAttribute('aria-expanded', 'false'); } }, true);
       tray.appendChild(bt); host.appendChild(list); winBtn = bt; winList = list;
     }
-    setTimeout(function () { buildWindowsTray(); syncPanels(); }, 1500); var panelTimer = setInterval(syncPanels, 4000);
+    setTimeout(buildWindowsTray, 1500); var panelTimer = 0; setTimeout(function () { syncPanels(); panelTimer = setInterval(syncPanels, 4000); }, 6000);          // panels other devices opened load after the move into the dashboard has finished, never during it
     function duplicate(srcId) {
       var base = srcId.split('#')[0], src = blocks[srcId], bd = null;
       defs.forEach(function (d) { if (d[0] === base) bd = d; });

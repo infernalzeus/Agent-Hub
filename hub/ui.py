@@ -29,6 +29,13 @@ _HOME_BOARD_JS = (_BLOCKS_JS + "\n" + _HAND_JS + "\n" + (Path(__file__).parent /
                   + (Path(__file__).parent / "static" / "home-board-nav.js").read_text(encoding="utf-8") + "\n"
                   + (Path(__file__).parent / "static" / "home-board-view.js").read_text(encoding="utf-8") + "\n"
                   + (Path(__file__).parent / "static" / "home-board.js").read_text(encoding="utf-8"))
+def _smith_still_uri() -> str:
+    """The same full portrait as the vector, drawn once as a small PNG: what the landing page swaps in at ENTER and what the Talk button shows. One framing everywhere (never the old face-and-neck crop)."""
+    import base64 as _b64
+    art = Path(__file__).parent / "static" / "agent-art" / "smith-still.png"
+    return "data:image/png;base64," + _b64.b64encode(art.read_bytes()).decode("ascii")
+
+
 def _smith_data_uri() -> str:
     """Smith for the landing page, inside the page itself: the vector picture (his glasses glisten), or the small PNG if the file is missing. No request, so nothing can fail while the Hub is down."""
     import base64 as _b64
@@ -39,7 +46,7 @@ def _smith_data_uri() -> str:
 
 
 _WAKE_JS = (_BLOCKS_JS + "\n" + (Path(__file__).parent / "static" / "voice-fx.js").read_text(encoding="utf-8") + "\n"
-            + (Path(__file__).parent / "static" / "wake.js").read_text(encoding="utf-8").replace("__SMITH_PNG__", _smith_data_uri()).replace("__SMITH_STILL__", "data:image/png;base64," + __import__("hub.agents_ui", fromlist=["x"])._SMITH_D_B64))
+            + (Path(__file__).parent / "static" / "wake.js").read_text(encoding="utf-8").replace("__SMITH_PNG__", _smith_data_uri()).replace("__SMITH_STILL__", _smith_still_uri()))
 _DEPTH_LIFT_SOURCE = (Path(__file__).parent / "static" / "depth-lift.js").read_text(encoding="utf-8")
 # The build id decides when a long-lived host page must be replaced. It covers everything a retained view can have
 def _own_source() -> str:

@@ -46,7 +46,7 @@
     '#wake-lines{position:fixed;left:50%;bottom:max(112px,calc(98px + env(safe-area-inset-bottom)));transform:translateX(-50%);width:min(560px,92vw);display:flex;flex-direction:column;gap:5px;align-items:center;pointer-events:none;z-index:7}',
     '.wl{font-size:13.5px;padding:5px 12px;border-radius:99px;border:1px solid rgba(0,230,118,.3);background:rgba(6,10,36,.92);color:#d9ffe9;max-width:100%}.wl.you{border-color:rgba(59,167,255,.5);color:#cfe6ff}',
     '.wake-toggle .t{transition:opacity .2s}.wake-toggle .t.sw{opacity:0}',
-    '.smith-slot{display:block;position:fixed;left:50%;bottom:max(2px,env(safe-area-inset-bottom));margin:0 0 0 -42px;width:84px;height:84px;z-index:60;border:0;background:transparent;border-radius:50%;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}',
+    '.smith-slot{display:block;position:fixed;left:50%;bottom:max(2px,env(safe-area-inset-bottom));margin:0 0 0 -36px;width:72px;height:72px;z-index:60;border:0;background:transparent;border-radius:50%;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}',
     '.smith-slot,.smith-slot:hover,.smith-slot:focus,.smith-slot:active,.smith-slot:focus-visible{background:transparent!important;border:0!important;box-shadow:none!important;outline:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}',
     '.smith-slot img{transform-origin:50% 55%}',
     // wake word off: he pulses, so you can see he is the button. On and waiting for his name: he breathes. Hearing you, or answering: his lines light up in green pulses.
@@ -58,7 +58,7 @@
     '@keyframes smLit{0%,100%{filter:brightness(1) hue-rotate(0deg) drop-shadow(0 0 6px rgba(0,230,118,.7))}50%{filter:brightness(1.5) hue-rotate(-35deg) drop-shadow(0 0 22px rgba(0,230,118,1))}}',
     '@keyframes smHeard{0%{filter:brightness(2.3) hue-rotate(-40deg) drop-shadow(0 0 32px #00e676)}100%{filter:brightness(1) hue-rotate(0deg) drop-shadow(0 0 4px rgba(0,230,118,.4))}}',
     '@media (prefers-reduced-motion:reduce){.smith-slot img{animation:none!important}.smith-slot.pulse img{opacity:.2}.smith-slot.dormant img{opacity:.06}}.smith-slot.still img{animation:none!important}',
-    '.smith-slot img{visibility:hidden}.smith-slot img.ok{visibility:visible}.smith-slot img{width:100%;height:100%;border-radius:50%;object-fit:contain;display:block;pointer-events:none;transition:opacity .3s ease,filter .3s ease}',
+    '.smith-slot img{visibility:hidden}.smith-slot img.ok{visibility:visible}.smith-slot img{width:100%;height:100%;border-radius:0;object-fit:contain;display:block;pointer-events:none;transition:opacity .3s ease,filter .3s ease}',
     '.wake-toggle.smith-held{position:absolute!important;left:-9999px;top:0}',
   ].join('\n');
   document.head.appendChild(st);

@@ -274,10 +274,19 @@ async def api_find(request: web.Request) -> web.Response:
     return web.json_response({"window": w})
 
 
+def _budget(request: web.Request, w: int, q: int, fps: int = 5) -> "tuple[int, int, int]":
+    """A phone has a small memory budget for pictures (the first phone session pulled 340 KB pictures at 1800 px, five a second, and Safari gave up). Whatever page asks, a phone gets at most
+    1400 px, quality 75 and 5 a second. This also covers a page the phone cached before the page learned its own budget."""
+    if re.search(r"iPhone|iPad|iPod|Android", request.headers.get("User-Agent", "")):
+        return min(w, 1400), min(q, 75), min(fps, 5)
+    return w, q, fps
+
+
 @routes.get("/api/windows/{id}/frame")
 async def api_frame(request: web.Request) -> web.Response:
     _local(request)
-    got = await asyncio.to_thread(capture, int(request.match_info["id"]), min(3000, max(300, int(request.query.get("w", "1000")))), int(request.query.get("q", "82")))
+    w, q, _ = _budget(request, min(3000, max(300, int(request.query.get("w", "1000")))), int(request.query.get("q", "82")))
+    got = await asyncio.to_thread(capture, int(request.match_info["id"]), w, q)
     if not got:
         raise web.HTTPNotFound(text="that window is gone, minimised, or drew nothing")
     return web.Response(body=got[0], content_type=got[1], headers={"Cache-Control": "no-store"})
@@ -291,6 +300,7 @@ async def api_stream(request: web.Request) -> web.StreamResponse:
     fps = max(1, min(30, int(request.query.get("fps", "5"))))
     w = min(3000, max(300, int(request.query.get("w", "1000"))))
     q = int(request.query.get("q", "82"))
+    w, q, fps = _budget(request, w, q, fps)
     boundary = "hubframe"
     resp = web.StreamResponse(headers={"Content-Type": f"multipart/x-mixed-replace; boundary={boundary}", "Cache-Control": "no-store", "Connection": "close"})
     await resp.prepare(request)
@@ -452,6 +462,10 @@ _MIRROR = _STYLE + """<title>Window</title><body>
 <script>
 const $=id=>document.getElementById(id),q=new URLSearchParams(location.search);let cur=q.get('id')||'',alive=true,sel=null;
 const SKEY='hubMirror:'+(q.get('id')||'x'),defaults={fps:'5',det:'1.5',qual:'85',zoom:'fit'};
+// A phone has a small memory budget for pictures. The log of the first phone session showed 340 KB pictures, 1800 px wide, five a second: Safari ran out of memory and the page died
+// ('A problem repeatedly occurred'). So a phone gets a budget: at most 1400 px wide, quality 75, 5 pictures a second, one picture at a time, and the old one is released before the next shows.
+const PHONE=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/Macintosh/.test(navigator.userAgent));
+if(PHONE)Object.assign(defaults,{fps:'2',det:'1',qual:'65'});
 let cfg=Object.assign({},defaults);try{cfg=Object.assign(cfg,JSON.parse(localStorage.getItem('hubMirrorCfg')||'{}'));}catch(e){}
 // a window remembers its own rate: Claude Desktop is for typing and needs one picture a second; a video needs ten or more
 function cfgKey(){return sel?('hubMirror:'+sel.exe):'hubMirror:x';}
@@ -472,18 +486,25 @@ $('focus').onclick=()=>fetch('/api/windows/'+cur+'/focus',{method:'POST'});
 const pic=$('pic');let sw=0;
 function start(){if(!cur||!alive)return;
   const dpr=Math.min(2,devicePixelRatio||1),shown=cfg.zoom==='fit'?Math.max(300,$('stage').clientWidth):Math.round((sel?sel.w:1200)*Number(cfg.zoom)/100);
-  const det=Number(cfg.det),w=det===0?3000:Math.min(2600,Math.round(shown*dpr*det));
+  const det=Number(cfg.det),w=PHONE?Math.min(1400,Math.round(shown*dpr*(det||1))):(det===0?3000:Math.min(2600,Math.round(shown*dpr*det)));
   pic.style.width=cfg.zoom==='fit'?'100%':shown+'px';pic.style.maxWidth=cfg.zoom==='fit'?'100%':'none';
-  clearTimeout(streamT);mode=(sessionStorage.getItem('hubMirrorPoll')==='1')?'poll':'stream';pic.onload=null;
+  clearTimeout(streamT);mode=(PHONE||sessionStorage.getItem('hubMirrorPoll')==='1')?'poll':'stream';pic.onload=null;pollGen++;
   if(mode==='poll'){poll(w);}
-  else{pic.src='/api/windows/'+cur+'/stream?fps='+cfg.fps+'&w='+w+'&q='+cfg.qual+'&t='+Date.now();
+  else{pic.src='/api/windows/'+cur+'/stream?fps='+fpsNow()+'&w='+w+'&q='+qualNow()+'&t='+Date.now();
     streamT=setTimeout(()=>{if(!(pic.naturalWidth>0)){try{sessionStorage.setItem('hubMirrorPoll','1');}catch(e){}mode='poll';poll(w);}},4500);}
-  $('stat').textContent=cfg.fps+' / s, up to '+w+' px wide'+(mode==='poll'?' (single pictures)':'');}
+  $('stat').textContent=fpsNow()+' / s, up to '+w+' px wide'+(mode==='poll'?' (single pictures)':'');}
+const fpsNow=()=>PHONE?Math.min(5,Number(cfg.fps)):Number(cfg.fps),qualNow=()=>PHONE?Math.min(75,Number(cfg.qual)):Number(cfg.qual);
 let streamT=0,mode='stream';
-function poll(w){if(!alive||mode!=='poll')return;const t0=Date.now();
-  pic.onload=()=>{$('note').textContent='A live picture of the window, no sound.';setTimeout(()=>poll(w),Math.max(30,1000/Number(cfg.fps)-(Date.now()-t0)));};
-  pic.onerror=()=>{$('note').textContent='That window is gone or minimised.';setTimeout(()=>poll(w),1500);};
-  pic.src='/api/windows/'+cur+'/frame?w='+Math.min(w,1800)+'&q='+cfg.qual+'&t='+t0;}
+let pollGen=0;
+function poll(w){if(!alive||mode!=='poll')return;const gen=pollGen,t0=Date.now();
+  if(document.hidden){setTimeout(()=>poll(w),800);return;}
+  const next=ms=>setTimeout(()=>{if(gen===pollGen)poll(w);},ms);
+  fetch('/api/windows/'+cur+'/frame?w='+Math.min(w,PHONE?1400:1800)+'&q='+qualNow()+'&t='+t0,{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('gone');return r.blob();}).then(b=>{
+    if(gen!==pollGen)return;const u=URL.createObjectURL(b),old=pic.dataset.blob;
+    pic.onload=()=>{if(old)URL.revokeObjectURL(old);$('note').textContent='A live picture of the window, no sound.';next(Math.max(30,1000/fpsNow()-(Date.now()-t0)));};
+    pic.onerror=()=>{URL.revokeObjectURL(u);next(1500);};
+    pic.dataset.blob=u;pic.src=u;}).catch(()=>{$('note').textContent='That window is gone or minimised.';next(1500);});}
+addEventListener('pagehide',()=>{alive=false;pollGen++;const u=pic.dataset.blob;if(u)URL.revokeObjectURL(u);pic.removeAttribute('src');});
 pic.onerror=()=>{$('note').textContent='That window is gone or minimised.';setTimeout(start,2000);};
 addEventListener('resize',()=>{clearTimeout(sw);sw=setTimeout(start,400);});
 // ---- clicks, keys, wheel

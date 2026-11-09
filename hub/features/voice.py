@@ -1658,6 +1658,8 @@ async def api_speak(request: web.Request) -> web.Response:
 async def smith_icon(request: web.Request) -> web.Response:
     from .. import agents_ui
     # the small, still picture: this one sits on the Talk button at 28 px, so it must be cheap to draw (the animated vector is for the landing page and the Agency page)
-    return web.Response(body=base64.b64decode(agents_ui._SMITH_D_B64), content_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
+    art = Path(__file__).resolve().parent.parent / "static" / "agent-art" / "smith-still.png"      # the full portrait, the same framing as the landing page's vector
+    body = art.read_bytes() if art.is_file() else base64.b64decode(agents_ui._SMITH_D_B64)
+    return web.Response(body=body, content_type="image/png", headers={"Cache-Control": "no-cache"})
 
 

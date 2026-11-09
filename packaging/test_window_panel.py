@@ -287,3 +287,51 @@ def test_the_board_header_and_button_bar_start_below_an_iphone_notch():
     css = (Path(__file__).resolve().parent.parent / "hub" / "static" / "hub-blocks.css").read_text(encoding="utf-8")
     assert "body>header{top:max(8px,env(safe-area-inset-top))!important}" in css
     assert "@media(min-width:1101px){.hb .hb-bar{top:max(8px,env(safe-area-inset-top))}}" in css
+
+
+GIF = bytes.fromhex("47494638396101000100800000ffffff00000021f90401000000002c00000000010001000002024401003b")
+IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1"
+
+
+def test_a_phone_gets_small_single_pictures_one_at_a_time_and_each_old_picture_is_released(hub):
+    """The first phone session pulled 340 KB pictures 1800 px wide, five a second, and Safari ran out of memory ('A problem repeatedly occurred'). A phone has a budget."""
+    seen, revoked = [], []
+    with sync_playwright() as pw:
+        b = pw.chromium.launch(headless=True)
+        ctx = b.new_context(service_workers="block", viewport={"width": 390, "height": 760}, has_touch=True, is_mobile=True, user_agent=IPHONE)
+        ctx.add_init_script("window.__rev=0;const r=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=u=>{window.__rev++;return r(u)}")
+        pg = ctx.new_page()
+        pg.route("**/api/windows/*/stream*", lambda r: (seen.append(r.request.url), r.fulfill(status=200, content_type="image/jpeg", body=b""))[1])
+        pg.route("**/api/windows/*/frame*", lambda r: (seen.append(r.request.url), r.fulfill(status=200, content_type="image/gif", body=GIF))[1])
+        pg.route("**/api/windows", lambda r: r.fulfill(json={"supported": True, "windows": [{"id": 5, "title": "Claude", "exe": "claude.exe", "w": 1900, "h": 1000, "minimised": False}]}))
+        pg.goto(hub + "/mirror?id=5")
+        pg.wait_for_timeout(3500)
+        revoked = pg.evaluate("window.__rev")
+        b.close()
+    frames = [u for u in seen if "/frame" in u]
+    assert frames and not [u for u in seen if "/stream" in u]                                       # single pictures, never the endless stream
+    import re
+    assert all(int(re.search(r"w=(\d+)", u).group(1)) <= 1400 and int(re.search(r"q=(\d+)", u).group(1)) <= 75 for u in frames)
+    assert len(frames) <= 12 and revoked >= len(frames) - 2                                         # about two a second, and each earlier picture released
+
+
+def test_smiths_still_and_talk_button_picture_are_the_full_portrait_of_the_landing_vector(hub):
+    import base64
+    import urllib.request
+    still = (Path(__file__).resolve().parent.parent / "hub" / "static" / "agent-art" / "smith-still.png").read_bytes()
+    assert urllib.request.urlopen(hub + "/smith-icon.png", timeout=10).read() == still               # the Talk button
+    page = urllib.request.urlopen(hub + "/offline.html", timeout=10).read().decode("utf-8", "replace")
+    assert base64.b64encode(still).decode() in page                                                  # the picture the landing page swaps in at ENTER
+
+
+def test_the_hub_itself_holds_a_phone_to_its_picture_budget_whatever_the_page_asks(fake, monkeypatch):
+    seen = []
+    monkeypatch.setattr(WM, "capture", lambda hwnd, max_w=1000, quality=80: (seen.append((max_w, quality)), (b"\xff\xd8x", "image/jpeg"))[1])
+    async def go():
+        app = web.Application()
+        app.add_routes(WM.routes)
+        async with TestClient(TestServer(app)) as c:
+            await c.get("/api/windows/12/frame?w=1800&q=95", headers={"User-Agent": IPHONE})
+            await c.get("/api/windows/12/frame?w=1800&q=95", headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/120"})
+    asyncio.run(go())
+    assert seen == [(1400, 75), (1800, 95)]
