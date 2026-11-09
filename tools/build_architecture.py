@@ -19,7 +19,7 @@ NODES=[
  ('laptop','LAPTOP',(46,246,86,34),'Open the Hub from a laptop on the same private network.'),
  ('network','TAILSCALE',(174,183,96,34),'Tailscale connects your devices privately to the PC. It is the access boundary, not an agent or a processing step.'),
  ('hub','AGENT HUB',(300,150,148,100),'The Hub runs on your PC. Its dashboard opens apps, files, projects and controls directly; TALK is another input route.'),
- ('smith','TALK / SMITH',(350,330,112,32),'Smith receives typed or spoken requests. The router chooses a command, saved routine, app action or mission from what the request needs.'),
+ ('smith','TALK / SMITH',(516,20,86,25),'Smith receives typed or spoken requests. The router chooses a command, saved routine, app action or mission from what the request needs.'),
  ('router','ROUTER',(516,58,80,34),'Route an ask to the existing capability that can handle it. Code work can go directly to Missions; media and PC tasks take their own routes.'),
  ('missions','MISSIONS',(614,58,80,34),'Select a project or create a new one, describe the goal, and run work in a private git worktree. A question can pause the work for your answer.'),
  ('runtime','AGENT RUN',(712,58,80,34),'Run the chosen agent through a configured runtime, including OpenCode or Claude Code. Planning and delegation depend on the selected mission mode.'),
@@ -44,13 +44,13 @@ NODES=[
  ('schedule','SCHEDULE',(700,254,154,34),'A trigger decides when a request runs. Repetition does not automatically turn a single capability call into an agent mission.'),
 ]
 EDGES=[
- ('phone','network','M132 167H145L152 174V193L159 200H174'),
- ('tablet','network','M132 215H145L159 200H174'),
- ('laptop','network','M132 263H145L152 256V207L159 200H174'),
+ ('phone','network','M132 167H145L152 174V200'),
+ ('tablet','network','M132 215H143L152 200'),
+ ('laptop','network','M132 263H145L152 256V200'),
  ('network','hub','M270 200H300'),
- ('hub','smith','M406 250V330'),
- ('hub','router','M448 180H456V75H516'),
- ('smith','router','M462 346H482V69H516'),
+ ('hub','smith','M448 160H456V32H516'),
+ ('hub','router','M448 180H466V75H516'),
+ ('smith','router','M556 45V58'),
  ('router','missions','M596 75H614'),
  ('missions','runtime','M694 75H712'),
  ('runtime','worktree','M792 75H810'),
@@ -58,25 +58,25 @@ EDGES=[
  ('review','apply','M988 75H1006'),
  ('missions','orchestrator','M654 92V112H668V126'),
  ('orchestrator','team','M668 158V174H718V190'),
- ('team','runtime','M772 205H840V110H768V92'),
+ ('team','runtime','M750 190V170H836V110H768V92'),
  ('skills','runtime','M788 126V118H736V92'),
  ('worktree','graph','M850 92V110H908V126'),
  ('review','missions','M948 58V28H670V58'),
- ('router','pc','M532 92V112H486V352H568V372'),
+ ('router','pc','M516 86H482V352H568V372'),
  ('pc','mcp','M620 389H670'),
- ('router','download','M556 58V24H478V456H562V482'),
+ ('router','download','M516 81H474V456H562V482'),
  ('download','convert','M608 499H630'),
  ('convert','files','M710 499H734'),
- ('hub','files','M330 250V446H793V482'),
+ ('hub','files','M330 250V438H793V482'),
  ('files','smb','M852 499H876'),
  ('hands','hub','M162 408V316H300V224'),
  ('router','neo','M596 75H606V166H657V182H858V190'),
  ('router','doctor','M556 92V178H575V190'),
  ('doctor','missions','M634 207H652V174H600V112H654V92'),
  ('neo','team','M804 205H772'),
- ('hub','apps','M390 250V300H306V482H162V502'),
- ('router','routines','M516 75H506V238H593V254'),
- ('router','schedule','M516 75H500V296H777V288'),
+ ('hub','apps','M309 250V482H162V502'),
+ ('router','routines','M516 91H505V238H593V254'),
+ ('router','schedule','M516 89H499V296H777V288'),
  ('schedule','missions','M854 271H1094V18H638V58'),
 ]
 
@@ -98,10 +98,14 @@ def diagram(tall=False, interactive=False):
     import re
     for el in list(root):
         x=float(el.get('x',el.get('cx',-1)))
+        y=float(el.get('y',el.get('cy',-1)))
         if el.tag.endswith('path'):
             match=re.match(r'M\s*([\d.]+)[, ]+([\d.]+)',el.get('d',''))
-            if match:x=float(match.group(1))
-        if x>=494:root.remove(el)
+            if match:x,y=map(float,match.groups())
+        old_smith = 350 <= x <= 467 and 325 <= y <= 378
+        old_smith_pin = x == 403.5 and y == 250
+        old_access_joint = el.tag.endswith('circle') and x == 152
+        if x>=494 or old_smith or old_smith_pin or old_access_joint:root.remove(el)
         elif el.tag.endswith('image'):
             defs=next(e for e in root if e.tag.endswith('defs'))
             clip=_add(defs,'clipPath',{'id':'hub-round-icon','clipPathUnits':'userSpaceOnUse'})
@@ -147,7 +151,7 @@ def diagram(tall=False, interactive=False):
     # Wiring is inserted behind chip faces, with gaps at unrelated crossings.
     wires=ET.Element('{'+NS+'}g',{'class':'original-wires','fill':'none'})
     for a,b,d in EDGES:
-        _add(wires,'path',{'d':d,'stroke':'#00e676','stroke-width':1.4,'stroke-opacity':'.72','marker-end':'url(#ah)','data-from':a,'data-to':b,'class':'original-trace'})
+        _add(wires,'path',{'d':d,'stroke':'#00e676','stroke-width':1.4,'stroke-opacity':'.72','marker-end':'url(#ah)','data-from':a,'data-to':b,'class':'original-trace access-branch' if b=='network' else 'original-trace'})
     # Give crossing routes a visible gap: crossing lines are not junctions.
     import re
     def segments(d):
@@ -175,7 +179,14 @@ def diagram(tall=False, interactive=False):
             rebuilt.append(f'L{nx} {ny}')
         path.set('d',' '.join(rebuilt))
         path.attrib.pop('marker-end',None)
+    # Three branches end at one junction. The shared trunk carries one arrow.
+    _add(wires,'path',{'d':'M152 200H174','stroke':'#00e676','stroke-width':1.4,
+                       'marker-end':'url(#ah)','class':'access-trunk','data-access-trunk':''})
+    _add(wires,'circle',{'cx':152,'cy':200,'r':3,'fill':'#00e676',
+                         'stroke':'#08121b','class':'access-junction','data-access-trunk':''})
     for i,(a,b,d) in enumerate(EDGES):
+        if b == 'network':
+            continue
         x,y,nx,ny=routes[i][-1]
         import math
         length=math.hypot(nx-x,ny-y)

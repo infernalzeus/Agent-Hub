@@ -617,3 +617,8 @@ svg.agent-portrait[data-agent-portrait="doctor"] { overflow: hidden; }
 }
 /* Keep step buttons in the same hit-test plane as the illustrated preview. */
 .js #hands :is(.board,.slabbox,.auto,.auto-steps,.auto-steps > li){transform-style:flat!important}
+
+/* Shared device traces stay solid when selected, including the join. */
+.original-trace.access-branch.selected{stroke-dasharray:none;animation:none}
+.access-trunk.selected{stroke:#41ebff;stroke-width:2}
+.access-junction.selected{fill:#41ebff}

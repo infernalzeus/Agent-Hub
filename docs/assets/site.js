@@ -221,6 +221,8 @@ function drawArchitecture(){
   host.dataset.selected=id||'';
   host.querySelectorAll('[data-arch-node]').forEach(n=>{const on=!!id&&n.dataset.archNode===id;n.classList.toggle('selected',on);n.setAttribute('aria-pressed',String(on));});
   host.querySelectorAll('[data-from]').forEach(p=>p.classList.toggle('selected',!!id&&(p.dataset.from===id||p.dataset.to===id)));
+  const accessSelected=['phone','tablet','laptop','network'].includes(id);
+  host.querySelectorAll('[data-access-trunk]').forEach(p=>p.classList.toggle('selected',accessSelected));
   tip.hidden=!id;if(id){tip.querySelector('b').textContent=model.labels[id];tip.querySelector('p').textContent=model.nodes[id];}
  };
  host.querySelectorAll('[data-arch-node]').forEach(n=>{n.onclick=e=>{e.stopPropagation();choose(host.dataset.selected===n.dataset.archNode?'':n.dataset.archNode);};n.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();choose(host.dataset.selected===n.dataset.archNode?'':n.dataset.archNode);}};});
