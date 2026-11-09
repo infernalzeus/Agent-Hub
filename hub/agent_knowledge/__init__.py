@@ -568,6 +568,8 @@ def effective_settings(name: str) -> dict:
         "top_p": pick("top_p", None, "model default"),
         "variant": pick("variant", None, "model default"),
         "steps": pick("steps", None, "unbounded"),
+        # the rest of the sampling and size knobs (top_k, min_p, penalties, output tokens, context window, stop sequences ...) the owner set, passed to the model as options
+        "options": {"value": dict(ov.get("options") or {}) if isinstance(ov.get("options"), dict) else {}, "source": "override" if ov.get("options") else "default"},
     }
 
 

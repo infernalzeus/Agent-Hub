@@ -29,8 +29,17 @@ _HOME_BOARD_JS = (_BLOCKS_JS + "\n" + _HAND_JS + "\n" + (Path(__file__).parent /
                   + (Path(__file__).parent / "static" / "home-board-nav.js").read_text(encoding="utf-8") + "\n"
                   + (Path(__file__).parent / "static" / "home-board-view.js").read_text(encoding="utf-8") + "\n"
                   + (Path(__file__).parent / "static" / "home-board.js").read_text(encoding="utf-8"))
+def _smith_data_uri() -> str:
+    """Smith for the landing page, inside the page itself: the vector picture (his glasses glisten), or the small PNG if the file is missing. No request, so nothing can fail while the Hub is down."""
+    import base64 as _b64
+    art = Path(__file__).parent / "static" / "agent-art" / "smith.svg"
+    if art.is_file():
+        return "data:image/svg+xml;base64," + _b64.b64encode(art.read_bytes()).decode("ascii")
+    return "data:image/png;base64," + __import__("hub.agents_ui", fromlist=["x"])._SMITH_D_B64
+
+
 _WAKE_JS = (_BLOCKS_JS + "\n" + (Path(__file__).parent / "static" / "voice-fx.js").read_text(encoding="utf-8") + "\n"
-            + (Path(__file__).parent / "static" / "wake.js").read_text(encoding="utf-8"))
+            + (Path(__file__).parent / "static" / "wake.js").read_text(encoding="utf-8").replace("__SMITH_PNG__", _smith_data_uri()).replace("__SMITH_STILL__", "data:image/png;base64," + __import__("hub.agents_ui", fromlist=["x"])._SMITH_D_B64))
 _DEPTH_LIFT_SOURCE = (Path(__file__).parent / "static" / "depth-lift.js").read_text(encoding="utf-8")
 # The build id decides when a long-lived host page must be replaced. It covers everything a retained view can have
 def _own_source() -> str:
@@ -200,6 +209,7 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;overflow:hidden;ove
 .wake-sub{display:block;min-height:36px;opacity:0;transition:opacity .3s;margin-top:14px;font-family:'Orbitron',monospace;font-size:11px;letter-spacing:1.5px;
   color:var(--text-muted);line-height:1.6;max-width:280px;margin-left:auto;margin-right:auto}
 .wake-sub.on{opacity:1}
+.globe-wrap .wake-sub{position:absolute;left:50%;bottom:calc(100% + 8px);transform:translateX(-50%);width:max-content;max-width:94vw;min-height:0;margin:0;text-align:center;pointer-events:none;z-index:4;font-size:10.5px;line-height:1.5}
 /* 0-100 meter while the Hub starts: it fills, completes, then ENTER fades in in the same place. */
 .boot{width:210px;margin:8px auto 0;height:18px;opacity:0;transition:opacity .35s;pointer-events:none}
 .boot.on{opacity:1}
@@ -386,7 +396,7 @@ __SETUP_LINK__
   }
   if (mark) {
     remember(on);
-    AgentHubMark.tapToToggle(document, mark, host, {rippleIn: document.body, onToggle: remember, ignore: '#shell-key,#wake-stage,#wake-toggle',
+    AgentHubMark.tapToToggle(document, mark, host, {rippleIn: document.body, onToggle: remember, ignore: '#shell-key,#wake-stage,#wake-toggle,#smith-slot',
       onTap: function () { note('toggle'); }});
     key.addEventListener('click', function () { mark.setShell(!mark.isShell()); remember(mark.isShell()); });
   } else key.hidden = true;
@@ -429,6 +439,7 @@ function triggerProtocol(url) {
 
 const wakeBtn = document.getElementById('wake-btn');
 const wakeSub = document.getElementById('wake-sub');
+{ const gw = document.querySelector('.globe-wrap'); if (gw && wakeSub) gw.appendChild(wakeSub); }      // over the orb
 const statusLine = document.querySelector('.status');
 const setLabel = (state) => wakeBtn.setAttribute('data-s', state);   // start | starting | enter, cross-faded by CSS
 
@@ -508,7 +519,7 @@ function showState(st) {
   if (up) {
     // ENTER turns the screen over with the Depth Lift, then makes the same change as before; without it, just the change
     wakeBtn.onclick = () => (window.DepthLift ? DepthLift.go('home', enterHub, wakeBtn) : enterHub());
-    wakeSub.innerHTML = 'Agent Hub is live.<br>Tap ENTER to open your apps.';
+    wakeSub.innerHTML = 'Agent Hub is live. Press ENTER to open your apps.<br>Tap Smith to wake him.';
   } else {
     wakeBtn.onclick = onPc ? startHub : null;
     wakeSub.innerHTML = onPc ? '' : (st === 'unreachable'
@@ -570,7 +581,7 @@ const CACHE_NAME = '__CACHE__';
 const OFFLINE_URL = '/offline.html';
 const MARK_URL = '__MARK_URL__';
 const ESSENTIAL = [OFFLINE_URL];
-const OPTIONAL = ['/favicon-256.png', '/favicon.svg', '/theme.css', MARK_URL];
+const OPTIONAL = ['/favicon-256.png', '/favicon.svg', '/theme.css', '/smith-icon.png', MARK_URL];
 // Last resort: if the phone has evicted its cache, a navigation still gets a page, never a browser error.
 const MINIMAL = `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>AGENT HUB - Dormant</title><body style="margin:0;min-height:100vh;display:grid;place-items:center;text-align:center;background:linear-gradient(150deg,#080c28,#0d1050 45%,#18095c);color:#00e676;font:700 14px/1.8 system-ui"><div><div style="font-size:22px;letter-spacing:6px">AGENT HUB</div><div style="opacity:.5;letter-spacing:3px">DORMANT</div><div style="opacity:.6;font-size:11px;letter-spacing:1.5px;margin-top:14px">Agent Hub is dormant.<br>Initiate from PC.</div></div><script>setInterval(function(){fetch('/api/status',{cache:'no-store'}).then(function(r){if(r.ok)location.reload()}).catch(function(){})},5000)<\\/script>`;
 function dormantPage() {
@@ -1903,7 +1914,7 @@ async function prepareDormant() {
     // keep this device's cache stocked too, so a relaunch with the hub down still finds the page
     if ('caches' in window) {
       const c = await caches.open(OFFLINE_CACHE);
-      await Promise.all(['/offline.html', MARK_URL, '/theme.css', '/favicon-256.png', '/favicon.svg'].map(async (u) => {
+      await Promise.all(['/offline.html', MARK_URL, '/theme.css', '/favicon-256.png', '/favicon.svg', '/smith-icon.png'].map(async (u) => {
         try { if (!(await c.match(u))) { const r = await fetch(u); if (r.ok) await c.put(u, r); } } catch (e) {}
       }));
     }

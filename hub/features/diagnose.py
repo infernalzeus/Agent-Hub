@@ -160,6 +160,40 @@ def _learning() -> dict:
         return {"installed": False}
 
 
+def install_check() -> dict:
+    """Is this copy of the Hub whole? The faults the 0.2.0 installer test found by hand, as a check the Doctor (and you) can run any time: data files the code reads from beside itself,
+    the voice commands actually loaded, the libraries the optional parts need, whether the hand model is there. Read-only. `problems` is empty when nothing is wrong."""
+    import importlib.util
+    from .. import runtime as RT
+    here = __import__("pathlib").Path(__file__).resolve().parent.parent
+    problems: "list[str]" = []
+    files = {}
+    for name in ("commands.json", "media_sources.json", "apps.default.json"):
+        files[name] = (here / name).is_file()
+        if not files[name]:
+            problems.append(f"hub/{name} is missing from this copy: " + {"commands.json": "only the 8 built-in voice commands work (no ingest, no open by address, no rename)",
+                            "media_sources.json": "media asks have no sources", "apps.default.json": "the Hub cannot list its default apps"}[name])
+    commands = 0
+    try:
+        from . import voice as V
+        commands = len(V.COMMANDS)
+        if commands <= 8 and files.get("commands.json") is False:
+            problems.append(f"only {commands} voice commands are loaded")
+    except Exception as exc:  # noqa: BLE001
+        problems.append(f"the voice commands could not be loaded: {exc}")
+    libs = {n: importlib.util.find_spec(n) is not None for n in ("numpy", "PIL")}
+    if not libs["numpy"]:
+        problems.append("numpy is not installed here: the learning layer (the yard) cannot run a session" + (" (an installed copy does not carry it)" if RT.PACKAGED else ""))
+    hands = {}
+    try:
+        from .. import hand_tracking as HT
+        hands = {"model_ready": bool(HT.status().get("ready"))}
+    except Exception as exc:  # noqa: BLE001
+        problems.append(f"hand control could not report its status: {exc}")
+    return {"packaged": RT.PACKAGED, "frozen": RT.FROZEN, "data_files": files, "voice_commands": commands, "libraries": libs, "hands": hands,
+            "can_edit_code": not RT.FROZEN, "problems": problems}
+
+
 def bundle(lines: int = 150) -> dict:
     lines = max(10, min(int(lines), RING_LINES))
     log = [redact(x) for x in list(_ring)]
@@ -178,6 +212,7 @@ def bundle(lines: int = 150) -> dict:
         "local_model_server": _local_model_server(),
         "disk_free_gb": {"state": _free_gb(RT.STATE), "work": _free_gb(work) if work else None},
         "learning": _learning(),
+        "install": install_check(),
         "problems": problems[-30:],
         "log_tail": log[-lines:],
         "note": "Credentials are removed from log lines; this endpoint only reads.",

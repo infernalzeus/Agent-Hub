@@ -43,12 +43,22 @@
     '.wb .num{padding:2px 10px 8px}.wb .num b{display:block;font:900 30px Orbitron,monospace;color:#00e676;line-height:1.1}.wb .num span{color:#8fcfb2;font-size:12px}',
     '.wb .nt{padding:2px 10px 9px;font-size:13px;line-height:1.45;overflow-wrap:anywhere}.wb .nt.sm{font-size:11.5px;color:#8fcfb2}',
     '.wb .row{display:flex;gap:8px;padding:2px 10px 10px;flex-wrap:wrap}.wb .go{font:700 9.5px Orbitron,monospace;letter-spacing:1.2px;color:#00e676;background:none;border:1px solid #00e676;border-radius:7px;padding:8px 14px;min-height:34px;cursor:pointer;text-decoration:none;display:inline-block}.wb .go.no{color:#ff8a8a;border-color:rgba(255,92,92,.6)}',
-    '#wake-lines{position:fixed;left:50%;bottom:max(12px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(560px,92vw);display:flex;flex-direction:column;gap:5px;align-items:center;pointer-events:none;z-index:7}',
+    '#wake-lines{position:fixed;left:50%;bottom:max(112px,calc(98px + env(safe-area-inset-bottom)));transform:translateX(-50%);width:min(560px,92vw);display:flex;flex-direction:column;gap:5px;align-items:center;pointer-events:none;z-index:7}',
     '.wl{font-size:13.5px;padding:5px 12px;border-radius:99px;border:1px solid rgba(0,230,118,.3);background:rgba(6,10,36,.92);color:#d9ffe9;max-width:100%}.wl.you{border-color:rgba(59,167,255,.5);color:#cfe6ff}',
     '.wake-toggle .t{transition:opacity .2s}.wake-toggle .t.sw{opacity:0}',
-    '.smith-slot{display:none;margin:8px auto 0;width:68px;height:68px;border:0;background:transparent;border-radius:50%;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}',
-    '.hub-up .smith-slot{display:block}.smith-slot img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;opacity:.95;transition:opacity .4s ease;pointer-events:none}',
-    '.smith-slot.gone img{opacity:0}.smith-slot:focus-visible{outline:2px dashed rgba(0,230,118,.7);outline-offset:4px}',
+    '.smith-slot{display:block;position:fixed;left:50%;bottom:max(2px,env(safe-area-inset-bottom));margin:0 0 0 -42px;width:84px;height:84px;z-index:60;border:0;background:transparent;border-radius:50%;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}',
+    '.smith-slot,.smith-slot:hover,.smith-slot:focus,.smith-slot:active,.smith-slot:focus-visible{background:transparent!important;border:0!important;box-shadow:none!important;outline:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}',
+    '.smith-slot img{transform-origin:50% 55%}',
+    // wake word off: he pulses, so you can see he is the button. On and waiting for his name: he breathes. Hearing you, or answering: his lines light up in green pulses.
+    '.smith-slot.pulse img{animation:smIdle 3.4s ease-in-out infinite}.smith-slot.breathe img{animation:smBreathe 4.2s ease-in-out infinite}',
+    '.smith-slot.hear img,.smith-slot.lit img{animation:smLit .9s ease-in-out infinite}.smith-slot.heard img{animation:smHeard 2.4s ease-out 1}',
+    '@keyframes smIdle{0%,100%{opacity:.08}50%{opacity:.3}}@keyframes smDorm{0%,100%{opacity:.03}50%{opacity:.11}}',
+    '.smith-slot.dormant{pointer-events:none}.smith-slot.dormant img{animation:smDorm 4.5s ease-in-out infinite}',
+    '@keyframes smBreathe{0%,100%{transform:scale(1);filter:drop-shadow(0 0 4px rgba(0,230,118,.35))}50%{transform:scale(1.05);filter:drop-shadow(0 0 12px rgba(0,230,118,.65))}}',
+    '@keyframes smLit{0%,100%{filter:brightness(1) hue-rotate(0deg) drop-shadow(0 0 6px rgba(0,230,118,.7))}50%{filter:brightness(1.5) hue-rotate(-35deg) drop-shadow(0 0 22px rgba(0,230,118,1))}}',
+    '@keyframes smHeard{0%{filter:brightness(2.3) hue-rotate(-40deg) drop-shadow(0 0 32px #00e676)}100%{filter:brightness(1) hue-rotate(0deg) drop-shadow(0 0 4px rgba(0,230,118,.4))}}',
+    '@media (prefers-reduced-motion:reduce){.smith-slot img{animation:none!important}.smith-slot.pulse img{opacity:.2}.smith-slot.dormant img{opacity:.06}}.smith-slot.still img{animation:none!important}',
+    '.smith-slot img{visibility:hidden}.smith-slot img.ok{visibility:visible}.smith-slot img{width:100%;height:100%;border-radius:50%;object-fit:contain;display:block;pointer-events:none;transition:opacity .3s ease,filter .3s ease}',
     '.wake-toggle.smith-held{position:absolute!important;left:-9999px;top:0}',
   ].join('\n');
   document.head.appendChild(st);
@@ -77,6 +87,8 @@
   }
   var labelT = null;
   function setLabel(text) {
+    var sub = document.getElementById('wake-sub');
+    if (sub && /BLOCKED|NEEDS HTTPS/.test(text)) { sub.innerHTML = text === 'MICROPHONE BLOCKED' ? 'The microphone is blocked.<br>Allow it for Agent Hub to use Smith.' : 'The microphone needs https.<br>Open the Hub through its secure address.'; sub.classList.add('on'); }
     var t = btn.querySelector('.t'); if (t.textContent === text) return; clearTimeout(labelT);
     if (reduce.matches) { t.textContent = text; return; }
     t.classList.add('sw'); labelT = setTimeout(function () { t.textContent = text; t.classList.remove('sw'); }, 180);
@@ -242,12 +254,12 @@
     return new Promise(function (resolve) {
       var mt = mime(), mr = new MediaRecorder(S.stream, mt ? { mimeType: mt } : undefined), chunks = [], spoke = false, quiet = 0, started = 0, t0 = performance.now();
       mr.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
-      mr.onstop = function () { resolve(spoke && performance.now() - started > 350 ? new Blob(chunks, { type: mr.mimeType || 'audio/webm' }) : null); };
+      mr.onstop = function () { smithHear(false); resolve(spoke && performance.now() - started > 350 ? new Blob(chunks, { type: mr.mimeType || 'audio/webm' }) : null); };
       mr.start();
       (function loop() {
         if (!S.on || run !== S.run || S.speaking || S.state === 'think') { try { mr.state !== 'inactive' && mr.stop(); } catch (e) {} spoke = false; return; }
         var r = rms(), now = performance.now();
-        if (r > 0.04) { if (!spoke) started = now; spoke = true; quiet = 0; } else if (spoke && !quiet) quiet = now;
+        if (r > 0.04) { if (!spoke) started = now; if (!spoke) smithHear(true); spoke = true; quiet = 0; } else if (spoke && !quiet) quiet = now;
         if ((spoke && quiet && now - quiet > 900) || (spoke && now - started > 12000)) { try { mr.stop(); } catch (e) {} return; }
         if (!spoke && now - t0 > 20000) { try { mr.stop(); } catch (e) {} return; }   // recycle the recorder now and then
         setTimeout(loop, 40);
@@ -297,6 +309,7 @@
     else if (ui.focus && focusBlock(ui.focus)) show = function () { return play(sayText).then(afterReply); };
     // applying or discarding the doctor's work answers inside its own block (which then offers RESTART), not in a new note that would replace it
     else if ((ui.apply || ui.discard) && S.doctor && S.doctor.isConnected) show = function () { watchDoctor(); return play(sayText).then(afterReply); };
+    else if (ui.window && ui.window.url) show = function () { try { sessionStorage.setItem('agenthub:window', JSON.stringify(ui.window)); } catch (e) {} return play(sayText).then(openHome); };   // the dashboard opens that window as a panel
     else if (r.url && TOOL.test(r.url) && !(ui.blocks && ui.blocks.length) && !ui.doctor_id && !ui.help) show = function () { try { sessionStorage.setItem('agenthub:tool', r.url); } catch (e) {} return play(sayText).then(openHome); };   // the dashboard opens on that tool
     else {
       var list = ui.blocks && ui.blocks.length ? ui.blocks.slice() : null;
@@ -319,7 +332,7 @@
         var w = wakeSplit(text), convo = Date.now() < S.convoUntil, rest = w ? w.rest : text;
         if (!w && !convo && !S.pending) return;                      // no wake word, not in a conversation: ignore, nothing leaves the PC
         if (rest.replace(/[^\w]/g, '').length < 2 && !w) return;
-        pulse();
+        pulse(); if (w) smithHeard();
         if (w && rest.replace(/[^\w]/g, '').length < 2) {            // just the name: answer and wait for the request
           say('Yes?', 'smith'); return play('Yes?').then(function () { S.convoUntil = Date.now() + CONVO_MS; setState('convo'); });
         }
@@ -353,38 +366,59 @@
   (function buildSlot() {
     var slot = document.createElement('button'); slot.type = 'button'; slot.id = 'smith-slot'; slot.className = 'smith-slot';
     slot.setAttribute('aria-label', 'Smith: switch the wake word on or off');
-    var img = document.createElement('img'); img.alt = ''; img.draggable = false; slot.appendChild(img); SM.img = img; SM.loaded = false; SM.tried = 0;
-    img.onload = function () { SM.loaded = true; }; img.onerror = function () { SM.loaded = false; };
+    var img = document.createElement('img'); img.alt = ''; img.draggable = false; img.src = '__SMITH_PNG__'; img.classList.add('ok'); slot.appendChild(img); SM.img = img; SM.loaded = true; SM.tried = 0; SM.still = '__SMITH_STILL__';
+    
     btn.parentNode.insertBefore(slot, btn); btn.classList.add('smith-held');
-    slot.onclick = function () { if (btn.offsetParent !== null) btn.onclick(); };
-    SM.slot = slot;
+    slot.onclick = function () {
+      if (btn.offsetParent !== null) btn.onclick();                                    // the Hub is up: the wake word. Dormant: nothing, he is not the START button
+    };
+    SM.slot = slot; setTimeout(function () { fetchSmith(); syncSmith(); }, 0); document.body.appendChild(slot);      // on the body: nothing around it can move or clip it
   })();
+  // He lights up as soon as you speak (the microphone hears you), and in a burst when the wake word is recognised.
+  function smithHear(on) { if (!SM.slot || SM.hearing === on) return; SM.hearing = on; SM.slot.classList.toggle('hear', on); if (on) SM.slot.classList.remove('breathe'); }
+  function smithHeard() { if (!SM.slot) return; SM.heard = true; SM.slot.classList.remove('heard'); void SM.slot.offsetWidth; SM.slot.classList.add('heard'); clearTimeout(SM.ht); SM.ht = setTimeout(function () { SM.heard = false; SM.slot.classList.remove('heard'); }, 2500); }
   function smithUp() { return btn.offsetParent !== null; }
   // The page can be loaded while the Hub is down (from the cache): the first request for his picture then fails and used to leave a broken image for good. It is asked for only
   // while the Hub is up, and again every few seconds until it arrives.
   function fetchSmith() {
-    if (!SM.img || SM.loaded || !smithUp() || Date.now() - SM.tried < 3000) return;
-    SM.tried = Date.now(); SM.img.src = '/smith-icon.png?' + SM.tried;
+    if (!SM.img || SM.loaded || SM.loading || Date.now() - SM.tried < 3000) return;
+    SM.tried = Date.now(); SM.loading = true;
+    var p = new Image();                                                    // the animated picture is loaded on the side; the one in the page stays until it has arrived
+    p.onload = function () { SM.loaded = true; SM.loading = false; SM.img.src = p.src; };
+    p.onerror = function () { SM.loading = false; };
+    p.src = '/smith-icon.png?' + SM.tried;
   }
+  // The first time the Hub is up on this page, Smith comes forward over the middle of the screen, flickers a few times so you see where the button is, then settles back down.
+  function introSmith() { SM.introduced = true; }
   function syncSmith() {
     fetchSmith();
-    var talking = S.state === 'convo' || S.state === 'think' || S.state === 'speak', icon = smithUp() && (S.state === 'off' || talking);
-    if (SM.slot) { SM.slot.classList.toggle('gone', !icon); SM.slot.title = S.on ? 'Click to switch the wake word off' : 'Click to switch the wake word on'; SM.iconOn = icon; }
+    if (smithUp()) introSmith();
+    var talking = S.state === 'convo' || S.state === 'think' || S.state === 'speak', up = smithUp();
+    if (SM.slot) {
+      SM.slot.classList.toggle('waiting', up && S.on && !talking); SM.slot.classList.toggle('talking', up && talking);
+      var thinking = S.state === 'think' || S.state === 'speak';
+      SM.slot.classList.toggle('pulse', up && !S.on && !talking);                        // wake word off: he is nearly invisible and pulses very low
+      SM.slot.classList.toggle('dormant', !up);                                          // the Hub is asleep: almost gone, and not a button
+      SM.slot.classList.toggle('breathe', S.on && !talking && !SM.hearing && !SM.heard);  // on, waiting for his name: he breathes
+      SM.slot.classList.toggle('lit', thinking || (S.state === 'convo' && false));          // answering: lines lit
+      SM.slot.title = !up ? '' : S.on ? 'Click to switch the wake word off' : 'Click to switch the wake word on'; SM.iconOn = true;
+    }
   }
   // ENTER: the move to the dashboard is the heaviest thing this page does, and on software graphics anything else running costs frames. So at the click the page goes quiet:
   // the microphone, its analysers and the recorder are let go, the polling stops, the ring stops breathing and his picture is hidden. The wake word stays switched on in storage,
   // so it is not forgotten; only the landing page work ends.
   function quietForEnter() {
+    if (enterBtn.getAttribute('data-s') !== 'enter') return;                       // the same button is START while the Hub is asleep: starting must not put anything away
     S.run++; S.pending = null; clearInterval(S.doctorTimer);
     release();
     var ring = document.getElementById('wake-ring'); if (ring) { ring.style.animation = 'none'; ring.style.transition = 'none'; ring.style.opacity = '0'; }
-    if (SM.slot) SM.slot.style.display = 'none';
+    if (SM.slot) { SM.slot.classList.add('still'); if (SM.img && SM.still) { SM.live = SM.img.src; SM.img.src = SM.still; } }                                  // he stays on the page; only his animation stops while the page changes
   }
   enterBtn.addEventListener('click', quietForEnter, true);
   // Back from the dashboard (the page restored from the cache, or the landing page shown again): everything quietForEnter put away comes back, and the wake word is off, as on a fresh page.
   function unquiet() {
     var ring = document.getElementById('wake-ring'); if (ring) { ring.style.animation = ''; ring.style.transition = ''; ring.style.opacity = ''; }
-    if (SM.slot) SM.slot.style.display = '';
+    if (SM.slot) { SM.slot.style.display = ''; SM.slot.classList.remove('still'); if (SM.img && SM.live) SM.img.src = SM.live; }
     S.on = false; S.run++; S.pending = null; try { watchDoctor(); } catch (e) {}
     setState('off'); syncSmith();
   }

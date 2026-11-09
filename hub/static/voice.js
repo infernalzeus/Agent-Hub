@@ -8,6 +8,17 @@
               audio: null, actx: null, stop: null, carry: null, turn: 0, capture: 0, listen: 0, busy: false,
               requests: new Set(), loop: null, compact: location.pathname === '/missions', expanded: false, context: null };
   const BUF = new Uint8Array(1024);
+  // Whisper hears "Smith" as other names ("Kenya" was seen); the list is the net, the rule below catches the rest: within two letters of "smith".
+  const NAMES = ['smith', 'smyth', 'smythe', 'smit', 'smid', 'smif', 'smiff', 'schmidt', 'smeeth', 'smeth', 'kenya', 'kenia', 'semis', 'mith', 'smitt', 'sneth', 'zmith'], CONVO_MS = 20000;
+  S.convoUntil = 0;
+  function lev(a, b) { const m = a.length, n = b.length, d = []; for (let i = 0; i <= m; i++) d[i] = [i]; for (let j = 1; j <= n; j++) d[0][j] = j;
+    for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); return d[m][n]; }
+  function wakeSplit(text) {
+    const m = /^\W*(?:(?:hey|hi|okay|ok|yo)\W+)?([A-Za-z]{2,10})\b[\s,.!?:-]*/.exec(text); if (!m) return null;
+    const w = m[1].toLowerCase();
+    if (NAMES.indexOf(w) >= 0 || (w.length >= 4 && lev(w, 'smith') <= 1) || (w.length >= 5 && lev(w, 'smith') <= 2 && w.charAt(0) === 's')) return { rest: text.slice(m[0].length).trim() };
+    return null;
+  }
   try { S.voice = localStorage.getItem('hubVoiceName'); S.mute = localStorage.getItem('hubVoiceMute') === '1'; } catch (e) {}
 
   // A deadline covers the response body as well as connection setup. Cancelling a turn ignores late replies.
@@ -49,10 +60,12 @@
   function orb(state) { const c = document.querySelector('#voice canvas'); if (c && c._orb) c._orb.set(state); }
   function setState(orbState, text) {
     orb(orbState); $('v-state').textContent = text;
+    talkBtns().forEach((b) => { b.classList.toggle('speaking', /Speaking|Thinking|Recognising|Doing|Working/.test(text)); });
     const st = $('v-stop'); if (st) st.hidden = !(S.busy || S.speaking || /Thinking|Recognising|Doing|Speaking|Working/.test(text));
   }
   const talkBtns = () => document.querySelectorAll('[data-talk]');
   function paintOn() { talkBtns().forEach((b) => b.classList.toggle('on', S.on)); $('v-mic').textContent = S.on ? 'STOP LISTENING' : 'START LISTENING'; $('v-mic').classList.toggle('stop', S.on); $('v-mic').classList.toggle('go', !S.on); }
+  function hubSmithHeard() { talkBtns().forEach((b) => { b.classList.remove('heard'); void b.offsetWidth; b.classList.add('heard'); setTimeout(() => b.classList.remove('heard'), 2500); }); }
   function showBtns(confirm) { $('v-yes').hidden = !confirm; $('v-no').hidden = !confirm; }
   // everything said or noticed goes to the one LOG at the bottom of the dashboard (kept per tab in sessionStorage, so the landing page and every page share it)
   function hubLog(kind, text, err) {
@@ -78,6 +91,7 @@
   function log(role, text, tag) {
     const d = document.createElement('div'); d.className = 'v-msg ' + role; d.append(document.createTextNode(text)); if (tag) { const b = document.createElement('span'); b.className = 'v-tag'; b.textContent = tag; d.appendChild(b); } $('v-log').appendChild(d); $('v-log').scrollTop = $('v-log').scrollHeight;
     hubLog('chat', (role === 'you' ? 'You: ' : 'Smith: ') + text);
+    if (role === 'hub') bubble(text, Math.min(16000, 4500 + text.length * 60));
     if (role === 'you' || role === 'hub') { S.history.push({ role: role === 'you' ? 'user' : 'assistant', text }); if (S.history.length > 20) S.history.shift(); }
     layout();
   }
@@ -115,7 +129,7 @@
       deadline = setTimeout(() => { if (!done && S.stop) S.stop(); }, 60000);
       const parts = (window.HubVoiceGate && HubVoiceGate.sentences(text)) || [String(text)];
       if (!parts.length) { fin(); return; }
-      const get = (t) => { const r = request('/api/voice/speak', { text: t, voice: S.voice || undefined }, 'speech', 20000); r.catch(() => {}); return r; };
+      const get = (t) => { const r = request('/api/voice/speak', { text: t, voice: S.voice || undefined }, 'speech', 30000); r.catch(() => {}); return r; };
       const got = parts.map((t, i) => (i < 3 ? get(t) : null));
       // one piece of audio, to its end (or to a stop)
       async function piece(ab) {
@@ -146,7 +160,7 @@
           await piece(ab);
         }
         fin();
-      } catch (e) { if (!done) { hint('The hub voice service did not answer, so this is the browser voice. Updating edge-tts on the hub PC usually fixes it.'); await speakBrowser(parts.slice(at).join(' ')); fin(); } }
+      } catch (e) { if (!done) { hint('Smith\'s voice (edge-tts) did not answer' + (e && e.message ? ': ' + String(e.message).slice(0, 90) : '') + '. This is the browser voice for now.'); await speakBrowser(parts.slice(at).join(' ')); fin(); } }
     });
   }
 
@@ -300,6 +314,11 @@
       if (!S.on || listen !== S.listen || capture !== S.capture) continue;
       if (Date.now() - (S.lastSpokenEnd || 0) < 4000) text = dropEcho(text, S.lastSaid);
       if (text.replace(/[^\w]/g, '').length < 2) continue;
+      // Listening all the time, answering only to his name: no name and no conversation going on, and it is not an answer to a question he asked, means it was not for him.
+      const w = wakeSplit(text), inTalk = Date.now() < S.convoUntil;
+      if (!w && !inTalk && !S.pending) continue;
+      if (w) { text = w.rest; hubSmithHeard(); if (text.replace(/[^\w]/g, '').length < 2) { log('you', 'Smith'); S.convoUntil = Date.now() + CONVO_MS; speak('Yes?'); continue; } }
+      S.convoUntil = Date.now() + CONVO_MS;
       hint(''); handle(text);                                  // not awaited: the next thing you say is heard while this one is still being worked on
     }
     // startLoop owns cleanup, so a quick stop/start cannot leave two recorders running.
@@ -316,7 +335,7 @@
     cancelTurn(); const turn = S.turn; S.busy = true;
     try { await answer(text, turn); }
     catch (e) { if (turn === S.turn) { log('hub', e.name === 'AbortError' ? 'That took too long. Please try again.' : 'I could not complete that request. Please try again.'); hint(String(e.message || e).slice(0, 140)); } }
-    finally { if (turn === S.turn) { S.busy = false; S.acting = false; if (S.pending) setState('breathing', 'Waiting for confirmation'); else ready(); const q = S.queued; if (q && !S.pending) { S.queued = null; setTimeout(() => handle(q), 0); } } }
+    finally { if (turn === S.turn) { S.convoUntil = Date.now() + CONVO_MS; S.busy = false; S.acting = false; if (S.pending) setState('breathing', 'Waiting for confirmation'); else ready(); const q = S.queued; if (q && !S.pending) { S.queued = null; setTimeout(() => handle(q), 0); } } }
   }
   async function answer(text, turn) {
     log('you', text);

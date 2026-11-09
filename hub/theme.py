@@ -118,6 +118,20 @@ def css(colors: "dict | None" = None) -> str:
   --green:{a};--cyan:{c['blue']};--orange:{c['amber']};--grey:{c['grey']};
 }}
 html{{background:linear-gradient(150deg,{c['bg']} 0%,{c['bg_mid']} 45%,{c['bg_far']} 100%) fixed}}
+""" + GLASS
+
+
+# The dashboard's glass look for every panel of every page that links /theme.css (Missions, Agency, Graph, Chats, Support, the yard, Settings, Automations), which is what the Auto-LLM block
+# shows: a translucent card with a soft glowing edge and a little blur behind it. !important because each page styles its own cards and has to give way to one look.
+GLASS = """
+.card,.box,.panel,.ag-entry,.rc,.sess,.band,.mcard,.mission,.pane{background:linear-gradient(140deg,rgba(65,235,255,.10),rgba(8,12,40,.80) 55%,rgba(0,230,118,.06))!important;
+  border:1px solid rgba(0,230,118,.28)!important;border-radius:12px!important;box-shadow:0 0 0 1px rgba(0,230,118,.10),0 0 10px 1px rgba(0,230,118,.16),inset 0 0 8px 1px rgba(0,230,118,.10)!important;
+  -webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
+.card:hover,.box:hover,.panel:hover,.ag-entry:hover{border-color:rgba(0,230,118,.55)!important;box-shadow:0 0 0 1px rgba(0,230,118,.2),0 0 14px 2px rgba(0,230,118,.24),inset 0 0 10px 1px rgba(0,230,118,.14)!important}
+.card.sel{border-color:var(--accent)!important;box-shadow:0 0 0 1px rgba(0,230,118,.35),0 0 14px 2px rgba(0,230,118,.3),inset 0 0 10px 1px rgba(0,230,118,.16)!important}
+select,button,input[type=text],textarea{background:rgba(6,10,36,.7);border:1px solid rgba(0,230,118,.32);border-radius:8px}
+button:hover{border-color:var(--accent);box-shadow:0 0 8px rgba(0,230,118,.3)}
+@media(pointer:coarse){.card,.box,.panel,.ag-entry,.rc,.sess,.band,.mcard,.mission,.pane{-webkit-backdrop-filter:none;backdrop-filter:none}}
 """
 
 

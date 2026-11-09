@@ -576,3 +576,12 @@ html.hub-legend-on .hands-log .hl-legend{display:block!important;opacity:1!impor
 /* R button: exactly the PC-control dot (4 px, top right, grey off, green on). On only while shadow mode is on; off by default. */
 .hb .hb-bar .hb-learning:after{content:'';position:absolute;right:4px;top:4px;width:4px;height:4px;border-radius:50%;background:#5f6b79;box-shadow:none}
 .hb .hb-bar .hb-learning.lit:after{background:#00e676;box-shadow:0 0 4px #00e67666}
+
+/* An opened window (Auto-LLM: Missions, Agency, Graph, Chats; Support; a panel of a window) is glass: translucent, blurred, with the board showing through; its page is transparent inside it. */
+.hb .hk.exp{background:linear-gradient(140deg,rgba(65,235,255,.10),rgba(8,12,40,.55) 55%,rgba(0,230,118,.07))!important;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.hb .hk.exp>.hk-b,.hb .hk.exp .hk-i{background:transparent!important}
+.hb.hb-3d .hk.exp,.hb.hb-3d.hb-slab .hk.exp{-webkit-backdrop-filter:none;backdrop-filter:none;background:linear-gradient(140deg,rgba(65,235,255,.10),rgba(8,12,40,.78) 55%,rgba(0,230,118,.06))!important}
+
+/* An iPhone's notch / Dynamic Island: the glass header and the bar of buttons start below it, not under it (the board's own header is fixed at 8px). */
+html.hub-board-on body>header{top:max(8px,env(safe-area-inset-top))!important}
+@media(min-width:1101px){.hb .hb-bar{top:max(8px,env(safe-area-inset-top))}}   /* narrower screens place the bar under the header, which already sits below the notch (--hb-top) */

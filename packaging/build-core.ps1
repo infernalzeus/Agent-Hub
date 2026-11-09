@@ -105,11 +105,20 @@ try {
         if ($r.StatusCode -eq 200) { $answered = $true; break }
       } catch { }
     }
+    # the learning layer needs numpy inside the frozen app: ask it, the way the yard page does
+    $yardMissing = $false
+    if ($answered) {
+      try {
+        $y = Invoke-RestMethod -Uri "http://127.0.0.1:$smokePort/api/yard/status" -TimeoutSec 15
+        if ($y.PSObject.Properties.Name -contains 'ready' -and -not $y.ready) { $yardMissing = $true }
+      } catch { }
+    }
   } finally {
     if (-not $frozen.HasExited) { Stop-Process -Id $frozen.Id -Force }
     Remove-Item Env:HUB_PORT -ErrorAction SilentlyContinue
   }
   if (-not $answered) { throw 'The frozen app did not start and answer on its page. No installer will be produced.' }
+  if ($yardMissing) { throw 'The frozen app has no numpy, so the learning layer cannot run in it. No installer will be produced.' }
   Write-Host 'Frozen app started and answered.'
 } finally {
   $env:AGENTHUB_STATE_DIR = $previousState

@@ -64,7 +64,7 @@ button.big{background:var(--accent);color:#04120a;padding:8px 16px;font-size:11p
 .inside{border:1px solid var(--border);border-radius:8px;padding:8px;margin:6px 0;background:rgba(0,0,0,.2)}.irow{font-size:11.5px;margin:2px 0}.irow b{color:var(--accent);font-weight:600}
 .chain{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:6px}.chain .arrow{color:var(--mute)}.chain .lay{border:1px solid var(--accent);border-radius:7px;padding:3px 8px;text-align:center;min-width:70px}.chain .ls{font:700 14px Orbitron,system-ui,sans-serif;color:var(--accent)}.chain .ln{font-size:10px;color:var(--mute)}
 pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;white-space:pre-wrap}
-</style></head><body><main>
+</style><link rel="stylesheet" href="/theme.css"></head><body><main>
 <div class="band"><div class="row" id="topbar" style="margin:0"><span class="chip part">EXPERIMENTAL</span><button id="top-shadow" type="button" aria-pressed="false"></button><span class="mute" id="top-note"></span></div></div>
 <div class="tabs" role="tablist"><button type="button" data-tab="yard" class="on">YARD</button><button type="button" data-tab="teach">TEACH</button><button type="button" data-tab="routines">ROUTINES</button><button type="button" data-tab="scores">SCORES</button></div>
 

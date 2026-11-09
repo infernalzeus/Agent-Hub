@@ -1,2 +1,8 @@
 # Only what starts the Agent Hub host. Build tools install separately.
 aiohttp>=3.9,<4
+# the learning layer (hub/yard) runs inside the Hub itself, so numpy ships inside the frozen app (about 30 MB); it is imported only when that layer is used
+numpy>=1.26,<3
+# Smith's voice (Microsoft neural voices through edge-tts) runs inside the Hub, so it ships inside the frozen app too; it is small and pure Python
+edge-tts>=7.2,<8
+# window panels: sharp, quick JPEG pictures of a window (without it they are plain BMP, much larger and softer)
+pillow>=10

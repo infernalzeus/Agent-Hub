@@ -37,7 +37,7 @@ function agOpenEditor(key){
  if(String(key).startsWith('helper:')||!window.editAgent)return;
  const box=document.getElementById('edit-'+key);if(!box)return;
  if(box.style.display!=='block')window.editAgent(key);
- if(box.querySelector('.ag-sliders'))return;
+ return;        // the controls are on the card now (agControls); the editor keeps the persona text
  // Sliders with a live value beside each, and every change saved at once with a visible SAVED / ERROR mark (no second SAVE press, nothing to double-click).
  const $e=id=>document.getElementById(id),temp=$e('e-temp-'+key),topp=$e('e-topp-'+key),steps=$e('e-steps-'+key),vari=$e('e-var-'+key),model=$e('e-model-'+key),row=box.querySelector('.editrow');
  const p=(DATA.personas||[]).find(x=>x.name===key),eff=k=>{const o=(p&&p.settings&&p.settings[k])||{};return o.value;};
@@ -57,25 +57,112 @@ function agOpenEditor(key){
      DATA=await jget('/api/agents');agPaintModels();status.className='ag-saved ok';status.textContent='SAVED';}catch(e){status.className='ag-saved bad';status.textContent='NOT SAVED: '+e.message;}},350);};
  model.onchange=save;vari.onchange=save;
 }
+// The team: the four core agents first (the ones that form the agentic team), then the operatives the orchestrator calls on, grouped by the work they do, then the other helpers of the Hub.
+// Every agent that has a model of its own carries its controls on the card itself: temperature and output size at once, every other setting one press away. Nothing is removed from the card.
+const AG_CORE=['orchestrator','neo','smith','doctor'],AG_CORE_NAMES={orchestrator:'orchestrator',neo:'neo',smith:'agent-smith',doctor:'doctor'};
 function agPaintList(){
  if(!DATA||!AG_CARD)return;
  const q=AG_QUERY.trim().toLowerCase(),persons=DATA.personas||[],has=p=>!q||[p.name,p.description,p.frontmatter?.about].join(' ').toLowerCase().includes(q),used=new Set();
+ const hasH=h=>!q||[h.name,h.does].join(' ').toLowerCase().includes(q);
  let html=`<div class="ag-overview"><button type="button" class="btn ${AG_OVERVIEW?'on':''}" data-fam="map" aria-expanded="${AG_OVERVIEW}">HOW THEY WORK TOGETHER</button><div id="agency-overview" ${AG_OVERVIEW?'':'hidden'}>${AG_OVERVIEW?agOverview():''}</div></div>`;
- const section=(name,items,render)=>items.length?`<section class="ag-group"><h2>${esc(name)} <span>${items.length}</span></h2>${items.map(render).join('')}</section>`:'';
- if(AG_SCOPE!=='helpers'&&!AG_WORK){const primary=persons.filter(p=>(p.mode==='primary'||p.name==='orchestrator')&&!p.utility&&p.name!=='neo').filter(has);primary.forEach(p=>used.add(p.name));html+=section('Orchestration',primary,agCompact);}
- if(AG_SCOPE!=='missions'&&!AG_WORK){
-  const helpers=HELPERS.filter(h=>!persons.some(p=>p.name===h.id)&&(!q||[h.name,h.does].join(' ').toLowerCase().includes(q)));
-  const hp=persons.filter(p=>p.name==='neo'||p.utility).filter(has);hp.forEach(p=>used.add(p.name));
-  html+=section('Hub helpers',helpers,agHelper)+section('Agent design',hp,agCompact);
+ const section=(name,note,items,render)=>items.length?`<section class="ag-group"><h2>${esc(name)} <span>${items.length}</span></h2>${note?`<p class="ag-note">${esc(note)}</p>`:''}<div class="ag-grid">${items.map(render).join('')}</div></section>`:'';
+ if(!AG_WORK){
+  // 1. the core team, in the order they work: the orchestrator splits the ask, Neo designs agents, Smith is the voice, the Doctor fixes the Hub
+  const core=[];
+  for(const key of AG_CORE){
+   const p=persons.find(x=>x.name===(AG_CORE_NAMES[key]||key)||x.name===key),h=HELPERS.find(x=>x.id===key||x.icon===key);
+   if(p){used.add(p.name);if(AG_SCOPE!=='helpers'&&has(p))core.push({kind:'persona',p});}
+   else if(h&&AG_SCOPE!=='missions'&&hasH(h))core.push({kind:'helper',h});
+  }
+  html+=section('Core team','The four agents that form the agentic team. Everything below is an operative they call on.',core,x=>x.kind==='persona'?agCompact(x.p):agHelper(x.h));
  }
  if(AG_SCOPE!=='helpers'){
-  for(const [key,f] of Object.entries(PROFILES)){if(AG_WORK&&AG_WORK!==key)continue;const items=persons.filter(p=>!used.has(p.name)&&(f.roster||[]).includes(p.name)).filter(has);items.forEach(p=>used.add(p.name));html+=section(f.label||key,items,agCompact);}
-  if(!AG_WORK){const other=persons.filter(p=>!used.has(p.name)&&!p.utility&&p.name!=='neo').filter(has);html+=section('Hub orchestration and other agents',other,agCompact);}
+  // 2. operatives, grouped by the work they do
+  for(const [key,f] of Object.entries(PROFILES)){if(AG_WORK&&AG_WORK!==key)continue;const items=persons.filter(p=>!used.has(p.name)&&(f.roster||[]).includes(p.name)&&!p.utility).filter(has);items.forEach(p=>used.add(p.name));html+=section('Operatives: '+(f.label||key),'',items,agCompact);}
+  if(!AG_WORK){const other=persons.filter(p=>!used.has(p.name)&&!p.utility).filter(has);other.forEach(p=>used.add(p.name));html+=section('Operatives: other','',other,agCompact);}
+ }
+ if(AG_SCOPE!=='missions'&&!AG_WORK){
+  // 3. the Hub's own helpers that are not part of the core team
+  const helpers=HELPERS.filter(h=>!AG_CORE.includes(h.id)&&!persons.some(p=>p.name===h.id)&&hasH(h)),util=persons.filter(p=>!used.has(p.name)&&p.utility).filter(has);
+  html+=section('Hub helpers','Parts of the Hub that act for you. They are not called by the orchestrator.',helpers,agHelper)+section('Agent design','',util,agCompact);
  }
  $('list').innerHTML=html;
+ agDecorate();
  AG_OPEN.forEach(agOpenEditor);
  if(!document.querySelector('.ag-entry'))$('list').insertAdjacentHTML('beforeend','<p class="ag-empty">No agents match these filters.</p>');
 }
+// ---- the controls on each card
+const AG_VARIANTS=['','minimal','low','medium','high','max'];
+function agCtlFields(){return [
+ ['temperature','TEMPERATURE','range',0,2,.05,'low = repeatable, high = varied'],
+ ['num_predict','MAX OUTPUT TOKENS','number',16,32768,64,'the longest answer it may write (blank: the model\'s own limit)',true],
+ ['steps','MAX STEPS','number',1,200,1,'tool calls in one run (blank: unbounded)'],
+ ['top_p','TOP P','range',0,1,.05,'how much of the likely words it may pick from'],
+ ['top_k','TOP K','number',1,200,1,'only the K likeliest words (blank: model default)',true],
+ ['min_p','MIN P','range',0,1,.01,'drop words less likely than this share of the best one',true],
+ ['num_ctx','CONTEXT WINDOW','number',1024,262144,1024,'how much text it can hold in mind at once',true],
+ ['presence_penalty','PRESENCE PENALTY','range',-2,2,.1,'push it towards new topics',true],
+ ['frequency_penalty','FREQUENCY PENALTY','range',-2,2,.1,'push it away from repeating itself',true],
+];}
+function agCtlValue(p,f){const s=p.settings||{};if(f[7])return (s.options?.value||{})[f[0]];return s[f[0]]?.value;}
+function agCtlSource(p,f){const s=p.settings||{};if(f[7])return (s.options?.value||{})[f[0]]!=null?'override':'default';return s[f[0]]?.source||'default';}
+function agCtlInput(p,f){
+ const [key,label,kind,min,max,step,hint]=f,v=agCtlValue(p,f),src=agCtlSource(p,f),has=v!==undefined&&v!==null&&v!=='';
+ if(kind==='range')return `<div class="ag-c"><label>${label} <output data-out="${key}">${has?esc(v):'default'}</output><span class="ag-src ${src}">${esc(src)}</span></label><input type="range" data-k="${key}" ${f[7]?'data-opt="1"':''} min="${min}" max="${max}" step="${step}" value="${has?esc(v):min}" data-set="${has?1:0}"><small>${esc(hint)}</small></div>`;
+ return `<div class="ag-c"><label>${label}<span class="ag-src ${src}">${esc(src)}</span></label><input type="number" data-k="${key}" ${f[7]?'data-opt="1"':''} min="${min}" max="${max}" step="${step}" value="${has?esc(v):''}" placeholder="default"><small>${esc(hint)}</small></div>`;
+}
+function agControls(p){
+ const f=agCtlFields(),quick=f.slice(0,3),more=f.slice(3),s=p.settings||{},stop=((s.options?.value||{}).stop||[]).join(', '),variant=s.variant?.value||'';
+ return `<div class="ag-controls" data-ctl="${esc(p.name)}"><div class="ag-ctl-row">${quick.map(x=>agCtlInput(p,x)).join('')}<div class="ag-btns"><button type="button" class="btn" data-ctl-more aria-expanded="false">ALL SETTINGS</button><button type="button" class="btn" data-ctl-reset title="Back to the persona's own settings">RESET</button></div></div>
+  <div class="ag-more" hidden><div class="ag-ctl-row">${more.map(x=>agCtlInput(p,x)).join('')}
+   <div class="ag-c"><label>REASONING<span class="ag-src ${s.variant?.source||'default'}">${esc(s.variant?.source||'default')}</span></label><select data-k="variant">${AG_VARIANTS.map(v=>`<option value="${v}" ${v===variant?'selected':''}>${v||'model default'}</option>`).join('')}</select><small>how hard it thinks before answering</small></div>
+   <div class="ag-c"><label>STOP SEQUENCES</label><input type="text" data-k="stop" data-opt="1" value="${esc(stop)}" placeholder="comma separated"><small>text that ends its answer</small></div></div>
+   <p class="ag-fine">Settings are saved as you change them and used the next time this agent starts. Options the chosen model does not know are ignored by it.</p></div><span class="ag-saved" data-ctl-status></span></div>`;
+}
+function agDecorate(){
+ document.querySelectorAll('.ag-entry[data-agent]').forEach(card=>{
+  const p=(DATA.personas||[]).find(x=>x.name===card.dataset.agent);if(!p||card.querySelector('.ag-controls'))return;
+  card.querySelector('.ag-summary').insertAdjacentHTML('afterend',agControls(p));
+ });
+}
+const agTimers={};
+function agCollect(box){
+ const out={temperature:null,steps:null,top_p:null,variant:null,options:{}};
+ box.querySelectorAll('[data-k]').forEach(el=>{
+  const k=el.dataset.k;let v=el.value;
+  if(el.type==='range'&&el.dataset.set!=='1')v='';
+  if(k==='stop'){const l=v.split(',').map(x=>x.trim()).filter(Boolean);if(l.length)out.options.stop=l;return;}
+  if(v===''||v==null)return;
+  const val=(el.type==='range'||el.type==='number')?Number(v):v;
+  if(el.dataset.opt)out.options[k]=val;else out[k]=(k==='variant')?val:val;
+ });
+ return out;
+}
+async function agSaveControls(box,reset){
+ const name=box.dataset.ctl,status=box.querySelector('[data-ctl-status]');
+ status.className='ag-saved';status.textContent='SAVING...';
+ try{
+  const body=reset?{temperature:null,steps:null,top_p:null,variant:null,options:{}}:agCollect(box);
+  await jpost('/api/opencode/agents/'+encodeURIComponent(name)+'/settings',body);
+  DATA=await jget('/api/agents');
+  if(reset){const card=box.closest('.ag-entry'),open=!box.querySelector('.ag-more').hidden;box.remove();agDecorate();if(open){const nb=card.querySelector('.ag-controls');nb.querySelector('.ag-more').hidden=false;}}
+  const st=(reset?document.querySelector(`.ag-controls[data-ctl="${CSS.escape(name)}"] [data-ctl-status]`):status);
+  if(st){st.className='ag-saved ok';st.textContent=reset?'BACK TO DEFAULTS':'SAVED';}
+ }catch(e){status.className='ag-saved bad';status.textContent='NOT SAVED: '+e.message;}
+}
+document.addEventListener('input',e=>{
+ const el=e.target.closest&&e.target.closest('.ag-controls [data-k]');if(!el)return;const box=el.closest('.ag-controls');
+ if(el.type==='range'){el.dataset.set='1';const o=box.querySelector(`[data-out="${el.dataset.k}"]`);if(o)o.textContent=el.value;}
+ clearTimeout(agTimers[box.dataset.ctl]);agTimers[box.dataset.ctl]=setTimeout(()=>agSaveControls(box,false),450);
+});
+document.addEventListener('change',e=>{const el=e.target.closest&&e.target.closest('.ag-controls select[data-k]');if(el){const box=el.closest('.ag-controls');clearTimeout(agTimers[box.dataset.ctl]);agSaveControls(box,false);}});
+document.addEventListener('click',e=>{
+ const more=e.target.closest&&e.target.closest('[data-ctl-more]');
+ if(more){const box=more.closest('.ag-controls'),m=box.querySelector('.ag-more');m.hidden=!m.hidden;more.setAttribute('aria-expanded',String(!m.hidden));more.textContent=m.hidden?'ALL SETTINGS':'FEWER SETTINGS';return;}
+ const reset=e.target.closest&&e.target.closest('[data-ctl-reset]');
+ if(reset){const box=reset.closest('.ag-controls');if(confirm('Put every setting of '+box.dataset.ctl+' back to what its persona says?'))agSaveControls(box,true);}
+});
+
 function agPaintModels(){
  const all=$('agency-all-model');if(all){all.innerHTML=agModelChoices().map(m=>`<option value="${esc(m.id)}" ${m.id===AG_POLICY.policy?'selected':''}>${esc(m.name||m.id)}</option>`).join('');all.value=AG_POLICY.policy||'auto';}
  const resolved=$('agency-resolved');if(resolved)resolved.textContent='Currently: '+(AG_POLICY.resolved||DATA.workspace_model||'default');
@@ -111,3 +198,5 @@ function agSkillUsers(s){
 function agSkillMatches(s,q){return [s.name,s.description,s.topic,agSkillUsers(s).replace(/<[^>]*>/g,' ')].join(' ').toLowerCase().includes(q.toLowerCase());}
 function agFilterSkills(){const q=AG_SKILL_QUERY.toLowerCase();document.querySelectorAll('#skills .skl').forEach(e=>{e.hidden=!e.querySelector('#sk-desc')&&!!q&&!e.textContent.toLowerCase().includes(q);});}
 $('skill-search').oninput=e=>{AG_SKILL_QUERY=e.target.value;loadSkills();};
+
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-skl-all]');if(!b)return;const open=b.dataset.sklAll==='open';document.querySelectorAll('#skills details.skl:not(.add)').forEach(d=>{d.open=open;});});

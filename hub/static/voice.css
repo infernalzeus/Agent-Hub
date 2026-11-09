@@ -70,3 +70,10 @@ html.hub-board-on #voice{left:50%!important;top:50%!important;right:auto!importa
  #voice input,#voice select,#voice textarea{font-size:16px!important}
  html.hub-board-on #voice{top:calc(var(--hub-visible-top,0px) + var(--hub-visible-height,100dvh) * .5)!important;max-height:calc(var(--hub-visible-height,100dvh) - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom))!important;scroll-padding-block:24px}
 }
+
+/* Smith on the Talk button: breathing while he listens for his name, green pulses while he thinks or speaks, a burst when his name is heard */
+.talk-btn.on img{animation:smBreathe 4.2s ease-in-out infinite}.talk-btn.speaking img{animation:smLit .9s ease-in-out infinite}.talk-btn.heard img{animation:smHeard 2.4s ease-out 1}
+@keyframes smBreathe{0%,100%{transform:scale(1);filter:drop-shadow(0 0 3px rgba(0,230,118,.35))}50%{transform:scale(1.07);filter:drop-shadow(0 0 9px rgba(0,230,118,.65))}}
+@keyframes smLit{0%,100%{filter:brightness(1) hue-rotate(0deg) drop-shadow(0 0 4px rgba(0,230,118,.7))}50%{filter:brightness(1.5) hue-rotate(-35deg) drop-shadow(0 0 14px rgba(0,230,118,1))}}
+@keyframes smHeard{0%{filter:brightness(2.3) hue-rotate(-40deg) drop-shadow(0 0 20px #00e676)}100%{filter:brightness(1) hue-rotate(0deg) drop-shadow(0 0 3px rgba(0,230,118,.4))}}
+@media (prefers-reduced-motion:reduce){.talk-btn img{animation:none!important}}

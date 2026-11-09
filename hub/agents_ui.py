@@ -837,7 +837,11 @@ function skillsByTopic(list){
   const tabs = `<div class="pick skl-pick">` + names.map(n =>
     `<button data-skt="${esc(n)}" class="${n===SKTOPIC?'on':''}">${esc(n)}<span class="n">${by[n].length}</span></button>`
   ).join('') + `</div>`;
-  return tabs + (AG_SKILL_QUERY ? (list||[]).filter(s=>agSkillMatches(s,AG_SKILL_QUERY)) : (by[SKTOPIC]||[])).map(skillCard).join('');
+  const shown = (AG_SKILL_QUERY ? (list||[]).filter(s=>agSkillMatches(s,AG_SKILL_QUERY)) : (by[SKTOPIC]||[]));
+  const rank = {yours:0, added:1, 'wiki-concept':2, vendored:3};
+  shown.sort((a,b) => (rank[a.origin] ?? 4) - (rank[b.origin] ?? 4) || String(a.name).localeCompare(String(b.name)));
+  return tabs + `<div class="skl-tools"><button class="btn" data-skl-all="open">OPEN ALL</button><button class="btn" data-skl-all="close">CLOSE ALL</button><span class="lp">${shown.length} skill${shown.length===1?'':'s'} shown</span></div>`
+    + `<div class="skl-grid">` + shown.map(skillCard).join('') + `</div>`;
 }
 
 function skillCard(s){
@@ -849,7 +853,7 @@ function skillCard(s){
   const removable = s.origin === 'yours' || s.origin === 'added';
   return `<details class="skl"><summary><span class="nm">${esc(s.name)}</span>`
     + `<span class="tag">${esc(origin)}</span>`
-    + `<span class="sm">${esc((s.description||'').split('. ')[0]).slice(0,110)}</span></summary>`
+    + `<span class="sm">${esc((s.description||'').split('. ')[0]).slice(0,220)}</span></summary>`
     + agSkillUsers(s) + `<div class="body">${esc(s.description||'')}</div>`
     + (kw ? `<div class="meta">${esc(kw)}</div>` : '')
     + (removable ? `<div class="row"><button class="btn" onclick="removeSkill('${esc(s.name)}')">REMOVE</button></div>` : '')

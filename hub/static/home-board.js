@@ -77,7 +77,7 @@
       '.hk.exp{border-color:var(--accent,#00e676);box-shadow:0 0 0 1px var(--accent,#00e676),0 24px 60px rgba(0,0,0,.6)}.hk.exp .hk-i{display:flex;flex-direction:column;height:100%}',
       '.hk.settle{transition:left .42s ' + SPRING + ',top .42s ' + SPRING + ',width .38s ' + EASE + ',height .38s ' + EASE + ',border-color .25s}',
       '.hk-tabs{display:flex;gap:6px;padding:0 8px 6px;flex:none}.hk-tabs button{font:700 9px Orbitron,monospace;letter-spacing:1.2px;color:var(--text-muted,#8fcfb2);background:none;border:1px solid var(--border-dim,rgba(0,230,118,.28));border-radius:6px;padding:6px 10px;cursor:pointer}.hk-tabs button.on{color:var(--accent,#00e676);border-color:var(--accent,#00e676);background:rgba(0,230,118,.1)}',
-      '.hk-fr{flex:1;min-height:0;width:100%;border:0;background:#080c28;border-radius:0 0 3px 3px}.hk-wait{padding:14px;color:var(--text-muted,#8fcfb2);font-size:13px}.hk-mv{flex:1;min-height:0;overflow:auto;padding:0 6px 8px}',
+      '.hk-fr{flex:1;min-height:0;width:100%;border:0;background:transparent;color-scheme:dark;border-radius:0 0 3px 3px}.hk-wait{padding:14px;color:var(--text-muted,#8fcfb2);font-size:13px}.hk-mv{flex:1;min-height:0;overflow:auto;padding:0 6px 8px}',
       '.hb-dragging iframe{pointer-events:none}.hk.pick{will-change:transform;content-visibility:visible}.hk.exp,.hk:focus-within{content-visibility:visible}.hb.panning .hb-world{will-change:transform}',
       '.hb-guides{position:absolute;inset:0;pointer-events:none;z-index:5}.hb-guides i{position:absolute;background:var(--cyan,#41ebff);opacity:.65}.hb-guides .vertical{top:0;bottom:0;width:1px}.hb-guides .horizontal{left:0;right:0;height:1px}',
       '.hk-glyph{display:none}.hb-compact .hk:not(.exp) .hk-rz,.hb-compact .hk:not(.exp) .hk-h button{display:none}.hb-compact .hk:not(.exp) .hk-b{opacity:.5;filter:blur(calc((.7 - var(--hb-scale)) * 5px));pointer-events:none}.hb-compact .hk:not(.exp) .hk-h{min-height:0;gap:6px}.hb-compact .hk:not(.exp) .hk-glyph{display:flex;flex:none}.hb-compact .hk-glyph svg{width:calc(14px / var(--hb-scale));height:calc(14px / var(--hb-scale))}.hb-compact .hk-h .t,.hb-compact .hk-h .n{font-size:calc(12px / var(--hb-scale));letter-spacing:.3px;font-weight:900;color:var(--accent,#00e676)}',
@@ -290,7 +290,7 @@
       if (d.extra) {
         var ex = d.extra, xb = el('div', 'hk-app'), xg = el('div', 'gi'); xg.dataset.applet=ex[0];if(ex[0]==='support'){xg.appendChild(doctorPicture());}else{xg.appendChild(svg(ex[3], 1.8)); xg.firstChild.style.cssText = 'width:26px;height:26px;fill:none;stroke:var(--accent,#00e676);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round';}
         var xn = el('div'); xn.appendChild(el('b', '', ex[1])); xn.appendChild(el('small', '', 'FIX THE HUB')); xb.append(xg, xn); inn.appendChild(xb);
-        e._name = ex[1]; e._spec = { tabs: [['SUPPORT', ex[2]]], w: 780, h: 640 }; e._open = function () { expand(id); };
+        e._name = ex[1]; e._spec = { tabs: [[ex[4] || 'SUPPORT', ex[2]]], w: ex[5] || 780, h: ex[6] || 640 }; e._open = function () { expand(id); };
       }
       if (d.app) { e._spec = { app: d.app.id, w: 780, h: 560 }; e._open = function () { expand(id); }; }
       if (d.act) {   // a tile backed by Hub actions (the old cards' action apps): its own dialog
@@ -367,6 +367,74 @@
           [blocks[id],blocks[id]._solid].forEach(function(e){if(e){e.style.setProperty('--hb-dz',z+'px');e.style.setProperty('--hb-dy',dy+'px');}});});
       });
     };
+    function openWindow(title, url, fromSync) {
+      if (!alive) return false;
+      var slug = String(title).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'window', id = 'extra:win-' + slug + '-' + (String(url).replace(/[^0-9a-z]+/gi, '') || 'x').slice(-14), label = String(title).toUpperCase().slice(0, 14);
+      if (!blocks[id]) {
+        addDef([id, { t: 'APP', w: 200, h: 64, extra: ['win-' + slug, String(title).slice(0, 28), url, 'M4 5h16v14H4zM4 9h16', label, 640, 480] }]);
+        var l0 = L[id], n = Object.keys(blocks).filter(function (k) { return k.indexOf('extra:win-') === 0; }).length; l0.x = 80 + n * 44; l0.y = 90 + n * 44; l0.u = 1; hid[id] = 0;
+      }
+      var b = blocks[id]; b._spec.tabs = [[label, url]]; b._winUrl = url;
+      if (!fromSync) { try { fetch('/api/windows/panels', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title, url: url }) }); } catch (e) {} }
+      touched = true; stopCam(); revealLayer(id);
+      if (hid[id]) { hid[id] = 0; applyBlock(id); resolve(id); trayDraw(); save(); }
+      if (L[id].exp) { var fr = b.querySelector('iframe'); if (fr) { fr.src = embedUrl(url); b._url = url; } } else expand(id);
+      L[id].z = ++zTop; applyBlock(id); if (stackDepth) stackDepth(); lookAt(id);
+      // The panel is sized to the window it shows (its own width : height), not to a fixed box, and nothing else on the board is left under it.
+      var wm = /[?&]id=(\d+)/.exec(String(url));
+      fetch('/api/windows', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+        var w = (j.windows || []).filter(function (x) { return wm && String(x.id) === wm[1]; })[0];
+        if (alive && blocks[id]) fitWindowPanel(id, w && w.w > 0 && w.h > 0 ? w.w / w.h : 16 / 10, w && w.w > 0 ? w.w : 700);
+      }).catch(function () { if (alive && blocks[id]) fitWindowPanel(id, 16 / 10, 700); });
+      return true;
+    }
+    // CHROME: the bar, the note line and the panel's own header above the picture, in the panel's own pixels.
+    function fitWindowPanel(id, aspect, winW) {
+      var q = L[id], b = blocks[id]; if (!q || !b || !q.exp) return;
+      var CHROME = 150, phone = host.clientWidth < 900, sr = stageRect(), hr = host.getBoundingClientRect(), k = V.k || 1, w, h;
+      if (phone) {                                                       // a phone: the width of the visible screen, as tall as the picture needs, never taller than the screen
+        w = Math.max(260, (sr.width - 12) / k); h = Math.min(Math.max(220, w / aspect + CHROME), Math.max(300, (sr.height - 12) / k));
+      } else {                                                           // a computer: a picture of about the size the window is, a little smaller for a big one
+        w = Math.max(420, Math.min(760, winW)); h = Math.min(760, Math.round(w / aspect + CHROME));
+      }
+      q.w = Math.round(w); q.h = Math.round(h); b._spec.w = q.w; b._spec.h = q.h;
+      if (phone) { q.x = (sr.left - hr.left + 6 - V.x) / k; q.y = (sr.top - hr.top + 6 - V.y) / k; }
+      applyBlock(id); resolve(id); L[id].z = ++zTop; applyBlock(id); if (stackDepth) stackDepth(); lookAt(id);
+    }
+    // The panels open on the Hub are open here too, and a panel closed anywhere is closed everywhere.
+    function syncPanels() {
+      if (!alive) return;
+      fetch('/api/windows/panels', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+        if (!j || !alive) return;
+        var want = {}; j.panels.forEach(function (p) { want[p.url] = p; });
+        Object.keys(blocks).filter(function (k) { return k.indexOf('extra:win-') === 0; }).forEach(function (k) { if (blocks[k]._winUrl && !want[blocks[k]._winUrl]) closeWindow(k); });
+        j.panels.forEach(function (p) { var have = Object.keys(blocks).some(function (k) { return blocks[k]._winUrl === p.url; }); if (!have) openWindow(p.title, p.url, true); });
+      }).catch(function () {});
+    }
+    window.addEventListener('message', function (e) { var u = e.data && e.data.hubWindowClose; if (!u) return; Object.keys(blocks).forEach(function (k) { if (blocks[k]._winUrl === u) closeWindow(k); }); });
+    // The bottom-left tray gets a WINDOWS button: the windows open on this PC, one press opens one as a panel.
+    var winBtn = null, winList = null;
+    function buildWindowsTray() {
+      if (winBtn || !tray) return;
+      var bt = el('button', 'hb-btn hb-tray-count'), list = fadePanel(el('div', 'hb-tray-list'));
+      bt.type = 'button'; bt.dataset.tray = 'windows'; bt.title = 'Windows of this PC: open one as a panel'; bt.setAttribute('aria-label', 'Windows of this PC'); bt.append(svg('M4 5h16v11H4zM9 20h6M12 16v4', 2));
+      list.hidden = true; list.setAttribute('role', 'dialog'); list.setAttribute('aria-label', 'Windows of this PC'); list.appendChild(el('div', 'hb-list-title', 'WINDOWS OF THIS PC'));
+      function fill() {
+        fetch('/api/windows', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+          Array.prototype.slice.call(list.querySelectorAll('button,p')).forEach(function (n) { n.remove(); });
+          if (!j.windows || !j.windows.length) { list.appendChild(el('p', 'hb-tray-empty', j.supported === false ? 'Windows can be shown on Windows only.' : 'No windows are open.')); return; }
+          j.windows.forEach(function (w) {
+            var row = el('button', 'hb-btn', String(w.title).slice(0, 44) + '  (' + String(w.exe).replace(/\.exe$/i, '') + ')'); row.type = 'button';
+            row.onclick = function () { list.hidden = true; bt.setAttribute('aria-expanded', 'false'); openWindow(w.title, '/mirror?id=' + w.id); }; list.appendChild(row);
+          });
+          if (!list.hidden) positionPopup(list);
+        }).catch(function () {});
+      }
+      bt.onclick = function () { list.hidden = !list.hidden; bt.setAttribute('aria-expanded', String(!list.hidden)); if (!list.hidden) { fill(); positionPopup(list); } };
+      document.addEventListener('pointerdown', function (e) { if (!list.hidden && !list.contains(e.target) && !bt.contains(e.target)) { list.hidden = true; bt.setAttribute('aria-expanded', 'false'); } }, true);
+      tray.appendChild(bt); host.appendChild(list); winBtn = bt; winList = list;
+    }
+    setTimeout(function () { buildWindowsTray(); syncPanels(); }, 1500); var panelTimer = setInterval(syncPanels, 4000);
     function duplicate(srcId) {
       var base = srcId.split('#')[0], src = blocks[srcId], bd = null;
       defs.forEach(function (d) { if (d[0] === base) bd = d; });
@@ -387,7 +455,7 @@
       for (var i = defs.length - 1; i >= 0; i--) if (defs[i][0] === id) defs.splice(i, 1);
       resolve(null); trayDraw(); stackDepth(); if (nav) nav.refresh();
     }
-    function frame(url, id) { var f = el('iframe', 'hk-fr'); f.src = embedUrl(url); f.setAttribute('loading', 'lazy'); f.title = 'Embedded Hub tool'; f.addEventListener('load', function () { hookFrame(f, id); }); if (motion) motion.frame(f); return f; }
+    function frame(url, id) { var f = el('iframe', 'hk-fr'); f.src = embedUrl(url); f.setAttribute('loading', /^\/(mirror|session)\b/.test(String(url)) ? 'eager' : 'lazy'); f.title = 'Embedded Hub tool'; f.addEventListener('load', function () { hookFrame(f, id); }); if (motion) motion.frame(f); return f; }
     function expand(id) {
       var b = blocks[id], l = L[id], sp = b._spec; if (!sp) return;
       if (l.exp) { collapse(id); return; }
@@ -926,6 +994,7 @@
       scene: function () { return Object.keys(blocks).filter(function (i) { return !hid[i]; }).map(function (i) { return { id: i, t: String(blocks[i]._name || (blocks[i].querySelector('.hk-h .t') || {}).textContent || i) }; }); },
       applyUi: function (ui) {
         if (!alive || !ui) return false;
+        if (ui.window && ui.window.url) return openWindow(ui.window.title || 'Window', ui.window.url);
         if (ui.board) {
           var b = ui.board; touched = true;
           if (b === 'tidy') tidyBtn.onclick(); else if (b === 'fit') fitBtn.onclick(); else if (b === 'zoom-in') zin.onclick(); else if (b === 'zoom-out') zout.onclick();
@@ -941,6 +1010,8 @@
         if (ids.length === 1) { if (focusId !== ids[0]) focusBlock(ids[0]); } else { focusId = null; undim(); lookAt(ids[0]); }
         return true;
       },
+      // Talk asked for a window of this PC, or a session, as a panel ("open Claude Desktop in the dashboard"): a block of its own, opened at once.
+      openWindow: function (title, url) { return openWindow(title, url); },
       // Talk asked for a Hub page ("open missions"): it opens inside the board, on the right tab, never as a separate page.
       openTool: function (url) {
         var u = new URL(url, location.href), id = u.pathname === '/support' ? 'extra:support' : (['/missions', '/agents', '/graph', '/yard', '/chats'].indexOf(u.pathname) >= 0 ? 'card:oc' : null);
@@ -957,5 +1028,5 @@
     root.__hubBoardInstance = instance; window.__hubBoard.active = instance;
     if(new URLSearchParams(location.search).get('chat')==='1')requestAnimationFrame(function(){if(window.HubVoice)HubVoice.open(false);}); return instance;
   }
-  window.__hubBoard = { mount: mount, active: null, open: function (url) { return !!(this.active && this.active.openTool(url)); }, scene: function () { return this.active ? this.active.scene() : null; }, applyUi: function (ui) { return !!(this.active && this.active.applyUi(ui)); } };
+  window.__hubBoard = { mount: mount, active: null, openWindow: function (t, u) { return !!(this.active && this.active.openWindow(t, u)); }, open: function (url) { return !!(this.active && this.active.openTool(url)); }, scene: function () { return this.active ? this.active.scene() : null; }, applyUi: function (ui) { return !!(this.active && this.active.applyUi(ui)); } };
 })();

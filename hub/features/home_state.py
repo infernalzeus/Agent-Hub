@@ -234,6 +234,8 @@ _HOME = re.compile(r"\b(?:enter|open|go|take me|show me|bring up|launch|switch)\
 # "Open the dashboard" means the main screen the ENTER button leads to (people call it the dashboard); "show the dashboard" stays the overview blocks on the landing page.
 # Only the bare phrase counts, so "open the compliance dashboard" is still an app and never lands here.
 _DASH = re.compile(r"^\W*(?:(?:please|can you|could you|would you|hey|ok|okay|now|and|so)\W+)*(?:enter|open|launch|go (?:to|into|in to)|take me (?:to|into)|bring me (?:to|into)|switch to|let me (?:in|into))\s+(?:up\s+)?(?:the |my |agent hub )?(?:main |home |hub )?(?:dashboard|board)(?:\s+(?:for me|please|now|again))?\W*$|^\W*(?:let me in|let me inside)\W*$", re.I)
+# "Open Claude Desktop in the dashboard", "show Edge as a panel", "put the Hub session on the board": a window (or a session) as a panel on the dashboard.
+_WINDOW = re.compile(r"^\W*(?:(?:please|can you|could you|would you|hey|ok|okay|now|and|so)\W+)*(?:open|show|bring up|pull up|put|display|put up|launch)\s+(?:me\s+)?(?:the\s+|my\s+)?(.{2,70}?)\s+(?:in|on|into|inside|as)\s+(?:a\s+|an\s+|the\s+|my\s+)?(?:separate\s+|new\s+)?(?:dashboard|board|hub|panel|window|block)\b", re.I)
 _DOCTOR = re.compile(r"\b(diagnos\w*|the doctor|doctor,|ask the doctor|something(?:'s| is) (?:wrong|broken|off)|(?:fix|repair|check|debug) (?:the |agent )?hub|hub (?:is )?(?:broken|not working|acting up|slow|stuck))\b", re.I)
 _APPLY = re.compile(r"\b(apply|install|accept|use|go with)\b.*\b(fix|change|patch|that|it)\b", re.I)
 _DISCARD = re.compile(r"\b(discard|throw away|drop|reject|forget)\b.*\b(fix|change|patch|that|it)\b", re.I)
@@ -318,7 +320,7 @@ def ui_for(text: str, say: str, scene: "list | None" = None) -> dict:
     """What the screen should do with this answer: raise blocks for a topic, focus one on screen, open Home, or sleep."""
     out: dict = {"topic": None, "blocks": [], "focus": None, "open": None, "sleep": False}
     t = str(text or "")
-    out.update({"clear": False, "doctor": False, "apply": False, "discard": False, "restart": False, "help": False, "board": None})
+    out.update({"window_query": None, "clear": False, "doctor": False, "apply": False, "discard": False, "restart": False, "help": False, "board": None})
     if _SLEEP.search(t):
         out["sleep"] = True
         return out
@@ -345,6 +347,10 @@ def ui_for(text: str, say: str, scene: "list | None" = None) -> dict:
             if rx.search(t):
                 out["board"] = name
                 return out
+    mw = _WINDOW.search(t) if len(t) < 120 else None
+    if mw and mw.group(1).strip().casefold() not in ("home", "hub", "dashboard", "board", "missions", "agents", "graph", "yard"):
+        out["window_query"] = re.sub(r"\s+(?:for me|please|up|again)\s*$", "", mw.group(1).strip(), flags=re.I).strip()
+        return out
     if (_HOME.search(t) or _DASH.search(t)) and len(t) < 90:
         out["open"] = "home"
         return out

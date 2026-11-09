@@ -28,3 +28,33 @@
 #skills{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:8px;align-items:start}
 #skills>*{grid-column:1/-1}#skills>.skl{grid-column:auto;margin:0}#skills>details.skl[open]{grid-column:1/-1}
 #skills .skl summary{flex-wrap:wrap}
+
+/* The Auto LLM panels in the glass style of the dashboard blocks and the website: a translucent card, a soft green edge that glows, a little blur behind it. */
+.ag-entry,.ag-group .ag-entry{background:linear-gradient(140deg,rgba(65,235,255,.10),rgba(8,12,40,.80) 55%,rgba(0,230,118,.06));border:1px solid rgba(0,230,118,.26);border-radius:12px;
+  box-shadow:0 0 0 1px rgba(0,230,118,.10),0 0 10px 1px rgba(0,230,118,.14),inset 0 0 8px 1px rgba(0,230,118,.10);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
+.ag-entry:hover{border-color:rgba(0,230,118,.5);box-shadow:0 0 0 1px rgba(0,230,118,.2),0 0 14px 2px rgba(0,230,118,.22),inset 0 0 10px 1px rgba(0,230,118,.14)}
+.ag-entry select,.ag-entry button{background:rgba(6,10,36,.7);border:1px solid rgba(0,230,118,.3);border-radius:8px;color:var(--ink,#d9ffe9);font-family:Orbitron,monospace}
+.ag-entry button:hover{border-color:var(--accent);box-shadow:0 0 8px rgba(0,230,118,.3)}
+@media(pointer:coarse){.ag-entry,.ag-group .ag-entry{-webkit-backdrop-filter:none;backdrop-filter:none}}
+
+/* Agents: a grid of cards, core team first; the controls sit on the card. */
+.ag-group{margin-bottom:18px}.ag-note{margin:-4px 0 10px;color:var(--text-muted);font-size:12px}
+.ag-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,430px),1fr));gap:12px;align-items:start}
+.ag-group .ag-entry{margin:0}
+.ag-controls{padding:8px 12px 12px;border-top:1px solid rgba(0,230,118,.18)}
+.ag-ctl-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 14px;align-items:start}
+.ag-c label{display:flex;gap:6px;align-items:baseline;font:700 8.5px Orbitron,monospace;letter-spacing:1px;color:var(--text-muted);margin-bottom:3px}
+.ag-c output{color:var(--accent);margin-left:auto}.ag-c small{display:block;margin-top:2px;font-size:10px;color:var(--text-faint,rgba(0,230,118,.4));line-height:1.3}
+.ag-c input[type=range]{width:100%;accent-color:var(--accent)}
+.ag-c input[type=number],.ag-c input[type=text],.ag-c select{width:100%;padding:6px 8px;font:12px Orbitron,monospace}
+.ag-src{margin-left:auto;font:600 7px Orbitron,monospace;letter-spacing:.6px;padding:1px 5px;border-radius:99px;border:1px solid rgba(0,230,118,.25);color:var(--text-faint)}
+.ag-src.override{color:#0b1;border-color:rgba(0,230,118,.6)}.ag-src.persona{color:#41ebff;border-color:rgba(65,235,255,.5)}
+.ag-c output+.ag-src{margin-left:6px}
+.ag-btns{display:flex;gap:6px;align-items:end;flex-wrap:wrap}.ag-btns .btn{font:700 8.5px Orbitron,monospace;letter-spacing:1px;padding:7px 10px}
+.ag-more{margin-top:10px;padding-top:10px;border-top:1px dashed rgba(0,230,118,.2)}.ag-fine{margin:8px 0 0;font-size:10.5px;color:var(--text-muted)}
+.ag-saved{display:inline-block;margin-top:6px;font:700 8px Orbitron,monospace;letter-spacing:1px;color:var(--text-muted)}.ag-saved.ok{color:var(--accent)}.ag-saved.bad{color:#ff5c5c}
+/* skills: a grid of cards, the description shown without opening anything */
+.skl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:8px;margin-top:8px;align-items:start}
+.skl-grid details.skl{margin:0}.skl-tools{display:flex;gap:6px;margin:8px 0 0}.skl-tools button{font:700 8.5px Orbitron,monospace;letter-spacing:1px;padding:6px 10px}
+#skills details.skl>summary{display:grid;grid-template-columns:1fr auto;gap:2px 8px}#skills details.skl>summary .sm{grid-column:1/-1;white-space:normal;color:var(--text-muted);font-size:11.5px;line-height:1.4}
+.ag-group{display:block!important}.ag-group>h2,.ag-group>.ag-note{grid-column:auto}

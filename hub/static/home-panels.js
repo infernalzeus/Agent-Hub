@@ -274,6 +274,7 @@
     if (useBoard()) { board = window.__hubBoard.mount(root); } else { build(); paint(); }
     document.documentElement.classList.toggle('hub-board-on', !!board);
     try { var tool = sessionStorage.getItem('agenthub:tool'); if (tool) { sessionStorage.removeItem('agenthub:tool'); if (board) setTimeout(function () { window.__hubBoard.open(tool); }, 900); } } catch (e) {}   // Talk on the landing page asked for a tool
+    try { var win = sessionStorage.getItem('agenthub:window'); if (win) { sessionStorage.removeItem('agenthub:window'); win = JSON.parse(win); if (board && win && win.url) setTimeout(function () { window.__hubBoard.openWindow(win.title || 'Window', win.url); }, 1100); } } catch (e) {}   // Talk on the landing page asked for a window
     poll(); timer = setInterval(poll, 10000); document.addEventListener('visibilitychange', poll);
   }
   phone.addEventListener('change', remount);

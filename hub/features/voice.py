@@ -1292,6 +1292,39 @@ async def _screen_command(text: str, ui: dict) -> "dict | None":
     return {"say": say, "action": None, "confirm": False, "backend": "rules", "heard": text}
 
 
+async def _window_command(query: str) -> dict:
+    """Open a window of this PC (or a Claude Code session) as a panel on the dashboard. The answer carries `ui.window`: {title, url}; the board opens it."""
+    from . import agent_sessions as AS, pc_control as PC, window_mirror as WM
+    words = [w for w in re.findall(r"[a-z0-9]+", query.casefold()) if w not in ("the", "a", "an", "my", "session", "chat", "window", "app", "status", "update")]
+    wants_session = bool(re.search(r"\b(session|chat|status|claude code|codex)\b", query, re.I))
+    def session_for() -> "dict | None":
+        for r in AS.scan(time.time(), 30):
+            hay = f"{r['title']} {r['project']} {r['agent']}".casefold()
+            if words and all(w in hay for w in words):
+                return r
+        return None
+    if wants_session:
+        r = session_for()
+        if r:
+            return {"say": f"Here is the session {r['title'][:60]}.", "window": {"title": r["title"][:40], "url": f"/session?id={r['id']}"}}
+    w = await asyncio.to_thread(WM.find_window, query)
+    if w:
+        return {"say": f"Here is {w['title'][:50]}.", "window": {"title": w["title"][:40], "url": f"/mirror?id={w['id']}"}}
+    r = session_for()
+    if r:
+        return {"say": f"Here is the session {r['title'][:60]}.", "window": {"title": r["title"][:40], "url": f"/session?id={r['id']}"}}
+    try:                                                              # not open yet: open it the usual way, then wait for its window
+        await PC.launch_app(query, f"open {query}")
+    except Exception:  # noqa: BLE001
+        pass
+    for _ in range(14):
+        w = await asyncio.to_thread(WM.find_window, query)
+        if w:
+            return {"say": f"Opened {query} and here it is.", "window": {"title": w["title"][:40], "url": f"/mirror?id={w['id']}"}}
+        await asyncio.sleep(1.0)
+    return {"say": f"I could not find a window called {query}, and opening it did not show one."}
+
+
 @routes.post("/api/voice/chat")
 async def api_chat(request: web.Request) -> web.Response:
     b = await _body(request)
@@ -1304,6 +1337,16 @@ async def api_chat(request: web.Request) -> web.Response:
         ui = HS.ui_for(text, "", scene)
     except Exception:
         ui = {}
+    if ui.get("window_query"):
+        got = await _window_command(ui["window_query"])
+        if got.get("window"):
+            ui["window"] = got["window"]
+            try:
+                from . import window_mirror as _WM
+                _WM.add_panel(got["window"]["title"], got["window"]["url"])      # every device that has the dashboard open shows it
+            except Exception:  # noqa: BLE001
+                pass
+        return web.json_response({"say": got["say"], "action": None, "confirm": False, "backend": "rules", "heard": text, "ui": ui})
     quick = await _screen_command(text, ui) if ui else None
     if quick:
         return web.json_response({**quick, "ui": ui})
@@ -1509,9 +1552,9 @@ async def api_transcribe(request: web.Request) -> web.Response:
 
 # ── speaking: Microsoft neural voices via edge-tts (the reply text is sent, never your audio) ───────────────────────────
 VOICES = [
-    {"id": "smith", "name": "Smith · Australian, deep, normal pace", "voice": "en-AU-WilliamNeural", "rate": "+0%", "pitch": "-22Hz"},
-    {"id": "smith-deep", "name": "Smith · deep, a little slower", "voice": "en-AU-WilliamNeural", "rate": "-8%", "pitch": "-22Hz"},
-    {"id": "smith-low", "name": "Smith · lower and measured (the earlier default)", "voice": "en-AU-WilliamNeural", "rate": "-10%", "pitch": "-12Hz"},
+    {"id": "smith", "name": "Smith · Australian, deep, normal pace", "voice": "en-AU-WilliamMultilingualNeural", "rate": "+0%", "pitch": "-22Hz"},
+    {"id": "smith-deep", "name": "Smith · deep, a little slower", "voice": "en-AU-WilliamMultilingualNeural", "rate": "-8%", "pitch": "-22Hz"},
+    {"id": "smith-low", "name": "Smith · lower and measured (the earlier default)", "voice": "en-AU-WilliamMultilingualNeural", "rate": "-10%", "pitch": "-12Hz"},
     {"id": "sonia", "name": "Sonia · British, female", "voice": "en-GB-SoniaNeural", "rate": "+4%", "pitch": "+0Hz"},
     {"id": "ryan", "name": "Ryan · British, male", "voice": "en-GB-RyanNeural", "rate": "+2%", "pitch": "+0Hz"},
     {"id": "libby", "name": "Libby · British, female", "voice": "en-GB-LibbyNeural", "rate": "+4%", "pitch": "+0Hz"},
@@ -1522,18 +1565,17 @@ VOICES = [
 ]
 _VOICE_BY_ID = {v["id"]: v for v in VOICES}
 _TTS_CACHE: dict = {}
+_TTS_LOCK = None
+_VOICE_DOWN: dict = {}
 
 
 @routes.get("/api/voice/voices")
 async def api_voices(request: web.Request) -> web.Response:
-    if RT.PACKAGED:
-        ok = RT.python_for("speech").is_file()
-    else:
-        try:
-            import edge_tts  # noqa: F401
-            ok = True
-        except Exception:
-            ok = False
+    try:
+        import edge_tts  # noqa: F401
+        ok = True
+    except Exception:
+        ok = RT.PACKAGED and RT.python_for("speech").is_file()
     return web.json_response({"voices": [{"id": v["id"], "name": v["name"]} for v in VOICES], "default": VOICES[0]["id"], "neural": ok})
 
 
@@ -1552,16 +1594,16 @@ async def api_speak(request: web.Request) -> web.Response:
     key = (text, v["id"])
     if key in _TTS_CACHE:
         return web.Response(body=_TTS_CACHE[key], content_type="audio/mpeg")
-    if RT.PACKAGED and not RT.python_for("speech").is_file():
-        raise web.HTTPNotImplemented(text="Open Setup tools → TALK speech first.")
-    if not RT.PACKAGED:
-        try:
-            import edge_tts
-        except Exception:
-            raise web.HTTPNotImplemented(text="edge-tts is not installed")
+    try:
+        import edge_tts
+        in_process = True
+    except Exception:
+        in_process = False
+        if not (RT.PACKAGED and RT.python_for("speech").is_file()):
+            raise web.HTTPNotImplemented(text="edge-tts is not installed" + (" (open Settings, Tools, TALK speech)" if RT.PACKAGED else ""))
 
     async def go() -> bytes:
-        if RT.PACKAGED:
+        if not in_process:
             # Neural TTS lives in the managed speech runtime, not in the Hub.
             proc = await asyncio.create_subprocess_exec(
                 str(RT.python_for("speech")), str(RT.ASSETS / "packaging" / "speech_worker.py"), "speak",
@@ -1580,10 +1622,30 @@ async def api_speak(request: web.Request) -> web.Response:
             if ch["type"] == "audio":
                 buf += ch["data"]
         return buf
-    try:
-        audio = await asyncio.wait_for(go(), timeout=20)
-    except Exception as exc:
-        raise web.HTTPServiceUnavailable(text=f"the neural voice service did not answer: {str(exc)[:80]}")
+    audio, last = b"", ""
+    # Microsoft renames and retires voices (en-AU-WilliamNeural became en-AU-WilliamMultilingualNeural and the old name now answers with no audio at all): if the chosen voice returns
+    # nothing, the same voice under its newer name is tried, then a British male voice, so Smith always speaks. A dropped first connection gets one more try.
+    # Microsoft's service answers "no audio" for some voices much of the time (en-AU-William failed most requests when this was written; Ryan, Thomas and Guy did not). Waiting for a
+    # voice that keeps failing made every reply slow, so a voice that fails is set aside for ten minutes and a reliable deep British voice speaks instead, at once. Pieces are made one at a time.
+    global _TTS_LOCK
+    if _TTS_LOCK is None:
+        _TTS_LOCK = asyncio.Lock()
+    fallback = {**v, "voice": "en-GB-RyanNeural", "pitch": "-18Hz"}
+    async with _TTS_LOCK:
+        order = [fallback] if _VOICE_DOWN.get(v["voice"], 0) > time.time() else [v, fallback]
+        for attempt, cand in enumerate(order):
+            v = cand
+            try:
+                audio = await asyncio.wait_for(go(), timeout=9)
+                if audio:
+                    break
+            except Exception as exc:  # noqa: BLE001
+                last = f"{type(exc).__name__}: {str(exc)[:120]}"
+                logger.info("voice: edge-tts %s failed: %s", cand["voice"], last)
+            if attempt == 0 and len(order) == 2:
+                _VOICE_DOWN[order[0]["voice"]] = time.time() + 600
+    if not audio and last:
+        raise web.HTTPServiceUnavailable(text=f"edge-tts did not answer ({last})")
     if not audio:
         raise web.HTTPServiceUnavailable(text="no audio came back")
     if len(_TTS_CACHE) > 30:
@@ -1595,6 +1657,7 @@ async def api_speak(request: web.Request) -> web.Response:
 @routes.get("/smith-icon.png")
 async def smith_icon(request: web.Request) -> web.Response:
     from .. import agents_ui
+    # the small, still picture: this one sits on the Talk button at 28 px, so it must be cheap to draw (the animated vector is for the landing page and the Agency page)
     return web.Response(body=base64.b64decode(agents_ui._SMITH_D_B64), content_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
 
 

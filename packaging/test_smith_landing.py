@@ -25,13 +25,16 @@ def _opacity(pg):
 
 
 def _shown(pg):
-    pg.wait_for_function("window.__hubWake.smith().icon === true")
-    pg.wait_for_function("parseFloat(getComputedStyle(document.querySelector('#smith-slot img')).opacity) > 0.9", timeout=4000)
+    """On the page and in a state: nearly invisible and pulsing while the wake word is off, lit while he talks, breathing while he waits."""
+    pg.wait_for_function("!document.getElementById('smith-slot').classList.contains('intro')", timeout=8000)
+    pg.wait_for_function("(()=>{const c=document.getElementById('smith-slot').classList;return c.contains('pulse')||c.contains('talking')||c.contains('waiting')})()", timeout=8000)
 
 
 def _hidden(pg):
-    pg.wait_for_function("window.__hubWake.smith().icon === false")
-    pg.wait_for_function("parseFloat(getComputedStyle(document.querySelector('#smith-slot img')).opacity) < 0.05", timeout=4000)
+    pg.wait_for_function("!document.getElementById('smith-slot').classList.contains('intro')", timeout=8000)
+    """While the Hub waits for his name he is still on the page, drawn and in place: the wake ring is lit and his picture carries a soft glow."""
+    pg.wait_for_function("document.getElementById('smith-slot').classList.contains('waiting')")
+    assert _opacity(pg) > 0.9
 
 
 def test_his_picture_is_the_button_it_pops_up_when_you_say_smith_and_nothing_is_drawn_over_the_orb(hub):
@@ -81,7 +84,7 @@ def test_pressing_enter_quiets_the_page_microphone_ring_and_picture(hub):
         pg.evaluate("window.__hubWake._leave()")                                                   # what the click on ENTER does first
         assert pg.evaluate("window.__hubWake.mic()") is False                                      # the microphone and its analysers are let go
         assert pg.evaluate("getComputedStyle(document.getElementById('wake-ring')).animationName") == "none"
-        assert pg.evaluate("getComputedStyle(document.getElementById('smith-slot')).display") == "none"
+        assert pg.evaluate("document.getElementById('smith-slot').classList.contains('still') && getComputedStyle(document.getElementById('smith-slot')).display !== 'none'")      # he stays; only his animation stops
         assert pg.evaluate("localStorage.getItem('agenthub:wake')") == "1"                         # the wake word stays switched on for the dashboard
         b.close()
 
@@ -111,23 +114,22 @@ def test_entering_the_dashboard_is_no_slower_while_he_is_listening(hub):
     assert listening < plain + 600, (plain, listening)                                             # headless uses software graphics, so only a large gap would be real
 
 
-def test_his_picture_arrives_even_when_the_first_request_for_it_failed(hub):
-    """The page can be opened while the Hub is down. The first request for his picture then failed and left a broken image for good."""
+def test_his_picture_is_inside_the_page_and_while_the_hub_is_dormant_he_is_nearly_gone_and_not_a_button(hub):
+    """No request to make, so nothing can fail while the Hub is down. Dormant: almost invisible, pulsing very low, and a click on him starts nothing."""
     with sync_playwright() as pw:
-        b = pw.chromium.launch(headless=True, args=["--autoplay-policy=no-user-gesture-required"])
+        b = pw.chromium.launch(headless=True)
         ctx = b.new_context(service_workers="block", viewport={"width": 1100, "height": 900})
-        ctx.add_init_script(FAKE_MIC)
         pg = ctx.new_page()
-        seen = {"n": 0}
-
-        def flaky(route):
-            seen["n"] += 1
-            route.abort() if seen["n"] == 1 else route.continue_()
-        pg.route("**/smith-icon.png*", flaky)
+        asked = []
+        pg.on("request", lambda r: asked.append(r.url) if "smith-icon" in r.url else None)
+        pg.route("**/api/status*", lambda r: r.abort())                                           # the Hub is asleep
         pg.goto(hub + "/offline.html")
-        pg.wait_for_selector("#smith-slot", state="visible", timeout=20000)
-        pg.wait_for_function("(()=>{const i=document.querySelector('#smith-slot img');return i.complete&&i.naturalWidth>0})()", timeout=15000)
-        assert seen["n"] >= 2                                                                     # it asked again
+        pg.wait_for_selector("#smith-slot", timeout=20000)
+        pg.wait_for_function("document.getElementById('smith-slot').classList.contains('dormant')", timeout=15000)
+        assert pg.evaluate("document.querySelector('#smith-slot img').src.startsWith('data:image/svg+xml')") and not asked
+        assert pg.evaluate("getComputedStyle(document.getElementById('smith-slot')).pointerEvents") == "none"
+        assert pg.evaluate("Math.max(...[0,1,2].map(()=>parseFloat(getComputedStyle(document.querySelector('#smith-slot img')).opacity)))") < 0.2     # nearly invisible
+        assert pg.evaluate("document.getElementById('wake-btn').getAttribute('data-s')") != "starting"
         b.close()
 
 
@@ -137,7 +139,7 @@ def test_coming_back_to_the_landing_page_from_the_dashboard_his_button_works_aga
         pg.click("#smith-slot")
         pg.wait_for_function("window.__hubWake.state() === 'wake'", timeout=15000)
         pg.evaluate("window.__hubWake._leave()")                                                   # ENTER pressed: the page goes quiet and his button is put away
-        assert pg.evaluate("getComputedStyle(document.getElementById('smith-slot')).display") == "none"
+        assert pg.evaluate("document.getElementById('smith-slot').classList.contains('still') && getComputedStyle(document.getElementById('smith-slot')).display !== 'none'")      # he stays; only his animation stops
         pg.evaluate("window.dispatchEvent(new PageTransitionEvent('pageshow', {persisted: true}))")   # back from the page cache
         assert pg.evaluate("getComputedStyle(document.getElementById('smith-slot')).display") != "none"
         assert pg.evaluate("getComputedStyle(document.getElementById('wake-ring')).animationName") != "none" or not pg.evaluate("document.getElementById('wake-ring').classList.contains('on')")

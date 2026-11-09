@@ -9,6 +9,7 @@ def embedded(body: str, request: web.Request) -> str:
 html.hub-embed .bar>a,html.hub-embed .bar>.brand,html.hub-embed body>header,
 html.hub-embed body>h1{display:none!important}
 html.hub-embed .bar{padding:8px;position:relative;min-height:0}
+html.hub-embed,html.hub-embed body{background:transparent!important}
 html.hub-embed svg#graph{top:0;height:100%}
 html.hub-embed #legend{top:14px}
 </style>"""

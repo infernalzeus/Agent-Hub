@@ -39,7 +39,7 @@ h1{font-size:20px}h2{font-size:12px;margin:22px 0 8px;text-transform:uppercase}
 button{font:700 10px Orbitron,sans-serif;letter-spacing:1px;color:var(--ac);background:rgba(6,10,36,.78);border:1px solid var(--bd);border-radius:8px;padding:9px 14px;min-height:38px;cursor:pointer}
 button:hover{border-color:var(--ac);background:rgba(0,230,118,.1)}button:disabled{opacity:.5;cursor:default}
 .empty{color:var(--mu)}.err{color:#ff9d9d;margin-top:8px}
-</style></head><body><main>
+</style><link rel="stylesheet" href="/theme.css"></head><body><main>
 <h1>CHATS</h1>
 <p class="sub">Your conversations in one place: the talk with Smith (also what you said on the landing page), a quick OpenCode chat, and your agent sessions.</p>
 

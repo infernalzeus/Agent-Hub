@@ -39,15 +39,55 @@ def default_runtime() -> str:
     except (OSError, ValueError, AttributeError):
         return RUNTIMES[0]
 
-RULES = """You are the doctor for Agent Hub, a Python (aiohttp) app. Your working copy is a private git worktree of its repository;
-nothing you change reaches the running Hub until the owner presses APPLY, and the owner restarts it. Rules:
-- Find the cause first. Say what you found in one or two sentences before you change anything.
-- Make the smallest change that fixes it. Do not reformat or rename. Do not touch state or secrets: hub/*.json, hub/data, logs/, tokens, keys.
-- The Hub's code is hub/*.py, hub/features/*.py and hub/static/*.js; app.py registers the features; pages are built in hub/ui.py.
-- Check your work: `python -c "import hub.ui, app"` must work, `node --check` every JavaScript file you edit, and run pytest if tests exist in this copy.
+RULES = """You are the doctor for Agent Hub, a Python (aiohttp) app. Anything the owner wants changed in Agent Hub is yours to do: a fault, something that looks wrong, something that behaves
+differently from what they meant, a panel or button to add or change, a new capability, the installer, the website, the tests. Your working copy is a private git worktree of its
+repository; nothing you change reaches the running Hub until the owner presses APPLY, and the owner restarts it. How to work:
+- Read before you write. The map of the Hub below is generated from the code itself; open the files it points to, search the repository (README, the plans, the code, the tests), and follow a
+  feature from where the owner sees it (a page, a button, a voice phrase) to the code that answers it. Never rely on a name you have not looked up.
+- For a fault, find the cause first and say what you found in a sentence or two, then make the smallest change that fixes the cause. For a request to build or change something, build the whole
+  thing, in the style of the code around it, and finish it: a half-built panel is worse than none. Do the thing that was asked, not a nearby thing.
+- The owner's words are the spec. If they described how it should look or behave, that is the acceptance test: make what they described, and say honestly what you could not do.
+- Do not touch state or secrets: hub/*.json that the Hub writes itself, hub/data, logs/, tokens, keys. Do not reformat or rename what you are not changing.
+- Check what you changed and only that: `python -c "import hub.ui, app"` must work, `node --check` every JavaScript file you edit, and run the tests that cover the part you touched when
+  they exist (`python -m pytest packaging/<file> -q`; AGENTHUB_TEST_BROWSER=bundled uses the bundled Chromium instead of Edge). Do not write or run tests the owner did not ask for. Tests must never touch
+  the owner's real data.
+- Installed copies: the Hub is also shipped as an installer (packaging/). Things only break there: code must not read its own source file; a data file read from beside the code is bundled by
+  rule, but a new file kind, a new top-level folder, code in a folder named like private state, or a new pip library needs a decision (packaging/stage_release.py, packaging/payloads.json).
+  `python -c "import sys; sys.path.insert(0,'packaging'); import stage_release as S; from pathlib import Path; print(S.unshipped_surprises(Path('.')))"` lists what a build would silently drop.
+  The install check is in the facts below (install.problems).
+- On screen: Orbitron for text, the dark glass look the dashboard has (a translucent card, a soft glowing green edge, a little blur; /theme.css carries it for every page), line icons as inline SVG
+  and never emoji, no layout that moves when something loads. The four core agents are Orchestrator, Neo, Smith and the Doctor; their pictures are hub/static/agent-art/*.svg.
 - Never restart, stop or start the Hub, and never call its power or shutdown endpoints.
-- Neo is the agent that designs and edits agents (Smith is only the voice the owner talks to). When the fault is in an agent's instructions (hub/agent_knowledge/agents/*.md) you may call Neo: POST {"description": "what to change", "base": "<the current file text, optional>"} to THE RUNNING HUB below at /api/agents/draft, with an Origin header equal to that address. You get markdown back; nothing is saved. Put it in your copy as hub/agent_knowledge/agents/<name>.md and it reaches the owner through APPLY like any other change. Use it for nothing else.
+- Neo is the agent that designs and edits agents (Smith is only the voice the owner talks to). When the work is in an agent's instructions (hub/agent_knowledge/agents/*.md) you may call Neo: POST {"description": "what to change", "base": "<the current file text, optional>"} to THE RUNNING HUB below at /api/agents/draft, with an Origin header equal to that address. You get markdown back; nothing is saved. Put it in your copy as hub/agent_knowledge/agents/<name>.md and it reaches the owner through APPLY like any other change. Use it for nothing else.
+- If the facts say this is an INSTALLED copy (install.can_edit_code is false) there is no source here to change: diagnose, say exactly which file and what the change is, and finish with DONE: naming it,
+  so the owner can make it in the repository and ship an update. Do not pretend to have changed anything.
 - End with a line starting DONE: that says what you changed and why, or what you found if no change is needed."""
+
+
+def repo_map(limit: int = 140) -> str:
+    """A map of the Hub made from the code in front of it: each module with the first line of its own docstring, each page script with its first comment. Generated at the moment the
+    doctor is asked, so it is never out of date and never lists something that is not there."""
+    import ast as _ast
+    from pathlib import Path as _P
+    root = _P(config.HERE)
+    rows: "list[str]" = []
+    for folder in ("hub", "hub/features", "hub/yard", "packaging"):
+        d = root / folder
+        if not d.is_dir():
+            continue
+        for f in sorted(d.glob("*.py")):
+            if f.name.startswith(("test_", "__")):
+                continue
+            try:
+                doc = _ast.get_docstring(_ast.parse(f.read_text(encoding="utf-8", errors="replace"))) or ""
+            except (SyntaxError, OSError, ValueError):
+                doc = ""
+            rows.append(f"{folder}/{f.name}: " + " ".join(doc.split("\n\n")[0].split())[:110])
+    st = root / "hub" / "static"
+    if st.is_dir():
+        rows.append("hub/static/ (scripts and styles of the pages): " + ", ".join(sorted(p.name for p in st.iterdir() if p.suffix in (".js", ".css")))[:900])
+    return "MAP OF THE HUB (from the code):\n" + "\n".join(rows[:limit])[:9000]
+
 
 
 def _ids() -> "list[str]":
@@ -82,14 +122,14 @@ def restart_timing() -> str:
 def facts() -> str:
     from . import diagnose as D
     b = D.bundle(lines=60)
-    keep = {k: b[k] for k in ("hub", "apps", "missions", "local_model_server", "disk_free_gb")}
+    keep = {k: b[k] for k in ("hub", "apps", "missions", "local_model_server", "disk_free_gb", "install") if k in b}
     return restart_timing() + "FACTS FROM /api/diagnose:\n" + json.dumps(keep, indent=1)[:2500] + "\n\nRECENT WARNINGS AND ERRORS (secrets removed):\n" + "\n".join(b["problems"][-20:])[:5000]
 
 
 def brief_for(text: str) -> str:
     text = (text or "").strip()
     ask = text or "Nothing specific was reported. Look at the facts and the recent warnings and say whether anything is wrong; fix it only if it clearly is."
-    return f"{RULES}\n\nTHE RUNNING HUB: http://127.0.0.1:{config.PORT}\n\nTHE OWNER SAYS:\n{ask}\n\n{facts()}"
+    return f"{RULES}\n\nTHE RUNNING HUB: http://127.0.0.1:{config.PORT}\n\nTHE OWNER SAYS:\n{ask}\n\n{repo_map()}\n\n{facts()}"
 
 
 async def _dispatch(brief: str, runtime: str, model: "str | None") -> dict:
@@ -214,7 +254,7 @@ button,select{font:700 10px Orbitron,sans-serif;letter-spacing:.1em;color:var(--
 select{color:var(--tx);background:#05081f}button:hover{background:rgba(0,230,118,.14)}button[disabled]{opacity:.4}.red{color:var(--rd);border-color:rgba(255,92,92,.5)}
 .pr{font:12px/1.4 Consolas,monospace;color:var(--mu);white-space:pre-wrap;overflow-wrap:anywhere;max-height:170px;overflow:auto}.ok{color:var(--ac)}.warn{color:var(--am)}
 .m{border:1px solid var(--bd);border-radius:8px;padding:9px 11px;margin:8px 0}.m b{font:700 10px Orbitron,sans-serif;letter-spacing:.1em}.ans{white-space:pre-wrap;color:var(--mu);margin:6px 0;max-height:220px;overflow:auto;font-size:13px}
-</style></head><body>
+</style><link rel="stylesheet" href="/theme.css"></head><body>
 <h1>SUPPORT · FIX AGENT HUB FROM HERE</h1>
 <div class="box"><div id="facts" class="pr">Reading the Hub…</div></div>
 <h2>WHAT IS WRONG?</h2>
