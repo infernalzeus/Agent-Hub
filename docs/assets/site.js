@@ -400,13 +400,13 @@ document.querySelectorAll('[data-work-example]').forEach(b=>b.addEventListener('
   document.querySelectorAll('img[src*="assets/agents/"]').forEach(img=>{
    const source=img.getAttribute('src');if(!/\/(smith|neo|doctor|orchestrator|router)\.svg(?:\?|$)/.test(source)||img.dataset.portraitClock)return;
    img.dataset.portraitClock='loading';
-   if(!portraitSources.has(source))portraitSources.set(source,fetch(source+'?portrait=20261110-viktor-shaded').then(r=>{if(!r.ok)throw Error('Portrait '+r.status);return r.text();}));
+   if(!portraitSources.has(source))portraitSources.set(source,fetch(source+'?portrait=20261110-agency-sharp').then(r=>{if(!r.ok)throw Error('Portrait '+r.status);return r.text();}));
    portraitSources.get(source).then(text=>{
     if(!img.isConnected)return;
     const prefix='portrait-'+(++portraitId)+'-',svg=new DOMParser().parseFromString(text,'image/svg+xml').documentElement;
     if(svg.localName!=='svg')throw Error('Invalid portrait');
     const ids=[...svg.querySelectorAll('[id]')].map(e=>e.id),style=svg.querySelector('style');
-    let css=style?.textContent||'';const names=[...css.matchAll(/@keyframes\s+([\w-]+)/g)].map(m=>m[1]);
+    let css=(style?.textContent||'').replace(/\b6s\b/g,'3s');const names=[...css.matchAll(/@keyframes\s+([\w-]+)/g)].map(m=>m[1]);
     css=css.replace(/\.([a-zA-Z_][\w-]*)/g,(_,c)=>'.'+prefix+c);
     for(const name of names)css=css.replaceAll('@keyframes '+name,'@keyframes '+prefix+name).replaceAll('animation:'+name+' ','animation:'+prefix+name+' ');
     if(style)style.textContent=css;

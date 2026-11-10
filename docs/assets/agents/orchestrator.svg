@@ -5,7 +5,7 @@
 .viktor-neck {animation-delay:0s}
 .viktor-collar {animation-delay:0s}
 .viktor-chest {animation-delay:0s}
-@keyframes viktor-surge {0%,15%,39%,100%{opacity:0} 23%{opacity:1} 29%{opacity:.65}}
+@keyframes viktor-surge {0%,12%,40%,100%{opacity:0} 18%,34%{opacity:1}}
 .viktor-gold-sweep {animation:viktor-gold-sweep 6s linear infinite}
 @keyframes viktor-gold-sweep {0%,15%{transform:translateY(-320px)}31%,100%{transform:translateY(1320px)}}
 .viktor-star {opacity:.42;animation:viktor-star 3.1s ease-in-out infinite}
