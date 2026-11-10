@@ -399,7 +399,7 @@ document.querySelectorAll('[data-work-example]').forEach(b=>b.addEventListener('
   document.querySelectorAll('img[src*="assets/agents/"]').forEach(img=>{
    const source=img.getAttribute('src');if(!/\/(smith|neo|doctor|orchestrator|router)\.svg(?:\?|$)/.test(source)||img.dataset.portraitClock)return;
    img.dataset.portraitClock='loading';
-   if(!portraitSources.has(source))portraitSources.set(source,fetch(source+'?portrait=20261110-viktor').then(r=>{if(!r.ok)throw Error('Portrait '+r.status);return r.text();}));
+   if(!portraitSources.has(source))portraitSources.set(source,fetch(source+'?portrait=20261110-viktor-cape').then(r=>{if(!r.ok)throw Error('Portrait '+r.status);return r.text();}));
    portraitSources.get(source).then(text=>{
     if(!img.isConnected)return;
     const prefix='portrait-'+(++portraitId)+'-',svg=new DOMParser().parseFromString(text,'image/svg+xml').documentElement;
