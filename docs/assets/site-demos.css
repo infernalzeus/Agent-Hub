@@ -622,3 +622,14 @@ svg.agent-portrait[data-agent-portrait="doctor"] { overflow: hidden; }
 .original-trace.access-branch.selected{stroke-dasharray:none;animation:none}
 .access-trunk.selected{stroke:#41ebff;stroke-width:2}
 .access-junction.selected{fill:#41ebff}
+
+/* Keep Agency text and portraits on a flat plane, including at rest. */
+.js #agents .board{transform:scale(var(--fit,1))!important;transform-style:flat}
+.js #agents .slabbox{transform:none!important}
+#agents .work-agent{display:grid;grid-template-columns:auto minmax(0,1fr);align-content:center;align-items:center;column-gap:6px}
+#agents .work-agent[hidden]{display:none}
+#agents .work-avatar,#agents .work-detail-avatar{display:block;object-fit:contain;flex:none}
+#agents .work-avatar{width:clamp(18px,3cqw,34px);height:clamp(18px,3cqw,34px)}
+#agents .work-agent>span{grid-column:1/-1}
+#agents .work-detail-avatar{width:clamp(34px,7cqw,56px);height:clamp(34px,7cqw,56px)}
+#agents .work-role-head .work-description{flex:1;min-width:0}

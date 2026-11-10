@@ -292,7 +292,7 @@ function drawArchitecture(){
   b.style.setProperty('--rx',x.toFixed(3)+'deg');b.style.setProperty('--ry',y.toFixed(3)+'deg');
   if(now-lastMove<2000||Math.abs(x-targetX)+Math.abs(y-targetY)>.01)raf=requestAnimationFrame(animate);
  }
- function move(a,b){if(busy||document.hidden||reduced.matches)return;targetX=Math.max(-MAX_TILT,Math.min(MAX_TILT,a+(MOUSE_DEVICE?REST_X:0)));targetY=Math.max(-MAX_TILT,Math.min(MAX_TILT,b+(MOUSE_DEVICE?REST_Y:0)));lastMove=performance.now();if(!raf){last=0;raf=requestAnimationFrame(animate);}}
+ function move(a,b){if(busy||document.hidden||reduced.matches||active.id==='agents')return;targetX=Math.max(-MAX_TILT,Math.min(MAX_TILT,a+(MOUSE_DEVICE?REST_X:0)));targetY=Math.max(-MAX_TILT,Math.min(MAX_TILT,b+(MOUSE_DEVICE?REST_Y:0)));lastMove=performance.now();if(!raf){last=0;raf=requestAnimationFrame(animate);}}
  function resetTilt(){cancelAnimationFrame(raf);raf=0;targetX=targetY=x=y=0;document.querySelectorAll('[data-tilt]').forEach(b=>{b.style.setProperty('--rx','0deg');b.style.setProperty('--ry','0deg');});}
  const clamp=(v,m)=>Math.max(-m,Math.min(m,v));
  // The pointer is read against the scene, which never rotates. (Reading it against the board that is turning made the board chase the
@@ -371,6 +371,7 @@ document.querySelectorAll('[data-work-category]').forEach(b=>b.addEventListener(
 document.querySelectorAll('.work-agent').forEach(b=>b.addEventListener('click',()=>{
  const panel=b.closest('.work-panel');
  panel.querySelector('.work-description').textContent=b.querySelector('b').textContent+' · '+b.dataset.workDescription;
+ panel.querySelector('.work-detail-avatar').src=b.querySelector('.work-avatar').getAttribute('src');
  panel.querySelector('.work-definition').textContent=b.dataset.workDefinition;
  panel.querySelector('.work-examples').hidden=true;panel.querySelector('.work-role').hidden=false;
  panel.querySelector('.work-reading').scrollTop=0;
@@ -399,7 +400,7 @@ document.querySelectorAll('[data-work-example]').forEach(b=>b.addEventListener('
   document.querySelectorAll('img[src*="assets/agents/"]').forEach(img=>{
    const source=img.getAttribute('src');if(!/\/(smith|neo|doctor|orchestrator|router)\.svg(?:\?|$)/.test(source)||img.dataset.portraitClock)return;
    img.dataset.portraitClock='loading';
-   if(!portraitSources.has(source))portraitSources.set(source,fetch(source+'?portrait=20261110-viktor-cape').then(r=>{if(!r.ok)throw Error('Portrait '+r.status);return r.text();}));
+   if(!portraitSources.has(source))portraitSources.set(source,fetch(source+'?portrait=20261110-viktor-shaded').then(r=>{if(!r.ok)throw Error('Portrait '+r.status);return r.text();}));
    portraitSources.get(source).then(text=>{
     if(!img.isConnected)return;
     const prefix='portrait-'+(++portraitId)+'-',svg=new DOMParser().parseFromString(text,'image/svg+xml').documentElement;
