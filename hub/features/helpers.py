@@ -108,7 +108,7 @@ async def api_helpers(request: web.Request) -> web.Response:
 
 ICON_DIR = __import__("pathlib").Path(__file__).resolve().parent.parent / "static" / "agent-icons"
 ART_DIR = ICON_DIR.parent / "agent-art"
-CREW = ("orchestrator", "neo", "smith", "doctor")
+CREW = ("orchestrator", "neo", "smith", "doctor", "router")
 
 
 @routes.get("/static/agent-icons/{name}")
@@ -118,7 +118,7 @@ async def agent_icon(request: web.Request) -> web.StreamResponse:
     name = request.match_info["name"]
     crew = ART_DIR / (name[:-4] + ".svg")
     on_agency = "/agents" in (__import__("urllib.parse", fromlist=["urlparse"]).urlparse(request.headers.get("Referer", "")).path or "")
-    if on_agency and name[:-4] in CREW and name.endswith(".png") and crew.is_file():   # the four crew have a vector picture; only the Agency page shows it, large
+    if on_agency and name[:-4] in CREW and name.endswith(".png") and crew.is_file():   # Agency uses animated portraits; other pages use the PNG icons
         return web.FileResponse(crew, headers={"Cache-Control": "public, max-age=300", "Content-Type": "image/svg+xml"})
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,40}\.png", name) or not (ICON_DIR / name).is_file():
         raise web.HTTPNotFound()

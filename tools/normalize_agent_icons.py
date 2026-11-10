@@ -96,10 +96,14 @@ def paint(m: np.ndarray) -> Image.Image:
     return Image.fromarray((rgba * 255 + 0.5).astype(np.uint8), "RGBA").resize((OUT, OUT), Image.LANCZOS)
 
 
+# Viktor is deliberately full-color; keep his gold and navy when normalizing the line-art set.
+FULL_COLOR_PORTRAITS = {"orchestrator"}
+
+
 def sources() -> "dict[str, np.ndarray]":
     out: "dict[str, np.ndarray]" = {}
     for f in sorted(ICONS.glob("*.png")):
-        if f.stem in ("neo", "smith"):
+        if f.stem in ("neo", "smith") or f.stem in FULL_COLOR_PORTRAITS:
             continue
         out[f.stem] = _ink_from_rgba(Image.open(f))
     sys.path.insert(0, str(ROOT))
@@ -123,7 +127,7 @@ def measure(im: Image.Image) -> dict:
 
 def main(check: bool) -> int:
     if check:
-        rows = {f.stem: measure(Image.open(f)) for f in sorted(ICONS.glob("*.png"))}
+        rows = {f.stem: measure(Image.open(f)) for f in sorted(ICONS.glob("*.png")) if f.stem not in FULL_COLOR_PORTRAITS}
         bad = []
         for key in ("line", "width"):
             med = float(np.median([r[key] for r in rows.values()]))

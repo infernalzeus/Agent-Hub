@@ -175,7 +175,7 @@ function drawVisual(a){
  }else if(m.sid==='missions'){
   content=`<div class="mission-preview"><div class="ui-section">MISSION · ${esc(a.missionProject||'Example web project')} · theme toggle</div><div class="mission-tabs"><span class="${s<3?'selected':''}">PLAN</span><span class="${s===3?'selected':''}">WORK</span><span class="${s>=4?'selected':''}">REVIEW</span></div>`;
   if(s===0)content+=`<div class="mission-request"><label>Project<select data-mission-project aria-label="Example mission project"><option>Example web project</option><option>Another example project</option></select></label><label>Goal<input aria-label="Example mission goal" value="Add a dark-mode toggle to settings" readonly></label>${button('Follow the route','next')}</div>`;
-  if(s===1)content+=`<div class="demo-flow"><div><b>Your request</b><p>Add a dark-mode toggle</p></div><div class="flow-active"><b>Router</b><p>This needs a code change</p></div><div><b>Mission</b><p>Project + goal + private copy</p></div></div>`;
+  if(s===1)content+=`<div class="demo-flow"><div><b>Your request</b><p>Add a dark-mode toggle</p></div><div class="flow-active"><img src="assets/agents/router.svg" alt="" width="36" height="36"><b>Router</b><p>This needs a code change</p></div><div><b>Mission</b><p>Project + goal + private copy</p></div></div>`;
   if(s===2)content+=`<div class="demo-briefs">${[['coder','Implement the setting and control.'],['tester','Check the toggle and system preference.'],['reviewer','Review behavior and changed lines.']].map(([name,task])=>`<div>${name==='coder'?'':`<img src="assets/agents/${name}.png" alt="">`}<b>${name}</b><p>${task}</p></div>`).join('')}</div>`;
   if(s===3)content+=row('Working copy','agent/example-theme')+row('Current brief','coder · settings and theme')+'<div class="ui-progress"><i></i></div>'+row('Changed file','settings.css')+row('Your project','Awaiting your review');
   if(s===4)content+=`<div class="ui-proposal"><b>Question from the mission</b><p>Should the toggle follow the system theme?</p><div class="ui-actions">${button('Use system theme','answer')}${button('Manual toggle only','manual-answer')}</div></div>`;
@@ -397,9 +397,9 @@ document.querySelectorAll('[data-work-example]').forEach(b=>b.addEventListener('
  const portraitSources=new Map();let portraitId=0;
  function syncPortraits(){
   document.querySelectorAll('img[src*="assets/agents/"]').forEach(img=>{
-   const source=img.getAttribute('src');if(!/\/(smith|neo|doctor|orchestrator)\.svg(?:\?|$)/.test(source)||img.dataset.portraitClock)return;
+   const source=img.getAttribute('src');if(!/\/(smith|neo|doctor|orchestrator|router)\.svg(?:\?|$)/.test(source)||img.dataset.portraitClock)return;
    img.dataset.portraitClock='loading';
-   if(!portraitSources.has(source))portraitSources.set(source,fetch(source+'?portrait=20261107-crew-polish').then(r=>{if(!r.ok)throw Error('Portrait '+r.status);return r.text();}));
+   if(!portraitSources.has(source))portraitSources.set(source,fetch(source+'?portrait=20261110-viktor').then(r=>{if(!r.ok)throw Error('Portrait '+r.status);return r.text();}));
    portraitSources.get(source).then(text=>{
     if(!img.isConnected)return;
     const prefix='portrait-'+(++portraitId)+'-',svg=new DOMParser().parseFromString(text,'image/svg+xml').documentElement;
