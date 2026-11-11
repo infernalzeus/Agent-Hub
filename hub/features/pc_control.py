@@ -1109,11 +1109,18 @@ async def _replay_core(routine: dict, request: str, rec) -> dict:
     live = ui_signature(elements, stored.get("window", ""))
     key = "stable" if stored.get("stable") else "fingerprint"
     if live[key] != stored.get(key):
-        # Not a failure of the routine: the screen is not the one it knows. It earns no credit and loses none.
-        _record_run(request, "fall-through", "skipped",
-                    f"signature mismatch ({key}): expected {stored.get(key)}, saw {live[key]}")
-        return {"ok": False, "route": "fall-through",
-                "say": f"{routine['title']} was recorded on a different screen, so I did not touch it."}
+        # The app is not showing the page the routine was recorded on (it came up on another page, or its content moved). That alone is not a reason to refuse: every step below finds its own
+        # control on the live screen and stops if it is missing. So the routine goes on when the control of its FIRST step is there, and says that it did; it stops, saying exactly what it
+        # looked for, when it is not. Before 12 Nov any difference stopped it, so a replay after the app had just been opened did nothing at all.
+        first_target = json.loads(steps[0]["target_json"] or "{}")
+        if not (first_target and _match(elements, first_target)):
+            _record_run(request, "fall-through", "skipped",
+                        f"signature mismatch ({key}): expected {stored.get(key)}, saw {live[key]}; first control not on screen")
+            if rec:
+                await rec.step("check", first_target.get("name", "")[:60], 0, False, "the screen is not the one it was recorded on, and its first control is not on it")
+            return {"ok": False, "route": "fall-through",
+                    "say": f"{routine['title']} starts from “{(first_target.get('name') or 'a control')[:50]}”, which is not on the screen ({live.get('controls', 0)} controls seen). I did not press anything."}
+        _record_run(request, "routine", "note", f"screen differs ({key}) but the first control is on it: going on")
 
     window = stored.get("window", "")
     before = live                      # the signature just taken, reused as the baseline
@@ -1240,6 +1247,14 @@ async def api_routines(request: web.Request) -> web.Response:
             seen = scores.get(r["id"]) or []
             r["lowest_match"] = min(seen) if seen else None
             r["matched"] = len(seen)
+    try:
+        from . import run_record as RR
+        for r in rows:
+            last = RR.latest_for(r["id"])
+            r["last_replay"] = {"ok": last.get("ok"), "at": last.get("at"), "ms": last.get("ms"), "kind": last.get("kind", "run"), "say": last.get("say", "")} if last else None
+            r["replay_failures"] = RR.trailing_failures(r["id"])
+    except Exception:  # noqa: BLE001
+        pass
     return web.json_response({"routines": rows})
 
 
@@ -1310,9 +1325,49 @@ async def run_routine(rid: str, request: str = "manual run") -> dict:
     if routine["tool"] == "surface":
         from . import machine_routines as MR
         return await MR.replay_machine_routine(routine, request=request)
+    if routine["tool"] in ("App", "Uri"):
+        return await replay_launch_routine(routine, request=request)
     if routine["tool"] != "ui":
-        raise ValueError("only recorded routines can be replayed from here; launches go through TALK")
+        raise ValueError(f"I cannot replay a routine of kind {routine['tool']!r} from here")
     return await replay_ui_routine(routine, request=request)
+
+
+async def replay_launch_routine(routine: dict, request: str = "") -> dict:
+    """REPLAY on "Open Apple Music" (or an address routine): do exactly what Talk does for that sentence, wait for the window, and keep the step, its time and a picture.
+    Before 12 Nov the panel refused these with "launches go through TALK", which read as a trusted routine that does nothing."""
+    from . import run_record as RR
+    name = ""
+    try:
+        name = str(json.loads(routine.get("args_json") or "{}").get("name") or "")
+    except ValueError:
+        pass
+    if not name:
+        name = (routine.get("title") or "").removeprefix("Open ").split(" by its address")[0].strip()
+    if not name and ":" in (routine.get("intent") or ""):
+        name = routine["intent"].split(":", 1)[1].split(":")[0]
+    rec = RR.Recorder("replay", routine.get("title") or name, name, routine=routine["id"], window=name)
+    t0 = time.time()
+    g0 = stop_gen()
+    got = await (open_address(name, request or "replay") if routine["tool"] == "Uri" else launch_app(name, request or "replay"))
+    ok = bool(got.get("ok"))
+    if ok:                                                       # "launched" is Windows saying it sent the command: the window is the evidence
+        for _ in range(24):
+            if stop_gen() != g0:
+                break
+            if await _window_for(name):
+                break
+            await asyncio.sleep(0.5)
+        else:
+            ok = False
+            got = {"ok": False, "say": f"I sent the command to open {display_app_name(name)}, but no window came up after 12 seconds."}
+    if stop_gen() != g0:
+        res = dict(STOPPED)
+    else:
+        await rec.step("open", display_app_name(name), (time.time() - t0) * 1000, ok, "" if ok else got.get("say", ""))
+        res = {"ok": ok, "route": "routine", "say": got.get("say") or ("Opened " + display_app_name(name) + "." if ok else "It did not open.")}
+    res["ms"] = int((time.time() - t0) * 1000)
+    res["rid"] = rec.finish(ok, res["say"])
+    return res
 
 
 @routes.post("/api/pc/stop")
@@ -1372,6 +1427,16 @@ async def api_run_routine(request: web.Request) -> web.Response:
             if keep:
                 with _db() as db:
                     db.execute("UPDATE pc_routines SET status=?, successes=?, failures=? WHERE id=?", (keep["status"], keep["successes"], keep["failures"], rid))
+        if request.query.get("test") == "1" and got.get("route") != "stopped" and keep:
+            try:
+                from . import run_record as RR
+                RR.note_outcome(rid, bool(got.get("ok")))
+                if keep["status"] == "trusted" and not got.get("ok") and RR.trailing_failures(rid) >= 2:
+                    with _db() as db:                       # two replays in a row failed: it is not a routine a person can rely on, so it is not listed as trusted
+                        db.execute("UPDATE pc_routines SET status='candidate', successes=0, updated=? WHERE id=?", (time.time(), rid))
+                    got = {**got, "demoted": True, "say": (got.get("say") or "") + " It failed its last two replays, so it is no longer trusted: it is a candidate again."}
+            except Exception as exc:  # noqa: BLE001
+                logger.info("pc_control: could not note the replay outcome: %s", exc)
         try:
             with _db() as db:
                 row = db.execute("SELECT title FROM pc_routines WHERE id=?", (request.match_info["id"],)).fetchone()

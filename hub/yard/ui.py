@@ -269,6 +269,8 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       head.append(tw,el('span','said',r.title));
       const m=el('span','rchips');
       m.append(el('span','chip '+(r.status==='trusted'?'ok':r.status==='disabled'?'no':'part'),r.status.toUpperCase()),document.createTextNode(' '),el('span','chip',r.successes+' good · '+r.failures+' bad'));
+      if(r.last_replay){const lr=r.last_replay,ago=Math.max(1,Math.round((Date.now()/1000-lr.at)/60));m.append(document.createTextNode(' '),el('span','chip '+(lr.ok?'ok':'no'),(lr.ok?'last replay worked':'last replay FAILED')+' · '+(ago<90?ago+' min ago':Math.round(ago/60)+' h ago')));}
+      if(r.status==='trusted'&&r.replay_failures>=1){m.append(document.createTextNode(' '),el('span','chip no','trusted, but its last replay failed'));}
       if(att.has(r.id)){m.append(document.createTextNode(' '),el('span','chip ok','attested'));}
       const k=chk[r.id];if(k){m.append(document.createTextNode(' '),el('span','chip '+(k.ready?'ok':'part'),k.ready?'yard: looks ready':'yard: not ready'));}
       head.append(m);c.append(head,body);

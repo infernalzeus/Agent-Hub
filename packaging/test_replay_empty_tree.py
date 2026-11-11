@@ -22,4 +22,4 @@ def test_an_empty_tree_is_read_again_before_the_screen_is_called_different(monke
     routine = {"id": "x", "title": "T", "status": "candidate", "successes": 0, "signature_json": json.dumps({"window": "Apple Music", "stable": "nothing-like-this"})}
     out = asyncio.run(PC.replay_ui_routine(routine, "play"))
     assert len(calls) == 3, "it looked again until the window had drawn"
-    assert out["route"] == "fall-through" and "different screen" in out["say"]        # and only then judged the signature
+    assert out["route"] == "fall-through" and "not on the screen" in out["say"]        # and only then judged the screen: its first control is missing, so nothing is pressed

@@ -136,3 +136,107 @@ def test_a_replay_in_shadow_mode_leaves_a_demonstration(tmp_path, monkeypatch):
     monkeypatch.setattr(PC, "effect_of", effect)
     asyncio.run(PC.replay_ui_routine(routine, "test"))
     assert [s[1] for s in seen] == ["click", "click"] and all(s[3] for s in seen)                    # each step: the screen it saw and the control it pressed
+
+
+def _launch_routine(tmp_path, monkeypatch, status="trusted"):
+    monkeypatch.setattr(RR, "STATE", tmp_path)
+    with PC._db() as db:
+        db.execute("INSERT INTO pc_routines (id,intent,title,tool,kind,args_json,signature_json,status,successes,failures,created,updated) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                   ("l1", "open:apple music", "Open Apple Music", "App", "mcp", json.dumps({"mode": "launch", "name": "Apple Music"}), json.dumps({"kind": "start_menu_app", "name": "Apple Music"}), status, 20, 0, 1.0, 1.0))
+        return dict(db.execute("SELECT * FROM pc_routines WHERE id='l1'").fetchone())
+
+
+def test_replaying_a_launch_routine_opens_the_app_checks_its_window_and_keeps_the_step(tmp_path, monkeypatch):
+    """The trusted routine 'Open Apple Music' answered REPLAY with 'launches go through TALK': a trusted routine that did nothing."""
+    routine = _launch_routine(tmp_path, monkeypatch)
+    opened, windows = [], iter([False, False, True])
+
+    async def launch(app, request, then=""):
+        opened.append(app)
+        return {"ok": True, "say": "Opened Apple Music."}
+
+    async def window_for(name):
+        return next(windows)
+    _real_sleep = asyncio.sleep
+    monkeypatch.setattr(PC, "launch_app", launch)
+    monkeypatch.setattr(PC, "_window_for", window_for)
+    monkeypatch.setattr(asyncio, "sleep", lambda s: _real_sleep(0))
+    res = asyncio.run(PC.run_routine("l1"))
+    assert opened == ["Apple Music"] and res["ok"] and res["rid"]
+    row = json.loads((tmp_path / "data" / "runs" / res["rid"] / "run.json").read_text(encoding="utf-8"))
+    assert [t["do"] for t in row["trace"]] == ["open"] and row["ok"]
+
+
+def test_a_launch_that_never_shows_a_window_is_a_failed_replay_not_a_silent_one(tmp_path, monkeypatch):
+    routine = _launch_routine(tmp_path, monkeypatch)
+
+    async def launch(app, request, then=""):
+        return {"ok": True, "say": "launched"}
+
+    async def window_for(name):
+        return False
+    _real_sleep = asyncio.sleep
+    monkeypatch.setattr(PC, "launch_app", launch)
+    monkeypatch.setattr(PC, "_window_for", window_for)
+    monkeypatch.setattr(asyncio, "sleep", lambda s: _real_sleep(0))
+    res = asyncio.run(PC.run_routine("l1"))
+    assert res["ok"] is False and "no window came up" in res["say"]
+
+
+def test_a_routine_goes_on_when_the_app_shows_another_page_but_its_first_control_is_there(tmp_path, monkeypatch):
+    routine = _routine(tmp_path, monkeypatch)
+    other = [dict(e) for e in SCREEN] + [{"window": WIN, "control": "tab", "name": "Radio", "path": "", "x": 30, "y": 30, "action": "click"}]    # another page: one more tab than when recorded
+    calls = []
+
+    async def snapshot(app=""):
+        return [dict(e) for e in other]
+
+    async def call_tool(name, tool, args, timeout=90):
+        calls.append(args.get("loc"))
+        return {"text": []}
+
+    async def effect(window, before):
+        return {"known": True, "changed": True, "why": ""}
+    monkeypatch.setattr(PC, "_snapshot", snapshot)
+    monkeypatch.setattr(PC.MCP, "call_tool", call_tool)
+    monkeypatch.setattr(PC, "effect_of", effect)
+    res = asyncio.run(PC.replay_ui_routine(routine, "test"))
+    assert res["ok"] and calls == [[10, 10], [20, 20]]
+
+
+def test_a_routine_whose_first_control_is_missing_presses_nothing_and_names_what_it_looked_for(tmp_path, monkeypatch):
+    routine = _routine(tmp_path, monkeypatch)
+    calls = []
+
+    async def snapshot(app=""):
+        return [{"window": WIN, "control": "button", "name": "Sign in", "path": "", "x": 1, "y": 1, "action": "click"}]
+
+    async def call_tool(name, tool, args, timeout=90):
+        calls.append(tool)
+        return {"text": []}
+    monkeypatch.setattr(PC, "_snapshot", snapshot)
+    monkeypatch.setattr(PC.MCP, "call_tool", call_tool)
+    res = asyncio.run(PC.replay_ui_routine(routine, "test"))
+    assert res["ok"] is False and "Home" in res["say"] and "did not press anything" in res["say"] and calls == []
+
+
+def test_a_trusted_routine_that_fails_two_replays_in_a_row_is_no_longer_listed_as_trusted(tmp_path, monkeypatch):
+    _launch_routine(tmp_path, monkeypatch)
+
+    async def failing(rid, request="manual run"):
+        return {"ok": False, "route": "routine", "say": "No window came up."}
+    monkeypatch.setattr(PC, "run_routine", failing)
+    app = web.Application()
+    app.add_routes(PC.routes)
+
+    async def go():
+        async with TestClient(TestServer(app)) as c:
+            first = await (await c.post("/api/pc/routines/l1/run?test=1")).json()
+            assert not first.get("demoted")
+            rows = (await (await c.get("/api/pc/routines")).json())["routines"]
+            assert rows[0]["status"] == "trusted" and rows[0]["replay_failures"] == 1               # still trusted, and the list says its last replay failed
+            second = await (await c.post("/api/pc/routines/l1/run?test=1")).json()
+            assert second["demoted"] is True and "no longer trusted" in second["say"]
+            rows = (await (await c.get("/api/pc/routines")).json())["routines"]
+            assert rows[0]["status"] == "candidate"
+    asyncio.run(go())

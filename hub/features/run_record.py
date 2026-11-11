@@ -119,6 +119,33 @@ def _latest() -> dict:
         return {}
 
 
+def _history() -> dict:
+    try:
+        return json.loads((_root() / "history.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def note_outcome(routine: str, ok: bool) -> None:
+    """The last five replay results of a routine (True or False, newest last): a routine a person approved is only as good as its replays."""
+    try:
+        h = _history()
+        h[routine] = (h.get(routine, []) + [bool(ok)])[-5:]
+        _root().mkdir(parents=True, exist_ok=True)
+        (_root() / "history.json").write_text(json.dumps(h), encoding="utf-8")
+    except OSError as exc:
+        logger.info("run_record: could not keep the replay history: %s", exc)
+
+
+def trailing_failures(routine: str) -> int:
+    n = 0
+    for ok in reversed(_history().get(routine, [])):
+        if ok:
+            break
+        n += 1
+    return n
+
+
 def latest_for(routine: str) -> "dict | None":
     """The newest run or replay that belongs to this routine (the pictures a person looks at before approving it)."""
     rid = _latest().get(routine)
