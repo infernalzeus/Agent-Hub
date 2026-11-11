@@ -279,6 +279,8 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       rp.title='Run it now, on this PC, to watch how it works. It does not count for or against the routine.';
       again.title='Ask the agent to do this task again from the start (not a replay). It keeps the steps and pictures of this attempt; for a candidate, a good attempt replaces the steps.';
       const note=el('div','why'),stepsBox=el('div'),runBox=el('div'),wy=el('div');
+      const NOTES=(window.__rlNotes=window.__rlNotes||{});const say=(txt,kind)=>{NOTES[r.id]={txt,kind};note.textContent=txt;note.style.color=kind==='ok'?'#00e676':kind==='bad'?'#ff6b6b':kind==='stop'?'#e0a53c':'';note.style.fontWeight=kind?'700':'';};
+      if(NOTES[r.id])say(NOTES[r.id].txt,NOTES[r.id].kind);
       if(k&&!k.ready)note.textContent=k.reasons.join('. ')+'.';
       if(k&&k.ready)note.textContent='No forbidden control, replayed clean, and the learner agrees on '+(k.agree==null?'(no learner yet)':pct(k.agree))+' of its steps. Only you can approve it.';
       bar.append(rp,again,stepsBtn,why,ok,off,del);body.append(bar,note,runBox,stepsBox,wy);again.hidden=r.status==='trusted';
@@ -287,10 +289,11 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       // the steps, as a list you can change: drop a step, move it, or say which control it presses
       const showSteps=async()=>{stepsBox.replaceChildren(el('div','mute','Reading the steps...'));
         try{const j=await J('/api/pc/routines/'+r.id+'/steps'),list=el('div','steps');
-          if(!j.steps.length){stepsBox.replaceChildren(el('div','mute','No steps: an app launch or an address.'));return;}
+          if(!j.steps.length){stepsBox.replaceChildren(el('div','mute','This routine has no steps saved.'));return;}
           const edit=async(ord,body2)=>{const x=await POST('/api/pc/routines/'+r.id+'/steps/'+ord,body2);if(!x.ok){note.textContent=await x.text();}await showSteps();};
           j.steps.forEach((x,i)=>{const row=el('div','step'),nm=(x.target&&x.target.name)||'';
             const label=el('span','sl');label.append(el('b',null,(i+1)+'. '),document.createTextNode(x.tool.toLowerCase()+' '),el('span','sn','“'+(nm.length>48?nm.slice(0,48)+'…':nm)+'”'),el('span','mute',(x.target&&x.target.control?'  '+x.target.control:'')+(x.target&&x.target.path?' in '+x.target.path:'')));label.title=nm;
+            if(x.fixed){label.replaceChildren(el('b',null,'1. '),document.createTextNode('open app '),el('span','sn','“'+nm+'”'));const how=el('div','mute');how.textContent='Command: '+x.command+'. Name taken from '+x.source+'.';row.append(label,how);list.append(row);return;}
             const up=el('button','i','↑'),dn=el('button','i','↓'),rn=el('button','i','✎'),rm=el('button','i','✕');up.title='Move up';dn.title='Move down';rn.title='Change which control it presses';rm.title='Remove this step';
             up.disabled=i===0;dn.disabled=i===j.steps.length-1;
             up.onclick=()=>edit(x.ordinal,{to:i-1});dn.onclick=()=>edit(x.ordinal,{to:i+1});
@@ -305,6 +308,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
         const list=el('div','steps'),bad=run.trace.filter(x=>x.error).length;
         run.trace.forEach((x,i)=>{const row=el('div','step'),lab=el('span','sl');
           lab.append(el('b',null,(i+1)+'. '),document.createTextNode((x.do||'')+' '),el('span','sn','“'+String(x.control||'').slice(0,48)+'”'),el('span','mute','  '+secs(x.ms)+(x.error?'  - '+x.error:'')));
+          if(x.why&&!x.error){const cm=el('div','mute');cm.textContent='Command: '+x.why;lab.append(cm);}
           row.append(lab);if(x.shot){const im=el('img');im.src='/api/runs/'+run.id+'/shot/'+x.shot;im.style.cssText='width:110px;border-radius:5px;margin-left:8px;cursor:zoom-in;border:1px solid '+(x.error?'#ff6b6b':'rgba(0,230,118,.3)');im.onclick=()=>window.open(im.src,'_blank');row.append(im);}
           list.append(row);});
         runBox.append(el('div','mute',(run.kind==='replay'?'LAST REPLAY':'LAST ATTEMPT')+' · '+new Date(run.at*1000).toLocaleString()+' · '+secs(run.ms)+' · '+(run.ok?'worked':'did not work')+(bad?' · '+bad+' step(s) failed':'')+' · '+(run.say||'')),list);};
@@ -317,13 +321,21 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       ok.onclick=async()=>{await POST('/api/pc/routines/'+r.id+'/approve');routines();};
       off.onclick=async()=>{await POST('/api/pc/routines/'+r.id+'/status',{status:r.status==='disabled'?'candidate':'disabled'});routines();};
       del.onclick=async()=>{if(!confirm('Delete this routine for good? '+r.title))return;await fetch('/api/pc/routines/'+r.id,{method:'DELETE'});routines();};
+      // A replay can take a while (Windows needed 14 s to start Apple Music), so it counts its seconds out loud, and ends with one line that cannot be misread.
+      const clock=(label)=>{const t0=Date.now();const tick=setInterval(()=>{note.style.color='';note.textContent=label+' '+Math.round((Date.now()-t0)/1000)+' s...  (STOP ends it)';},500);return ()=>clearInterval(tick);};
+      const verdict=(j,secsTxt,extra)=>{if(j&&j.route==='stopped')return say('STOPPED by you'+secsTxt+'. That is not a result: '+(extra||'the routine is unchanged.'),'stop');
+        if(j&&j.ok)return say('REPLAY WORKED'+secsTxt+': '+(j.say||'')+(r.status==='trusted'?' It stays trusted.':''),'ok');
+        return say('REPLAY FAILED'+secsTxt+': '+((j&&j.say)||'no answer')+((j&&j.demoted)?'':(r.status==='trusted'?' It stays trusted until it fails twice in a row.':'')),'bad');};
       rp.onclick=async()=>{if(busy){await stopIt();return;}
-        if(!confirm('Replay "'+r.title+'" now? It opens the app if it is closed and presses things on this PC. STOP ends it.'))return;working(rp,'REPLAY',true);again.disabled=true;note.textContent='Replaying...';
-        try{const x=await POST('/api/pc/routines/'+r.id+'/run?test=1');const j=x.ok?await x.json():null;note.textContent=x.ok?((j.ok?'It ran in '+secs(j.ms)+'. ':'It did not work: ')+(j.say||'')+' (a test: it did not change the routine)'):(await x.text());}catch(e){note.textContent=String(e);}
-        working(rp,'REPLAY',false);again.disabled=false;await loadRun();};
+        if(!confirm('Replay "'+r.title+'" now? It opens the app if it is closed and presses things on this PC. STOP ends it.'))return;working(rp,'REPLAY',true);again.disabled=true;const done=clock('Replaying');const t0=Date.now();let j=null,err='';
+        try{const x=await POST('/api/pc/routines/'+r.id+'/run?test=1');if(x.ok)j=await x.json();else err=await x.text();}catch(e){err=String(e);}
+        finally{done();working(rp,'REPLAY',false);again.disabled=false;}
+        const s=' in '+((Date.now()-t0)/1000).toFixed(1)+' s';
+        if(j)verdict(j,s);else say('REPLAY FAILED'+s+': '+err,'bad');
+        await loadRun();routines();};
       again.onclick=async()=>{if(busy){await stopIt();return;}
-        if(!confirm('Ask the agent to do "'+r.title+'" again from the start? It will press things on this PC; STOP ends it.'))return;working(again,'ATTEMPT AGAIN',true);rp.disabled=true;note.textContent='Trying again from the start...';
-        try{const x=await POST('/api/pc/routines/'+r.id+'/reattempt');const j=x.ok?await x.json():null;note.textContent=x.ok?((j.ok?'It worked. ':'It did not work: ')+(j.say||'')):(await x.text());}catch(e){note.textContent=String(e);}
+        if(!confirm('Ask the agent to do "'+r.title+'" again from the start? It will press things on this PC; STOP ends it.'))return;working(again,'ATTEMPT AGAIN',true);rp.disabled=true;say('Trying again from the start...','');
+        try{const x=await POST('/api/pc/routines/'+r.id+'/reattempt');const j=x.ok?await x.json():null;if(j)say((j.ok?'ATTEMPT WORKED: ':'ATTEMPT FAILED: ')+(j.say||''),j.ok?'ok':'bad');else say('ATTEMPT FAILED: '+(await x.text()),'bad');}catch(e){say('ATTEMPT FAILED: '+String(e),'bad');}
         working(again,'ATTEMPT AGAIN',false);rp.disabled=false;await loadRun();routines();};
       ok.hidden=r.status==='trusted';
       why.onclick=async()=>{if(wy.childNodes.length){wy.replaceChildren();return;}wy.append(el('div','mute','Working it out...'));try{wy.replaceChildren(whyView(await J('/api/yard/why/routine/'+r.id)));}catch(e){wy.replaceChildren(el('div','mute','Could not explain this routine.'));}};

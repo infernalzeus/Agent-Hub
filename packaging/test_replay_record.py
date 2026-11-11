@@ -171,16 +171,58 @@ def test_a_launch_that_never_shows_a_window_is_a_failed_replay_not_a_silent_one(
     routine = _launch_routine(tmp_path, monkeypatch)
 
     async def launch(app, request, then=""):
-        return {"ok": True, "say": "launched"}
-
-    async def window_for(name):
-        return False
-    _real_sleep = asyncio.sleep
+        return {"ok": False, "say": "Launching Apple Music was sent, but no window came up."}
     monkeypatch.setattr(PC, "launch_app", launch)
-    monkeypatch.setattr(PC, "_window_for", window_for)
-    monkeypatch.setattr(asyncio, "sleep", lambda s: _real_sleep(0))
     res = asyncio.run(PC.run_routine("l1"))
     assert res["ok"] is False and "no window came up" in res["say"]
+    row = json.loads((tmp_path / "data" / "runs" / res["rid"] / "run.json").read_text(encoding="utf-8"))
+    assert row["ok"] is False and row["trace"][0].get("error")
+
+
+def test_a_launch_replay_says_the_exact_command_and_where_the_name_came_from_and_does_not_wait_twice(tmp_path, monkeypatch):
+    routine = _launch_routine(tmp_path, monkeypatch)
+    checks = []
+
+    async def launch(app, request, then=""):
+        return {"ok": True, "say": "Opened Apple Music."}
+
+    async def window_for(name):
+        checks.append(name)                                                                              # launch_app has checked the window already: nothing here may repeat it
+        return True
+    monkeypatch.setattr(PC, "launch_app", launch)
+    monkeypatch.setattr(PC, "_window_for", window_for)
+    res = asyncio.run(PC.run_routine("l1"))
+    assert checks == [] and res["ok"] and "Took" in res["say"]
+    assert 'windows.App {"mode": "launch", "name": "Apple Music"}' in res["command"]["text"] and "Start-menu entry" in res["command"]["source"]
+    row = json.loads((tmp_path / "data" / "runs" / res["rid"] / "run.json").read_text(encoding="utf-8"))
+    assert "windows.App" in row["trace"][0]["why"]                                                       # the viewer shows it beside the step
+
+
+def test_a_stop_during_a_launch_is_recorded_as_stopped_not_as_worked(tmp_path, monkeypatch):
+    """23:17 on 11 Nov: STOP was pressed during an Apple Music launch and the record said it worked."""
+    routine = _launch_routine(tmp_path, monkeypatch)
+
+    async def launch(app, request, then=""):
+        PC.stop_all()
+        return {"ok": True, "say": "Opened Apple Music."}
+    monkeypatch.setattr(PC, "launch_app", launch)
+    res = asyncio.run(PC.run_routine("l1"))
+    assert res["route"] == "stopped" and res["ok"] is False and "not a result" in res["say"]
+    row = json.loads((tmp_path / "data" / "runs" / res["rid"] / "run.json").read_text(encoding="utf-8"))
+    assert row["ok"] is False
+
+
+def test_a_launch_routine_lists_its_one_step_with_the_command_it_runs(tmp_path, monkeypatch):
+    _launch_routine(tmp_path, monkeypatch)
+    app = web.Application()
+    app.add_routes(PC.routes)
+
+    async def go():
+        async with TestClient(TestServer(app)) as c:
+            j = await (await c.get("/api/pc/routines/l1/steps")).json()
+            s = j["steps"][0]
+            assert len(j["steps"]) == 1 and s["target"]["name"] == "Apple Music" and s["fixed"] and "Start-menu" in s["source"] and "windows.App" in s["command"]
+    asyncio.run(go())
 
 
 def test_a_routine_goes_on_when_the_app_shows_another_page_but_its_first_control_is_there(tmp_path, monkeypatch):

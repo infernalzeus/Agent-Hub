@@ -100,3 +100,41 @@ def test_the_panel_opens_a_routine_lists_its_steps_and_lets_you_drop_one(hub):
         assert pg.locator(".rc .rbody").is_hidden()
         b.close()
     assert errors == []
+
+
+def test_a_replay_counts_its_seconds_ends_with_one_clear_line_and_a_launch_routine_shows_its_command(hub):
+    """11 Nov 23:17: REPLAY sat on STOP with no sign of progress and no clear end; the launch routine said it had no steps."""
+    step = {"ordinal": 0, "tool": "App", "args": {"mode": "launch", "name": "Apple Music"}, "target": {"name": "Apple Music", "control": "app"}, "fixed": True,
+            "command": 'windows.App {"mode": "launch", "name": "Apple Music"}: start “Apple Music” by its Start-menu name, then check that its window came up', "source": "the Start-menu entry “Apple Music”, remembered from 20 earlier successful opens"}
+    row = {"id": "l1", "title": "Open Apple Music", "status": "trusted", "successes": 20, "failures": 0, "updated": 0, "tool": "App", "last_replay": None, "replay_failures": 0}
+    with sync_playwright() as pw:
+        b = pw.chromium.launch(headless=True)
+        pg = b.new_context(service_workers="block", viewport={"width": 1000, "height": 900}).new_page()
+        pg.on("dialog", lambda d: d.accept())
+        errors = []
+        pg.on("pageerror", lambda e: errors.append(str(e)))
+
+        def run(route):
+            pg.wait_for_timeout(2600)                                                                # a slow start, as Windows gave Apple Music
+            route.fulfill(json={"ok": True, "route": "routine", "say": "Opened Apple Music. Took 1.6 s.", "ms": 1600})
+        pg.route("**/api/pc/routines", lambda r: r.fulfill(json={"routines": [row]}))
+        pg.route("**/api/pc/routines/l1/steps", lambda r: r.fulfill(json={"steps": [step]}))
+        pg.route("**/api/pc/routines/l1/run?test=1", run)
+        pg.route("**/api/pc/routines/l1/last-run", lambda r: r.fulfill(json={"run": None}))
+        pg.goto(hub + "/yard")
+        pg.click("[data-tab=routines]")
+        pg.wait_for_selector(".rc .rhead")
+        pg.click(".rc .rhead")
+        pg.click(".rc button:text-is('STEPS')")
+        pg.wait_for_selector(".rc .step")
+        txt = pg.inner_text(".rc .step")
+        assert "open app" in txt and "Apple Music" in txt and "windows.App" in txt and "Start-menu entry" in txt and "20 earlier successful opens" in txt
+        assert pg.locator(".rc .step button").count() == 0                                           # a launch is not edited step by step
+        pg.click(".rc .rbody button:text-is('REPLAY')")
+        pg.wait_for_selector(".rc .rbody button:text-is('STOP')")
+        pg.wait_for_function("/Replaying \d+ s/.test(document.querySelector('.rc .why').textContent)", timeout=4000)
+        pg.wait_for_function("document.querySelector('.rc .why').textContent.startsWith('REPLAY WORKED')", timeout=8000)
+        assert pg.locator(".rc .rbody button:text-is('REPLAY')").count() == 1 and pg.locator(".rc .rbody button:text-is('STOP')").count() == 0
+        assert "It stays trusted" in pg.inner_text(".rc .why") and "Opened Apple Music" in pg.inner_text(".rc .why")
+        b.close()
+    assert errors == []

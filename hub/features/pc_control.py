@@ -1332,15 +1332,26 @@ async def run_routine(rid: str, request: str = "manual run") -> dict:
     return await replay_ui_routine(routine, request=request)
 
 
-async def replay_launch_routine(routine: dict, request: str = "") -> dict:
-    """REPLAY on "Open Apple Music" (or an address routine): do exactly what Talk does for that sentence, wait for the window, and keep the step, its time and a picture.
-    Before 12 Nov the panel refused these with "launches go through TALK", which read as a trusted routine that does nothing."""
-    from . import run_record as RR
-    name = ""
+def launch_command(routine: dict) -> dict:
+    """What a launch routine runs, in words a person can check: the tool, its arguments, and where the app's name comes from."""
     try:
-        name = str(json.loads(routine.get("args_json") or "{}").get("name") or "")
+        args = json.loads(routine.get("args_json") or "{}")
     except ValueError:
-        pass
+        args = {}
+    if routine.get("tool") == "Uri":
+        uri = (json.loads(routine.get("signature_json") or "{}") or {}).get("uri") or ""
+        return {"tool": "Uri", "args": {"uri": uri}, "text": f"open the address {uri or '(registered by the app)'} through Windows", "source": "an address Windows has registered for the app"}
+    name = args.get("name") or ""
+    return {"tool": "App", "args": args, "text": f'windows.App {json.dumps(args)}: start “{name}” by its Start-menu name, then check that its window came up',
+            "source": f"the Start-menu entry “{name}”, remembered from {routine.get('successes', 0)} earlier successful opens"}
+
+
+async def replay_launch_routine(routine: dict, request: str = "") -> dict:
+    """REPLAY on "Open Apple Music" (or an address routine): do exactly what Talk does for that sentence and keep the step, the exact command, its time and a picture.
+    `launch_app` itself checks that the window came up (that check is the slow part of a cold start: Windows took 14 s for Apple Music), so it is not repeated here."""
+    from . import run_record as RR
+    cmd = launch_command(routine)
+    name = str((cmd["args"] or {}).get("name") or "")
     if not name:
         name = (routine.get("title") or "").removeprefix("Open ").split(" by its address")[0].strip()
     if not name and ":" in (routine.get("intent") or ""):
@@ -1349,24 +1360,17 @@ async def replay_launch_routine(routine: dict, request: str = "") -> dict:
     t0 = time.time()
     g0 = stop_gen()
     got = await (open_address(name, request or "replay") if routine["tool"] == "Uri" else launch_app(name, request or "replay"))
-    ok = bool(got.get("ok"))
-    if ok:                                                       # "launched" is Windows saying it sent the command: the window is the evidence
-        for _ in range(24):
-            if stop_gen() != g0:
-                break
-            if await _window_for(name):
-                break
-            await asyncio.sleep(0.5)
-        else:
-            ok = False
-            got = {"ok": False, "say": f"I sent the command to open {display_app_name(name)}, but no window came up after 12 seconds."}
+    ms = (time.time() - t0) * 1000
     if stop_gen() != g0:
-        res = dict(STOPPED)
+        res = {**STOPPED, "say": f"Stopped by you after {ms / 1000:.0f} s. That is not a result: the routine is unchanged."}
+        await rec.step("open", display_app_name(name), ms, False, cmd["text"] + " (stopped)")
     else:
-        await rec.step("open", display_app_name(name), (time.time() - t0) * 1000, ok, "" if ok else got.get("say", ""))
-        res = {"ok": ok, "route": "routine", "say": got.get("say") or ("Opened " + display_app_name(name) + "." if ok else "It did not open.")}
-    res["ms"] = int((time.time() - t0) * 1000)
-    res["rid"] = rec.finish(ok, res["say"])
+        ok = bool(got.get("ok"))
+        await rec.step("open", display_app_name(name), ms, ok, cmd["text"] + (f" — {got.get('say', '')}" if not ok else ""))
+        res = {"ok": ok, "route": "routine", "say": (got.get("say") or ("Opened " + display_app_name(name) + "." if ok else "It did not open.")) + (f" Took {ms / 1000:.1f} s." if ok else "")}
+    res["ms"] = int(ms)
+    res["command"] = cmd
+    res["rid"] = rec.finish(bool(res.get("ok")), res["say"])
     return res
 
 
@@ -1598,6 +1602,12 @@ async def api_edit_step(request: web.Request) -> web.Response:
 
 @routes.get("/api/pc/routines/{id}/steps")
 async def api_routine_steps(request: web.Request) -> web.Response:
+    with _db() as db:
+        row = db.execute("SELECT * FROM pc_routines WHERE id=?", (request.match_info["id"],)).fetchone()
+    if row and row["tool"] in ("App", "Uri"):                                 # a launch routine is one step, and it is not editable: say what it runs and where the name comes from
+        cmd = launch_command(dict(row))
+        name = str((cmd["args"] or {}).get("name") or row["title"])
+        return web.json_response({"steps": [{"ordinal": 0, "tool": cmd["tool"], "args": cmd["args"], "target": {"name": name, "control": "app"}, "command": cmd["text"], "source": cmd["source"], "fixed": True}]})
     steps = _steps(request.match_info["id"])
     return web.json_response({"steps": [
         {"ordinal": s["ordinal"], "tool": s["tool"],
