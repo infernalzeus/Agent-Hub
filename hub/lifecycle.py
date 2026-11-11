@@ -153,6 +153,11 @@ def install(app: web.Application) -> None:
                 pass
 
     async def _on_shutdown(app: web.Application) -> None:
+        try:                                         # closing the Hub ends whatever it was doing on this PC: nothing is left pressing buttons with nobody watching
+            from .features import pc_control as _PC
+            _PC.stop_all()
+        except Exception:  # noqa: BLE001
+            pass
         # Runs BEFORE aiohttp's connection-drain phase. An open websocket never
         # finishes on its own, so any subscriber socket still connected (a card
         # left expanded somewhere) would make the drain burn its full

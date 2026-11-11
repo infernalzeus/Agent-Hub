@@ -917,8 +917,12 @@ async def _raw_tree(app: str = "") -> "list[dict]":
     return parse_tree(snapshot_text(result))
 
 
+_LAST_RAW: dict = {"nodes": []}
+
+
 async def _snapshot(app: str = "") -> "list[dict]":
     nodes = await _raw_tree(app)
+    _LAST_RAW["nodes"] = nodes                                   # the replay hands these to shadow mode as a demonstration of what a person-approved routine presses
     return [{"window": n["window"], "control": n["control"], "name": n["name"], "path": container_of(nodes, i),
              "x": n["x"], "y": n["y"], "action": "click" if n["clickable"] else ""}
             for i, n in enumerate(nodes) if "x" in n]
@@ -1016,7 +1020,66 @@ def step_blocker(node: "dict | None", tool: str = "Click") -> str:
     return ""
 
 
-async def replay_ui_routine(routine: dict, request: str = "") -> dict:
+def _app_of(routine: dict) -> str:
+    """The app a routine belongs to: the words before the colon in its title ("Apple Music: play my ADHD playlist"), else the window it was recorded in."""
+    title = routine.get("title") or ""
+    if ":" in title:
+        return title.split(":", 1)[0].strip()
+    try:
+        return json.loads(routine.get("signature_json") or "{}").get("window", "")
+    except ValueError:
+        return ""
+
+
+def _goal_of(routine: dict) -> str:
+    title = routine.get("title") or ""
+    return title.split(":", 1)[1].strip() if ":" in title else title
+
+
+async def replay_ui_routine(routine: dict, request: str = "", record: bool = True) -> dict:
+    """Replay a routine and keep what happened: every step (the app being opened first, if it was not open), how long it took, and a picture of the window after it.
+    The record is what a person looks at to say whether the routine is right; it also names the newest replay of this routine for the routines panel."""
+    rec = None
+    if record:
+        try:
+            from . import run_record as RR
+            stored = json.loads(routine.get("signature_json") or "{}")
+            rec = RR.Recorder("replay", _goal_of(routine), _app_of(routine), routine=routine["id"], window=stored.get("window", ""))
+        except Exception as exc:  # noqa: BLE001
+            logger.info("pc_control: no replay record: %s", exc)
+    t0 = time.time()
+    res = await _replay_core(routine, request, rec)
+    res["ms"] = int((time.time() - t0) * 1000)
+    if rec:
+        res["rid"] = rec.finish(bool(res.get("ok")), res.get("say", ""))
+    return res
+
+
+async def _open_if_closed(routine: dict, window: str, request: str, rec) -> "dict | None":
+    """A replay starts from an open app, as a person would: when the window is not there, open the app (its own trusted launch routine, if it has one), wait for the window,
+    and count that as step 1. Returns a result to stop with, or None to carry on."""
+    app = _app_of(routine) or window
+    if not app:
+        return None
+    g0 = stop_gen()
+    t0 = time.time()
+    got = await launch_app(app, request or "replay")
+    if not got.get("ok"):
+        if rec:
+            await rec.step("open", app, (time.time() - t0) * 1000, False, got.get("say", ""))
+        return {"ok": False, "route": "routine", "say": f"The app was not open, and I could not open {display_app_name(app)}: {got.get('say', '')}"}
+    for _ in range(24):                                               # up to about 12 s for its window to draw
+        if stop_gen() != g0:
+            return dict(STOPPED)
+        if await _snapshot(window):
+            break
+        await asyncio.sleep(0.5)
+    if rec:
+        await rec.step("open", display_app_name(app), (time.time() - t0) * 1000, True, "was not open; opened first")
+    return None
+
+
+async def _replay_core(routine: dict, request: str, rec) -> dict:
     """Run a stored step sequence, but only onto the screen it was recorded against.
 
     Every refusal here is deliberate: a routine that cannot see what it expects
@@ -1038,6 +1101,11 @@ async def replay_ui_routine(routine: dict, request: str = "") -> dict:
             break
         await asyncio.sleep(0.6)
         elements = await _snapshot(stored.get("window", ""))
+    if not elements:                       # still nothing after looking again: the app is not open. Open it, as the first step, and read its screen.
+        opened = await _open_if_closed(routine, stored.get("window", ""), request, rec)
+        if opened:
+            return opened
+        elements = await _snapshot(stored.get("window", ""))
     live = ui_signature(elements, stored.get("window", ""))
     key = "stable" if stored.get("stable") else "fingerprint"
     if live[key] != stored.get(key):
@@ -1050,14 +1118,18 @@ async def replay_ui_routine(routine: dict, request: str = "") -> dict:
     window = stored.get("window", "")
     before = live                      # the signature just taken, reused as the baseline
     g0 = stop_gen()
+    history: "list[str]" = []
     for step in steps:
         if stop_gen() != g0:
             return dict(STOPPED)
+        ts = time.time()
         target = json.loads(step["target_json"] or "{}")
         args = dict(json.loads(step["args_json"] or "{}"))
         if target:
             found = _match(elements, target)
             if not found:
+                if rec:
+                    await rec.step(step["tool"].lower(), target.get("name", ""), (time.time() - ts) * 1000, False, "not on screen")
                 _record_run(request, "fall-through", "skipped",
                             f"step {step['ordinal']}: no element {target.get('control')} \"{target.get('name')}\"")
                 _remember_outcome(routine["id"], False)
@@ -1071,9 +1143,12 @@ async def replay_ui_routine(routine: dict, request: str = "") -> dict:
                 return {"ok": False, "route": "fall-through",
                         "say": f"I stopped at step {step['ordinal'] + 1}: \"{target.get('name')}\" is there but {why}."}
             args["loc"] = [found["x"], found["y"]]
+            _shadow_demo(routine, found, step, args, history)
         try:
             await MCP.call_tool("windows", step["tool"], args)
         except Exception as exc:
+            if rec:
+                await rec.step(step["tool"].lower(), target.get("name", ""), (time.time() - ts) * 1000, False, str(exc)[:120])
             _record_run(request, "routine", "failed", f"step {step['ordinal']}: {exc}")
             _remember_outcome(routine["id"], False)
             return {"ok": False, "route": "routine", "say": f"{routine['title']} failed: {str(exc)[:150]}"}
@@ -1081,6 +1156,9 @@ async def replay_ui_routine(routine: dict, request: str = "") -> dict:
         # No re-focus: we are the ones driving this window, so it is still in
         # front, and focusing again would cost a second of waiting per step.
         elements = await _snapshot()
+        history.append(f"step {len(history) + 1}: {step['tool'].lower()} {target.get('name', '')}")
+        if rec:
+            await rec.step(step["tool"].lower(), target.get("name", ""), (time.time() - ts) * 1000, True)
 
     # Every step ran without raising. That is not the same as having worked, and
     # counting it as a success is how a routine that does nothing becomes
@@ -1102,6 +1180,24 @@ async def replay_ui_routine(routine: dict, request: str = "") -> dict:
     return {"ok": True, "route": "routine", "say": f"Ran {routine['title']}.",
             "routine": {"id": routine["id"], "status": updated["status"],
                         "successes": updated["successes"], "tag": "ROUTINE"}}
+
+
+def _shadow_demo(routine: dict, found: dict, step: dict, args: dict, history: "list[str]") -> None:
+    """With shadow mode on, a replay is a demonstration: this screen, and the control the routine presses on it. It goes where the live agent's own choices go (the live memory), so a
+    learner can later be fitted to what a person-approved routine does, not only to what a model chose. Never raises, never slows the replay by more than a millisecond or two."""
+    try:
+        from ..yard import shadow as SH
+        if not SH.enabled():
+            return
+        from . import desktop_agent as DA
+        shown = DA.controls(_LAST_RAW["nodes"], _app_of(routine), _goal_of(routine))
+        hit = next((c for c in shown if c["node"].get("name") == found["name"] and c["node"].get("x") == found["x"] and c["node"].get("y") == found["y"]), None)
+        if hit is None:
+            return
+        prompt = DA.brief(_goal_of(routine), _app_of(routine), shown, [], history, len(history))
+        SH.note(_goal_of(routine), _app_of(routine), prompt, {"do": "type" if step["tool"] == "Type" else "click", "control": {"id": hit["id"]}, "text": args.get("text", "")}, len(history))
+    except Exception as exc:  # noqa: BLE001
+        logger.info("pc_control: no shadow sample from this replay step: %s", exc)
 
 
 def _remember_outcome(routine_id: str, success: bool) -> dict:
@@ -1217,6 +1313,46 @@ async def run_routine(rid: str, request: str = "manual run") -> dict:
     if routine["tool"] != "ui":
         raise ValueError("only recorded routines can be replayed from here; launches go through TALK")
     return await replay_ui_routine(routine, request=request)
+
+
+@routes.post("/api/pc/stop")
+async def api_stop(request: web.Request) -> web.Response:
+    """STOP: whatever the Hub is doing on this PC (a replay, the desktop agent, an app being opened) ends at its next step."""
+    return web.json_response({"ok": True, "gen": stop_all()})
+
+
+@routes.get("/api/pc/routines/{id}/last-run")
+async def api_last_run(request: web.Request) -> web.Response:
+    """The newest replay or attempt of this routine, with its steps, times and pictures (what you look at before approving it)."""
+    from . import run_record as RR
+    row = RR.latest_for(request.match_info["id"])
+    return web.json_response({"run": row})
+
+
+@routes.post("/api/pc/routines/{id}/reattempt")
+async def api_reattempt(request: web.Request) -> web.Response:
+    """Ask the agent to do the routine's task again from scratch (not a replay), keeping a record with pictures. A success replaces a candidate's steps; a trusted routine is left alone."""
+    from . import desktop_agent as DA, run_record as RR
+    with _db() as db:
+        row = db.execute("SELECT * FROM pc_routines WHERE id=?", (request.match_info["id"],)).fetchone()
+    if not row:
+        raise web.HTTPNotFound(text="no such routine")
+    routine = dict(row)
+    if routine["status"] == "trusted":
+        return web.json_response({"ok": False, "say": "That routine is trusted. Delete it or change a step first, so a new attempt cannot replace what you approved."})
+    app, goal = _app_of(routine), _goal_of(routine)
+    if not app or not goal:
+        return web.json_response({"ok": False, "say": "This routine has no app and task I can read from its name."})
+    got = await DA.run(goal, app, remember=True)
+    rid = ((got.get("tries") or [{}])[-1] or {}).get("rid", "")
+    if rid:
+        try:                                              # the pictures of the newest attempt are the ones shown for this routine
+            latest = RR._latest()
+            latest[routine["id"]] = rid
+            (RR._root() / "latest.json").write_text(json.dumps(latest), encoding="utf-8")
+        except OSError:
+            pass
+    return web.json_response({"ok": bool(got.get("ok")), "say": got.get("say", ""), "rid": rid, "routine": got.get("routine")})
 
 
 @routes.post("/api/pc/routines/{id}/run")

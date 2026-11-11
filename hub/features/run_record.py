@@ -68,6 +68,68 @@ def write(rid: str, goal: str, app: str, model: str, got: dict, ms: float) -> No
     _prune()
 
 
+class Recorder:
+    """A run kept as it happens, for a replay (the desktop agent's own run is written by `write` once it ends). Each step: what was done, how long it took, a picture of the window after it.
+    Never raises into the thing it watches: a missing picture is an empty name, a failed write is a log line."""
+
+    def __init__(self, kind: str, goal: str, app: str, model: str = "routine", routine: str = "", window: str = ""):
+        self.rid = "%x" % int(time.time() * 1000)
+        self.kind, self.goal, self.app, self.model, self.routine, self.window = kind, goal, app, model, routine, window
+        self.trace: list = []
+        self.t0 = time.time()
+
+    async def shot(self) -> str:
+        try:
+            import asyncio
+            from . import window_mirror as WM
+            win = await asyncio.to_thread(WM.find_window, self.window or self.app)
+            if not win:
+                return ""
+            got = await asyncio.to_thread(WM.capture, int(win["id"]), 720, 60)
+            return keep_shot(self.rid, len(self.trace), got[0]) if got else ""
+        except Exception as exc:  # noqa: BLE001
+            logger.info("run_record: no picture: %s", exc)
+            return ""
+
+    async def step(self, do: str, control: str, ms: float, ok: bool = True, why: str = "", changed: "bool | None" = None) -> None:
+        self.trace.append({"step": len(self.trace), "ms": int(ms), "do": do, "control": control, "why": why, "changed": changed if changed is not None else ok,
+                           "shot": await self.shot(), **({} if ok else {"error": why or "did not work"})})
+
+    def finish(self, ok: bool, say: str) -> str:
+        try:
+            d = _root() / self.rid
+            d.mkdir(parents=True, exist_ok=True)
+            row = {"id": self.rid, "at": time.time(), "kind": self.kind, "routine": self.routine, "goal": self.goal, "app": self.app, "model": self.model, "ok": bool(ok), "verified": None,
+                   "say": str(say or "")[:300], "ms": int((time.time() - self.t0) * 1000), "window": self.window, "signature": {}, "trace": self.trace, "presses": []}
+            (d / "run.json").write_text(json.dumps(row, ensure_ascii=False), encoding="utf-8")
+            if self.routine:
+                latest = _latest()
+                latest[self.routine] = self.rid
+                (_root() / "latest.json").write_text(json.dumps(latest), encoding="utf-8")
+            _prune()
+        except OSError as exc:
+            logger.info("run_record: could not keep the replay: %s", exc)
+        return self.rid
+
+
+def _latest() -> dict:
+    try:
+        return json.loads((_root() / "latest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def latest_for(routine: str) -> "dict | None":
+    """The newest run or replay that belongs to this routine (the pictures a person looks at before approving it)."""
+    rid = _latest().get(routine)
+    if not rid:
+        return None
+    try:
+        return json.loads((_dir(rid) / "run.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError, web.HTTPException):
+        return None
+
+
 def _prune() -> None:
     try:
         runs = sorted((p for p in _root().iterdir() if p.is_dir()), key=lambda p: p.stat().st_mtime, reverse=True)
@@ -86,7 +148,7 @@ def _load(rid: str) -> dict:
 
 def summary(row: dict) -> dict:
     tr = row.get("trace") or []
-    return {"id": row["id"], "at": row.get("at"), "goal": row.get("goal"), "app": row.get("app"), "model": row.get("model"), "ok": row.get("ok"), "verified": row.get("verified"),
+    return {"id": row["id"], "kind": row.get("kind", "run"), "routine": row.get("routine", ""), "at": row.get("at"), "goal": row.get("goal"), "app": row.get("app"), "model": row.get("model"), "ok": row.get("ok"), "verified": row.get("verified"),
             "ms": row.get("ms"), "steps": len(tr), "useful": sum(1 for t in tr if t.get("changed")), "say": row.get("say")}
 
 
@@ -174,7 +236,7 @@ const sec=ms=>ms==null?'-':(ms/1000).toFixed(1)+' s';
 async function list(){const j=await (await fetch('/api/runs')).json();const L=$('list');L.replaceChildren();
   if(!j.runs.length){L.innerHTML='<p class="mute">No runs yet. Ask Smith to open an app and do something in it.</p>';return;}
   j.runs.forEach(r=>{const d=document.createElement('div');d.className='run';
-    d.innerHTML='<b>'+esc(r.goal)+'</b> <span class="mute">in '+esc(r.app)+' · '+esc(r.model)+'</span><br><span class="'+(r.ok?'ok':'bad')+'">'+(r.ok?(r.verified===false?'played something else':'worked'):'did not work')+'</span> · '+sec(r.ms)+' · '+r.steps+' steps, '+r.useful+' changed the screen · '+new Date(r.at*1000).toLocaleString()+' <button data-open>OPEN</button> <button data-del>DELETE</button>';
+    d.innerHTML='<b>'+esc(r.goal)+'</b> <span class="mute">'+(r.kind==='replay'?'REPLAY ':'')+'in '+esc(r.app)+' · '+esc(r.model)+'</span><br><span class="'+(r.ok?'ok':'bad')+'">'+(r.ok?(r.verified===false?'played something else':'worked'):'did not work')+'</span> · '+sec(r.ms)+' · '+r.steps+' steps, '+r.useful+' changed the screen · '+new Date(r.at*1000).toLocaleString()+' <button data-open>OPEN</button> <button data-del>DELETE</button>';
     d.querySelector('[data-open]').onclick=()=>one(r.id);d.querySelector('[data-del]').onclick=async()=>{await fetch('/api/runs/'+r.id,{method:'DELETE'});$('one').replaceChildren();list();};L.append(d);});}
 async function one(id){const r=await (await fetch('/api/runs/'+id)).json();const box=$('one');
   const rows=r.trace.map(t=>{const pressed=typeof t.press==='number';const good=t.changed||t.verified;
@@ -184,7 +246,8 @@ async function one(id){const r=await (await fetch('/api/runs/'+id)).json();const
   let rid='';$('save').onclick=async()=>{const keep=[...box.querySelectorAll('[data-n]:checked')].map(x=>Number(x.dataset.n));
     const j=await (await fetch('/api/runs/'+id+'/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({keep})})).json();
     $('msg').textContent=j.ok?('Saved '+j.steps+' steps as a '+j.status+' routine.'):(j.reason||'Not saved.');if(j.ok){rid=j.routine;$('rep').hidden=false;}};
-  $('rep').onclick=async()=>{$('msg').textContent='Replaying...';const t0=performance.now();let j={};try{j=await (await fetch('/api/pc/routines/'+rid+'/run?test=1',{method:'POST'})).json();}catch(e){}
-    $('msg').textContent=(j.ok?'Replayed clean in ':'Replay failed after ')+sec(performance.now()-t0)+(j.say?' - '+j.say:'')+'. The first run took '+sec(r.ms)+'.';};}
+  let going=false;$('rep').onclick=async()=>{if(going){await fetch('/api/pc/stop',{method:'POST'});$('msg').textContent='Stopping: it ends at its next step.';return;}
+    going=true;$('rep').textContent='STOP';$('msg').textContent='Replaying (opens the app if it is closed)...';const t0=performance.now();let j={};try{j=await (await fetch('/api/pc/routines/'+rid+'/run?test=1',{method:'POST'})).json();}catch(e){}
+    going=false;$('rep').textContent='REPLAY IT AS A TEST';$('msg').textContent=(j.ok?'Replayed clean in ':'Replay failed after ')+sec(performance.now()-t0)+(j.say?' - '+j.say:'')+'. The first run took '+sec(r.ms)+'. Pictures of this replay: open the routine under ROUTINES in the yard.';};}
 list();
 </script></body></html>"""

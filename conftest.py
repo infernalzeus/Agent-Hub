@@ -38,6 +38,23 @@ def _the_users_learning_data_is_never_a_test_scratchpad(tmp_path, monkeypatch):
         pass
 
 
+@pytest.fixture(autouse=True)
+def _no_test_reaches_the_real_pc(monkeypatch):
+    """A test run once opened Apple Music on the maker's PC: a replay test with an empty screen reached the real app launcher. Every call that would press, open or read something on this
+    PC (the Windows MCP tools) now raises unless the test replaces it with its own fake. A test that really wants this PC sets AGENTHUB_REAL_PC=1 and says why."""
+    import os
+    if os.environ.get("AGENTHUB_REAL_PC") == "1":
+        return
+    try:
+        from hub.features import mcp as MCP
+    except ImportError:
+        return
+
+    async def refused(name, tool, args, timeout=90):
+        raise AssertionError(f"a test reached the real PC: MCP {name}.{tool} {str(args)[:80]}. Fake MCP.call_tool in the test.")
+    monkeypatch.setattr(MCP, "call_tool", refused)
+
+
 def pytest_configure(config):
     """AGENTHUB_TEST_BROWSER=bundled runs the browser tests on Playwright's own Chromium instead of the system Edge. A box where Edge cannot be launched by a script (a locked-down
     profile, or an agent's sandbox) otherwise fails the first browser test, and the leaked Playwright loop turns every later test into an error."""

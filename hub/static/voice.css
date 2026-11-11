@@ -77,3 +77,6 @@ html.hub-board-on #voice{left:50%!important;top:50%!important;right:auto!importa
 @keyframes smLit{0%,100%{filter:brightness(1) hue-rotate(0deg) drop-shadow(0 0 4px rgba(0,230,118,.7))}50%{filter:brightness(1.5) hue-rotate(-35deg) drop-shadow(0 0 14px rgba(0,230,118,1))}}
 @keyframes smHeard{0%{filter:brightness(2.3) hue-rotate(-40deg) drop-shadow(0 0 20px #00e676)}100%{filter:brightness(1) hue-rotate(0deg) drop-shadow(0 0 3px rgba(0,230,118,.4))}}
 @media (prefers-reduced-motion:reduce){.talk-btn img{animation:none!important}}
+
+/* WHO: the four core agents you can talk to in this window */
+#voice .v-who{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 8px}#voice .v-who .vbtn{padding:5px 8px;font-size:9px;letter-spacing:1px;opacity:.7}#voice .v-who .vbtn.on{opacity:1;border-color:var(--accent,#00e676);box-shadow:0 0 8px rgba(0,230,118,.35);color:var(--accent,#00e676)}

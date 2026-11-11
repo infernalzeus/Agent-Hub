@@ -95,7 +95,7 @@ def test_the_panel_opens_a_routine_lists_its_steps_and_lets_you_drop_one(hub):
         pg.wait_for_function("document.querySelectorAll('.rc .step').length===5")
         assert calls == [("DELETE", "0")]
         buttons = pg.evaluate("[...document.querySelectorAll('.rc .rbody > .row button')].map(b=>b.textContent)")
-        assert buttons[:3] == ["REPLAY", "STEPS", "WHY"]                                           # the buttons sit above what they open: nothing to scroll to close it
+        assert buttons[:3] == ["REPLAY", "ATTEMPT AGAIN", "STEPS"]                                           # the buttons sit above what they open: nothing to scroll to close it
         pg.click(".rc .rhead")
         assert pg.locator(".rc .rbody").is_hidden()
         b.close()

@@ -118,7 +118,8 @@ var Default: String;
 begin
   { The program is small and belongs on the system drive; the data grows without
     limit, so it is offered separately rather than assumed to live beside it. }
-  Default := ExpandConstant('{sd}\AgentHub');
+  { Never at the root of a drive: the first test install left C:\AgentHub behind. The app keeps its state here too, so one folder holds everything of this install. }
+  Default := ExpandConstant('{localappdata}\AgentHub\data');
   DataDirPage := CreateInputDirPage(wpSelectDir,
     'Where should Agent Hub keep your data?',
     'Working copies of your projects, mission records and downloads.',

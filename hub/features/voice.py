@@ -596,7 +596,7 @@ async def run_action(aid: str, args: dict) -> dict:
             if not project or not brief:
                 return {"say": "I need a project and what to do in it."}
             m = await M.dispatch(project, brief, "orchestrator", "orchestrator", autonomy="auto")
-            return {"say": f"Started. It will wait for your review.", "url": "/missions?open=" + m.id}
+            return {"say": f"Started. It will wait for your review.", "url": "/missions?open=" + m.id, "handoff": "orchestrator", "mission": m.id}
         if aid == "rename_routine":
             from . import machine_recorder as REC
             from . import pc_control as PC
@@ -1360,8 +1360,18 @@ async def api_chat(request: web.Request) -> web.Response:
         except Exception:
             pass
         return web.json_response({"say": say, "action": None, "confirm": False, "backend": "screen", "heard": text, "ui": ui})
-    res = await chat(text, b.get("history") if isinstance(b.get("history"), list) else [], b.get("mission") or None)
-    return web.json_response({**res, "ui": ui})
+    from . import talk_agents as TA
+    history = b.get("history") if isinstance(b.get("history"), list) else []
+    speaker = str(b.get("speaker") or "smith").lower()
+    named, rest = TA.address(text)                                            # "Neo, draft an agent ...": a leading name picks who answers this sentence
+    if named:
+        speaker, text = named, rest
+    speaker = speaker if speaker in TA.SPEAKERS else "smith"
+    if speaker != "smith" or (named and not text):
+        got = await TA.speak_as(speaker, text, history, b.get("mission") or None, chat)
+        return web.json_response({**got, "ui": {**ui, **(got.get("ui") or {})}})
+    res = await chat(text, history, b.get("mission") or None)
+    return web.json_response({**res, "speaker": "smith", "ui": ui})
 
 
 @routes.post("/api/voice/act")

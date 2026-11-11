@@ -273,13 +273,14 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       const k=chk[r.id];if(k){m.append(document.createTextNode(' '),el('span','chip '+(k.ready?'ok':'part'),k.ready?'yard: looks ready':'yard: not ready'));}
       head.append(m);c.append(head,body);
       // the buttons are the first thing in the body, so what they open appears under them and never needs a scroll to be closed again
-      const bar=el('div','row'),rp=el('button','part','REPLAY'),stepsBtn=el('button','skip','STEPS'),why=el('button','skip','WHY'),ok=el('button',null,'APPROVE'),off=el('button','part',r.status==='disabled'?'RE-ENABLE':'DISABLE'),del=el('button','no','DELETE');
+      const bar=el('div','row'),rp=el('button','part','REPLAY'),again=el('button','part','ATTEMPT AGAIN'),stepsBtn=el('button','skip','STEPS'),why=el('button','skip','WHY'),ok=el('button',null,'APPROVE'),off=el('button','part',r.status==='disabled'?'RE-ENABLE':'DISABLE'),del=el('button','no','DELETE');
       rp.title='Run it now, on this PC, to watch how it works. It does not count for or against the routine.';
-      const note=el('div','why'),stepsBox=el('div'),wy=el('div');
+      again.title='Ask the agent to do this task again from the start (not a replay). It keeps the steps and pictures of this attempt; for a candidate, a good attempt replaces the steps.';
+      const note=el('div','why'),stepsBox=el('div'),runBox=el('div'),wy=el('div');
       if(k&&!k.ready)note.textContent=k.reasons.join('. ')+'.';
       if(k&&k.ready)note.textContent='No forbidden control, replayed clean, and the learner agrees on '+(k.agree==null?'(no learner yet)':pct(k.agree))+' of its steps. Only you can approve it.';
-      bar.append(rp,stepsBtn,why,ok,off,del);body.append(bar,note,stepsBox,wy);
-      const setOpen=v=>{body.hidden=!v;tw.textContent=v?'▾':'▸';c.classList.toggle('open',v);try{if(v)sessionStorage.setItem('hub-rl-open',r.id);else if(sessionStorage.getItem('hub-rl-open')===r.id)sessionStorage.removeItem('hub-rl-open');}catch(e){}};
+      bar.append(rp,again,stepsBtn,why,ok,off,del);body.append(bar,note,runBox,stepsBox,wy);again.hidden=r.status==='trusted';
+      const setOpen=v=>{if(v&&!runBox.childNodes.length)loadRun();body.hidden=!v;tw.textContent=v?'▾':'▸';c.classList.toggle('open',v);try{if(v)sessionStorage.setItem('hub-rl-open',r.id);else if(sessionStorage.getItem('hub-rl-open')===r.id)sessionStorage.removeItem('hub-rl-open');}catch(e){}};
       head.onclick=()=>setOpen(body.hidden);
       // the steps, as a list you can change: drop a step, move it, or say which control it presses
       const showSteps=async()=>{stepsBox.replaceChildren(el('div','mute','Reading the steps...'));
@@ -296,13 +297,32 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
             row.append(label,up,dn,rn,rm);list.append(row);});
           stepsBox.replaceChildren(list,el('div','mute',r.status==='trusted'?'Changing a step makes this a candidate again with a clean record: it has to be approved or replayed twice before it is trusted.':'Press REPLAY to watch the steps run.'));
         }catch(e){stepsBox.replaceChildren(el('div','mute',String(e)));}};
+      const secs=ms=>ms==null?'-':(ms/1000).toFixed(1)+' s';
+      // The newest replay or attempt: every step with its time and a picture of the window after it. This is what to look at before approving a candidate.
+      const showRun=run=>{runBox.replaceChildren();if(!run||!run.trace)return;
+        const list=el('div','steps'),bad=run.trace.filter(x=>x.error).length;
+        run.trace.forEach((x,i)=>{const row=el('div','step'),lab=el('span','sl');
+          lab.append(el('b',null,(i+1)+'. '),document.createTextNode((x.do||'')+' '),el('span','sn','“'+String(x.control||'').slice(0,48)+'”'),el('span','mute','  '+secs(x.ms)+(x.error?'  - '+x.error:'')));
+          row.append(lab);if(x.shot){const im=el('img');im.src='/api/runs/'+run.id+'/shot/'+x.shot;im.style.cssText='width:110px;border-radius:5px;margin-left:8px;cursor:zoom-in;border:1px solid '+(x.error?'#ff6b6b':'rgba(0,230,118,.3)');im.onclick=()=>window.open(im.src,'_blank');row.append(im);}
+          list.append(row);});
+        runBox.append(el('div','mute',(run.kind==='replay'?'LAST REPLAY':'LAST ATTEMPT')+' · '+new Date(run.at*1000).toLocaleString()+' · '+secs(run.ms)+' · '+(run.ok?'worked':'did not work')+(bad?' · '+bad+' step(s) failed':'')+' · '+(run.say||'')),list);};
+      const loadRun=async()=>{try{const j=await J('/api/pc/routines/'+r.id+'/last-run');showRun(j.run);}catch(e){}};
+      let busy=false;
+      const working=(btn,label,on)=>{busy=on;btn.textContent=on?'STOP':label;btn.classList.toggle('no',on);btn.classList.toggle('part',!on);};
+      const stopIt=async()=>{await POST('/api/pc/stop');note.textContent='Stopping: it ends at its next step.';};
       const routinesStatus=()=>{};
       stepsBtn.onclick=()=>{if(stepsBox.childNodes.length){stepsBox.replaceChildren();return;}showSteps();};
       ok.onclick=async()=>{await POST('/api/pc/routines/'+r.id+'/approve');routines();};
       off.onclick=async()=>{await POST('/api/pc/routines/'+r.id+'/status',{status:r.status==='disabled'?'candidate':'disabled'});routines();};
       del.onclick=async()=>{if(!confirm('Delete this routine for good? '+r.title))return;await fetch('/api/pc/routines/'+r.id,{method:'DELETE'});routines();};
-      rp.onclick=async()=>{if(!confirm('Replay "'+r.title+'" now? It will press things on this PC, so have the app ready.'))return;rp.disabled=true;note.textContent='Replaying...';
-        try{const x=await POST('/api/pc/routines/'+r.id+'/run?test=1');const j=x.ok?await x.json():null;note.textContent=x.ok?((j.ok?'It ran. ':'It did not work: ')+(j.say||'')+' (a test: it did not change the routine)'):(await x.text());}catch(e){note.textContent=String(e);}rp.disabled=false;};
+      rp.onclick=async()=>{if(busy){await stopIt();return;}
+        if(!confirm('Replay "'+r.title+'" now? It opens the app if it is closed and presses things on this PC. STOP ends it.'))return;working(rp,'REPLAY',true);again.disabled=true;note.textContent='Replaying...';
+        try{const x=await POST('/api/pc/routines/'+r.id+'/run?test=1');const j=x.ok?await x.json():null;note.textContent=x.ok?((j.ok?'It ran in '+secs(j.ms)+'. ':'It did not work: ')+(j.say||'')+' (a test: it did not change the routine)'):(await x.text());}catch(e){note.textContent=String(e);}
+        working(rp,'REPLAY',false);again.disabled=false;await loadRun();};
+      again.onclick=async()=>{if(busy){await stopIt();return;}
+        if(!confirm('Ask the agent to do "'+r.title+'" again from the start? It will press things on this PC; STOP ends it.'))return;working(again,'ATTEMPT AGAIN',true);rp.disabled=true;note.textContent='Trying again from the start...';
+        try{const x=await POST('/api/pc/routines/'+r.id+'/reattempt');const j=x.ok?await x.json():null;note.textContent=x.ok?((j.ok?'It worked. ':'It did not work: ')+(j.say||'')):(await x.text());}catch(e){note.textContent=String(e);}
+        working(again,'ATTEMPT AGAIN',false);rp.disabled=false;await loadRun();routines();};
       ok.hidden=r.status==='trusted';
       why.onclick=async()=>{if(wy.childNodes.length){wy.replaceChildren();return;}wy.append(el('div','mute','Working it out...'));try{wy.replaceChildren(whyView(await J('/api/yard/why/routine/'+r.id)));}catch(e){wy.replaceChildren(el('div','mute','Could not explain this routine.'));}};
       box.append(c);if(openId===r.id)setOpen(true);});}

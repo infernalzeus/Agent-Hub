@@ -4,7 +4,8 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   const KEY = 'hubVoiceSession';
-  const S = { on: false, speaking: false, pending: null, history: [], stream: null, ctx: null, an: null, whisper: null, voice: null, mute: false,
+  const WHO = { smith: 'Smith', orchestrator: 'Orchestrator', neo: 'Neo', doctor: 'Doctor' };
+  const S = { who: 'smith', mission: null, on: false, speaking: false, pending: null, history: [], stream: null, ctx: null, an: null, whisper: null, voice: null, mute: false,
               audio: null, actx: null, stop: null, carry: null, turn: 0, capture: 0, listen: 0, busy: false,
               requests: new Set(), loop: null, compact: location.pathname === '/missions', expanded: false, context: null };
   const BUF = new Uint8Array(1024);
@@ -90,7 +91,7 @@
   function hint(t) { $('v-hint').textContent = t || ''; $('v-hint').hidden = !t; if (t) { hubLog('hub', t); bubble(t, 9000); } }
   function log(role, text, tag) {
     const d = document.createElement('div'); d.className = 'v-msg ' + role; d.append(document.createTextNode(text)); if (tag) { const b = document.createElement('span'); b.className = 'v-tag'; b.textContent = tag; d.appendChild(b); } $('v-log').appendChild(d); $('v-log').scrollTop = $('v-log').scrollHeight;
-    hubLog('chat', (role === 'you' ? 'You: ' : 'Smith: ') + text);
+    hubLog('chat', (role === 'you' ? 'You: ' : (WHO[S.who] || 'Smith') + ': ') + text);
     if (role === 'hub') bubble(text, Math.min(16000, 4500 + text.length * 60));
     if (role === 'you' || role === 'hub') { S.history.push({ role: role === 'you' ? 'user' : 'assistant', text }); if (S.history.length > 20) S.history.shift(); }
     layout();
@@ -348,8 +349,10 @@
     setState('solving', 'Thinking…');
     const ctx = (window.__voiceCtx && window.__voiceCtx()) || {};
     const board = window.__hubBoard && window.__hubBoard.scene();            // on the dashboard Talk sees its blocks and may move them
-    const r = await request('/api/voice/chat', { text, history: S.history.slice(-9, -1), mission: ctx.mission || null, scene: board || undefined });
+    const r = await request('/api/voice/chat', { text, history: S.history.slice(-9, -1), mission: ctx.mission || S.mission || null, scene: board || undefined, speaker: S.who });
     if (turn !== S.turn) return;
+    if (r.speaker && r.speaker !== S.who && window.__hubTalkWho) window.__hubTalkWho(r.speaker, true);          // you named another agent: the conversation is theirs from here
+    if (r.mission) S.mission = r.mission;
     const serverResult = r.action && !r.confirm && !r.url;          // its own result is the answer: do not also say the model's sentence
     if (!serverResult) log('hub', r.say);
     if (r.ui && board && window.__hubBoard.applyUi(r.ui)) { S.compact = true; S.expanded = false; layout(); }   // a panel asked for, tidy, fit, a mouse scheme: done on the board itself
@@ -374,6 +377,7 @@
     let j; S.acting = true; try { j = await request('/api/voice/act', { id: r.action.id, args: r.action.args }, null, 180000); } finally { S.acting = false; if (nudge) clearTimeout(nudge); }
     if (said) { if (S.stop) S.stop(); await said; }        // the answer never waits for the working line: a line still being made or said is dropped
     if (turn !== S.turn) return;
+    if (j.handoff) { S.mission = j.mission || S.mission; if (window.__hubTalkWho) window.__hubTalkWho(j.handoff, true); }      // Smith started a mission: the Orchestrator takes over the conversation
     log('hub', j.say, j.routine && j.routine.tag); if (j.detail) log('hub', j.detail); recPaint();
     // The question's YES / NO appear before the sentence is spoken, not after: a long
     // spoken answer used to leave the person with a question and nothing to press.
@@ -468,6 +472,16 @@
     $('v-close').onclick = close; $('v-mic').onclick = toggle;
     $('v-size').onclick = () => { S.compact = !S.compact; layout(); };
     $('v-history').onclick = () => { S.expanded = !S.expanded; layout(); };
+    // WHO: the four core agents. Smith is the front door; a mission he starts hands the conversation to the Orchestrator; you can also pick anyone or name them in a sentence.
+    function setWho(w, quiet) {
+      if (!WHO[w]) w = 'smith'; S.who = w; try { sessionStorage.setItem('hubTalkWho', w); } catch (e) {}
+      document.querySelectorAll('#v-who [data-who]').forEach((b) => { b.classList.toggle('on', b.dataset.who === w); b.setAttribute('aria-pressed', String(b.dataset.who === w)); });
+      $('v-in').placeholder = w === 'smith' ? 'Type, or dictate with your keyboard' : 'Talking to ' + WHO[w] + '. Type, or dictate with your keyboard';
+      if (!quiet) { try { $('v-in').focus(); } catch (e) {} }
+    }
+    window.__hubTalkWho = setWho;
+    document.querySelectorAll('#v-who [data-who]').forEach((b) => { b.onclick = () => setWho(b.dataset.who); });
+    try { setWho(sessionStorage.getItem('hubTalkWho') || 'smith', true); } catch (e) { setWho('smith', true); }
     $('v-new').onclick = fresh;
     $('v-stop').onclick = stopNow;
     $('v-cancel').onclick = () => { cancelTurn(); S.pending = null; showBtns(false); hint('Reply stopped. An action already sent may still finish; check its status before retrying.'); ready(); };

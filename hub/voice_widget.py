@@ -10,6 +10,7 @@ _S = Path(__file__).parent / "static"
 
 _HTML = """<div id="voice" hidden>
   <div class="v-head"><span>TALK TO THE HUB</span><div><button type="button" class="vbtn" id="v-size">MINIMISE</button> <button type="button" class="vbtn" id="v-close" aria-label="Close">CLOSE</button></div></div>
+  <div class="v-who" id="v-who" role="group" aria-label="Who you are talking to"><button type="button" class="vbtn on" data-who="smith">SMITH</button><button type="button" class="vbtn" data-who="orchestrator">ORCHESTRATOR</button><button type="button" class="vbtn" data-who="neo">NEO</button><button type="button" class="vbtn" data-who="doctor">DOCTOR</button></div>
   <div class="v-tools">
     <select id="v-voice" aria-label="TTS voice"></select>
     <select id="v-fx" aria-label="Voice effect amount" title="How much of a robotic layer sits on the same voice"><option value="off">CLEAN</option><option value="p5">ROBOT 5%</option><option value="p10">ROBOT 10%</option><option value="p15">ROBOT 15%</option><option value="p20">ROBOT 20%</option><option value="p25">ROBOT 25%</option><option value="p35">ROBOT 35%</option><option value="p50">ROBOT 50%</option><option value="p75">ROBOT 75%</option><option value="p100">ROBOT 100%</option></select>
