@@ -22,8 +22,8 @@ def test_the_agents_page_shows_neo_with_his_picture_and_every_picture_is_big(hub
         pg.goto(hub + "/agents")
         pg.wait_for_function("document.querySelectorAll('#list .persona').length>=3", timeout=15000)
         txt = pg.inner_text("body")
-        assert "NEO" in txt and "AGENT SMITH" not in txt.upper().replace("SMITH IS THE VOICE", "")
-        assert "EDIT WITH NEO" in txt
+        assert "NEO" in txt.upper() and "AGENT-SMITH" not in txt.upper()                      # Smith is one of the four core agents now (the voice); only the old file name must not show
+        assert "EDIT WITH NEO" in txt.upper()
         assert pg.locator("#btn-create img").get_attribute("src") == "/static/agent-icons/neo.png"
         pg.wait_for_function("[...document.querySelectorAll('#list .persona .smith-a')].every(i=>i.complete)", timeout=8000)
         sizes = pg.evaluate("[...document.querySelectorAll('#list .persona .smith-a')].map(i=>Math.round(i.getBoundingClientRect().width))")

@@ -86,12 +86,14 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "AGENTHUB_WOR
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 
 [Icons]
-Name: "{autoprograms}\{#AppName}"; Filename: "{app}\AgentHub.exe"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\AgentHub.exe"; Tasks: desktopicon
+Name: "{autoprograms}\{#AppName}"; Filename: "{app}\AgentHub.exe"; Check: NoShortcutYet('{autoprograms}')
+; A shortcut that is already there is never replaced: a person who runs Agent Hub from source (or pinned their own shortcut) keeps it. The first installer test on the
+; maker's PC replaced a working desktop icon and startup entry with ones that opened an empty copy.
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\AgentHub.exe"; Tasks: desktopicon; Check: NoShortcutYet('{autodesktop}')
 ; Starting with Windows is the point of an always-on hub: your phone can only
 ; reach it while it is running, so a hub you have to remember to launch is a hub
 ; that is down whenever you need it. Offered, never forced.
-Name: "{userstartup}\{#AppName}"; Filename: "{app}\AgentHub.exe"; Tasks: startupicon
+Name: "{userstartup}\{#AppName}"; Filename: "{app}\AgentHub.exe"; Tasks: startupicon; Check: NoShortcutYet('{userstartup}')
 
 [Tasks]
 ; Ticked by default. This is a program you open daily from several devices, not
@@ -104,6 +106,12 @@ Filename: "{app}\AgentHub.exe"; Description: "Launch {#AppName}"; Flags: nowait 
 
 [Code]
 var DataDirPage: TInputDirWizardPage;
+
+function NoShortcutYet(Folder: String): Boolean;
+begin
+  { True only when this folder has no "Agent Hub" shortcut of anyone's: ours would silently replace it. }
+  Result := not FileExists(ExpandConstant(Folder) + '\{#AppName}.lnk');
+end;
 
 procedure InitializeWizard;
 var Default: String;

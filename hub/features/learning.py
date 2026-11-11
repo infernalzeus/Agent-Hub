@@ -213,7 +213,7 @@ def _model_events() -> "list[dict]":
         # the reward you decided on: your approval of that mission counts most (1 or 0); where you have not decided, the checks count with less weight
         reward = (1.0 if human[mid] else 0.0) if mid in human else (0.7 if ok is True else 0.2 if ok is False else None)
         out.append({"kind": "model", "context": "mission:" + ("small" if int(r.get("chars") or 0) <= SMALL_BRIEF_CHARS else "large"), "chosen": r.get("model"), "options": [],
-                    "by": "rules", "ok": ok, "ms": int(float(r.get("secs") or 0) * 1000), "at": r.get("at"), "mission": mid,
+                    "by": "rules", "ok": ok, "ms": int(float(r.get("secs") or 0) * 1000), "at": r.get("at"), "mission": mid, **({"sampling": r["sampling"]} if isinstance(r.get("sampling"), dict) else {}),
                     "reward": reward, "reward_by": "you" if mid in human else "checks"})
     return out
 

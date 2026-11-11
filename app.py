@@ -26,11 +26,11 @@ except ImportError:
     YARD_FEATURES = []
 from hub.features import board_prefs, helpers as hub_helpers, agent_map
 from hub import hand_tracking, agents_ui, chats_ui, automations_ui, config, graph_ui, install_move, lifecycle, missions_ui, request_security, setup_ui, theme, ui
-from hub.features import window_mirror, acp_client, agent_events, support, action_apps, agent_sessions, apps, automations, capabilities, diagnose, harness_tuner, home_state, memory_tiers, probe, proposals, routing, graph, ingest_recipes, integrations, llm_keys, machine_recorder, locations_api, machine_routines, mcp, missions, onboarding, opencode, pc_control, pc_steps, power, schedule, setup_check, skills_api, updates, user_facts, converse, binning, rea_inspect, voice, youtube, learning
+from hub.features import run_record, window_mirror, acp_client, agent_events, support, action_apps, agent_sessions, apps, automations, capabilities, diagnose, harness_tuner, home_state, memory_tiers, probe, proposals, routing, graph, ingest_recipes, integrations, llm_keys, machine_recorder, locations_api, machine_routines, mcp, missions, onboarding, opencode, pc_control, pc_steps, power, schedule, setup_check, skills_api, updates, user_facts, converse, binning, rea_inspect, voice, youtube, learning
 
 # Each feature module exposes `routes` (and optionally a `setup(app)` hook for
 # its own background tasks / cleanup). Add a feature = add it to this list.
-FEATURES = [window_mirror, hand_tracking, *YARD_FEATURES, board_prefs, hub_helpers, agent_map, acp_client, agent_events, support, apps, youtube, opencode, missions, graph, graph_ui, agents_ui, chats_ui, missions_ui,
+FEATURES = [run_record, window_mirror, hand_tracking, *YARD_FEATURES, board_prefs, hub_helpers, agent_map, acp_client, agent_events, support, apps, youtube, opencode, missions, graph, graph_ui, agents_ui, chats_ui, missions_ui,
             ingest_recipes, llm_keys, locations_api, machine_recorder, machine_routines, mcp, pc_control, pc_steps, schedule, skills_api, setup_ui, voice, power, setup_check, onboarding,
             integrations, updates, automations, automations_ui, capabilities, diagnose, harness_tuner, home_state, memory_tiers, probe, routing, action_apps, proposals, theme, install_move, user_facts, converse, binning, rea_inspect, learning, ui]
 

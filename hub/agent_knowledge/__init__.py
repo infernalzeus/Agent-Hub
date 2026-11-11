@@ -548,6 +548,18 @@ def _model_pick(own: dict) -> dict:
             "note": "the default for all agents" + ("" if pol == "auto" else f" (policy: {pol})")}
 
 
+def sampling_of(name: str) -> dict:
+    """The settings a persona's model calls are made with right now, flat and small, for the learning log: without them two results at different temperatures cannot be compared (R8a)."""
+    try:
+        eff = effective_settings(name)
+    except Exception:  # noqa: BLE001 - a log line must never stop a mission
+        return {}
+    out = {k: eff[k]["value"] for k in ("temperature", "top_p", "steps", "variant") if isinstance(eff.get(k), dict) and eff[k].get("value") not in (None, "")}
+    opts = (eff.get("options") or {}).get("value") or {}
+    out.update({k: v for k, v in opts.items() if isinstance(v, (int, float, str, bool))})
+    return dict(list(out.items())[:10])
+
+
 def effective_settings(name: str) -> dict:
     """The LLM knobs actually in effect for a persona: user override → persona
     frontmatter → sensible default. Never blank, so the settings UI can show real

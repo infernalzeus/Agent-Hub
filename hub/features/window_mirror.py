@@ -278,7 +278,7 @@ async def api_find(request: web.Request) -> web.Response:
 def _budget(request: web.Request, w: int, q: int, fps: int = 5) -> "tuple[int, int, int]":
     """A phone has a small memory budget for pictures (the first phone session pulled 340 KB pictures at 1800 px, five a second, and Safari gave up). Whatever page asks, a phone gets at most
     1400 px, quality 75 and 5 a second. This also covers a page the phone cached before the page learned its own budget."""
-    if re.search(r"iPhone|iPad|iPod|Android", request.headers.get("User-Agent", "")):
+    if request.query.get("lite") == "1" or re.search(r"iPhone|iPad|iPod|Android", request.headers.get("User-Agent", "")):        # the page says so (touch is its main pointer, whatever the make), or the browser names itself
         return min(w, 1400), min(q, 75), min(fps, 5)
     return w, q, fps
 
@@ -481,8 +481,9 @@ const $=id=>document.getElementById(id),q=new URLSearchParams(location.search);l
 const SKEY='hubMirror:'+(q.get('id')||'x'),defaults={fps:'5',det:'1.5',qual:'85',zoom:'fit'};
 // A phone has a small memory budget for pictures. The log of the first phone session showed 340 KB pictures, 1800 px wide, five a second: Safari ran out of memory and the page died
 // ('A problem repeatedly occurred'). So a phone gets a budget: at most 1400 px wide, quality 75, 5 pictures a second, one picture at a time, and the old one is released before the next shows.
-const PHONE=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/Macintosh/.test(navigator.userAgent));
+const PHONE=matchMedia('(pointer:coarse)').matches||/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/Macintosh/.test(navigator.userAgent));      // a phone or tablet of any make: touch is the main pointer
 const MOBILE_PANEL=PHONE&&window!==top, SMALL_PHONE=MOBILE_PANEL&&/iPhone|iPod/i.test(navigator.userAgent);
+const LITE=PHONE?'&lite=1':'';
 if(PHONE)Object.assign(defaults,{fps:MOBILE_PANEL?'5':'2',det:'1',qual:'65'});
 if(MOBILE_PANEL){
   document.body.classList.add('mirror-inline');
@@ -527,7 +528,7 @@ async function mobileFrame(w,gen){
   function retry(){ $('note').textContent='That window is gone or minimised.';next(1500); }
   try{
     const headers=mobileTag?{'If-None-Match':mobileTag}:{};
-    const r=await fetch('/api/windows/'+cur+'/frame?w='+w+'&q='+qualNow()+'&dedup=1',{cache:'no-store',signal:controller.signal,headers});
+    const r=await fetch('/api/windows/'+cur+'/frame?w='+w+'&q='+qualNow()+'&dedup=1'+LITE,{cache:'no-store',signal:controller.signal,headers});
     if(gen!==mobileGen)return;
     if(r.status===304){unchanged++;next(SMALL_PHONE&&unchanged>=3?Math.max(250,delay()):delay());return;}
     if(!r.ok)throw new Error('frame unavailable');
@@ -595,7 +596,7 @@ function start(keepPicture=false){if(!cur||!alive)return;
   }
   clearTimeout(streamT);mode=(PHONE||sessionStorage.getItem('hubMirrorPoll')==='1')?'poll':'stream';pic.onload=null;pollGen++;
   if(mode==='poll'){poll(w);}
-  else{pic.src='/api/windows/'+cur+'/stream?fps='+fpsNow()+'&w='+w+'&q='+qualNow()+'&t='+Date.now();
+  else{pic.src='/api/windows/'+cur+'/stream?fps='+fpsNow()+'&w='+w+'&q='+qualNow()+LITE+'&t='+Date.now();
     streamT=setTimeout(()=>{if(!(pic.naturalWidth>0)){try{sessionStorage.setItem('hubMirrorPoll','1');}catch(e){}mode='poll';poll(w);}},4500);}
   $('stat').textContent=fpsNow()+' / s, up to '+w+' px wide'+(mode==='poll'?' (single pictures)':'');}
 const fpsNow=()=>PHONE?Math.min(SMALL_PHONE?(MOBILE_PANEL?8:3):5,Number(cfg.fps)):Number(cfg.fps),qualNow=()=>PHONE?Math.min(SMALL_PHONE?70:MOBILE_PANEL?65:75,Number(cfg.qual)):Number(cfg.qual);
@@ -604,7 +605,7 @@ let pollGen=0;
 function poll(w){if(!alive||mode!=='poll')return;const gen=pollGen,t0=Date.now();
   if(document.hidden){setTimeout(()=>poll(w),800);return;}
   const next=ms=>setTimeout(()=>{if(gen===pollGen)poll(w);},ms);
-  fetch('/api/windows/'+cur+'/frame?w='+Math.min(w,PHONE?1400:1800)+'&q='+qualNow()+'&t='+t0,{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('gone');return r.blob();}).then(b=>{
+  fetch('/api/windows/'+cur+'/frame?w='+Math.min(w,PHONE?1400:1800)+'&q='+qualNow()+LITE+'&t='+t0,{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('gone');return r.blob();}).then(b=>{
     if(gen!==pollGen)return;const u=URL.createObjectURL(b),old=pic.dataset.blob;
     pic.onload=()=>{if(old)URL.revokeObjectURL(old);$('note').textContent='A live picture of the window, no sound.';next(Math.max(30,1000/fpsNow()-(Date.now()-t0)));};
     pic.onerror=()=>{URL.revokeObjectURL(u);next(1500);};

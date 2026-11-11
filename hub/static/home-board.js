@@ -10,7 +10,7 @@
     att: { t: 'NEEDS ATTENTION', w: 380, h: 110 }, runs: { t: 'RUNS', w: 210, h: 100 }, ses: { t: 'SESSIONS', w: 320, h: 110 },
     hlt: { t: 'HEALTH', w: 280, h: 130 }, use: { t: 'CLAUDE CODE USAGE', w: 380, h: 120 }
   };
-  var ICON = { stop: 'M7 7h10v10H7z', col: 'M6 15l6-6 6 6', dup: 'M9 9h10v10H9zM5 15V5h10', out: 'M7 17 17 7M9 7h8v8', move: 'M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01', min: 'M6 12h12', foc: 'M5 9V5h4M19 9V5h-4M5 15v4h4M19 15v4h-4', x: 'M6 6l12 12M18 6 6 18' };
+  var ICON = { stop: 'M7 7h10v10H7z', col: 'M6 15l6-6 6 6', dup: 'M9 9h10v10H9zM5 15V5h10', out: 'M7 17 17 7M9 7h8v8', fit: 'M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4', move: 'M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01', min: 'M6 12h12', foc: 'M5 9V5h4M19 9V5h-4M5 15v4h4M19 15v4h-4', x: 'M6 6l12 12M18 6 6 18' };
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function svg(d, w) { var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('aria-hidden', 'true'); s.style.cssText = 'width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:' + (w || 1.8) + ';stroke-linecap:round;stroke-linejoin:round'; var p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', d); s.appendChild(p); return s; }
   // Window-title pictures by what the window is (same line style as the website's architecture diagram); the Doctor's cross is the Support window's.
@@ -72,7 +72,7 @@
       '.hb-stat{padding:2px 10px 8px}.hb-stat b{display:block;font:900 32px Orbitron,monospace;color:var(--accent,#00e676);line-height:1.1}.hb-stat span{color:var(--text-muted,#8fcfb2);font-size:12px}',
       '.hb-note{padding:2px 10px 9px;font-size:12px;color:var(--text-muted,#8fcfb2);line-height:1.45}',
       '.hk-app{display:flex;align-items:center;gap:10px;padding:4px 10px 8px;cursor:pointer}.hk-app .gi{width:32px;height:32px;flex:none;display:grid;place-items:center;font-size:22px}.hk-app .gi svg{width:30px;height:30px}.hk-app b{font-weight:600;font-size:14px;line-height:1.2;color:var(--text,#d9ffe9)}.hk-app small{display:block;font:600 10px Orbitron,monospace;letter-spacing:.7px;color:var(--text-muted,#8fcfb2)}.hk-app small.on{color:var(--accent,#00e676)}',
-      '.hk:not(.exp) [data-a=col],.hk:not(.exp) [data-a=out]{display:none}',
+      '.hk:not(.exp) [data-a=col],.hk:not(.exp) [data-a=out],.hk:not(.exp) [data-a=fit]{display:none}',
       '.hk.tile:not(.exp) [data-a=foc]{display:none}.hk.tile:not(.exp) .hk-h .t{white-space:normal;overflow-wrap:anywhere;line-height:1.2;font-size:10.5px;letter-spacing:.6px}',
       '.hk.exp{border-color:var(--accent,#00e676);box-shadow:0 0 0 1px var(--accent,#00e676),0 24px 60px rgba(0,0,0,.6)}.hk.exp .hk-i{display:flex;flex-direction:column;height:100%}',
       '.hk.settle{transition:left .42s ' + SPRING + ',top .42s ' + SPRING + ',width .38s ' + EASE + ',height .38s ' + EASE + ',border-color .25s}',
@@ -181,6 +181,8 @@
     function doctorPicture(){var img=document.createElement('img');img.className='hub-doctor';img.alt='The Doctor';img.src='/static/agent-icons/doctor.png';img.onerror=function(){var g=svg(SUPPORT.extra[3],2);g.classList.add('hub-doctor');if(img.parentNode)img.parentNode.replaceChild(g,img);};return img;}
     var SUPPORT = { t: 'APP', w: TW, h: 64, extra: ['support', 'Support', '/support', 'M12 4.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4zM5 21c0-3.9 3.1-7 7-7s7 3.1 7 7M9.2 14.3v2.4a2.3 2.3 0 0 0 4.6 0v-.6M16.3 17.2h2.4M17.5 16v2.4M10.2 3.6a2 2 0 0 1 3.6 0'] };
     defs.push(['extra:support', SUPPORT]);
+    // RUNS: what the desktop agent did, step by step, with a picture and a time for each (check it, keep the right steps as a routine, replay it with a clock)
+    defs.push(['extra:runlog', { t: 'APP', w: TW, h: 64, extra: ['runlog', 'Runs', '/runs', 'M5 4l14 8-14 8V4Z', 'RUNS', 760, 560] }]);
     apps.forEach(function (a) { defs.push(['app:' + a.id, { t: 'APP', w: TW, h: 64, app: a }]); });
     // a block you have not arranged yourself takes its place and height from the layout; one you moved or resized keeps what you gave it
     defs.forEach(function (d) { var sv = L[d[0]]; L[d[0]] = (sv && sv.u) ? { x: sv.x, y: sv.y, w: sv.w, h: sv.h, min: sv.min ? 1 : 0, z: sv.z, u: 1, rz: sv.rz ? 1 : 0 } : { x: 0, y: 0, w: d[1].w, h: d[1].h, min: sv && sv.min ? 1 : 0, u: 0, rz: 0 }; });
@@ -277,7 +279,7 @@
       var e = el('div', 'hk hub-block' + ((d.app || d.card || d.extra || d.act) ? ' tile' : '')); e.dataset.id = id; e.tabIndex = 0; e.setAttribute('role', 'group');
       var h = el('div', 'hk-h'), glyph = el('span', 'hk-glyph'); glyph.appendChild(svg(id === 'runs' ? 'M5 4l14 8-14 8V4Z' : 'M5 5h14v14H5zM8 12h8')); glyph.firstChild.style.width = glyph.firstChild.style.height = ''; h.appendChild(glyph); var ttl = String(d.app ? (d.app.name || d.app.id) : d.card ? d.card[1] : d.extra ? d.extra[1] : d.act ? (d.act.name || 'Action') : d.t || '').toLowerCase(), pic = PANEL_ICON[id]; if (!pic) { for (var tk in TITLE_ICON) { if (ttl.indexOf(tk) >= 0) { pic = TITLE_ICON[tk]; break; } } } if (pic) { var pi = svg(pic, 1.8); pi.classList.add('hk-pi'); pi.style.width = pi.style.height = '15px'; h.appendChild(pi); }
       h.appendChild(el('span', 't', d.app ? (d.app.name || d.app.id) : d.card ? d.card[1] : d.extra ? d.extra[1] : d.act ? (d.act.name || 'Action') : d.t)); h.appendChild(el('span', 'n'));
-      [['stop', 'Stop this app'], ['col', 'Close this view'], ['dup', 'Open another window of this tool'], ['out', 'Open in its own tab'], ['min', 'Minimise'], ['foc', 'Focus'], ['x', 'Hide in tray; click its chip to restore']].forEach(function (b) { var bt = el('button'); bt.type = 'button'; bt.dataset.a = b[0]; bt.setAttribute('aria-label', b[1]); bt.title = b[1]; bt.appendChild(svg(ICON[b[0]]));if(b[0]==='stop'){bt.hidden=true;bt.appendChild(el('span','','STOP'));}h.appendChild(bt); });
+      [['stop', 'Stop this app'], ['col', 'Close this view'], ['dup', 'Open another window of this tool'], ['out', 'Open in its own tab'], ['fit', 'Fit this window to what is in it'], ['min', 'Minimise'], ['foc', 'Focus'], ['x', 'Hide in tray; click its chip to restore']].forEach(function (b) { var bt = el('button'); bt.type = 'button'; bt.dataset.a = b[0]; bt.setAttribute('aria-label', b[1]); bt.title = b[1]; bt.appendChild(svg(ICON[b[0]]));if(b[0]==='stop'){bt.hidden=true;bt.appendChild(el('span','','STOP'));}h.appendChild(bt); });
       var body = el('div', 'hk-b'), inn = el('div', 'hk-i'); body.appendChild(inn); var solid=el('div','hk-solid');solid.setAttribute('aria-hidden','true');['back','left','right','top','bottom'].forEach(function(side){solid.appendChild(el('i',side));});solid.classList.add('hk-volume');solid.dataset.id=id;if(d.app||d.card||d.extra||d.act)solid.classList.add('tile');e._solid=solid;e.append(h,body,el('div','hk-rz')); e._in = inn; e._n = h.querySelector('.n'); e._app = d.app || null; e._open = null; e._name = d.app ? (d.app.name || d.app.id) : d.card ? d.card[1] : d.t;
       if (d.app) {
         var a = d.app, box = el('div', 'hk-app'), gi = el('div', 'gi');
@@ -410,7 +412,7 @@
       var q = L[id], b = blocks[id]; if (!q || !b || !q.exp) return;
       var CHROME = 150, phone = host.clientWidth < 900, sr = stageRect(), hr = host.getBoundingClientRect(), k = V.k || 1, w, h;
       if (phone) {                                                       // a phone: the width of the visible screen, as tall as the picture needs, never taller than the screen
-        w = Math.max(260, (sr.width - 12) / k); h = Math.min(Math.max(220, w / aspect + CHROME), Math.max(300, (sr.height - 12) / k));
+        w = Math.max(260, (sr.width - 12) / k); h = Math.min(Math.max(220, w / aspect + CHROME), Math.max(300, (sr.height - 12) * 0.72 / k));      // 72 %: a strip of board stays free to drag
       } else {                                                           // a computer: a picture of about the size the window is, a little smaller for a big one
         w = Math.max(420, Math.min(760, winW)); h = Math.min(760, Math.round(w / aspect + CHROME));
       }
@@ -476,13 +478,22 @@
       resolve(null); trayDraw(); stackDepth(); if (nav) nav.refresh();
     }
     function mobileMirror() {
-      return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+      return matchMedia('(pointer:coarse)').matches || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
     }
     function suspendMirror(block, moving) {
       var frame = block.querySelector('.hk-mobile-mirror');
       if (!frame) return;
       block.classList.toggle('hk-mirror-moving', moving);
       try { frame.contentWindow.setMirrorMoving(moving); } catch (e) {}
+    }
+    // Every live window stands still while the board moves (a drag, a pinch, the wheel, a view turn, a camera glide), on every device whose mirror runs as single pictures, and carries on 0.4 s after the
+    // last movement. A picture that is redrawn while the whole board is being moved is what ran a phone's page out of memory, and nobody reads a window while it is flying past.
+    var mirrorBusy = false, mirrorBusyT = 0;
+    function pauseMirrors(on) { Object.keys(blocks).forEach(function (k) { if (blocks[k]) suspendMirror(blocks[k], on); }); }
+    function mirrorMotion() {
+      if (!mirrorBusy) { mirrorBusy = true; pauseMirrors(true); }
+      clearTimeout(mirrorBusyT);
+      mirrorBusyT = setTimeout(function () { mirrorBusy = false; if (alive) pauseMirrors(false); }, 400);
     }
     function liftMirror(frame, id) {
       if (!iphoneMirror || typeof frame.showPopover !== 'function') return;
@@ -574,6 +585,21 @@
         placeGrip(points);
         setTimeout(track,open ? 32 : 120);
       },0);
+    }
+    // FIT: size an open window to what is in it, once, when you press the button (never on its own: a page that sizes itself to its window would chase its own tail).
+    // A live window of this PC takes its shape; any other page takes the size of its own content, within what the screen can show.
+    function fitToContent(id) {
+      var b = blocks[id], l = L[id], f = b && b.querySelector('iframe'); if (!b || !l || !l.exp || !f) return;
+      var sr = stageRect(), k = V.k || 1, maxW = Math.max(320, Math.min(1100, (sr.width - 16) / k)), maxH = Math.max(260, Math.min(900, (sr.height - 16) / k));
+      try {
+        var win = f.contentWindow, doc = f.contentDocument;
+        var pic = doc.getElementById('pic');
+        if (pic && pic.naturalWidth > 1) { fitWindowPanel(id, pic.naturalWidth / pic.naturalHeight, pic.naturalWidth); return; }
+        var w = Math.max(doc.documentElement.scrollWidth, doc.body ? doc.body.scrollWidth : 0), h = Math.max(doc.documentElement.scrollHeight, doc.body ? doc.body.scrollHeight : 0);
+        var head = b.querySelector('.hk-h'), tabs = b.querySelector('.hk-tabs');
+        l.w = Math.round(Math.max(360, Math.min(maxW, w))); l.h = Math.round(Math.max(240, Math.min(maxH, h + (head ? head.offsetHeight : 28) + (tabs ? tabs.offsetHeight : 0))));
+        b._spec.w = l.w; b._spec.h = l.h; applyBlock(id); resolve(id); lookAt(id);
+      } catch (e) { hubNote('Fit: that window is from another site, so its size cannot be read.'); }
     }
     function frame(url, id) {
       var f = el('iframe', 'hk-fr'), mirror = new URL(url, location.href).pathname === '/mirror';
@@ -692,6 +718,7 @@
     var raster=1,rasterTimer=0;
     function worldTransform(v){var t=view?view.transform(v):'translate3d('+v.x+'px,'+v.y+'px,0) scale('+v.k+')';return raster===1?t:'scale3d('+(1/raster)+','+(1/raster)+','+(1/raster)+') '+t;}
     function place(rasterOnly) {
+      if (!rasterOnly) mirrorMotion();
       clearTimeout(recoveryTimer);recoveryTimer=setTimeout(function(){if(alive)trayDraw();},180);
       world.style.transform=worldTransform(V);if(!rasterOnly){clearTimeout(rasterTimer);rasterTimer=setTimeout(function(){if(!alive)return;var next=/Apple/.test(navigator.vendor)?1:Math.max(1,V.k);if(Math.abs(next-raster)>.015){raster=next;world.style.zoom=raster;place(true);}},180);} zh.textContent = Math.round(V.k * 100) + '%'; host.style.setProperty('--hb-scale', V.k); HubBlocks.grid(host, V); if (nav) nav.refresh();if(trayLists&&trayLists.outside&&!trayLists.outside.hidden)updateTrayLive();
       var compact = V.k < .35;
@@ -773,6 +800,7 @@
     function hideHint() { hint.style.opacity = '0'; }
     var hintTimer = setTimeout(hideHint, 12000); host.addEventListener('pointerdown', hideHint, { once: true });
     host.addEventListener('wheel', onWheel, { passive: false });
+    ['wheel', 'pointerdown', 'pointermove', 'touchmove'].forEach(function (t) { host.addEventListener(t, function (e) { if (t === 'pointermove' && !e.buttons && e.pointerType !== 'touch') return; mirrorMotion(); }, { capture: true, passive: true }); });
     // Two fingers: pinch to zoom around the point between them (a trackpad pinch arrives as Ctrl + wheel and is handled above).
     var pts = {}, pinch = null;
     function two() { var k = Object.keys(pts); return k.length === 2 ? [pts[k[0]], pts[k[1]]] : null; }
@@ -815,6 +843,7 @@
       if (a === 'dup') { duplicate(id); return; }
       if ((a === 'col' || a === 'x') && id.indexOf('#') > 0) { closeWindow(id); return; }
       if (a === 'col') collapse(id);
+      if (a === 'fit') { fitToContent(id); return; }
       if (a === 'out') { var bb = blocks[id]; if (bb._url) window.open(bb._url, '_blank'); else if (bb._app && typeof openApp === 'function') openApp(bb._app.id, bb._app.name); }
       if (a === 'min') { L[id].min = L[id].min ? 0 : 1; applyBlock(id); resolve(id); save(); }
       if (a === 'foc') focusBlock(id);
@@ -1151,7 +1180,7 @@
       openWindow: function (title, url) { return openWindow(title, url); },
       // Talk asked for a Hub page ("open missions"): it opens inside the board, on the right tab, never as a separate page.
       openTool: function (url) {
-        var u = new URL(url, location.href), id = u.pathname === '/support' ? 'extra:support' : (['/missions', '/agents', '/graph', '/yard', '/chats'].indexOf(u.pathname) >= 0 ? 'card:oc' : null);
+        var u = new URL(url, location.href), id = u.pathname === '/support' ? 'extra:support' : u.pathname === '/runs' ? 'extra:runlog' : (['/missions', '/agents', '/graph', '/yard', '/chats'].indexOf(u.pathname) >= 0 ? 'card:oc' : null);
         if (!alive || !id || !blocks[id] || !L[id]) return false;
         touched = true; stopCam();
         if (hid[id]) { hid[id] = 0; applyBlock(id); resolve(id); trayDraw(); save(); }

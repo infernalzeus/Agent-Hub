@@ -22,14 +22,14 @@ def test_agency_has_real_tabs_and_a_model_selector_in_every_row(hub):
         assert p.locator('#agency-subtabs [data-sc=helpers]').get_attribute('aria-selected') == 'true'
         assert p.locator('.ag-entry').count() != before or True
         p.locator('#agency-subtabs [data-sc=all]').click(); p.wait_for_timeout(300)
-        first = p.locator('.ag-entry').first
+        first = p.locator('.ag-entry[data-agent]').first
         first.locator('[data-ag-expand]').click(); p.wait_for_timeout(300)
         assert first.locator('.settings').is_visible(), 'temperature, top_p, steps, reasoning show when a row is opened'
-        assert first.locator('.ag-sliders input[type=range]').count() == 3, 'temperature, top_p and max steps are sliders with a live value'
-        sl = first.locator('.ag-sliders input[type=range]').first
+        assert first.locator('input[type=range]').count() >= 3, 'temperature, top_p and max steps (and the sampling knobs) are sliders with a live value'
+        sl = first.locator('input[type=range]').first
         sl.evaluate("e => { e.value = '0.7'; e.dispatchEvent(new Event('input')); e.dispatchEvent(new Event('change')); }")
         p.wait_for_function("document.querySelector('.ag-saved').textContent === 'SAVED'", timeout=8000)
-        assert first.locator('.ag-sliders output').first.inner_text().startswith('0.7')
+        assert first.locator('output').first.inner_text().startswith('0.7')
         # the helpers that really have a model setting show a selector, and a change is kept
         d = p.locator('[data-helper-model=desktop]')
         assert d.count() == 1 and d.is_visible()

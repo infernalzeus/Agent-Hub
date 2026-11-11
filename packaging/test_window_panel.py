@@ -337,24 +337,66 @@ def test_the_hub_itself_holds_a_phone_to_its_picture_budget_whatever_the_page_as
     assert seen == [(1400, 75), (1800, 95)]
 
 
-def test_on_a_phone_the_dashboard_holds_a_card_not_a_live_window_and_the_button_opens_the_live_view(hub):
-    """The phone's page died twice with a live picture inside the 3D board. There the panel is a card; the live view is a page of its own."""
+
+ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36"
+
+
+def _board_with_mirror(pw, hub, ua, frames):
+    b = pw.chromium.launch(headless=True)
+    ctx = b.new_context(service_workers="block", viewport={"width": 390, "height": 760}, has_touch=True, is_mobile=True, user_agent=ua)
+    pg = ctx.new_page()
+    pg.route("**/api/windows/*/frame*", lambda r: (frames.append(r.request.url), r.fulfill(status=200, content_type="image/gif", body=GIF))[1])
+    pg.route("**/api/windows/*/stream*", lambda r: (frames.append(r.request.url), r.fulfill(status=200, content_type="image/jpeg", body=b""))[1])
+    pg.route("**/api/windows", lambda r: r.fulfill(json={"supported": True, "windows": [{"id": 5, "title": "Claude", "exe": "claude.exe", "w": 1900, "h": 1000, "minimised": False}]}))
+    pg.goto(hub + "/?enter=1")
+    pg.wait_for_function("!!window.__hubBoard && !!window.__hubBoard.active", timeout=20000)
+    pg.evaluate("window.__hubBoard.applyUi({window: {title: 'Claude', url: '/mirror?id=5'}})")
+    pg.wait_for_selector(".hk[data-id^='extra:win-claude'] iframe", timeout=10000)
+    return b, pg
+
+
+def test_every_touch_device_stops_the_live_window_while_the_board_moves_and_it_carries_on_after(hub):
+    """Not only an iPhone: an Android phone's browser gets the same pause. The mirror asks for no picture while the board is being moved."""
+    frames = []
+    with sync_playwright() as pw:
+        b, pg = _board_with_mirror(pw, hub, ANDROID, frames)
+        pg.wait_for_function("(()=>{const f=document.querySelector(\".hk[data-id^='extra:win-claude'] iframe\");try{return !!f.contentWindow.setMirrorMoving&&f.contentWindow.pic&&true}catch(e){return false}})()", timeout=15000)
+        pg.wait_for_timeout(1500)
+        asked_before = len(frames)
+        assert asked_before > 0                                                                  # it was running
+        state = "document.querySelector(\".hk[data-id^='extra:win-claude'] iframe\").contentWindow.eval('moving')"
+        pg.evaluate("document.querySelector('.hb').dispatchEvent(new WheelEvent('wheel',{deltaY:30,bubbles:true,cancelable:true}))")
+        assert pg.evaluate(state) is True
+        pg.wait_for_timeout(250)
+        paused_at = len(frames)
+        pg.evaluate("document.querySelector('.hb').dispatchEvent(new WheelEvent('wheel',{deltaY:30,bubbles:true,cancelable:true}))")    # keeps moving
+        pg.wait_for_timeout(250)
+        assert len(frames) == paused_at                                                           # nothing asked for while it moves
+        pg.wait_for_function("document.querySelector(\".hk[data-id^='extra:win-claude'] iframe\").contentWindow.eval('moving')===false", timeout=4000)
+        pg.wait_for_timeout(1500)
+        assert len(frames) > paused_at                                                            # and it carries on
+        b.close()
+
+
+def test_the_fit_button_sizes_a_window_to_the_shape_of_its_picture_and_any_other_page_to_its_content(hub):
+    import io
+    from PIL import Image
+    buf = io.BytesIO(); Image.new("RGB", (800, 200), (20, 90, 60)).save(buf, "JPEG"); wide = buf.getvalue()           # a very wide window
     with sync_playwright() as pw:
         b = pw.chromium.launch(headless=True)
-        ctx = b.new_context(service_workers="block", viewport={"width": 390, "height": 760}, has_touch=True, is_mobile=True, user_agent=IPHONE)
-        pg = ctx.new_page()
-        asked = []
-        pg.route("**/api/windows/*/frame*", lambda r: (asked.append(r.request.url), r.fulfill(status=200, content_type="image/gif", body=GIF))[1])
-        pg.route("**/api/windows/*/stream*", lambda r: (asked.append(r.request.url), r.fulfill(status=200, content_type="image/jpeg", body=b""))[1])
-        pg.route("**/api/windows", lambda r: r.fulfill(json={"supported": True, "windows": [{"id": 5, "title": "Claude", "exe": "claude.exe", "w": 1900, "h": 1000, "minimised": False}]}))
-        pg.route("**/mirror?id=5*", lambda r: r.fulfill(content_type="text/html", body="<body>the live view</body>"))
+        pg = b.new_context(service_workers="block", viewport={"width": 1300, "height": 900}, has_touch=True, is_mobile=True, user_agent=ANDROID).new_page()          # single pictures, as on a tablet
+        pg.route("**/api/windows/*/stream*", lambda r: r.fulfill(status=200, content_type="image/jpeg", body=b""))
+        pg.route("**/api/windows/*/frame*", lambda r: r.fulfill(status=200, content_type="image/jpeg", body=wide, headers={"ETag": '"x"'}))
+        pg.route("**/api/windows", lambda r: r.fulfill(json={"supported": True, "windows": [{"id": 5, "title": "Wide", "exe": "w.exe", "w": 800, "h": 800, "minimised": False}]}))
         pg.goto(hub + "/?enter=1")
         pg.wait_for_function("!!window.__hubBoard && !!window.__hubBoard.active", timeout=20000)
-        pg.evaluate("window.__hubBoard.applyUi({window: {title: 'Claude', url: '/mirror?id=5'}})")
-        pg.wait_for_selector(".hk[data-id^='extra:win-claude'] .hk-fr button", timeout=10000)
-        pg.wait_for_timeout(2500)
-        assert pg.locator(".hk[data-id^='extra:win-claude'] iframe").count() == 0 and asked == []     # nothing is fetched for the board
-        with ctx.expect_page() as popup:
-            pg.locator(".hk[data-id^='extra:win-claude'] .hk-fr button").dispatch_event("click")                  # its own tab, as the block's OPEN IN ITS OWN TAB does
-        popup.value.wait_for_url("**/mirror?id=5", timeout=10000)
+        pg.evaluate("window.__hubBoard.applyUi({window: {title: 'Wide', url: '/mirror?id=5'}})")
+        pg.wait_for_selector(".hk[data-id^='extra:win-wide'] iframe", timeout=10000)
+        pg.wait_for_function("(()=>{const i=document.querySelector(\".hk[data-id^='extra:win-wide'] iframe\").contentDocument.getElementById('pic');return i&&i.naturalWidth>1})()", timeout=15000)
+        sel = ".hk[data-id^='extra:win-wide']"
+        before = pg.evaluate(f"(()=>{{const p=document.querySelector(\"{sel}\");return [p.offsetWidth,p.offsetHeight]}})()")     # sized for a square window
+        pg.locator(sel + " [data-a=fit]").dispatch_event("click")
+        pg.wait_for_timeout(600)
+        after = pg.evaluate(f"(()=>{{const p=document.querySelector(\"{sel}\");return [p.offsetWidth,p.offsetHeight]}})()")
         b.close()
+    assert after[1] < before[1] and abs((after[1] - 150) - after[0] / 4) < 40, (before, after)                  # 4 : 1 picture, plus the room above it

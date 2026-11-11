@@ -63,11 +63,11 @@ def _outcomes() -> "list[dict]":
         return []
 
 
-def record(models, ok: bool, secs: float, chars: int, mission: str = "") -> None:
+def record(models, ok: bool, secs: float, chars: int, mission: str = "", sampling: "dict | None" = None) -> None:
     """After a hub-verified mission: `ok` means the project's own checks passed."""
     rows = _outcomes()
     for m in (models or [])[:1]:                     # the model that did the work (the first one used)
-        rows.append({"model": m, "ok": bool(ok), "secs": round(float(secs or 0), 1), "chars": int(chars or 0), "at": time.time(), "mission": str(mission or "")})
+        rows.append({"model": m, "ok": bool(ok), "secs": round(float(secs or 0), 1), "chars": int(chars or 0), "at": time.time(), "mission": str(mission or ""), **({"sampling": sampling} if sampling else {})})
     write_json(OUTCOMES, rows[-200:])
 
 

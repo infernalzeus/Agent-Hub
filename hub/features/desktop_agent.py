@@ -281,7 +281,7 @@ async def attempt(goal: str, app: str, decide, *, shadow: bool = True, **kw) -> 
 
 
 async def _attempt(goal: str, app: str, decide, *, tree=None, media=None, click=None, type_=None, key=None,
-                   settle: float = SETTLE, max_steps: int = MAX_STEPS, shadow: bool = False) -> dict:
+                   settle: float = SETTLE, max_steps: int = MAX_STEPS, shadow: bool = False, shot=None, rid: str = "") -> dict:
     """One model's try at the goal. `decide(system, user)` returns the model's raw answer.
 
     Returns {ok, say, steps, trace, saved} - `steps` are the presses that worked, in the shape a routine stores.
@@ -356,7 +356,10 @@ async def _attempt(goal: str, app: str, decide, *, tree=None, media=None, click=
             await key(act["text"])
             history.append(f"step {step + 1}: pressed the key {act['text']}")
             steps.append({"tool": "Shortcut", "args": {"shortcut": act["text"]}, "target": {}})
+            trace[-1]["press"] = len(steps) - 1
             await asyncio.sleep(settle)
+            if shot:
+                trace[-1]["shot"] = await shot(rid, step) or ""
             continue
         c = act["control"]
         node = c["node"]
@@ -372,6 +375,7 @@ async def _attempt(goal: str, app: str, decide, *, tree=None, media=None, click=
         if PC.stop_gen() != g0:                                             # the model took a while to answer: nothing is pressed after a stop
             return {"ok": False, "say": "Stopped.", "steps": steps, "trace": trace, "stopped": True}
         window_before = PC.window_state(nodes, node["window"])
+        tp = time.time()
         if act["do"] == "type":
             await type_(act["text"], [node["x"], node["y"]])
         else:
@@ -383,12 +387,16 @@ async def _attempt(goal: str, app: str, decide, *, tree=None, media=None, click=
                        f'{node["control"]} “{_clip(node["name"], 40)}”{(" in " + chr(34) + c["path"] + chr(34)) if c["path"] else ""} '
                        f'- {"the screen changed" if changed else "NOTHING on screen changed"}')
         trace[-1]["changed"] = changed
+        trace[-1]["press_ms"] = int((time.time() - tp) * 1000)                 # from the press to the screen settling
+        if shot:
+            trace[-1]["shot"] = await shot(rid, step) or ""                        # what the window looked like after it
         pressed_play = pressed_play or bool(re.search(r"\bplay\b", node["name"], re.I))
         if changed or music:
             ident = {"name": node["name"], "control": node["control"], "window": node["window"], "path": c["path"]}
             steps.append({"tool": "Type" if act["do"] == "type" else "Click",
                           "args": {"text": act["text"], "clear": True} if act["do"] == "type" else {"button": "left", "clicks": 1},
                           "target": ident, "_changed": changed})
+            trace[-1]["press"] = len(steps) - 1
         if music:
             # The evidence decides, not the model: a small model read "NOW PLAYING" and pressed Play twice more.
             now_media = await media()
@@ -482,8 +490,17 @@ async def run(goal: str, app: str, *, models: "list[str] | None" = None, decider
         if PC.stop_gen() != g0:
             break
         ta = time.time()
-        got = await attempt(goal, app, dec, **fakes)
-        tries.append({"model": name, "ok": got["ok"], "say": got["say"], "trace": got["trace"], "pressed": len(got["steps"])})
+        rid = "%x" % int(ta * 1000)
+        extra = {"rid": rid}
+        if not fakes:                                                         # the real thing: keep a picture per step. A test that injects its own screen gets none.
+            extra["shot"] = _make_shot(app)
+        got = await attempt(goal, app, dec, **extra, **fakes)
+        try:
+            from . import run_record as RR
+            RR.write(rid, goal, app, name, got, (time.time() - ta) * 1000)
+        except Exception as exc:  # noqa: BLE001
+            logger.info("desktop_agent: could not keep the run record: %s", exc)
+        tries.append({"model": name, "ok": got["ok"], "say": got["say"], "trace": got["trace"], "pressed": len(got["steps"]), "rid": rid})
         _log_run(goal, app, tries[-1])
         try:                                     # R1: which model did the task, and did the checked result agree
             from . import learning as LRN
@@ -501,6 +518,22 @@ async def run(goal: str, app: str, *, models: "list[str] | None" = None, decider
                     "seconds": round(time.time() - t0, 1)}
     return {"ok": False, "say": tries[-1]["say"] if tries else "No model is available to do this.", "tries": tries,
             "seconds": round(time.time() - t0, 1)}
+
+
+def _make_shot(app: str):
+    """A picture of the app's window after each step, kept with the run (about 40 KB each, on this PC only), so a person can see what the agent saw. Never raises, never blocks a step."""
+    async def shot(rid: str, step: int) -> str:
+        try:
+            from . import run_record as RR, window_mirror as WM
+            win = await asyncio.to_thread(WM.find_window, PC.display_app_name(app))
+            if not win:
+                return ""
+            got = await asyncio.to_thread(WM.capture, int(win["id"]), 720, 60)
+            return RR.keep_shot(rid, step, got[0]) if got else ""
+        except Exception as exc:  # noqa: BLE001
+            logger.info("desktop_agent: no picture of step %s: %s", step, exc)
+            return ""
+    return shot
 
 
 def _log_run(goal: str, app: str, tried: dict) -> None:
