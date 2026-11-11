@@ -7,6 +7,8 @@ from aiohttp.test_utils import TestClient, TestServer
 
 from hub.features import pc_control as PC, run_record as RR
 
+_REAL_FAST_OPEN = PC._fast_open                                                                          # imported before the test fence replaces it
+
 WIN = "Apple Music"
 SCREEN = [{"window": WIN, "control": "window", "name": "Apple Music", "path": "", "x": 0, "y": 0, "action": ""},
           {"window": WIN, "control": "button", "name": "Home", "path": "", "x": 10, "y": 10, "action": "click"},
@@ -282,3 +284,55 @@ def test_a_trusted_routine_that_fails_two_replays_in_a_row_is_no_longer_listed_a
             rows = (await (await c.get("/api/pc/routines")).json())["routines"]
             assert rows[0]["status"] == "candidate"
     asyncio.run(go())
+
+
+def test_a_window_is_the_apps_when_its_program_or_title_is_the_apps_name_not_when_a_title_merely_mentions_it():
+    w = lambda title, exe: {"title": title, "exe": exe}
+    assert PC._is_window_of(w("Apple Music", "AppleMusic.exe"), "Apple Music")
+    assert PC._is_window_of(w("Untitled - Notepad", "notepad.exe"), "Notepad")
+    assert PC._is_window_of(w("Document - Notepad", "x.exe"), "Notepad")
+    assert not PC._is_window_of(w("notes.md - Visual Studio Code mentions notepad", "Code.exe"), "Notepad")
+    assert not PC._is_window_of(w("YouTube - Apple Music review", "msedge.exe"), "Apple Music")
+
+
+def test_opening_an_app_brings_an_open_window_forward_and_otherwise_starts_it_by_its_start_menu_id(monkeypatch):
+    from hub.features import window_mirror as WM
+    state = {"open": False, "started": [], "focused": []}
+    monkeypatch.setattr(WM, "list_windows", lambda: [{"id": 7, "title": "Apple Music", "exe": "AppleMusic.exe"}] if state["open"] else [{"id": 1, "title": "Inbox", "exe": "mail.exe"}])
+    monkeypatch.setattr(WM, "focus", lambda hwnd: state["focused"].append(hwnd) or True)
+    monkeypatch.setattr(PC, "_start_id", lambda name: "AppleInc.AppleMusicWin_x!App")
+    _real_sleep = asyncio.sleep
+
+    def start(uri):
+        state["started"].append(uri)
+        state["open"] = True                                                                                 # the app's window comes up
+    monkeypatch.setattr(PC.os, "startfile", start, raising=False)
+    monkeypatch.setattr(asyncio, "sleep", lambda s: _real_sleep(0))
+    got = asyncio.run(_REAL_FAST_OPEN("Apple Music"))
+    assert state["started"] == ["shell:AppsFolder\\AppleInc.AppleMusicWin_x!App"] and got["id"] and "came up" in got["how"] and state["focused"] == [7]
+    again = asyncio.run(_REAL_FAST_OPEN("Apple Music"))                                                         # already open: no second start, instant
+    assert state["started"] == ["shell:AppsFolder\\AppleInc.AppleMusicWin_x!App"] and "already open" in again["how"] and again["ms"] < 1000
+
+
+def test_an_app_whose_start_menu_id_is_unknown_falls_back_to_the_old_way(monkeypatch):
+    from hub.features import window_mirror as WM
+    monkeypatch.setattr(WM, "list_windows", lambda: [])
+    monkeypatch.setattr(PC, "_start_id", lambda name: "")
+    assert asyncio.run(_REAL_FAST_OPEN("Nothing Installed")) is None
+
+
+def test_launch_app_uses_the_fast_way_when_it_has_one_and_says_how_it_did_it(monkeypatch):
+    async def fast(name):
+        return {"how": "its window was already open: brought it forward", "ms": 40, "id": ""}
+    asked = []
+
+    async def call_tool(*a, **k):
+        asked.append(a)
+        return {"text": []}
+    monkeypatch.setattr(PC, "_fast_open", fast)
+    monkeypatch.setattr(PC.MCP, "call_tool", call_tool)
+    monkeypatch.setattr(PC, "_routine", lambda intent: {"id": "x", "args_json": json.dumps({"mode": "launch", "name": "Apple Music"}), "status": "candidate", "successes": 3, "tool": "App"})
+    monkeypatch.setattr(PC, "_remember_launch", lambda key, ok: {"id": "x", "status": "candidate", "successes": 4})
+    monkeypatch.setattr(PC, "_record_run", lambda *a, **k: None)
+    got = asyncio.run(PC.launch_app("apple music", "open apple music"))
+    assert got["ok"] and "already open" in got["how"] and asked == []                                          # the slow Windows tool was never asked

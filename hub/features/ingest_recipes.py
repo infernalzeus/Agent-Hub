@@ -130,9 +130,6 @@ def remember(sig: dict, manifest: dict, *, success: bool = True) -> dict | None:
             if not success:
                 db.execute("UPDATE pc_routines SET status='disabled', updated=? WHERE id=? "
                            "AND status='candidate'", (now, row["id"]))
-            else:
-                db.execute("UPDATE pc_routines SET status='trusted', updated=? WHERE id=? "
-                           "AND status='candidate' AND successes>=2", (now, row["id"]))
             return dict(db.execute("SELECT * FROM pc_routines WHERE id=?", (row["id"],)).fetchone())
         if not success:
             return None

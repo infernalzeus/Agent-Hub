@@ -132,9 +132,35 @@ def test_a_replay_counts_its_seconds_ends_with_one_clear_line_and_a_launch_routi
         assert pg.locator(".rc .step button").count() == 0                                           # a launch is not edited step by step
         pg.click(".rc .rbody button:text-is('REPLAY')")
         pg.wait_for_selector(".rc .rbody button:text-is('STOP')")
-        pg.wait_for_function("/Replaying \d+ s/.test(document.querySelector('.rc .why').textContent)", timeout=4000)
-        pg.wait_for_function("document.querySelector('.rc .why').textContent.startsWith('REPLAY WORKED')", timeout=8000)
-        assert pg.locator(".rc .rbody button:text-is('REPLAY')").count() == 1 and pg.locator(".rc .rbody button:text-is('STOP')").count() == 0
-        assert "It stays trusted" in pg.inner_text(".rc .why") and "Opened Apple Music" in pg.inner_text(".rc .why")
+        pg.wait_for_function("/Replaying [0-9]+ s/.test((document.querySelector('.rc .why')||{}).textContent||'')", timeout=4000)
+        pg.wait_for_function("((document.querySelector('.rc .why')||{}).textContent||'').startsWith('REPLAY WORKED')", timeout=8000)
+        pg.wait_for_function("document.querySelectorAll('.rc .rbody button').length>0 && [...document.querySelectorAll('.rc .rbody button')].every(b=>b.textContent!=='STOP') && [...document.querySelectorAll('.rc .rbody button')].some(b=>b.textContent==='REPLAY') && ((document.querySelector('.rc .why')||{}).textContent||'').includes('It stays trusted')", timeout=6000)    # the list refreshes after a replay
+        assert "Opened Apple Music" in pg.inner_text(".rc .why")
         b.close()
     assert errors == []
+
+
+def test_every_routine_has_promote_or_demote_and_the_click_sets_the_status(hub):
+    rows = [{"id": "t1", "title": "Open Apple Music", "status": "trusted", "successes": 20, "failures": 0, "updated": 0, "tool": "App"},
+            {"id": "c1", "title": "Open Claude", "status": "candidate", "successes": 4, "failures": 0, "updated": 0, "tool": "App"}]
+    posted = []
+    with sync_playwright() as pw:
+        b = pw.chromium.launch(headless=True)
+        pg = b.new_context(service_workers="block", viewport={"width": 1000, "height": 900}).new_page()
+        pg.route("**/api/pc/routines", lambda r: r.fulfill(json={"routines": rows}))
+        pg.route("**/api/pc/routines/*/status", lambda r: (posted.append((r.request.url.split("/")[-2], r.request.post_data_json["status"])), r.fulfill(json={"ok": True}))[1])
+        pg.route("**/api/pc/routines/*/last-run", lambda r: r.fulfill(json={"run": None}))
+        pg.goto(hub + "/yard")
+        pg.click("[data-tab=routines]")
+        pg.wait_for_selector(".rc .rhead")
+        heads = pg.locator(".rc")
+        pg.locator(".rc .rhead").nth(0).click()
+        assert pg.locator(".rc").nth(0).locator("button:text-is('DEMOTE')").is_visible() and pg.locator(".rc").nth(0).locator("button:text-is('PROMOTE')").is_hidden()
+        pg.locator(".rc").nth(0).locator("button:text-is('DEMOTE')").click()
+        pg.wait_for_function("true")
+        pg.locator(".rc .rhead").nth(1).click()
+        assert pg.locator(".rc").nth(1).locator("button:text-is('PROMOTE')").is_visible() and pg.locator(".rc").nth(1).locator("button:text-is('DEMOTE')").is_hidden()
+        pg.locator(".rc").nth(1).locator("button:text-is('PROMOTE')").click()
+        pg.wait_for_timeout(500)
+        b.close()
+    assert posted == [("t1", "candidate"), ("c1", "trusted")]

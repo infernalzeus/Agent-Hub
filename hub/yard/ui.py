@@ -275,7 +275,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       const k=chk[r.id];if(k){m.append(document.createTextNode(' '),el('span','chip '+(k.ready?'ok':'part'),k.ready?'yard: looks ready':'yard: not ready'));}
       head.append(m);c.append(head,body);
       // the buttons are the first thing in the body, so what they open appears under them and never needs a scroll to be closed again
-      const bar=el('div','row'),rp=el('button','part','REPLAY'),again=el('button','part','ATTEMPT AGAIN'),stepsBtn=el('button','skip','STEPS'),why=el('button','skip','WHY'),ok=el('button',null,'APPROVE'),off=el('button','part',r.status==='disabled'?'RE-ENABLE':'DISABLE'),del=el('button','no','DELETE');
+      const bar=el('div','row'),rp=el('button','part','REPLAY'),again=el('button','part','ATTEMPT AGAIN'),stepsBtn=el('button','skip','STEPS'),why=el('button','skip','WHY'),ok=el('button',null,'PROMOTE'),dem=el('button','part','DEMOTE'),off=el('button','part',r.status==='disabled'?'RE-ENABLE':'DISABLE'),del=el('button','no','DELETE');
       rp.title='Run it now, on this PC, to watch how it works. It does not count for or against the routine.';
       again.title='Ask the agent to do this task again from the start (not a replay). It keeps the steps and pictures of this attempt; for a candidate, a good attempt replaces the steps.';
       const note=el('div','why'),stepsBox=el('div'),runBox=el('div'),wy=el('div');
@@ -283,7 +283,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       if(NOTES[r.id])say(NOTES[r.id].txt,NOTES[r.id].kind);
       if(k&&!k.ready)note.textContent=k.reasons.join('. ')+'.';
       if(k&&k.ready)note.textContent='No forbidden control, replayed clean, and the learner agrees on '+(k.agree==null?'(no learner yet)':pct(k.agree))+' of its steps. Only you can approve it.';
-      bar.append(rp,again,stepsBtn,why,ok,off,del);body.append(bar,note,runBox,stepsBox,wy);again.hidden=r.status==='trusted';
+      bar.append(rp,again,stepsBtn,why,ok,dem,off,del);body.append(bar,note,runBox,stepsBox,wy);again.hidden=r.status==='trusted';
       const setOpen=v=>{if(v&&!runBox.childNodes.length)loadRun();body.hidden=!v;tw.textContent=v?'▾':'▸';c.classList.toggle('open',v);try{if(v)sessionStorage.setItem('hub-rl-open',r.id);else if(sessionStorage.getItem('hub-rl-open')===r.id)sessionStorage.removeItem('hub-rl-open');}catch(e){}};
       head.onclick=()=>setOpen(body.hidden);
       // the steps, as a list you can change: drop a step, move it, or say which control it presses
@@ -318,7 +318,9 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       const stopIt=async()=>{await POST('/api/pc/stop');note.textContent='Stopping: it ends at its next step.';};
       const routinesStatus=()=>{};
       stepsBtn.onclick=()=>{if(stepsBox.childNodes.length){stepsBox.replaceChildren();return;}showSteps();};
-      ok.onclick=async()=>{await POST('/api/pc/routines/'+r.id+'/approve');routines();};
+      ok.title='Trust this routine: it counts as approved by you. Nothing trusts a routine automatically, however many times it worked.';dem.title='Take the trust back: it becomes a candidate again.';
+      ok.onclick=async()=>{await POST('/api/pc/routines/'+r.id+'/status',{status:'trusted'});routines();};
+      dem.onclick=async()=>{await POST('/api/pc/routines/'+r.id+'/status',{status:'candidate'});routines();};
       off.onclick=async()=>{await POST('/api/pc/routines/'+r.id+'/status',{status:r.status==='disabled'?'candidate':'disabled'});routines();};
       del.onclick=async()=>{if(!confirm('Delete this routine for good? '+r.title))return;await fetch('/api/pc/routines/'+r.id,{method:'DELETE'});routines();};
       // A replay can take a while (Windows needed 14 s to start Apple Music), so it counts its seconds out loud, and ends with one line that cannot be misread.
@@ -337,7 +339,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
         if(!confirm('Ask the agent to do "'+r.title+'" again from the start? It will press things on this PC; STOP ends it.'))return;working(again,'ATTEMPT AGAIN',true);rp.disabled=true;say('Trying again from the start...','');
         try{const x=await POST('/api/pc/routines/'+r.id+'/reattempt');const j=x.ok?await x.json():null;if(j)say((j.ok?'ATTEMPT WORKED: ':'ATTEMPT FAILED: ')+(j.say||''),j.ok?'ok':'bad');else say('ATTEMPT FAILED: '+(await x.text()),'bad');}catch(e){say('ATTEMPT FAILED: '+String(e),'bad');}
         working(again,'ATTEMPT AGAIN',false);rp.disabled=false;await loadRun();routines();};
-      ok.hidden=r.status==='trusted';
+      ok.hidden=r.status==='trusted'||r.status==='disabled';dem.hidden=r.status!=='trusted';
       why.onclick=async()=>{if(wy.childNodes.length){wy.replaceChildren();return;}wy.append(el('div','mute','Working it out...'));try{wy.replaceChildren(whyView(await J('/api/yard/why/routine/'+r.id)));}catch(e){wy.replaceChildren(el('div','mute','Could not explain this routine.'));}};
       box.append(c);if(openId===r.id)setOpen(true);});}
 

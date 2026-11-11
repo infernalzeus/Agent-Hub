@@ -8,6 +8,7 @@ import json
 import os
 import re
 import sqlite3
+import sys
 import time
 from pathlib import Path
 
@@ -264,7 +265,7 @@ def _consolidate_launch_routines(db: sqlite3.Connection) -> None:
         app = intent.split(":", 1)[1]
         successes = sum(int(r["successes"]) for r in same)
         failures = sum(int(r["failures"]) for r in same)
-        status = "trusted" if successes >= 2 else "candidate"
+        status = "trusted" if any(r["status"] == "trusted" for r in same) else "candidate"      # merging duplicates never promotes; it keeps what a person decided
         args = json.dumps({"mode": "launch", "name": display_app_name(app)})
         signature = json.dumps({"kind": "start_menu_app", "name": display_app_name(app)})
         for row in rest:
@@ -300,10 +301,14 @@ def _db():
         # 'machine' = recorded from the screen surface (Phase 3); not written yet.
         if "kind" not in {c[1] for c in db.execute("PRAGMA table_info(pc_routines)")}:
             db.execute("ALTER TABLE pc_routines ADD COLUMN kind TEXT NOT NULL DEFAULT 'mcp'")
+        if "approved" not in {c[1] for c in db.execute("PRAGMA table_info(pc_routines)")}:
+            # 12 Nov: every routine that had two clean runs was promoted to trusted by this file itself, on every open. Trust is a person's decision (PROMOTE / DEMOTE in the routines
+            # panel), so the promotion is gone, and what it had granted is withdrawn once: every routine starts again as a candidate.
+            db.execute("ALTER TABLE pc_routines ADD COLUMN approved INTEGER NOT NULL DEFAULT 0")
+            db.execute("UPDATE pc_routines SET status='candidate' WHERE status='trusted'")
         if "level" not in {c[1] for c in db.execute("PRAGMA table_info(pc_runs)")}:
             db.execute("ALTER TABLE pc_runs ADD COLUMN level TEXT NOT NULL DEFAULT ''")
         _consolidate_launch_routines(db)
-        db.execute("UPDATE pc_routines SET status='trusted', updated=? WHERE status='candidate' AND successes>=2", (time.time(),))
         yield db
         db.commit()
     finally:
@@ -535,6 +540,94 @@ def clean_then(then: str, app: str = "") -> str:
     return rest
 
 
+def _start_ids_file():
+    return STATE / "data" / "start_ids.json"
+
+
+def _norm(s: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", (s or "").casefold())
+
+
+def _start_id(name: str) -> str:
+    """The Start menu's own id for an app ("AppleInc.AppleMusicWin_...!App"): what Windows itself launches when you click its tile. Read once with Get-StartApps (a second or two), kept on disk."""
+    key = _norm(name)
+    try:
+        cache = json.loads(_start_ids_file().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        cache = {}
+    if cache.get(key):
+        return cache[key]
+    import subprocess
+    env = {**os.environ, "HUB_APP_NAME": name}
+    script = ("$n=$env:HUB_APP_NAME; $m=@(Get-StartApps | Where-Object { $_.Name -eq $n }); if($m.Count -eq 0){ $m=@(Get-StartApps | Where-Object { $_.Name -like \"*$n*\" }) }; "
+              "if($m.Count -ge 1){ $m[0].AppID }")
+    try:
+        out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True, text=True, timeout=20, env=env,
+                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout.strip().splitlines()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    sid = out[0].strip() if out else ""
+    if sid:
+        try:
+            _start_ids_file().parent.mkdir(parents=True, exist_ok=True)
+            cache[key] = sid
+            _start_ids_file().write_text(json.dumps(cache, indent=1), encoding="utf-8")
+        except OSError:
+            pass
+    return sid
+
+
+def _is_window_of(win: dict, name: str) -> bool:
+    """Is this open window that app's? Its program is named like the app, or its whole title is the app's name, or starts with it as a heading, or ends with it after a dash
+    ("Document - Notepad"). Not merely a title that mentions it."""
+    want = _norm(name)
+    if not want:
+        return False
+    if _norm((win.get("exe") or "").casefold().replace(".exe", "")) == want:
+        return True
+    raw = (win.get("title") or "").strip()
+    n = re.escape(name.strip())
+    return bool(re.fullmatch(n, raw, re.I) or re.match(n + r"\s*(?:[-–—|:]|$)", raw, re.I) or re.search(r"[-–—|]\s*" + n + r"$", raw, re.I))
+
+
+async def _fast_open(name: str) -> "dict | None":
+    """Open an app the way a person's click does, without the 14 s the Windows tool took for Apple Music: if its window is already open, bring it forward (instant); else start it by its
+    Start-menu id and wait on the window itself (so the wait is the app's own start-up, not ours). Returns what was done, or None when this cannot be done (not Windows, id unknown,
+    window never came up) and the old way should run."""
+    if sys.platform != "win32":
+        return None
+    from . import window_mirror as WM
+
+    async def window():
+        for w in await asyncio.to_thread(WM.list_windows):
+            if _is_window_of(w, name):
+                return w
+        return None
+    t0 = time.time()
+    w = await window()
+    if w:
+        await asyncio.to_thread(WM.focus, int(w["id"]))
+        return {"how": "its window was already open: brought it forward", "ms": int((time.time() - t0) * 1000), "id": ""}
+    sid = await asyncio.to_thread(_start_id, name)
+    if not sid:
+        return None
+    try:
+        os.startfile(f"shell:AppsFolder\\{sid}")                      # noqa: S606 - Windows: what the Start menu tile does
+    except OSError as exc:
+        logger.info("pc_control: could not start %r by its Start-menu id: %s", name, exc)
+        return None
+    g0 = stop_gen()
+    for _ in range(100):                                              # up to 25 s for a cold start; Apple Music needs a few seconds of its own
+        await asyncio.sleep(0.25)
+        if stop_gen() != g0:
+            return None
+        w = await window()
+        if w:
+            await asyncio.to_thread(WM.focus, int(w["id"]))
+            return {"how": f"started it by its Start-menu id and its window came up after {time.time() - t0:.1f} s", "ms": int((time.time() - t0) * 1000), "id": sid}
+    return None
+
+
 async def launch_app(app: str, request: str, then: str = "") -> dict:
     """Open an installed application, say truthfully whether it opened, and only
     then remember it.
@@ -582,11 +675,19 @@ async def launch_app(app: str, request: str, then: str = "") -> dict:
     args = json.loads(known["args_json"]) if known else {"mode": "launch", "name": target}
     route = "routine" if known else "discovery"
     t1 = time.time()
+    fast = None
     try:
-        result = await MCP.call_tool("windows", "App", args)
-    except Exception as exc:
-        _record_run(request, route, "failed", str(exc))
-        return {"ok": False, "say": f"I could not open {target}: {str(exc)[:150]}."}
+        fast = await _fast_open(target)
+    except Exception as exc:  # noqa: BLE001 - the fast way is an optimisation: any trouble means the old way runs
+        logger.info("pc_control: fast open of %r did not work: %s", target, exc)
+    if fast:
+        result = {"text": [f"{target} launched."]}
+    else:
+        try:
+            result = await MCP.call_tool("windows", "App", args)
+        except Exception as exc:
+            _record_run(request, route, "failed", str(exc))
+            return {"ok": False, "say": f"I could not open {target}: {str(exc)[:150]}."}
     logger.info("pc_control: open %r took %.1f s (listing apps %.1f s, %s; opening %.1f s)", target, time.time() - t0, t_list, "skipped, routine known" if fast else "listed", time.time() - t1)
 
     # Windows reports "<name> launched.", or "<name> not found in start menu.", or
@@ -606,11 +707,12 @@ async def launch_app(app: str, request: str, then: str = "") -> dict:
     _record_run(request, route, "done", f"{target} launched.", level="api")
     tag = {"id": routine["id"], "status": routine["status"], "successes": routine["successes"], "tag": "ROUTINE"}
     said = f"Opened {target}." if not corrected else f"Opened {target} — I heard “{heard}”."
+    how = fast["how"] if fast else "by the Windows tool (windows.App launch)"
     if then:
         got = await after(key, then, request)
         _record_second_half(request, then, got)
-        return {**got, "routine": got.get("routine") or tag}
-    return {"ok": True, "say": said, "routine": tag}
+        return {**got, "routine": got.get("routine") or tag, "how": how}
+    return {"ok": True, "say": said, "routine": tag, "how": how}
 
 
 def _record_second_half(request: str, then: str, got: dict) -> None:
@@ -1215,12 +1317,7 @@ def _remember_outcome(routine_id: str, success: bool) -> dict:
         if not success:
             db.execute("UPDATE pc_routines SET status='disabled', updated=? WHERE id=? AND status='candidate'",
                        (time.time(), routine_id))
-        else:
-            # Promote in the same transaction. _db() also does this on open, but that
-            # would not run until the next call, so the status handed back to the
-            # caller would describe the run before this one.
-            db.execute("UPDATE pc_routines SET status='trusted', updated=? "
-                       "WHERE id=? AND status='candidate' AND successes>=2", (time.time(), routine_id))
+        # A clean run adds to the count; it never promotes. Only PROMOTE does.
         return dict(db.execute("SELECT * FROM pc_routines WHERE id=?", (routine_id,)).fetchone())
 
 
@@ -1342,7 +1439,12 @@ def launch_command(routine: dict) -> dict:
         uri = (json.loads(routine.get("signature_json") or "{}") or {}).get("uri") or ""
         return {"tool": "Uri", "args": {"uri": uri}, "text": f"open the address {uri or '(registered by the app)'} through Windows", "source": "an address Windows has registered for the app"}
     name = args.get("name") or ""
-    return {"tool": "App", "args": args, "text": f'windows.App {json.dumps(args)}: start “{name}” by its Start-menu name, then check that its window came up',
+    try:
+        sid = json.loads(_start_ids_file().read_text(encoding="utf-8")).get(_norm(name), "")
+    except (OSError, ValueError):
+        sid = ""
+    first = (f"if its window is open, bring it forward; otherwise start it by its Start-menu id {sid}" if sid else "if its window is open, bring it forward; otherwise look up its Start-menu id (Get-StartApps) and start it by that")
+    return {"tool": "App", "args": args, "text": f"{first}, then wait for its window. If that is not possible: windows.App {json.dumps(args)}",
             "source": f"the Start-menu entry “{name}”, remembered from {routine.get('successes', 0)} earlier successful opens"}
 
 
@@ -1366,7 +1468,7 @@ async def replay_launch_routine(routine: dict, request: str = "") -> dict:
         await rec.step("open", display_app_name(name), ms, False, cmd["text"] + " (stopped)")
     else:
         ok = bool(got.get("ok"))
-        await rec.step("open", display_app_name(name), ms, ok, cmd["text"] + (f" — {got.get('say', '')}" if not ok else ""))
+        await rec.step("open", display_app_name(name), ms, ok, (got.get("how") + ". " if got.get("how") else "") + cmd["text"] + (f" — {got.get('say', '')}" if not ok else ""))
         res = {"ok": ok, "route": "routine", "say": (got.get("say") or ("Opened " + display_app_name(name) + "." if ok else "It did not open.")) + (f" Took {ms / 1000:.1f} s." if ok else "")}
     res["ms"] = int(ms)
     res["command"] = cmd
@@ -1437,7 +1539,7 @@ async def api_run_routine(request: web.Request) -> web.Response:
                 RR.note_outcome(rid, bool(got.get("ok")))
                 if keep["status"] == "trusted" and not got.get("ok") and RR.trailing_failures(rid) >= 2:
                     with _db() as db:                       # two replays in a row failed: it is not a routine a person can rely on, so it is not listed as trusted
-                        db.execute("UPDATE pc_routines SET status='candidate', successes=0, updated=? WHERE id=?", (time.time(), rid))
+                        db.execute("UPDATE pc_routines SET status='candidate', approved=0, successes=0, updated=? WHERE id=?", (time.time(), rid))
                     got = {**got, "demoted": True, "say": (got.get("say") or "") + " It failed its last two replays, so it is no longer trusted: it is a candidate again."}
             except Exception as exc:  # noqa: BLE001
                 logger.info("pc_control: could not note the replay outcome: %s", exc)
@@ -1500,21 +1602,25 @@ async def api_forget_routine(request: web.Request) -> web.Response:
 
 @routes.post("/api/pc/routines/{id}/status")
 async def api_set_status(request: web.Request) -> web.Response:
-    """Disable a routine, or put it back to candidate. Never promotes to trusted -
-    that is earned by clean runs, not by a button."""
+    """Set a routine's status: trusted (PROMOTE), candidate (DEMOTE) or disabled. Nothing else changes it to trusted: no count of clean runs does."""
     try:
         body = await request.json()
     except Exception:
         body = {}
     status = str(body.get("status", ""))
-    if status not in ("disabled", "candidate"):
-        raise web.HTTPBadRequest(text="status must be 'disabled' or 'candidate'")
+    if status not in ("disabled", "candidate", "trusted"):
+        raise web.HTTPBadRequest(text="status must be 'trusted', 'candidate' or 'disabled'")
     with _db() as db:
         row = db.execute("SELECT id FROM pc_routines WHERE id=?", (request.match_info["id"],)).fetchone()
         if not row:
             raise web.HTTPNotFound(text="no such routine")
-        db.execute("UPDATE pc_routines SET status=?, updated=? WHERE id=?",
-                   (status, time.time(), row["id"]))
+        db.execute("UPDATE pc_routines SET status=?, approved=?, updated=? WHERE id=?",
+                   (status, int(status == "trusted"), time.time(), row["id"]))
+        try:                                                      # who decided, recorded with the routine
+            from . import learning as LRN
+            LRN.note("trust", "routine", status, ["trusted", "candidate", "disabled"], status == "trusted", by="you", routine=row["id"])
+        except Exception:  # noqa: BLE001
+            pass
         return web.json_response({"ok": True, "routine": dict(
             db.execute("SELECT * FROM pc_routines WHERE id=?", (row["id"],)).fetchone())})
 
@@ -1526,7 +1632,7 @@ async def api_approve_routine(request: web.Request) -> web.Response:
         row = db.execute("SELECT id FROM pc_routines WHERE id=?", (request.match_info["id"],)).fetchone()
         if not row:
             raise web.HTTPNotFound(text="no such routine")
-        db.execute("UPDATE pc_routines SET status='trusted', updated=? WHERE id=?", (time.time(), row["id"]))
+        db.execute("UPDATE pc_routines SET status='trusted', approved=1, updated=? WHERE id=?", (time.time(), row["id"]))
         try:                                                      # R1: you read the steps and trusted it; recorded with the routine and who decided
             from . import learning as LRN
             LRN.note("trust", "routine", "trusted", ["trusted", "candidate"], True, by="you", routine=row["id"])
@@ -1541,7 +1647,7 @@ async def api_approve_routine(request: web.Request) -> web.Response:
 def _steps_changed(db, rid: str) -> None:
     for i, row in enumerate(db.execute("SELECT id FROM pc_steps WHERE routine_id=? ORDER BY ordinal, id", (rid,)).fetchall()):
         db.execute("UPDATE pc_steps SET ordinal=? WHERE id=?", (i, row["id"]))
-    db.execute("UPDATE pc_routines SET status=CASE WHEN status='disabled' THEN status ELSE 'candidate' END, successes=0, failures=0, updated=? WHERE id=?", (time.time(), rid))      # it has to earn trust again
+    db.execute("UPDATE pc_routines SET status=CASE WHEN status='disabled' THEN status ELSE 'candidate' END, approved=0, successes=0, failures=0, updated=? WHERE id=?", (time.time(), rid))      # it has to earn trust again
 
 
 def delete_step(rid: str, ordinal: int) -> bool:

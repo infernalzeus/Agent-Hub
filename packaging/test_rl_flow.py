@@ -366,8 +366,8 @@ def test_trusting_a_candidate_routine_is_written_to_the_choice_log(state, monkey
     YS.update({"learning": True})
     db = sqlite3.connect(":memory:")
     db.row_factory = sqlite3.Row
-    db.execute("CREATE TABLE pc_routines (id TEXT, title TEXT, status TEXT, updated REAL)")
-    db.execute("INSERT INTO pc_routines VALUES ('r9', 'Open Notepad', 'candidate', 0)")
+    db.execute("CREATE TABLE pc_routines (id TEXT, title TEXT, status TEXT, updated REAL, approved INTEGER DEFAULT 0)")
+    db.execute("INSERT INTO pc_routines (id,title,status,updated) VALUES ('r9', 'Open Notepad', 'candidate', 0)")
     monkeypatch.setattr(PC, "_db", lambda: db)
 
     async def go():

@@ -53,6 +53,14 @@ def _no_test_reaches_the_real_pc(monkeypatch):
     async def refused(name, tool, args, timeout=90):
         raise AssertionError(f"a test reached the real PC: MCP {name}.{tool} {str(args)[:80]}. Fake MCP.call_tool in the test.")
     monkeypatch.setattr(MCP, "call_tool", refused)
+    try:                                                       # the fast way to open an app starts a real program: a test that wants it fakes it
+        from hub.features import pc_control as _PC
+
+        async def no_fast_open(name):
+            return None
+        monkeypatch.setattr(_PC, "_fast_open", no_fast_open)
+    except ImportError:
+        pass
 
 
 def pytest_configure(config):
