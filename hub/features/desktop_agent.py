@@ -43,11 +43,21 @@ _SYSTEM = (
     "a song's Play and not the Play in the player bar. If the playlist or page you need is not listed, press the button that "
     "opens the navigation or the search first. Press ONE control per step. Do only what the GOAL says - if it is to open something, stop once it is open; do not press Play. Say done only when the "
     "screen or NOW PLAYING shows the goal has happened. Say stuck if nothing listed gets you closer. Never buy, subscribe, delete, sign out or send. "
+    "Add \"confidence\": a number from 0 to 1 for how sure you are that this step moves toward the goal. "
     "Answer with JSON only.")
 
 _SCHEMA = {"type": "object", "required": ["do"], "properties": {
     "do": {"type": "string", "enum": ["click", "type", "key", "done", "stuck"]},
-    "id": {"type": "integer"}, "text": {"type": "string"}, "say": {"type": "string"}}}
+    "id": {"type": "integer"}, "text": {"type": "string"}, "say": {"type": "string"}, "confidence": {"type": "number"}}}
+
+
+def _conf(v) -> "float | None":
+    """The model's own confidence in a step, 0 to 1, or None when it gave none. It is the model's word, not a measurement: it is kept beside each step so it can be calibrated against what happened (R9b)."""
+    try:
+        x = float(v)
+    except (TypeError, ValueError):
+        return None
+    return round(max(0.0, min(1.0, x / 100 if x > 1 else x)), 2)
 
 
 def _clip(text: str, n: int) -> str:
@@ -133,8 +143,9 @@ def parse_action(raw: "str | dict", shown: "list[dict]") -> dict:
           "give_up": "stuck", "fail": "stuck"}.get(do, do)
     if "id" not in j:
         j = {**j, "id": next((j[k] for k in ("control", "target", "element", "number", "index") if k in j), None)}
+    conf = _conf(j.get("confidence"))
     if do in ("done", "stuck"):
-        return {"do": do, "say": _clip(j.get("say") or "", 160)}
+        return {"do": do, "say": _clip(j.get("say") or "", 160), "confidence": conf}
     if do in ("click", "type"):
         try:
             cid = int(j.get("id"))
@@ -145,10 +156,10 @@ def parse_action(raw: "str | dict", shown: "list[dict]") -> dict:
             return {"do": "invalid", "why": f"there is no control number {cid}"}
         if do == "type" and not str(j.get("text") or "").strip():
             return {"do": "invalid", "why": "type needs text"}
-        return {"do": do, "control": c, "text": str(j.get("text") or "")[:200]}
+        return {"do": do, "control": c, "text": str(j.get("text") or "")[:200], "confidence": conf}
     if do == "key":
         k = str(j.get("text") or j.get("say") or "").strip().lower()
-        return {"do": "key", "text": k} if _KEYS.match(k) else {"do": "invalid", "why": f"key {k!r} is not one I press"}
+        return {"do": "key", "text": k, "confidence": conf} if _KEYS.match(k) else {"do": "invalid", "why": f"key {k!r} is not one I press"}
     return {"do": "invalid", "why": f"unknown action {do!r}"}
 
 
@@ -330,7 +341,7 @@ async def _attempt(goal: str, app: str, decide, *, tree=None, media=None, click=
             except Exception:  # noqa: BLE001
                 pass
         trace.append({"step": step, "ms": int((time.time() - t0) * 1000), "raw": str(raw)[:300],
-                      "do": act["do"], "control": describe(act["control"]) if act.get("control") else "", "why": act.get("why", "")})
+                      "do": act["do"], "control": describe(act["control"]) if act.get("control") else "", "why": act.get("why", ""), "confidence": act.get("confidence")})
         if act["do"] == "invalid":
             unusable += 1
         elif act["do"] in ("click", "type", "key"):
@@ -392,7 +403,7 @@ async def _attempt(goal: str, app: str, decide, *, tree=None, media=None, click=
             trace[-1]["shot"] = await shot(rid, step) or ""                        # what the window looked like after it
         pressed_play = pressed_play or bool(re.search(r"\bplay\b", node["name"], re.I))
         if changed or music:
-            ident = {"name": node["name"], "control": node["control"], "window": node["window"], "path": c["path"]}
+            ident = {"name": node["name"], "control": node["control"], "window": node["window"], "path": c["path"], **({"confidence": act["confidence"]} if act.get("confidence") is not None else {})}
             steps.append({"tool": "Type" if act["do"] == "type" else "Click",
                           "args": {"text": act["text"], "clear": True} if act["do"] == "type" else {"button": "left", "clicks": 1},
                           "target": ident, "_changed": changed})
@@ -469,6 +480,10 @@ def ladder() -> "list[str]":
 def ollama_decider(model: str, ctx: int = 6144):
     async def decide(system: str, user: str):
         from .. import decide as DEC
+        from . import missions as M
+        if not await M._ensure_ollama():                          # the Hub starts Ollama when a task needs it (and stops it when idle); this path had never asked
+            raise RuntimeError("Ollama is not running and could not be started")
+        M.touch_ollama()
         body = {"model": model, "stream": False, "format": _SCHEMA,
                 "options": {"temperature": 0, "num_predict": 140, "num_ctx": ctx},
                 "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
@@ -568,7 +583,7 @@ def _trim(steps: "list[dict]") -> "list[dict]":
     """What is worth replaying: the last step always (the Play), steps that changed the screen, and no loops. A detour that comes back to a control
     already pressed is cut out, so a way that wandered (Playlists, a Home tile, Playlists again) replays as the short way."""
     keep = [s for i, s in enumerate(steps) if s.get("_changed", True) or i == len(steps) - 1]
-    key = lambda s: json.dumps(s.get("target"), sort_keys=True)
+    key = lambda s: json.dumps({k: v for k, v in (s.get("target") or {}).items() if k != "confidence"}, sort_keys=True)
     out: "list[dict]" = []
     for s in keep:
         k = key(s)

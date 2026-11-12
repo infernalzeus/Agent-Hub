@@ -62,7 +62,7 @@ def write(rid: str, goal: str, app: str, model: str, got: dict, ms: float) -> No
     d.mkdir(parents=True, exist_ok=True)
     row = {"id": rid, "at": time.time(), "goal": goal, "app": app, "model": model, "ok": bool(got.get("ok")), "verified": got.get("verified"), "say": str(got.get("say") or "")[:300],
            "ms": int(ms), "window": window, "signature": signature,
-           "trace": [{k: v for k, v in t.items() if k in ("step", "ms", "press_ms", "do", "control", "why", "changed", "verified", "error", "shot", "press", "raw")} for t in (got.get("trace") or [])],
+           "trace": [{k: v for k, v in t.items() if k in ("step", "ms", "press_ms", "do", "control", "why", "changed", "verified", "error", "shot", "press", "raw", "confidence")} for t in (got.get("trace") or [])],
            "presses": [{k: v for k, v in s.items() if not k.startswith("_")} for s in (got.get("steps") or [])]}
     (d / "run.json").write_text(json.dumps(row, ensure_ascii=False), encoding="utf-8")
     _prune()
@@ -91,9 +91,9 @@ class Recorder:
             logger.info("run_record: no picture: %s", exc)
             return ""
 
-    async def step(self, do: str, control: str, ms: float, ok: bool = True, why: str = "", changed: "bool | None" = None) -> None:
+    async def step(self, do: str, control: str, ms: float, ok: bool = True, why: str = "", changed: "bool | None" = None, ordinal: "int | None" = None) -> None:
         self.trace.append({"step": len(self.trace), "ms": int(ms), "do": do, "control": control, "why": why, "changed": changed if changed is not None else ok,
-                           "shot": await self.shot(), **({} if ok else {"error": why or "did not work"})})
+                           "shot": await self.shot(), **({} if ok else {"error": why or "did not work"}), **({} if ordinal is None else {"ordinal": ordinal})})
 
     def finish(self, ok: bool, say: str) -> str:
         try:

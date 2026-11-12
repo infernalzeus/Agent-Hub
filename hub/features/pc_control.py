@@ -306,6 +306,8 @@ def _db():
             # panel), so the promotion is gone, and what it had granted is withdrawn once: every routine starts again as a candidate.
             db.execute("ALTER TABLE pc_routines ADD COLUMN approved INTEGER NOT NULL DEFAULT 0")
             db.execute("UPDATE pc_routines SET status='candidate' WHERE status='trusted'")
+        if "note" not in {c[1] for c in db.execute("PRAGMA table_info(pc_routines)")}:
+            db.execute("ALTER TABLE pc_routines ADD COLUMN note TEXT NOT NULL DEFAULT ''")
         if "level" not in {c[1] for c in db.execute("PRAGMA table_info(pc_runs)")}:
             db.execute("ALTER TABLE pc_runs ADD COLUMN level TEXT NOT NULL DEFAULT ''")
         _consolidate_launch_routines(db)
@@ -1201,7 +1203,7 @@ def _goal_of(routine: dict) -> str:
     return title.split(":", 1)[1].strip() if ":" in title else title
 
 
-async def replay_ui_routine(routine: dict, request: str = "", record: bool = True) -> dict:
+async def replay_ui_routine(routine: dict, request: str = "", record: bool = True, only: "tuple | None" = None) -> dict:
     """Replay a routine and keep what happened: every step (the app being opened first, if it was not open), how long it took, and a picture of the window after it.
     The record is what a person looks at to say whether the routine is right; it also names the newest replay of this routine for the routines panel."""
     rec = None
@@ -1213,7 +1215,7 @@ async def replay_ui_routine(routine: dict, request: str = "", record: bool = Tru
         except Exception as exc:  # noqa: BLE001
             logger.info("pc_control: no replay record: %s", exc)
     t0 = time.time()
-    res = await _replay_core(routine, request, rec)
+    res = await _replay_core(routine, request, rec, only)
     res["ms"] = int((time.time() - t0) * 1000)
     if rec:
         res["rid"] = rec.finish(bool(res.get("ok")), res.get("say", ""))
@@ -1244,7 +1246,7 @@ async def _open_if_closed(routine: dict, window: str, request: str, rec) -> "dic
     return None
 
 
-async def _replay_core(routine: dict, request: str, rec) -> dict:
+async def _replay_core(routine: dict, request: str, rec, only: "tuple | None" = None) -> dict:
     """Run a stored step sequence, but only onto the screen it was recorded against.
 
     Every refusal here is deliberate: a routine that cannot see what it expects
@@ -1254,6 +1256,10 @@ async def _replay_core(routine: dict, request: str, rec) -> dict:
     steps = _steps(routine["id"])
     if not steps:
         return {"ok": False, "route": "fall-through", "say": "That routine has no steps saved."}
+    if only is not None:                                              # one step, or from a step on: the screen is wherever the person left it, so it is not held to the recorded one
+        steps = [s for s in steps if only[0] <= s["ordinal"] <= only[1]]
+        if not steps:
+            return {"ok": False, "route": "fall-through", "say": "There is no such step."}
 
     # Focus first: an unfocused window contributes nothing to the tree, so a
     # routine replayed while something else is in front would see an empty
@@ -1273,7 +1279,7 @@ async def _replay_core(routine: dict, request: str, rec) -> dict:
         elements = await _snapshot(stored.get("window", ""))
     live = ui_signature(elements, stored.get("window", ""))
     key = "stable" if stored.get("stable") else "fingerprint"
-    if live[key] != stored.get(key):
+    if only is None and live[key] != stored.get(key):
         # The app is not showing the page the routine was recorded on (it came up on another page, or its content moved). That alone is not a reason to refuse: every step below finds its own
         # control on the live screen and stops if it is missing. So the routine goes on when the control of its FIRST step is there, and says that it did; it stops, saying exactly what it
         # looked for, when it is not. Before 12 Nov any difference stopped it, so a replay after the app had just been opened did nothing at all.
@@ -1302,7 +1308,7 @@ async def _replay_core(routine: dict, request: str, rec) -> dict:
             found = _match(elements, target)
             if not found:
                 if rec:
-                    await rec.step(step["tool"].lower(), target.get("name", ""), (time.time() - ts) * 1000, False, "not on screen")
+                    await rec.step(step["tool"].lower(), target.get("name", ""), (time.time() - ts) * 1000, False, "not on screen", ordinal=step["ordinal"])
                 _record_run(request, "fall-through", "skipped",
                             f"step {step['ordinal']}: no element {target.get('control')} \"{target.get('name')}\"")
                 _remember_outcome(routine["id"], False)
@@ -1321,7 +1327,7 @@ async def _replay_core(routine: dict, request: str, rec) -> dict:
             await MCP.call_tool("windows", step["tool"], args)
         except Exception as exc:
             if rec:
-                await rec.step(step["tool"].lower(), target.get("name", ""), (time.time() - ts) * 1000, False, str(exc)[:120])
+                await rec.step(step["tool"].lower(), target.get("name", ""), (time.time() - ts) * 1000, False, str(exc)[:120], ordinal=step["ordinal"])
             _record_run(request, "routine", "failed", f"step {step['ordinal']}: {exc}")
             _remember_outcome(routine["id"], False)
             return {"ok": False, "route": "routine", "say": f"{routine['title']} failed: {str(exc)[:150]}"}
@@ -1331,7 +1337,10 @@ async def _replay_core(routine: dict, request: str, rec) -> dict:
         elements = await _snapshot()
         history.append(f"step {len(history) + 1}: {step['tool'].lower()} {target.get('name', '')}")
         if rec:
-            await rec.step(step["tool"].lower(), target.get("name", ""), (time.time() - ts) * 1000, True)
+            await rec.step(step["tool"].lower(), target.get("name", ""), (time.time() - ts) * 1000, True, ordinal=step["ordinal"])
+
+    if only is not None:                                              # a part of a routine: say what ran, and leave its record alone
+        return {"ok": True, "route": "routine", "say": f"Ran {'step ' + str(steps[0]['ordinal'] + 1) if len(steps) == 1 else 'steps ' + str(steps[0]['ordinal'] + 1) + ' to ' + str(steps[-1]['ordinal'] + 1)}. It did not change the routine."}
 
     # Every step ran without raising. That is not the same as having worked, and
     # counting it as a success is how a routine that does nothing becomes
@@ -1388,7 +1397,7 @@ def _remember_outcome(routine_id: str, success: bool) -> dict:
 @routes.get("/api/pc/routines")
 async def api_routines(request: web.Request) -> web.Response:
     with _db() as db:
-        rows = [dict(r) for r in db.execute("SELECT id,intent,title,tool,kind,args_json,status,successes,failures,created,updated FROM pc_routines ORDER BY updated DESC")]
+        rows = [dict(r) for r in db.execute("SELECT id,intent,title,tool,kind,args_json,status,successes,failures,created,updated,note FROM pc_routines ORDER BY updated DESC")]
         counts = {r["routine_id"]: r["n"] for r in db.execute(
             "SELECT routine_id, COUNT(*) AS n FROM pc_steps GROUP BY routine_id")}
         scores = {}
@@ -1575,6 +1584,8 @@ async def api_reattempt(request: web.Request) -> web.Response:
     sentence = f"open {display_app_name(app)} and {goal}"
     t0 = time.time()
     got = await launch_app(app, sentence, then=goal, fresh=True)
+    if got.get("confirm") or got.get("action"):                          # a question is not a result: nothing was done
+        got = {"ok": False, "say": "It stopped to ask you something instead of doing the task, so nothing was done: " + str(got.get("say") or "")[:200]}
     rid = ((got.get("tries") or [{}])[-1] or {}).get("rid", "")
     if rid:
         try:
@@ -1771,10 +1782,77 @@ async def api_edit_step(request: web.Request) -> web.Response:
     """{"name": "ADHD"} renames the control the step presses; {"to": 1} moves the step to that position (counting from 0)."""
     body = await request.json()
     rid, ordinal = request.match_info["id"], int(request.match_info["ordinal"])
-    ok = move_step(rid, ordinal, body["to"]) if "to" in body else edit_step(rid, ordinal, body.get("name"))
+    if "note" in body:
+        ok = set_step_note(rid, ordinal, body.get("note"))
+    else:
+        ok = move_step(rid, ordinal, body["to"]) if "to" in body else edit_step(rid, ordinal, body.get("name"))
     if not ok:
         raise web.HTTPBadRequest(text="nothing changed: check the step number and the new name")
     return web.json_response({"ok": True})
+
+
+def set_routine_note(rid: str, note: str) -> bool:
+    """A person's own words about a routine: why it works, why it does not, what to change. It is kept with the routine and written to the learning record. Changing it never changes how the routine runs."""
+    note = str(note or "").strip()[:1500]
+    with _db() as db:
+        n = db.execute("UPDATE pc_routines SET note=? WHERE id=?", (note, rid)).rowcount
+    if n:
+        _note_event("routine", rid, None, note)
+    return bool(n)
+
+
+def set_step_note(rid: str, ordinal: int, note: str) -> bool:
+    """The same for one step. It rides in the step's own record and is NOT an edit: it does not make a trusted routine a candidate."""
+    note = str(note or "").strip()[:600]
+    with _db() as db:
+        row = db.execute("SELECT id, target_json FROM pc_steps WHERE routine_id=? AND ordinal=?", (rid, int(ordinal))).fetchone()
+        if not row:
+            return False
+        target = json.loads(row["target_json"] or "{}")
+        if note:
+            target["note"] = note
+        else:
+            target.pop("note", None)
+        db.execute("UPDATE pc_steps SET target_json=? WHERE id=?", (json.dumps(target), row["id"]))
+    _note_event("step", rid, int(ordinal), note)
+    return True
+
+
+def _note_event(scope: str, rid: str, ordinal: "int | None", note: str) -> None:
+    try:
+        from . import learning as LRN
+        LRN.note("note", scope, note[:80], by="you", routine=rid, **({"step": ordinal} if ordinal is not None else {}), text=note)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+@routes.post("/api/pc/routines/{id}/note")
+async def api_routine_note(request: web.Request) -> web.Response:
+    body = await request.json()
+    if not set_routine_note(request.match_info["id"], body.get("note", "")):
+        raise web.HTTPNotFound(text="no such routine")
+    return web.json_response({"ok": True})
+
+
+@routes.post("/api/pc/routines/{id}/steps/{ordinal}/run")
+async def api_run_step(request: web.Request) -> web.Response:
+    """Replay ONE step ({"mode": "one"}) or the steps from there to the end ({"mode": "from"}) against the screen as it is now. This is how a routine is studied step by step: put the app where the
+    step expects it, run the step, look at the picture. It does not change the routine's record (a part of a routine proves nothing about the whole)."""
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        body = {}
+    rid, ordinal = request.match_info["id"], int(request.match_info["ordinal"])
+    with _db() as db:
+        row = db.execute("SELECT * FROM pc_routines WHERE id=?", (rid,)).fetchone()
+    if not row:
+        raise web.HTTPNotFound(text="no such routine")
+    routine = dict(row)
+    if routine["tool"] != "ui":
+        raise web.HTTPBadRequest(text="only a routine that presses things inside an app has steps to run one by one")
+    only = (ordinal, ordinal) if body.get("mode", "one") == "one" else (ordinal, 10 ** 6)
+    got = await replay_ui_routine(routine, "step run", only=only)
+    return web.json_response(got)
 
 
 @routes.get("/api/pc/routines/{id}/steps")
@@ -1789,7 +1867,8 @@ async def api_routine_steps(request: web.Request) -> web.Response:
     return web.json_response({"steps": [
         {"ordinal": s["ordinal"], "tool": s["tool"],
          "args": json.loads(s["args_json"] or "{}"),
-         "target": json.loads(s["target_json"] or "{}")} for s in steps]})
+         "target": json.loads(s["target_json"] or "{}"),
+         "note": json.loads(s["target_json"] or "{}").get("note", ""), "confidence": json.loads(s["target_json"] or "{}").get("confidence")} for s in steps]})
 
 
 # ── the second half of a sentence ────────────────────────────────────────────────────────────────────────────────────
@@ -2136,7 +2215,7 @@ async def after(app: str, then: str, request: str, tree=None, fresh: bool = Fals
     name = display_app_name(app)
     t0 = time.time()
     before = await _snap() if tree is None else None
-    if tree is None and _open_ended_play(then, app):
+    if tree is None and not fresh and _open_ended_play(then, app):
         # "play some music" names nothing. Guessing wastes a minute on a library full of choices; one short question does not.
         return _ask(f"{name} is open. You did not name anything, so I can shuffle your whole library, or start a radio station. Shall I shuffle your library?",
                     "desktop_task", {"app": app, "goal": "shuffle all songs in my library"}, "Shuffle my library")
@@ -2192,6 +2271,8 @@ async def after(app: str, then: str, request: str, tree=None, fresh: bool = Fals
         if got["ok"]:
             return {"ok": True, "say": f"Opened {name}. {got['say']}", "routine": got.get("routine"), "tries": got["tries"]}
         logger.info("pc_control: the desktop agent could not %r in %s: %s", then, app, got["say"])
+        if fresh:                                                     # an attempt again has nobody to answer a question: it says what stopped it, plainly
+            return {"ok": False, "say": f"I opened {name}, but could not do it: {got['say']}", "tries": got["tries"]}
 
     try:
         nodes = await (tree(app) if tree else _raw_tree(app))

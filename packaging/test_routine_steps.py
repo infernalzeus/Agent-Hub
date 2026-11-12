@@ -171,3 +171,46 @@ def test_the_state_selector_shows_the_state_and_a_click_sets_it_and_delete_stand
         assert pg.locator(".rc").nth(0).locator(".rgrp.right > button:text-is('DELETE')").count() == 1      # DELETE is its own control beside the selector, not one of its three states
         b.close()
     assert posted == [("t1", "candidate"), ("c1", "trusted")]
+
+
+def test_a_step_can_be_studied_its_confidence_last_result_and_note_run_on_its_own_and_a_routine_note_saved(hub):
+    steps = [{"ordinal": 0, "tool": "Click", "args": {}, "target": {"name": "Playlists", "control": "list item", "path": "", "confidence": 0.9}, "note": "", "confidence": 0.9},
+             {"ordinal": 1, "tool": "Click", "args": {}, "target": {"name": "ADHD", "control": "list item", "path": ""}, "note": "under Playlists", "confidence": None},
+             {"ordinal": 2, "tool": "Click", "args": {}, "target": {"name": "Play", "control": "button", "path": "ADHD"}, "note": "", "confidence": 0.55}]
+    run = {"id": "r1", "kind": "replay", "at": 1.0, "ms": 5000, "ok": False, "say": "x", "trace": [{"step": 0, "ordinal": 0, "do": "click", "control": "Playlists", "ms": 900, "shot": ""},
+                                                                                              {"step": 1, "ordinal": 1, "do": "click", "control": "ADHD", "ms": 700, "error": "not on screen", "shot": ""}]}
+    row = {"id": "e1", "title": "Apple Music: play something from the adhd playlist", "status": "candidate", "successes": 0, "failures": 0, "updated": 0, "tool": "ui", "note": "first words", "last_replay": None, "replay_failures": 0}
+    posted = []
+    with sync_playwright() as pw:
+        b = pw.chromium.launch(headless=True)
+        pg = b.new_context(service_workers="block", viewport={"width": 1100, "height": 900}).new_page()
+        pg.on("dialog", lambda d: d.accept("Play is the one inside the playlist" if d.type == "prompt" else None))
+        errors = []
+        pg.on("pageerror", lambda e: errors.append(str(e)))
+        pg.route("**/api/pc/routines", lambda r: r.fulfill(json={"routines": [row]}))
+        pg.route("**/api/pc/routines/e1/last-run", lambda r: r.fulfill(json={"run": run}))
+        pg.route("**/api/pc/routines/e1/steps", lambda r: r.fulfill(json={"steps": steps}))
+        pg.route("**/api/pc/routines/e1/steps/*/run", lambda r: (posted.append(("run", r.request.url.split("/")[-2], r.request.post_data_json["mode"])), r.fulfill(json={"ok": True, "route": "routine", "say": "Ran step 2."}))[1])
+        pg.route("**/api/pc/routines/e1/steps/2", lambda r: (posted.append(("step-note", r.request.post_data_json)), r.fulfill(json={"ok": True}))[1])
+        pg.route("**/api/pc/routines/e1/note", lambda r: (posted.append(("note", r.request.post_data_json["note"])), r.fulfill(json={"ok": True}))[1])
+        pg.goto(hub + "/yard")
+        pg.click("[data-tab=routines]")
+        pg.wait_for_selector(".rc .rhead")
+        pg.click(".rc .rhead")
+        assert pg.locator(".rc textarea").input_value() == "first words"
+        pg.locator(".rc textarea").fill("Playlists then ADHD then the Play inside it")
+        pg.click(".rc button:text-is('SAVE NOTE')")
+        pg.wait_for_function("document.querySelector('.rc .why').textContent==='Note saved.'")
+        pg.click(".rc button:text-is('STEPS')")
+        pg.wait_for_selector(".rc .step")
+        mine = pg.locator(".rc .step:has(button[title^='Run just this step'])")                    # the rows of the routine's own steps (the last run lists its own above them)
+        mine.nth(2).wait_for()
+        text = " ".join(mine.all_inner_texts())
+        assert "90 % sure" in text and "55 % sure" in text and "Last run: worked" in text and "Last run: FAILED - not on screen" in text and "Note: under Playlists" in text
+        mine.nth(1).locator("button[title^='Run just this step']").click()
+        pg.wait_for_function("(document.querySelector('.rc .why')||{textContent:''}).textContent.startsWith('STEP WORKED')", timeout=6000)
+        mine.nth(2).locator("button:text-is('NOTE')").click()
+        pg.wait_for_timeout(500)
+        b.close()
+    assert errors == []
+    assert ("note", "Playlists then ADHD then the Play inside it") in posted and ("run", "1", "one") in posted and ("step-note", {"note": "Play is the one inside the playlist"}) in posted

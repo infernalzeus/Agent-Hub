@@ -63,6 +63,9 @@ def _no_test_reaches_the_real_pc(monkeypatch):
         async def no_bring_forward(app):                           # nor may a test move this PC's windows about
             return {"app": app, "window": None, "minimised": None, "foreground": None, "locked": None}
         monkeypatch.setattr(_PC, "_bring_forward", no_bring_forward)
+        from pathlib import Path as _P
+        from hub.features import missions as _M                   # and no test may start Ollama on this PC
+        monkeypatch.setattr(_M, "_OLLAMA_APP", _P("no-ollama-in-tests.exe"))
     except ImportError:
         pass
 

@@ -24,6 +24,7 @@ body{background:#080c28;color:var(--text);font:12.5px/1.4 Outfit,system-ui,sans-
 main{max-width:1100px;margin:0 auto}
 h2{font:700 11px Orbitron,system-ui,sans-serif;letter-spacing:.08em;color:var(--accent);margin:12px 0 4px}
 .row{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin:6px 0}
+.rnote{display:flex;gap:8px;align-items:flex-start;margin:6px 0}.rnote textarea{flex:1;background:rgba(6,10,36,.7);border:1px solid rgba(0,230,118,.3);border-radius:8px;color:inherit;padding:7px 9px;font:12px/1.4 Outfit,system-ui,sans-serif;resize:vertical;min-height:54px}
 .rbar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px 18px;margin:6px 0}.rgrp{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
 .rgrp.right{margin-left:auto}.rgrp.right .mute{font-size:9px;letter-spacing:1px}.rgrp.right .no{margin-left:10px;padding-left:12px;border-left:1px solid rgba(0,230,118,.25)}
 .seg{display:inline-flex;border:1px solid rgba(0,230,118,.4);border-radius:8px;overflow:hidden}.seg button{border:0;border-radius:0;margin:0;opacity:.65}.seg button+button{border-left:1px solid rgba(0,230,118,.25)}.seg button.on{opacity:1;background:rgba(0,230,118,.22);color:#00e676;box-shadow:inset 0 0 8px rgba(0,230,118,.3)}
@@ -288,38 +289,52 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       if(NOTES[r.id])say(NOTES[r.id].txt,NOTES[r.id].kind);
       if(k&&!k.ready)note.textContent=k.reasons.join('. ')+'.';
       if(k&&k.ready)note.textContent='No forbidden control, replayed clean, and the learner agrees on '+(k.agree==null?'(no learner yet)':pct(k.agree))+' of its steps. Only you can approve it.';
-      body.append(bar,note,runBox,stepsBox,wy);again.hidden=r.status==='trusted'||r.tool!=='ui';
+      const noteBox=el('div','rnote'),ta=el('textarea'),saveN=el('button','part','SAVE NOTE');ta.rows=3;ta.value=r.note||'';ta.placeholder='Why this routine works or does not, and what to change. It is kept with the routine and read when we train; it never changes how the routine runs.';
+      saveN.onclick=async()=>{const x=await POST('/api/pc/routines/'+r.id+'/note',{note:ta.value});say(x.ok?'Note saved.':'Note not saved: '+(await x.text()),x.ok?'ok':'bad');};noteBox.append(ta,saveN);
+      body.append(bar,noteBox,note,runBox,stepsBox,wy);again.hidden=r.status==='trusted'||r.tool!=='ui';
       const setOpen=v=>{if(v&&!runBox.childNodes.length)loadRun();body.hidden=!v;tw.textContent=v?'▾':'▸';c.classList.toggle('open',v);try{if(v)sessionStorage.setItem('hub-rl-open',r.id);else if(sessionStorage.getItem('hub-rl-open')===r.id)sessionStorage.removeItem('hub-rl-open');}catch(e){}};
       head.onclick=()=>setOpen(body.hidden);
       // the steps, as a list you can change: drop a step, move it, or say which control it presses
+      let lastRun=null;
       const showSteps=async()=>{stepsBox.replaceChildren(el('div','mute','Reading the steps...'));
         try{const j=await J('/api/pc/routines/'+r.id+'/steps'),list=el('div','steps');
           if(!j.steps.length){stepsBox.replaceChildren(el('div','mute','This routine has no steps saved.'));return;}
           const edit=async(ord,body2)=>{const x=await POST('/api/pc/routines/'+r.id+'/steps/'+ord,body2);if(!x.ok){note.textContent=await x.text();}await showSteps();};
+          const lastBy={};((lastRun&&lastRun.trace)||[]).forEach(t=>{if(t.ordinal!=null)lastBy[t.ordinal]=t;});
           j.steps.forEach((x,i)=>{const row=el('div','step'),nm=(x.target&&x.target.name)||'';
             const label=el('span','sl');label.append(el('b',null,(i+1)+'. '),document.createTextNode(x.tool.toLowerCase()+' '),el('span','sn','“'+(nm.length>48?nm.slice(0,48)+'…':nm)+'”'),el('span','mute',(x.target&&x.target.control?'  '+x.target.control:'')+(x.target&&x.target.path?' in '+x.target.path:'')));label.title=nm;
             if(x.fixed){label.replaceChildren(el('b',null,'1. '),document.createTextNode('open app '),el('span','sn','“'+nm+'”'));const how=el('div','mute');how.textContent='Command: '+x.command+'. Name taken from '+x.source+'.';row.append(label,how);list.append(row);return;}
-            const up=el('button','i','↑'),dn=el('button','i','↓'),rn=el('button','i','✎'),rm=el('button','i','✕');up.title='Move up';dn.title='Move down';rn.title='Change which control it presses';rm.title='Remove this step';
+            if(x.confidence!=null){const cf=el('div','mute');cf.textContent='The model said it was '+Math.round(x.confidence*100)+' % sure of this step when it recorded it (its own word, not a measurement).';label.append(cf);}
+            const t=lastBy[x.ordinal];
+            if(t){const res=el('div','mute');res.style.color=t.error?'#ff6b6b':'#00e676';res.textContent='Last run: '+(t.error?'FAILED - '+t.error:'worked')+' · '+secs(t.ms);label.append(res);}
+            if(x.note){const nt=el('div','mute');nt.textContent='Note: '+x.note;nt.style.fontStyle='italic';label.append(nt);}
+            const go1=el('button','i','▶'),goN=el('button','i','⏭'),nb=el('button','i','NOTE'),up=el('button','i','↑'),dn=el('button','i','↓'),rn=el('button','i','✎'),rm=el('button','i','✕');
+            go1.title='Run just this step now, on the screen as it is. Put the app on the page the step expects first.';goN.title='Run this step and every step after it, on the screen as it is.';nb.title='Write why this step works or does not. It is kept with the step and read when we train.';
+            up.title='Move up';dn.title='Move down';rn.title='Change which control it presses';rm.title='Remove this step';
+            go1.onclick=()=>runSteps(x.ordinal,'one',i+1);goN.onclick=()=>runSteps(x.ordinal,'from',i+1);
+            nb.onclick=async()=>{const v=prompt('Why this step works, or does not (kept with the step, read when we train):',x.note||'');if(v!==null)await edit(x.ordinal,{note:v});};
             up.disabled=i===0;dn.disabled=i===j.steps.length-1;
             up.onclick=()=>edit(x.ordinal,{to:i-1});dn.onclick=()=>edit(x.ordinal,{to:i+1});
             rn.onclick=()=>{const v=prompt('The control this step presses (as it is named on screen):',nm);if(v&&v.trim()&&v!==nm)edit(x.ordinal,{name:v.trim()});};
             rm.onclick=async()=>{const y=await fetch('/api/pc/routines/'+r.id+'/steps/'+x.ordinal,{method:'DELETE'});if(!y.ok)note.textContent=await y.text();await showSteps();routinesStatus();};
-            row.append(label,up,dn,rn,rm);list.append(row);});
-          stepsBox.replaceChildren(list,el('div','mute',r.status==='trusted'?'Changing a step makes this a candidate again with a clean record: it has to be approved or replayed twice before it is trusted.':'Press REPLAY to watch the steps run.'));
+            row.append(label);
+            if(t&&t.shot&&lastRun){const im=el('img');im.src='/api/runs/'+lastRun.id+'/shot/'+t.shot;im.style.cssText='width:110px;border-radius:5px;margin-left:8px;cursor:zoom-in;border:1px solid '+(t.error?'#ff6b6b':'rgba(0,230,118,.3)');im.onclick=()=>window.open(im.src,'_blank');row.append(im);}
+            row.append(go1,goN,nb,up,dn,rn,rm);list.append(row);});
+          stepsBox.replaceChildren(list,el('div','mute',r.status==='trusted'?'Changing a step makes this a candidate again with a clean record: it has to be approved or replayed twice before it is trusted. A note or a part-run does not.':'To study one step: put the app on the page it expects, then press its play button. Running a part of the routine never changes its record.'));
         }catch(e){stepsBox.replaceChildren(el('div','mute',String(e)));}};
       const secs=ms=>ms==null?'-':(ms/1000).toFixed(1)+' s';
       // The newest replay or attempt: every step with its time and a picture of the window after it. This is what to look at before approving a candidate.
       const showRun=run=>{runBox.replaceChildren();if(!run||!run.trace)return;
         const list=el('div','steps'),bad=run.trace.filter(x=>x.error).length;
         run.trace.forEach((x,i)=>{const row=el('div','step'),lab=el('span','sl');
-          lab.append(el('b',null,(i+1)+'. '),document.createTextNode((x.do||'')+' '),el('span','sn','“'+String(x.control||'').slice(0,48)+'”'),el('span','mute','  '+secs(x.ms)+(x.error?'  - '+x.error:'')));
+          lab.append(el('b',null,(i+1)+'. '),document.createTextNode((x.do||'')+' '),el('span','sn','“'+String(x.control||'').slice(0,48)+'”'),el('span','mute','  '+secs(x.ms)+(x.confidence!=null?'  ·  model '+Math.round(x.confidence*100)+' % sure':'')+(x.error?'  - '+x.error:'')));
           if(x.why&&!x.error){const cm=el('div','mute');cm.textContent='Command: '+x.why;lab.append(cm);}
           row.append(lab);if(x.shot){const im=el('img');im.src='/api/runs/'+run.id+'/shot/'+x.shot;im.style.cssText='width:110px;border-radius:5px;margin-left:8px;cursor:zoom-in;border:1px solid '+(x.error?'#ff6b6b':'rgba(0,230,118,.3)');im.onclick=()=>window.open(im.src,'_blank');row.append(im);}
           list.append(row);});
         runBox.append(el('div','mute',(run.kind==='replay'?'LAST REPLAY':'LAST ATTEMPT')+' · '+new Date(run.at*1000).toLocaleString()+' · '+secs(run.ms)+' · '+(run.ok?'worked':'did not work')+(bad?' · '+bad+' step(s) failed':'')+' · '+(run.say||'')));
         if(run.sentence)runBox.append(el('div','mute','Asked as: “'+run.sentence+'”'+(run.opened&&run.opened.how?'  ·  step 1, open the app: '+run.opened.how+(run.opened.ms!=null?' ('+secs(run.opened.ms)+')':''):'')));
         runBox.append(list);};
-      const loadRun=async()=>{try{const j=await J('/api/pc/routines/'+r.id+'/last-run');showRun(j.run);}catch(e){}};
+      const loadRun=async()=>{try{const j=await J('/api/pc/routines/'+r.id+'/last-run');lastRun=j.run;showRun(j.run);}catch(e){}};
       let busy=false;
       const working=(btn,label,on)=>{busy=on;btn.textContent=on?'STOP':label;btn.classList.toggle('no',on);btn.classList.toggle('part',!on);};
       const stopIt=async()=>{await POST('/api/pc/stop');note.textContent='Stopping: it ends at its next step.';};
@@ -331,9 +346,17 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       del.onclick=async()=>{if(!confirm('Delete this routine for good? '+r.title))return;await fetch('/api/pc/routines/'+r.id,{method:'DELETE'});routines();};
       // A replay can take a while (Windows needed 14 s to start Apple Music), so it counts its seconds out loud, and ends with one line that cannot be misread.
       const clock=(label)=>{const t0=Date.now();const tick=setInterval(()=>{note.style.color='';note.textContent=label+' '+Math.round((Date.now()-t0)/1000)+' s...  (STOP ends it)';},500);return ()=>clearInterval(tick);};
-      const verdict=(j,secsTxt,extra)=>{if(j&&j.route==='stopped')return say('STOPPED by you'+secsTxt+'. That is not a result: '+(extra||'the routine is unchanged.'),'stop');
-        if(j&&j.ok)return say('REPLAY WORKED'+secsTxt+': '+(j.say||'')+(r.status==='trusted'?' It stays trusted.':''),'ok');
-        return say('REPLAY FAILED'+secsTxt+': '+((j&&j.say)||'no answer')+((j&&j.demoted)?'':(r.status==='trusted'?' It stays trusted until it fails twice in a row.':'')),'bad');};
+      const verdict=(j,secsTxt,extra,what)=>{what=what||'REPLAY';if(j&&j.route==='stopped')return say('STOPPED by you'+secsTxt+'. That is not a result: '+(extra||'the routine is unchanged.'),'stop');
+        if(j&&j.ok)return say(what+' WORKED'+secsTxt+': '+(j.say||'')+(what==='REPLAY'&&r.status==='trusted'?' It stays trusted.':''),'ok');
+        return say(what+' FAILED'+secsTxt+': '+((j&&j.say)||'no answer')+(what==='REPLAY'&&!(j&&j.demoted)&&r.status==='trusted'?' It stays trusted until it fails twice in a row.':''),'bad');};
+      const runSteps=async(ord,mode,n)=>{if(busy){await stopIt();return;}
+        if(!confirm((mode==='one'?'Run step '+n+' only':'Run step '+n+' and every step after it')+' now? Put the app on the page this step expects first. It presses things on this PC; STOP ends it. The routine record is not changed.'))return;
+        working(rp,'REPLAY',true);again.disabled=true;const done=clock('Running');const t0=Date.now();let j=null,err='';
+        try{const x=await POST('/api/pc/routines/'+r.id+'/steps/'+ord+'/run',{mode});if(x.ok)j=await x.json();else err=await x.text();}catch(e){err=String(e);}
+        finally{done();working(rp,'REPLAY',false);again.disabled=false;}
+        const s=' in '+((Date.now()-t0)/1000).toFixed(1)+' s';
+        if(j)verdict(j,s,null,'STEP');else say('STEP FAILED'+s+': '+err,'bad');
+        await loadRun();await showSteps();};
       rp.onclick=async()=>{if(busy){await stopIt();return;}
         if(!confirm('Replay "'+r.title+'" now? It opens the app if it is closed and presses things on this PC. STOP ends it.'))return;working(rp,'REPLAY',true);again.disabled=true;const done=clock('Replaying');const t0=Date.now();let j=null,err='';
         try{const x=await POST('/api/pc/routines/'+r.id+'/run?test=1');if(x.ok)j=await x.json();else err=await x.text();}catch(e){err=String(e);}

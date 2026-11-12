@@ -35,7 +35,7 @@ routes = web.RouteTableDef()
 
 CHOICES = STATE / "choices.jsonl"
 MAX_BYTES = 5 * 1024 * 1024
-KINDS = ("route", "model", "rung", "persona", "fix", "trust")      # persona, fix and trust are recorded only: no learner reads them yet
+KINDS = ("route", "model", "rung", "persona", "fix", "trust", "note")      # persona, fix, trust and note are recorded only: no learner reads them yet (a note is a person's own words about a routine or one of its steps)
 NEEDS = {"R3": ("model", 30, "labelled model events, across at least two models"),
          "R4": ("rung", 30, "labelled rung events, across at least two ways"),
          "R5": ("route", 100, "labelled route decisions")}
