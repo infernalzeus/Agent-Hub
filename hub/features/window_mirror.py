@@ -250,7 +250,26 @@ def wheel(hwnd: int, fx: float, fy: float, delta: int) -> bool:
     return True
 
 
+def foreground() -> int:
+    """The window in front right now (0 when there is none, or not on Windows)."""
+    return int(ctypes.windll.user32.GetForegroundWindow() or 0) if WIN else 0
+
+
+def desktop_locked() -> bool:
+    """True when the screen is locked or showing a secure screen: the desktop a program is allowed to read is then not the one a person sees, and every window reads as empty."""
+    if not WIN:
+        return False
+    user32 = ctypes.windll.user32
+    h = user32.OpenInputDesktop(0, False, 0x0100)                         # DESKTOP_SWITCHDESKTOP: refused while the secure desktop is up
+    if not h:
+        return True
+    user32.CloseDesktop(h)
+    return False
+
+
 def focus(hwnd: int) -> bool:
+    """Bring a window to the front and say whether it is there. Windows refuses a background program's request to take the front (the foreground lock): a synthetic Alt press and release,
+    which is how any automation lifts that, is tried when the plain request did not work."""
     if not WIN:
         return False
     user32 = ctypes.windll.user32
@@ -258,7 +277,15 @@ def focus(hwnd: int) -> bool:
         return False
     if user32.IsIconic(hwnd):
         user32.ShowWindow(hwnd, 9)
-    return bool(user32.SetForegroundWindow(hwnd))
+    if user32.GetForegroundWindow() == hwnd:
+        return True
+    user32.SetForegroundWindow(hwnd)
+    if user32.GetForegroundWindow() != hwnd:
+        user32.keybd_event(0x12, 0, 0, 0)
+        user32.keybd_event(0x12, 0, 2, 0)
+        user32.SetForegroundWindow(hwnd)
+        user32.BringWindowToTop(hwnd)
+    return user32.GetForegroundWindow() == hwnd
 
 
 # ---- the routes ------------------------------------------------------------------------------------------------------------------------

@@ -1000,6 +1000,50 @@ def ui_signature(elements: "list[dict]", window: str) -> dict:
     return {"kind": "ui", "window": window, "controls": len(same), "fingerprint": digest, "stable": stable}
 
 
+_READ_DIAG: dict = {}
+
+
+async def _bring_forward(app: str) -> dict:
+    """Make the app's own window the one in front, as far as Windows allows, and say what happened. Every read of a window depends on this: the Windows tool reads the window in front, and
+    a window that is behind, minimised, on a locked screen or refused the front reads as EMPTY. Never raises."""
+    diag = {"app": app, "window": None, "minimised": None, "foreground": None, "locked": None}
+    if sys.platform != "win32":
+        return diag
+    try:
+        from . import window_mirror as WM
+        diag["locked"] = await asyncio.to_thread(WM.desktop_locked)
+        win = next((w for w in await asyncio.to_thread(WM.list_windows) if _is_window_of(w, display_app_name(app))), None)
+        if win:
+            diag.update(window=win["title"], minimised=bool(win.get("minimised")), foreground=False)
+            for _ in range(6):
+                await asyncio.to_thread(WM.focus, int(win["id"]))
+                await asyncio.sleep(0.2)
+                if await asyncio.to_thread(WM.foreground) == int(win["id"]):
+                    diag["foreground"] = True
+                    break
+    except Exception as exc:  # noqa: BLE001
+        logger.info("pc_control: could not bring %s forward: %s", app, exc)
+    return diag
+
+
+def read_problem(app: str) -> str:
+    """Why the last read of this app's window gave no controls, in a sentence a person can act on. Written from what was measured, not guessed."""
+    d = _READ_DIAG if _READ_DIAG.get("app") == app else {}
+    name = display_app_name(app) or "that app"
+    if d.get("locked"):
+        return "The screen of this PC is locked (or showing a secure screen), and Windows gives a program nothing to read then. Unlock the PC and try again."
+    if d and d.get("window") is None:
+        return f"I cannot see an open {name} window to read."
+    if d and d.get("minimised"):
+        return f"The {name} window is minimised and would not come back, so I could not read it."
+    if d and d.get("foreground") is False:
+        return f"Windows would not let me bring the {name} window to the front (something else holds it), so I could not read its controls."
+    if d:
+        return (f"The {name} window is in front, but Windows gave back no controls from it ({d.get('nodes', 0)} nodes in all, none from {name}). "
+                "Some apps only expose their controls once something asks for them; try again in a few seconds.")
+    return ""
+
+
 async def _raw_tree(app: str = "") -> "list[dict]":
     """The tree, with the app brought to the front first if one was named.
 
@@ -1008,15 +1052,33 @@ async def _raw_tree(app: str = "") -> "list[dict]":
     focused application and nothing at all from Apple Music; after an App/switch
     it held 72 buttons, 8 links and the playlist. Reading the screen without
     focusing first does not return less, it returns somebody else's window.
+
+    12 Nov: the Windows tool's own switch is not enough when something else holds the front (a person was driving the Hub from a phone, with other windows in front): the window is
+    brought forward here first and checked, a read with nothing from the app in it is retried, and what was measured is kept (`read_problem`) so a failure says why.
     """
+    diag: dict = {}
     if app:
+        diag = await _bring_forward(app)
         try:
             await MCP.call_tool("windows", "App", {"mode": "switch", "name": display_app_name(app)})
             await asyncio.sleep(1.0)               # the window has to finish coming forward
         except Exception as exc:
             logger.info("pc_control: could not focus %s: %s", app, exc)
     result = await MCP.call_tool("windows", "Snapshot", {"use_vision": False})
-    return parse_tree(snapshot_text(result))
+    nodes = parse_tree(snapshot_text(result))
+    if app:
+        want = canonical_app_name(app)
+        mine = lambda ns: sum(1 for n in ns if want and want in (n.get("window") or "").casefold())      # noqa: E731
+        for _ in range(2):
+            if mine(nodes) or diag.get("locked"):
+                break
+            diag = await _bring_forward(app)
+            await asyncio.sleep(1.0)
+            nodes = parse_tree(snapshot_text(await MCP.call_tool("windows", "Snapshot", {"use_vision": False})))
+        diag.update(nodes=len(nodes), app_nodes=mine(nodes))
+        _READ_DIAG.clear()
+        _READ_DIAG.update(diag)
+    return nodes
 
 
 _LAST_RAW: dict = {"nodes": []}
@@ -1216,12 +1278,13 @@ async def _replay_core(routine: dict, request: str, rec) -> dict:
         # looked for, when it is not. Before 12 Nov any difference stopped it, so a replay after the app had just been opened did nothing at all.
         first_target = json.loads(steps[0]["target_json"] or "{}")
         if not (first_target and _match(elements, first_target)):
+            why_empty = read_problem(_app_of(routine) or stored.get("window", "")) if not elements else ""
             _record_run(request, "fall-through", "skipped",
                         f"signature mismatch ({key}): expected {stored.get(key)}, saw {live[key]}; first control not on screen")
             if rec:
-                await rec.step("check", first_target.get("name", "")[:60], 0, False, "the screen is not the one it was recorded on, and its first control is not on it")
+                await rec.step("check", first_target.get("name", "")[:60], 0, False, why_empty or "the screen is not the one it was recorded on, and its first control is not on it")
             return {"ok": False, "route": "fall-through",
-                    "say": f"{routine['title']} starts from “{(first_target.get('name') or 'a control')[:50]}”, which is not on the screen ({live.get('controls', 0)} controls seen). I did not press anything."}
+                    "say": (why_empty + " " if why_empty else "") + f"{routine['title']} starts from “{(first_target.get('name') or 'a control')[:50]}”, which is not on the screen ({live.get('controls', 0)} controls seen). I did not press anything."}
         _record_run(request, "routine", "note", f"screen differs ({key}) but the first control is on it: going on")
 
     window = stored.get("window", "")

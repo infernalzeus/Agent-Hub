@@ -336,3 +336,64 @@ def test_launch_app_uses_the_fast_way_when_it_has_one_and_says_how_it_did_it(mon
     monkeypatch.setattr(PC, "_record_run", lambda *a, **k: None)
     got = asyncio.run(PC.launch_app("apple music", "open apple music"))
     assert got["ok"] and "already open" in got["how"] and asked == []                                          # the slow Windows tool was never asked
+
+
+_REAL_BRING_FORWARD = PC._bring_forward
+
+
+def _tree_text(window):
+    return {"text": [f"Focused Window: {window}"]}
+
+
+def test_a_read_with_nothing_from_the_app_is_retried_after_bringing_it_forward_again(monkeypatch):
+    calls = {"forward": 0, "snap": 0}
+    good = [{"window": "Apple Music", "control": "button", "name": "Home", "x": 1, "y": 1, "clickable": True}]
+
+    async def forward(app):
+        calls["forward"] += 1
+        return {"app": app, "window": "Apple Music", "minimised": False, "foreground": True, "locked": False}
+
+    async def call_tool(name, tool, args, timeout=90):
+        if tool == "Snapshot":
+            calls["snap"] += 1
+        return {"text": []}
+    monkeypatch.setattr(PC, "_bring_forward", forward)
+    monkeypatch.setattr(PC.MCP, "call_tool", call_tool)
+    monkeypatch.setattr(PC, "snapshot_text", lambda r: "")
+    monkeypatch.setattr(PC, "parse_tree", lambda text: good if calls["snap"] >= 3 else [])               # the app's controls only turn up on the third read
+    _real_sleep = asyncio.sleep
+    monkeypatch.setattr(asyncio, "sleep", lambda s: _real_sleep(0))
+    nodes = asyncio.run(PC._raw_tree("Apple Music"))
+    assert nodes == good and calls["snap"] == 3 and calls["forward"] == 3 and PC._READ_DIAG["app_nodes"] == 1
+
+
+def test_a_failed_read_says_what_was_measured_not_just_that_it_was_empty(monkeypatch):
+    def diag(**kw):
+        PC._READ_DIAG.clear()
+        PC._READ_DIAG.update({"app": "Apple Music", "window": "Apple Music", "minimised": False, "foreground": True, "locked": False, "nodes": 0, **kw})
+        return PC.read_problem("Apple Music")
+    assert "locked" in diag(locked=True) and "Unlock" in diag(locked=True)
+    assert "cannot see an open Apple Music window" in diag(window=None)
+    assert "minimised" in diag(minimised=True)
+    assert "would not let me bring" in diag(foreground=False)
+    assert "in front, but Windows gave back no controls" in diag()
+    PC._READ_DIAG.clear()
+    assert PC.read_problem("Apple Music") == ""                                                              # nothing measured, nothing claimed
+
+
+def test_the_replay_names_the_measured_reason_when_it_could_read_nothing(tmp_path, monkeypatch):
+    routine = _routine(tmp_path, monkeypatch)
+
+    async def snapshot(app=""):
+        PC._READ_DIAG.clear()
+        PC._READ_DIAG.update({"app": "Apple Music", "window": "Apple Music", "minimised": False, "foreground": False, "locked": False, "nodes": 0})
+        return []
+
+    async def launch(app, request, then=""):
+        return {"ok": True, "say": "opened"}
+    _real_sleep = asyncio.sleep
+    monkeypatch.setattr(PC, "_snapshot", snapshot)
+    monkeypatch.setattr(PC, "launch_app", launch)
+    monkeypatch.setattr(asyncio, "sleep", lambda s: _real_sleep(0))
+    res = asyncio.run(PC.replay_ui_routine(routine, "test"))
+    assert res["ok"] is False and "would not let me bring" in res["say"] and "did not press anything" in res["say"]

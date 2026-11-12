@@ -314,7 +314,7 @@ async def _attempt(goal: str, app: str, decide, *, tree=None, media=None, click=
                     "trace": trace, "first": first, "playing": None}
         shown = controls(nodes, app, goal)
         if not shown:
-            return {"ok": False, "say": f"I cannot read {PC.display_app_name(app)}'s window.", "steps": steps, "trace": trace}
+            return {"ok": False, "say": f"I cannot read {PC.display_app_name(app)}'s window. " + PC.read_problem(app), "steps": steps, "trace": trace}
         prompt = brief(goal, app, shown, now_media, history, step)
         t0 = time.time()
         try:

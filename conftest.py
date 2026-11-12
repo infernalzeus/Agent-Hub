@@ -59,6 +59,10 @@ def _no_test_reaches_the_real_pc(monkeypatch):
         async def no_fast_open(name):
             return None
         monkeypatch.setattr(_PC, "_fast_open", no_fast_open)
+
+        async def no_bring_forward(app):                           # nor may a test move this PC's windows about
+            return {"app": app, "window": None, "minimised": None, "foreground": None, "locked": None}
+        monkeypatch.setattr(_PC, "_bring_forward", no_bring_forward)
     except ImportError:
         pass
 
