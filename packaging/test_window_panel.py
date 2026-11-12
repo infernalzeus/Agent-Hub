@@ -425,15 +425,16 @@ def test_the_r_button_panel_takes_the_board_on_a_desktop_screen_and_stays_clear_
         pg = b.new_context(service_workers="block", viewport={"width": 1700, "height": 950}).new_page()
         pg.goto(hub + "/?enter=1")
         pg.wait_for_function("!!window.__hubBoard && !!window.__hubBoard.active", timeout=20000)
-        pg.evaluate("(()=>{const r=document.querySelector('.hb-learning');r.hidden=false;r.click()})()")
+        got = pg.evaluate("""()=>{const q=document.querySelector('.hb-learning');q.hidden=false;const k=[...document.querySelectorAll('.hb-bar>*')].filter(e=>e.offsetParent).map(e=>e.getBoundingClientRect()),
+          corner={right:Math.max(...k.map(e=>e.right)),bottom:Math.max(...k.map(e=>e.bottom))};q.click();return corner}""")
         pg.wait_for_selector(".hb-glass-panel", timeout=8000)
         pg.wait_for_timeout(700)
-        got = pg.evaluate("""()=>{const p=document.querySelector('.hb-glass-panel').getBoundingClientRect(),rail=document.querySelector('.hb-right-panel').getBoundingClientRect(),
-          bar=document.querySelector('.hb-bar').getBoundingClientRect(),h=document.querySelector('body>header').getBoundingClientRect();return {p:[p.left,p.top,p.right,p.bottom],railLeft:rail.left,barBottom:Math.max(bar.bottom,h.bottom),vw:innerWidth,vh:innerHeight}}""")
+        got.update(pg.evaluate("""()=>{const p=document.querySelector('.hb-glass-panel').getBoundingClientRect();return {p:[p.left,p.top,p.right,p.bottom],vw:innerWidth,vh:innerHeight}}"""))
         b.close()
     l, t, r, bt = got["p"]
-    assert t >= got["barBottom"] and r <= got["vw"] - 130 and l < 40, got                              # under the buttons at the top, clear of the ones down the right
-    assert (r - l) > 0.7 * got["vw"] and (bt - t) > 0.7 * got["vh"] - got["barBottom"], got                  # and large: it is read
+    assert l >= got["right"] + 12 - 3 and abs(t - (got["bottom"] + 12)) <= 10, got                       # its top-left corner is the bottom-right corner of the Talk / PC control / R buttons (further right only to leave the same space as on the right)
+    assert abs(l - (got["vw"] - r)) <= 3, got                                                              # the same space on the right: it sits in the middle, not to one side
+    assert (r - l) > 0.7 * got["vw"] and (bt - t) > 0.7 * got["vh"] - got["bottom"], got                  # and large: it is read
 
 
 def test_opening_a_small_block_does_not_blow_it_up_to_more_than_a_readable_size(hub):
@@ -510,3 +511,73 @@ def test_no_two_buttons_lie_over_each_other_on_a_phone_dashboard_and_the_landing
             if ox > 4 and oy > 4 and not (a[0].startswith("hb-batch") and c[0].startswith("hb-btn")) and not (c[0].startswith("hb-batch") and a[0].startswith("hb-btn")):
                 clashes.append((a[0], c[0], round(ox), round(oy)))
     assert clashes == [], clashes
+
+
+def test_the_phone_dashboard_runs_no_endless_animation_and_no_live_orb_while_nothing_is_happening(hub):
+    """The dashboard held every frame at about 100 ms on a phone (25 ms with the animations off): the Smith button's two rings pulsed for as long as the page was open, and the header orb ran three
+    live canvases, one of them WebGL, for a 30 px button. They run only while he listens."""
+    with sync_playwright() as pw:
+        b = pw.webkit.launch()
+        pg = b.new_context(**pw.devices["iPhone 13"], service_workers="block").new_page()
+        pg.goto(hub + "/?enter=1")
+        pg.wait_for_function("!!window.__hubBoard && !!window.__hubBoard.active", timeout=30000)
+        pg.wait_for_timeout(2500)
+        got = pg.evaluate("""()=>({endless:document.getAnimations().filter(a=>a.effect&&a.effect.getComputedTiming().iterations===Infinity).map(a=>a.animationName||a.constructor.name),
+          orb:document.querySelectorAll('#orb-host canvas').length,phone:document.documentElement.classList.contains('hub-phone')})""")
+        b.close()
+    assert got["phone"] and got["endless"] == [] and got["orb"] == 0, got
+
+
+@pytest.mark.parametrize("name", ["iPhone 13", "iPhone 13 landscape"])
+def test_a_phone_has_a_one_row_header_and_a_show_hide_button_for_the_view_buttons_either_way_up(hub, name):
+    with sync_playwright() as pw:
+        b = pw.webkit.launch()
+        pg = b.new_context(**pw.devices[name], service_workers="block").new_page()
+        pg.goto(hub + "/?enter=1")
+        pg.wait_for_function("!!window.__hubBoard && !!window.__hubBoard.active", timeout=30000)
+        pg.wait_for_timeout(1500)
+        read = """()=>{const r=e=>{const b=e.getBoundingClientRect();return {w:b.width,h:b.height,x:b.x,y:b.y}},
+          rail=document.querySelector('.hb-right-panel'),show=document.querySelector('.hb-panel-show'),hide=document.querySelector('.hb-panel-hide');
+          return {header:r(document.querySelector('body>header')),railShown:!rail.hidden&&getComputedStyle(rail).display!=='none',show:getComputedStyle(show).display!=='none'&&!show.hidden?r(show):null,
+          hide:getComputedStyle(hide).display!=='none'&&!hide.hidden?r(hide):null,vw:innerWidth}}"""
+        first = pg.evaluate(read)
+        pg.click(".hb-panel-show")
+        pg.wait_for_timeout(500)
+        second = pg.evaluate(read)
+        pg.click(".hb-panel-hide")
+        pg.wait_for_timeout(500)
+        third = pg.evaluate(read)
+        b.close()
+    assert first["header"]["h"] <= 56, first                                                       # one row, not a block of three
+    assert first["railShown"] is False and first["show"] and first["show"]["w"] >= 44 and first["show"]["h"] >= 30, first       # the view buttons start hidden, and there is a button to show them
+    assert second["railShown"] is True and second["hide"] and second["show"] is None, second          # SHOW shows them and becomes HIDE
+    assert third["railShown"] is False and third["show"], third                                         # and HIDE puts them away again
+
+
+def test_an_iphone_picture_is_asked_for_at_the_size_it_is_shown_so_a_zoomed_window_stays_sharp(hub):
+    """A flat 864 px picture was soft at a 100 % or 150 % zoom on a 3x screen. The width follows the picture's width on screen times the pixel ratio, in steps, never over the phone's budget."""
+    import io
+    import re
+    from PIL import Image
+    wide = io.BytesIO()
+    Image.new("RGB", (190, 100), "#123").save(wide, "GIF")                                  # a window that is wider than tall, like the real one
+    frames = []
+    with sync_playwright() as pw:
+        b = pw.chromium.launch(headless=True)
+        ctx = b.new_context(service_workers="block", viewport={"width": 390, "height": 760}, device_scale_factor=3, has_touch=True, is_mobile=True, user_agent=IPHONE)
+        pg = ctx.new_page()
+        pg.route("**/api/windows/*/frame*", lambda r: (frames.append(r.request.url), r.fulfill(status=200, content_type="image/gif", body=wide.getvalue()))[1])
+        pg.route("**/api/windows", lambda r: r.fulfill(json={"supported": True, "windows": [{"id": 5, "title": "Claude", "exe": "claude.exe", "w": 1900, "h": 1000, "minimised": False}]}))
+        pg.goto(hub + "/?enter=1")
+        pg.wait_for_function("!!window.__hubBoard && !!window.__hubBoard.active", timeout=20000)
+        pg.evaluate("window.__hubBoard.applyUi({window: {title: 'Claude', url: '/mirror?id=5'}})")
+        pg.wait_for_selector(".hk[data-id^='extra:win-claude'] iframe", timeout=10000)
+        frame = "document.querySelector(\".hk[data-id^='extra:win-claude'] iframe\").contentWindow"
+        pg.wait_for_function("(()=>{try{const w=" + frame + ";return !!w.setMirrorBoardZoom&&w.pic.naturalWidth>0}catch(e){return false}})()", timeout=15000)
+        pg.wait_for_timeout(800)
+        small = [int(re.search(r"w=(\d+)", u).group(1)) for u in frames][-1]
+        pg.evaluate("(()=>{const w=" + frame + ";w.pic.classList.add('board-zoom');w.pic.style.setProperty('--mirror-board-width','900px');w.eval('start(true)')})()")       # the picture shown 900 px wide (zoomed in)
+        pg.wait_for_timeout(2500)
+        big = [int(re.search(r"w=(\d+)", u).group(1)) for u in frames][-1]
+        b.close()
+    assert 864 <= small < big <= 1400, (small, big)                                                  # a zoomed picture is asked for with more pixels, within the budget

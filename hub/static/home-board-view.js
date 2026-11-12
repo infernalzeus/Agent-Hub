@@ -6,7 +6,7 @@
 // The axis gizmo (CAD and 3D) does the same with one finger or one mouse button: drag it to orbit (3D) or pan, tap an axis to look along it,
 // RESET to come back flat and fit. The choice is kept in localStorage 'agenthub:board:nav'. This is a prototype: CLASSIC stays the default.
 (function () {
-  var KEY = 'agenthub:board:nav', ORDER = ['cad', '3d'], NAME = { cad: 'VIEW: 2D', '3d': 'VIEW: 3D' };      // 'cad' is the flat view; an older saved 'classic' means it too
+  var KEY = 'agenthub:board:nav', ORDER = ['cad', '3d'], NAME = { cad: '2D', '3d': '3D' };      // 'cad' is the flat view; an older saved 'classic' means it too
   var SURFACEKEY='agenthub:board:surface';
   var LOCKKEY = 'agenthub:board:lock', GIZKEY = 'agenthub:board:gizmo';
   var TITLE = {

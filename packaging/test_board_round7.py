@@ -43,7 +43,7 @@ def test_view_panel_grouping_hide_show_and_memory(page):
  assert page.locator('[data-only3d]').first.is_hidden();assert page.get_by_role('button',name='LAYERS',exact=True).is_hidden()
  old=page.evaluate('__hubBoard.active.stage().right');press(page,'.hb-panel-hide');assert page.locator('.hb-right-panel').is_hidden();assert page.evaluate('__hubBoard.active.stage().right')>old
  page.reload();page.wait_for_selector('.hb');page.wait_for_timeout(250);assert page.locator('.hb-right-panel').is_hidden();press(page,'.hb-panel-show');assert page.locator('.hb-right-panel').is_visible()
- press(page,page.get_by_role('button',name='VIEW: 2D',exact=True));assert page.get_by_role('button',name='LAYERS',exact=True).is_visible();assert page.locator('[data-only3d]').last.is_visible()
+ press(page,page.get_by_role('button',name='2D',exact=True));assert page.get_by_role('button',name='LAYERS',exact=True).is_visible();assert page.locator('[data-only3d]').last.is_visible()
 
 
 def test_r_learning_glass_close_and_escape(page):

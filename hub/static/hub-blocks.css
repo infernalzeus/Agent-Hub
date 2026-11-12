@@ -625,8 +625,17 @@ html.hub-board-on body>header{top:max(8px,env(safe-area-inset-top))!important}
 
 /* The R button's panel (reinforcement learning) is read, so on a screen of desktop width it takes the whole board: under the buttons at the top, clear of the buttons down the right side. */
 @media (min-width:900px) and (pointer:fine){
- .hb-glass-panel{left:12px;right:140px;top:calc(var(--hub-chrome-bottom,70px) + 12px);bottom:16px;width:auto;height:auto;max-height:none;transform:none}
+ .hb-glass-panel{left:118px;right:118px;top:calc(var(--hub-chrome-bottom,70px) + 12px);bottom:16px;width:auto;height:auto;max-height:none;transform:none}   /* the board's script sets the real corners from the buttons */
 }
+/* The buttons down the right side: two narrow columns, as wide as the three at the top left (2D/3D and AXIS side by side), not one wide column. */
+@media (min-width:900px) and (pointer:fine){
+ .hb .hb-right-panel,.hb-right-panel .hb-right-scroll,.hb-right-panel .hb-viewbar{width:94px!important}
+ .hb-right-panel .hb-viewbar{display:grid;grid-template-columns:44px 44px;gap:6px;align-items:stretch;justify-content:center}
+ .hb-right-panel .hb-viewbar>.hb-btn{width:auto;min-width:0;padding:7px 1px;font-size:7px;letter-spacing:.3px;white-space:nowrap;justify-content:center}
+ .hb-right-panel .hb-viewbar>.hb-z{grid-column:1/-1}
+ .hb-right-panel .hb-viewbar>.hb-zoomrow{grid-column:1/-1;width:100%}
+}
+
 /* a live window is not drawn while the board moves */
 .hk.hk-mirror-moving .hk-mobile-mirror{visibility:hidden}
 /* a phone: the little map of the board adds a box to the crowd and is of no use under a thumb */
@@ -636,4 +645,30 @@ html.hub-board-on body>header{top:max(8px,env(safe-area-inset-top))!important}
 @media (pointer:coarse) and (max-width:760px){
  .hb .hb-log-toggle{left:auto!important;right:calc(12px + env(safe-area-inset-right))!important}
  .hb .hb-batch-controls{left:auto!important;right:calc(12px + env(safe-area-inset-right) + 80px)!important;transform:none!important}
+}
+
+
+/* =====================================================================================================================
+   PHONE LAYOUT. html.hub-phone is a touch screen whose short side is 500 px or less, held either way up (set in ui.py).
+   One place for the phone's order of things, so they stop fighting the older rules above:
+     top    one row: orb, name, the four header buttons
+     second one row: Talk, PC control, R on the left; hand, INGEST, power on the right
+     right  VIEW button (shows or hides the view buttons: 2D/3D, AXIS, FIT, TIDY ...), they start hidden
+     bottom one row: hidden / out of view / windows on the left; minimise, maximise, LOG on the right
+   Landscape (the short side is the height) moves the Talk, PC control, R buttons into a column down the left, so the board keeps its height.
+   ===================================================================================================================== */
+html.hub-phone.hub-board-on body>header{display:flex!important;flex-wrap:nowrap!important;align-items:center;gap:4px!important;padding:3px 6px!important;left:max(8px,env(safe-area-inset-left))!important;right:max(8px,env(safe-area-inset-right))!important;max-width:none!important}
+html.hub-phone.hub-board-on header .header-controls{flex:0 0 auto!important;margin-left:auto;gap:3px!important}
+html.hub-phone.hub-board-on header .header-controls>*,html.hub-phone.hub-board-on header .orb-home{width:36px!important;height:36px!important;min-width:36px!important;min-height:36px!important}
+html.hub-phone.hub-board-on header .conn-indicator .conn-label,html.hub-phone.hub-board-on header .header-shortcuts:empty{display:none}
+html.hub-phone.hub-board-on header .brand{font-size:11px;letter-spacing:1px;white-space:nowrap}
+html.hub-phone .hb .hb-bar{display:flex!important;flex-direction:row;flex-wrap:nowrap;justify-content:flex-start;gap:6px;left:max(8px,env(safe-area-inset-left));right:auto}
+html.hub-phone .hb .hb-ingest-dock .hb-btn{min-width:0}
+html.hub-phone .hb .hb-panel-hide,html.hub-phone .hb .hb-panel-show{display:flex!important;position:absolute;top:calc(var(--hub-chrome-bottom,112px) + 6px);bottom:auto;right:max(8px,env(safe-area-inset-right));width:auto;min-width:64px!important;height:34px;min-height:34px!important;padding:0 10px;border:1px solid #41ebff66;border-radius:8px;background:rgba(6,10,36,.78)!important;z-index:9}
+html.hub-phone .hb .hb-panel-hide[hidden],html.hub-phone .hb .hb-panel-show[hidden]{display:none!important}
+html.hub-phone .hb .hb-right-panel{top:calc(var(--hub-chrome-bottom,112px) + 46px)!important;bottom:auto!important;right:max(8px,env(safe-area-inset-right))!important}
+/* The Smith button's two pulsing rings ran for as long as the dashboard was open: on a phone that held every frame at about 100 ms (25 ms with them off, measured). They pulse only while he listens (.on). */
+html.hub-phone .hb .talk-btn:not(.on)::before,html.hub-phone .hb .talk-btn:not(.on)::after{animation:none!important;opacity:0}
+@media (orientation:landscape){
+ html.hub-phone .hb .hb-bar{flex-direction:column}
 }

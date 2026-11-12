@@ -108,9 +108,25 @@
     function positionPopup(n){if(!isPopup(n)||!host||!host.isConnected)return;var r=stageRect(),w=Math.max(100,Math.min(380,r.width-12));n.style.left=(r.left+6)+'px';n.style.top=(r.top+6)+'px';n.style.right='auto';n.style.bottom='auto';n.style.width=w+'px';n.style.maxHeight=Math.max(40,r.height-12)+'px';n.style.transform='none';}
     function closeModalPeers(keep){panelNodes.forEach(function(n){if(n!==keep&&n.isConnected&&n.matches('#voice,.hands-setup,.hb-glass-panel,.hb-session-detail')&&!n.hidden){if(n.id==='voice')document.getElementById('v-close').click();else if(n.matches('.hands-setup'))n.hidden=true;else n.remove();}});}
     function syncModal(){if(!host)return;var history=document.getElementById('v-history');if(history&&!history.hidden&&history.textContent==='HISTORY')history.click();var v=document.getElementById('voice'),g=Array.from(document.querySelectorAll('.hb-glass-panel,.hands-setup,.hb-session-detail')).find(function(n){return !n.hasAttribute('hidden');});var on=!!((v&&!v.hasAttribute('hidden'))||(g&&!g.hasAttribute('hidden')));host.classList.toggle('hb-modal-open',on);document.documentElement.classList.toggle('hub-modal-open',on);}
+    // A reading panel (the R button's) is anchored to the corner buttons: its top-left corner is the bottom-right corner of the buttons at the top left (Talk, PC control, R), and it keeps the same space on the right,
+    // so it sits in the middle of the board and not to one side. It follows a resize while it is open; on a narrow screen the stylesheet's own sizes apply.
+    function anchorGlass(pane){
+      var wide=matchMedia('(min-width:900px) and (pointer:fine)');
+      function place(){
+        if(!pane.isConnected){removeEventListener('resize',place);return;}
+        var s=pane.style;
+        if(!wide.matches){s.left=s.right=s.top=s.bottom='';return;}
+        var hr=host.getBoundingClientRect(),b=host.querySelector('.hb-bar'),rp=host.querySelector('.hb-right-panel'),gap=12,br=null;
+        if(b)Array.from(b.children).forEach(function(k){var q=k.offsetParent&&k.getBoundingClientRect();if(!q||!q.width)return;br=br?{right:Math.max(br.right,q.right),bottom:Math.max(br.bottom,q.bottom)}:{right:q.right,bottom:q.bottom};});      // the buttons that are shown, not the empty space of the strip
+        if(!br)return;
+        var left=br.right-hr.left+gap,vb=rp&&rp.offsetParent&&rp.querySelector('.hb-viewbar'),rail=vb?hr.right-vb.getBoundingClientRect().left+gap:0,side=Math.round(Math.max(left,rail));
+        s.left=side+'px';s.right=side+'px';s.top=Math.round(br.bottom-hr.top+gap)+'px';s.bottom='16px';
+      }
+      place();addEventListener('resize',place);
+    }
     function glassPage(url,title){
       closeOtherPopups(null);var old=host.querySelector('.hb-glass-panel');if(old)old.remove();var voice=document.getElementById('voice');if(voice&&!voice.hidden)document.getElementById('v-close').click();
-      var pane=fadePanel(el('section','hb-glass-panel')),head=el('div','hb-glass-head'),close=el('button','hb-btn','');pane.setAttribute('role','dialog');pane.setAttribute('aria-label',title);close.type='button';close.title='Close '+title;close.setAttribute('aria-label','Close '+title);close.appendChild(svg(ICON.x));close.onclick=function(){pane.remove();};head.append(el('h2','',title),close);var fr=el('iframe','hb-glass-frame');fr.title=title;fr.src=embedUrl(url);fr.onload=function(){try{fr.contentDocument.addEventListener('keydown',function(e){if(e.key==='Escape')pane.remove();});}catch(e){}hookFrame(fr,null);};pane.append(head,fr);host.appendChild(pane);pane._fadeOpen();close.focus({preventScroll:true});
+      var pane=fadePanel(el('section','hb-glass-panel')),head=el('div','hb-glass-head'),close=el('button','hb-btn','');pane.setAttribute('role','dialog');pane.setAttribute('aria-label',title);close.type='button';close.title='Close '+title;close.setAttribute('aria-label','Close '+title);close.appendChild(svg(ICON.x));close.onclick=function(){pane.remove();};head.append(el('h2','',title),close);var fr=el('iframe','hb-glass-frame');fr.title=title;fr.src=embedUrl(url);fr.onload=function(){try{fr.contentDocument.addEventListener('keydown',function(e){if(e.key==='Escape')pane.remove();});}catch(e){}hookFrame(fr,null);};pane.append(head,fr);host.appendChild(pane);anchorGlass(pane);pane._fadeOpen();close.focus({preventScroll:true});
     }
     var graphicsNotice=null,graphicsDismissed=false;
     var view = null, L = {}, hid = {}, touched = false, data = null, V = { x: 0, y: 0, k: 1 }, focusId = null, zTop = 2, blocks = {}, nav = null, alive = true, dragCleanups = [];
@@ -775,7 +791,7 @@
       world.style.transform=old;return to;
     }
     function fit(anim){var ids=Object.keys(blocks).filter(function(id){return !isHidden(id);});var to=cameraFor(ids,1.2);
-      if(to&&ids.length&&host.clientWidth<700&&to.k<.62){            // a phone: fitting a tall column of blocks into the screen leaves them too small to read, so it opens at a readable size, at the top of the column
+      if(to&&ids.length&&((window.__hubPhone&&window.__hubPhone())||host.clientWidth<700)&&to.k<.62){            // a phone: fitting a tall column of blocks into the screen leaves them too small to read, so it opens at a readable size, at the top of the column
         var r=stageRect(),x0=Infinity,y0=Infinity,x1=-Infinity;ids.forEach(function(id){var q=L[id];x0=Math.min(x0,q.x);y0=Math.min(y0,q.y);x1=Math.max(x1,q.x+q.w);});
         to={k:.62,x:(r.left+r.right)/2-(x0+x1)/2*.62,y:r.top+8-y0*.62};}
       if(to)cam(to,anim?520:0,true);}
@@ -894,7 +910,7 @@
         ['system','tools','apps'].forEach(function(key){items.push(['MOVE TO LAYER: '+key.toUpperCase(),function(){changeLayer(id,key);}]);});openCtx(e.clientX, e.clientY, items, (blocks[id]._name || id) + ' actions');
       } else {
         var items2 = [['RESET LAYOUT',resetLayout],['TIDY', function () { tidyBtn.click(); }], ['FIT EVERYTHING', function () { fitBtn.click(); }]];
-        if (view) items2.push([view.btn.textContent === 'VIEW: 3D' ? 'SWITCH TO 2D' : 'SWITCH TO 3D', function () { view.btn.click(); }]);
+        if (view) items2.push([view.btn.textContent === '3D' ? 'SWITCH TO 2D' : 'SWITCH TO 3D', function () { view.btn.click(); }]);
         items2.push(['BLOCKS LIST', function () { blocksBtn.click(); }], ['TALK', function () { talkBtn.click(); }]);
         openCtx(e.clientX, e.clientY, items2, 'Board actions');
       }

@@ -18,7 +18,7 @@
  DL.debugLine=function(){var child=null;try{child=activeView&&activeView.contentWindow.DepthLift&&activeView.contentWindow.DepthLift.build;}catch(e){}var ring=window.__hubTiming||[];return 'host '+BUILD+' active-child '+(child||'root')+' build-fallback '+!!window.__hubLastBuildFallback+(window.__hubPreviousTransitionExit?'\nprevious-exit '+JSON.stringify(window.__hubPreviousTransitionExit):'')+'\n'+ring.slice(-16).map(function(e){return Math.round(e.at-performance.timeOrigin)+'ms '+e.name+' '+JSON.stringify(e.data);}).join('\n');};
  function reduced(){return matchMedia('(prefers-reduced-motion: reduce)').matches;}
  // A phone has too little memory and graphics to build the cube transition and a second copy of the dashboard behind it: it goes straight there, with a short fade (see enterHub).
- function phoneLite(){return matchMedia('(pointer:coarse) and (max-width:760px)').matches;}
+ function phoneLite(){try{return matchMedia('(pointer:coarse)').matches&&Math.min(screen.width,screen.height)<=500;}catch(e){return false;}}
  function viewport(){
   // Mobile toolbar expansion is not a change of the crystal field's geometry.
   // Draw a full-screen-height field and clip it to the current viewport, never scale its pixels.

@@ -70,6 +70,8 @@ window.__hubTiming=[];
 window.__hubTrace=function(name,data){try{if(window.frameElement&&parent.__hubTrace){parent.__hubTrace(name,data);return;}}catch(e){}var copy=data?JSON.parse(JSON.stringify(data)):{};window.__hubTiming.push({at:performance.timeOrigin+performance.now(),name:name,data:copy});if(window.__hubTiming.length>128)window.__hubTiming.shift();};
 try{if(!window.frameElement){var upgrade=JSON.parse(sessionStorage.getItem('agenthub:dl-upgrade')||'null');sessionStorage.removeItem('agenthub:dl-upgrade');if(upgrade&&Date.now()-upgrade.at<30000){window.__hubLastBuildFallback=true;window.__hubTrace('build-mismatch-fallback',upgrade);}}}catch(e){}
 try{if(!window.frameElement){var previousExit=JSON.parse(sessionStorage.getItem('agenthub:transition-exit')||'null');sessionStorage.removeItem('agenthub:transition-exit');if(previousExit&&Date.now()-previousExit.at<60000){window.__hubPreviousTransitionExit=previousExit;window.__hubTrace('previous-transition-exit',previousExit);}}}catch(e){}
+window.__hubPhone=function(){try{return matchMedia('(pointer:coarse)').matches&&Math.min(screen.width,screen.height)<=500;}catch(e){return false;}};
+try{document.documentElement.classList.toggle('hub-phone',window.__hubPhone());}catch(e){}      // one class for every phone rule, either way up: a touch screen whose short side is 500 px or less
 window.__hubDebugLine=function(){try{var d=window.frameElement&&parent.DepthLift?parent.DepthLift:window.DepthLift;return d&&d.debugLine?d.debugLine():'transition controller loading';}catch(e){return 'transition controller unavailable';}};
 document.addEventListener('DOMContentLoaded',function(){if(!/debug/.test(location.hash)||document.getElementById('wake-btn'))return;var p=document.createElement('pre');p.id='hub-transition-debug';p.style.cssText='position:fixed;left:6px;right:6px;bottom:6px;z-index:9999;padding:6px;background:rgba(0,0,0,.85);color:#9fffd0;font:10px monospace;white-space:pre-wrap;pointer-events:none';document.body.appendChild(p);setInterval(function(){p.textContent=window.__hubDebugLine()},1000);});
 // Page-owned tasks have stable handles and can suspend without destroying a view.
@@ -464,7 +466,7 @@ let shown = null, starting = false, misses = 0, startTimer = null;
 // only sees it greyed), ENTER once it is live. Starting and entering are separate actions.
 function enterHub() {
   try { sessionStorage.setItem('agenthub:entered', '1'); } catch (e) {}
-  if (matchMedia('(pointer:coarse) and (max-width:760px)').matches) {           // a phone: no cube show, a short fade, then the dashboard
+  if (window.__hubPhone && window.__hubPhone()) {           // a phone (either way up): no cube show, a short fade, then the dashboard
     document.body.style.transition = 'opacity .18s ease'; document.body.style.opacity = '0';
     setTimeout(() => location.replace('/?enter=1'), 190); return;
   }
@@ -1806,6 +1808,7 @@ orbHome.onclick = () => {
 };
 function mountOrb() {
   if (orbMark) return;
+  if (window.__hubPhone && window.__hubPhone()) return;     // a phone keeps the orb as its still picture: three live canvases (one of them WebGL) for a 30 px button held every frame at 50 ms or more
   try {
     if (window.AgentHubMark && !/nomark/.test(location.hash))
       orbMark = AgentHubMark.mount(document.getElementById('orb-host'), {state: 'live', size: 40, shell: true, glowSize: 0.6, glowAlpha: 0.7, prewarm: false});

@@ -157,7 +157,7 @@ def capture(hwnd: int, max_w: int = 1000, quality: int = 80) -> "tuple[bytes, st
         if tw > max_w:
             img = img.resize((max_w, max(1, round(th * max_w / tw))), Image.LANCZOS)
         out = io.BytesIO()
-        img.save(out, "JPEG", quality=max(30, min(97, int(quality))), subsampling=0 if quality >= 85 else 2, optimize=False)
+        img.save(out, "JPEG", quality=max(30, min(97, int(quality))), subsampling=0 if quality >= 60 else 2, optimize=False)
         return out.getvalue(), "image/jpeg"
     except ImportError:
         file_header = b"BM" + struct.pack("<IHHI", 14 + 40 + len(raw), 0, 0, 14 + 40)
@@ -593,6 +593,7 @@ if(MOBILE_PANEL){
       pic.style.setProperty('--mirror-pan-y',panY+'px');
     }
     pic.classList.add('board-zoom');
+    if(phoneW()!==wNow){clearTimeout(zoomT);zoomT=setTimeout(()=>{if(!moving&&phoneW()!==wNow)start(true);},600);}      // zoomed to a new size: a picture with the pixels to match, once the zoom has settled
     return fit;
   };
   window.setMirrorMoving=value=>{if(moving!==value){moving=value;start(true);}};
@@ -611,14 +612,19 @@ if(MOBILE_PANEL){
   document.addEventListener('visibilitychange',start);
   addEventListener('pageshow',e=>{if(e.persisted){alive=true;start();}});
 }
+// An iPhone's picture is asked for at the size it is SHOWN: its width on screen times the screen's pixel ratio, in steps of 160 px so a small change of zoom does not ask again. Never under 864 (it
+// was a flat 864, which is soft at a 100 % or 150 % board zoom on a 3x screen) and never over the phone's budget of 1400, which the server enforces too.
+let wNow=0,zoomT=0;
+function phoneW(){const bw=parseFloat(pic.style.getPropertyValue('--mirror-board-width'))||0,css=pic.classList.contains('board-zoom')&&bw?bw:Math.max(300,$('stage').clientWidth),dpr=Math.min(3,devicePixelRatio||1);
+  return Math.max(864,Math.min(1400,Math.ceil(css*dpr/160)*160));}
 function start(keepPicture=false){if(!cur||!alive)return;
   const dpr=Math.min(2,devicePixelRatio||1),shown=cfg.zoom==='fit'?Math.max(300,$('stage').clientWidth):Math.round((sel?sel.w:1200)*Number(cfg.zoom)/100);
-  const det=Number(cfg.det),w=SMALL_PHONE?864:MOBILE_PANEL?Math.min(900,Math.round(shown*dpr*(det||1))):PHONE?Math.min(1400,Math.round(shown*dpr*(det||1))):(det===0?3000:Math.min(2600,Math.round(shown*dpr*det)));
+  const det=Number(cfg.det),w=SMALL_PHONE?phoneW():MOBILE_PANEL?Math.min(900,Math.round(shown*dpr*(det||1))):PHONE?Math.min(1400,Math.round(shown*dpr*(det||1))):(det===0?3000:Math.min(2600,Math.round(shown*dpr*det)));
   pic.classList.toggle('fit',cfg.zoom==='fit');pic.style.width=cfg.zoom==='fit'?'100%':shown+'px';pic.style.maxWidth=cfg.zoom==='fit'?'100%':'none';
   if(MOBILE_PANEL){
     clearMobile(keepPicture===true&&!moving);gestureMode();
     if(visible&&!moving&&active&&!document.hidden)mobileFrame(w,mobileGen);
-    $('stat').textContent=fpsNow()+' / s, up to '+w+' px wide (single pictures)';
+    wNow=w;$('stat').textContent=fpsNow()+' / s, up to '+w+' px wide (single pictures)';
     return;
   }
   clearTimeout(streamT);mode=(PHONE||sessionStorage.getItem('hubMirrorPoll')==='1')?'poll':'stream';pic.onload=null;pollGen++;
@@ -626,7 +632,7 @@ function start(keepPicture=false){if(!cur||!alive)return;
   else{pic.src='/api/windows/'+cur+'/stream?fps='+fpsNow()+'&w='+w+'&q='+qualNow()+LITE+'&t='+Date.now();
     streamT=setTimeout(()=>{if(!(pic.naturalWidth>0)){try{sessionStorage.setItem('hubMirrorPoll','1');}catch(e){}mode='poll';poll(w);}},4500);}
   $('stat').textContent=fpsNow()+' / s, up to '+w+' px wide'+(mode==='poll'?' (single pictures)':'');}
-const fpsNow=()=>PHONE?Math.min(SMALL_PHONE?(MOBILE_PANEL?8:3):5,Number(cfg.fps)):Number(cfg.fps),qualNow=()=>PHONE?Math.min(SMALL_PHONE?70:MOBILE_PANEL?65:75,Number(cfg.qual)):Number(cfg.qual);
+const fpsNow=()=>PHONE?Math.min(SMALL_PHONE?(MOBILE_PANEL?8:3):5,Number(cfg.fps)):Number(cfg.fps),qualNow=()=>PHONE?Math.min(SMALL_PHONE?75:MOBILE_PANEL?65:75,Number(cfg.qual)):Number(cfg.qual);
 let streamT=0,mode='stream';
 let pollGen=0;
 function poll(w){if(!alive||mode!=='poll')return;const gen=pollGen,t0=Date.now();
