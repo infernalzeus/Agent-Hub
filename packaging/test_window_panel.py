@@ -400,3 +400,20 @@ def test_the_fit_button_sizes_a_window_to_the_shape_of_its_picture_and_any_other
         after = pg.evaluate(f"(()=>{{const p=document.querySelector(\"{sel}\");return [p.offsetWidth,p.offsetHeight]}})()")
         b.close()
     assert after[1] < before[1] and abs((after[1] - 150) - after[0] / 4) < 40, (before, after)                  # 4 : 1 picture, plus the room above it
+
+
+def test_the_auto_llm_card_with_its_reinforcement_learning_tab_fills_the_board_under_the_top_buttons(hub):
+    with sync_playwright() as pw:
+        b = pw.chromium.launch(headless=True)
+        pg = b.new_context(service_workers="block", viewport={"width": 1400, "height": 900}).new_page()
+        pg.goto(hub + "/?enter=1")
+        pg.wait_for_function("!!window.__hubBoard && !!window.__hubBoard.active", timeout=20000)
+        assert pg.evaluate("window.__hubBoard.open('/yard')") is True
+        pg.wait_for_timeout(1200)
+        got = pg.evaluate("""()=>{const st=window.__hubBoard.active.stage();const r=document.querySelector(".hk[data-id='card:oc']").getBoundingClientRect();
+          return {stage:[st.left,st.top,st.right,st.bottom],box:[r.left,r.top,r.right,r.bottom],vw:innerWidth,vh:innerHeight}}""")
+        b.close()
+    sl, stp, sr, sb = got["stage"]
+    l, t, r, bt = got["box"]
+    assert l >= sl - 14 and t >= stp - 14 and r <= sr + 14 and bt <= sb + 14, got                           # inside the boundaries of the buttons around it
+    assert (r - l) > 0.6 * (sr - sl) and (bt - t) > 0.6 * (sb - stp), got                                    # and large: it is read, not glanced at

@@ -214,3 +214,49 @@ def test_a_step_can_be_studied_its_confidence_last_result_and_note_run_on_its_ow
         b.close()
     assert errors == []
     assert ("note", "Playlists then ADHD then the Play inside it") in posted and ("run", "1", "one") in posted and ("step-note", {"note": "Play is the one inside the playlist"}) in posted
+
+
+def test_steps_and_why_toggle_open_and_closed_and_a_picture_opens_inside_the_panel(hub):
+    steps = [{"ordinal": 0, "tool": "Click", "args": {}, "target": {"name": "Playlists", "control": "list item", "path": ""}, "note": "", "confidence": None}]
+    run = {"id": "r1", "kind": "replay", "at": 1.0, "ms": 5000, "ok": True, "say": "x", "trace": [{"step": 0, "ordinal": 0, "do": "click", "control": "Playlists", "ms": 900, "shot": "000.jpg"}]}
+    row = {"id": "e1", "title": "Apple Music: play something", "status": "candidate", "successes": 0, "failures": 0, "updated": 0, "tool": "ui", "note": "", "last_replay": None, "replay_failures": 0}
+    GIF = bytes.fromhex("47494638396101000100800000ffffff00000021f90401000000002c00000000010001000002024401003b")
+    with sync_playwright() as pw:
+        b = pw.chromium.launch(headless=True)
+        ctx = b.new_context(service_workers="block", viewport={"width": 1100, "height": 900})
+        pg = ctx.new_page()
+        opened_pages = []
+        ctx.on("page", lambda p: opened_pages.append(p))
+        pg.route("**/api/pc/routines", lambda r: r.fulfill(json={"routines": [row]}))
+        pg.route("**/api/pc/routines/e1/last-run", lambda r: r.fulfill(json={"run": run}))
+        pg.route("**/api/pc/routines/e1/steps", lambda r: r.fulfill(json={"steps": steps}))
+        pg.route("**/api/runs/r1/shot/000.jpg", lambda r: r.fulfill(content_type="image/gif", body=GIF))
+        pg.route("**/api/yard/why/routine/e1", lambda r: r.fulfill(json={"error": "no named-control steps in that routine"}))
+        pg.goto(hub + "/yard")
+        pg.click("[data-tab=routines]")
+        pg.wait_for_selector(".rc .rhead")
+        pg.click(".rc .rhead")
+        steps_btn = pg.locator(".rc button:text-is('STEPS')")
+        steps_btn.click()
+        mine = pg.locator(".rc .step:has(button[title^='Run just this step'])")
+        mine.first.wait_for()
+        assert steps_btn.get_attribute("aria-expanded") == "true"
+        steps_btn.click()                                                                                 # the second press puts the steps away
+        pg.wait_for_function("document.querySelectorAll(\".rc .step button[title^='Run just this step']\").length===0")
+        assert steps_btn.get_attribute("aria-expanded") == "false"
+        steps_btn.click()
+        mine.first.wait_for()
+        why = pg.locator(".rc button:text-is('WHY')")
+        why.click()
+        pg.wait_for_selector(".rc .whyh")
+        assert "WHY" in pg.inner_text(".rc .whyh") and why.get_attribute("aria-expanded") == "true"
+        assert "no named-control steps" in pg.inner_text(".rc .wy")                                         # when there is nothing to explain, it says so where you are looking
+        why.click()
+        pg.wait_for_function("document.querySelectorAll('.rc .whyh').length===0")
+        pg.locator(".rc .rbody img").first.click()                                                          # a picture: over this panel, not a new page
+        pg.wait_for_selector("#lb img")
+        assert "Step 1" in pg.inner_text("#lb .lbcap") and opened_pages == [pg] or len(opened_pages) <= 1
+        pg.keyboard.press("Escape")
+        pg.wait_for_function("!document.getElementById('lb')")
+        assert len(ctx.pages) == 1
+        b.close()

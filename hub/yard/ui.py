@@ -24,6 +24,8 @@ body{background:#080c28;color:var(--text);font:12.5px/1.4 Outfit,system-ui,sans-
 main{max-width:1100px;margin:0 auto}
 h2{font:700 11px Orbitron,system-ui,sans-serif;letter-spacing:.08em;color:var(--accent);margin:12px 0 4px}
 .row{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin:6px 0}
+.rbar button.on{background:rgba(0,230,118,.2);border-color:#00e676;color:#00e676}.whyh{font:700 10px Orbitron,monospace;letter-spacing:1px;color:#00e676;margin:10px 0 4px}
+.lb{position:fixed;inset:0;z-index:50;background:rgba(4,6,20,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px}.lb img{max-width:96%;max-height:84%;border-radius:8px;border:1px solid rgba(0,230,118,.4);cursor:default}.lbcap{color:#d6f5e6;font-size:12px;text-align:center}.lbx{position:absolute;top:12px;right:14px;font-size:16px;padding:6px 12px}
 .rnote{display:flex;gap:8px;align-items:flex-start;margin:6px 0}.rnote textarea{flex:1;background:rgba(6,10,36,.7);border:1px solid rgba(0,230,118,.3);border-radius:8px;color:inherit;padding:7px 9px;font:12px/1.4 Outfit,system-ui,sans-serif;resize:vertical;min-height:54px}
 .rbar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px 18px;margin:6px 0}.rgrp{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
 .rgrp.right{margin-left:auto}.rgrp.right .mute{font-size:9px;letter-spacing:1px}.rgrp.right .no{margin-left:10px;padding-left:12px;border-left:1px solid rgba(0,230,118,.25)}
@@ -101,6 +103,9 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
 (function(){
   const $=id=>document.getElementById(id),pct=v=>Math.round(v*100)+' %';
   const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;};
+  // A picture of a step opens over this panel (never in a new page): click it, press Esc or the cross to put it away.
+  const lightbox=(src,caption)=>{const old=document.getElementById('lb');if(old)old.remove();const ov=el('div','lb'),im=el('img'),cap=el('div','lbcap',caption||''),x=el('button','lbx','✕');ov.id='lb';im.src=src;x.title='Close';
+    const close=()=>{ov.remove();document.removeEventListener('keydown',key);};const key=e=>{if(e.key==='Escape')close();};x.onclick=close;ov.onclick=e=>{if(e.target!==im)close();};document.addEventListener('keydown',key);ov.append(x,im,cap);document.body.append(ov);};
   const J=(u,o)=>fetch(u,Object.assign({cache:'no-store'},o||{})).then(r=>r.json());
   const POST=(u,b)=>fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});
   function head(t,cols){t.replaceChildren();const r=el('tr');cols.forEach(c=>r.appendChild(el('th',null,c)));t.appendChild(r);}
@@ -274,7 +279,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       const m=el('span','rchips');
       m.append(el('span','chip '+(r.status==='trusted'?'ok':r.status==='disabled'?'no':'part'),r.status.toUpperCase()),document.createTextNode(' '),el('span','chip',r.successes+' good · '+r.failures+' bad'));
       if(r.last_replay){const lr=r.last_replay,ago=Math.max(1,Math.round((Date.now()/1000-lr.at)/60));m.append(document.createTextNode(' '),el('span','chip '+(lr.ok?'ok':'no'),(lr.ok?'last replay worked':'last replay FAILED')+' · '+(ago<90?ago+' min ago':Math.round(ago/60)+' h ago')));}
-      if(r.status==='trusted'&&r.replay_failures>=1){m.append(document.createTextNode(' '),el('span','chip no','trusted, but its last replay failed'));}
+      if(r.status==='trusted'&&r.last_replay&&r.last_replay.ok===false){m.append(document.createTextNode(' '),el('span','chip part','trusted: its newest run failed'));}
       if(att.has(r.id)){m.append(document.createTextNode(' '),el('span','chip ok','attested'));}
       const k=chk[r.id];if(k){m.append(document.createTextNode(' '),el('span','chip '+(k.ready?'ok':'part'),k.ready?'yard: looks ready':'yard: not ready'));}
       head.append(m);c.append(head,body);
@@ -318,7 +323,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
             rn.onclick=()=>{const v=prompt('The control this step presses (as it is named on screen):',nm);if(v&&v.trim()&&v!==nm)edit(x.ordinal,{name:v.trim()});};
             rm.onclick=async()=>{const y=await fetch('/api/pc/routines/'+r.id+'/steps/'+x.ordinal,{method:'DELETE'});if(!y.ok)note.textContent=await y.text();await showSteps();routinesStatus();};
             row.append(label);
-            if(t&&t.shot&&lastRun){const im=el('img');im.src='/api/runs/'+lastRun.id+'/shot/'+t.shot;im.style.cssText='width:110px;border-radius:5px;margin-left:8px;cursor:zoom-in;border:1px solid '+(t.error?'#ff6b6b':'rgba(0,230,118,.3)');im.onclick=()=>window.open(im.src,'_blank');row.append(im);}
+            if(t&&t.shot&&lastRun){const im=el('img');im.src='/api/runs/'+lastRun.id+'/shot/'+t.shot;im.style.cssText='width:110px;border-radius:5px;margin-left:8px;cursor:zoom-in;border:1px solid '+(t.error?'#ff6b6b':'rgba(0,230,118,.3)');im.onclick=()=>lightbox(im.src,'Step '+(i+1)+': '+(x.tool||'').toLowerCase()+' “'+nm+'”  ·  '+secs(t.ms)+(t.error?'  ·  FAILED: '+t.error:'  ·  worked'));row.append(im);}
             row.append(go1,goN,nb,up,dn,rn,rm);list.append(row);});
           stepsBox.replaceChildren(list,el('div','mute',r.status==='trusted'?'Changing a step makes this a candidate again with a clean record: it has to be approved or replayed twice before it is trusted. A note or a part-run does not.':'To study one step: put the app on the page it expects, then press its play button. Running a part of the routine never changes its record.'));
         }catch(e){stepsBox.replaceChildren(el('div','mute',String(e)));}};
@@ -329,7 +334,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
         run.trace.forEach((x,i)=>{const row=el('div','step'),lab=el('span','sl');
           lab.append(el('b',null,(i+1)+'. '),document.createTextNode((x.do||'')+' '),el('span','sn','“'+String(x.control||'').slice(0,48)+'”'),el('span','mute','  '+secs(x.ms)+(x.confidence!=null?'  ·  model '+Math.round(x.confidence*100)+' % sure':'')+(x.error?'  - '+x.error:'')));
           if(x.why&&!x.error){const cm=el('div','mute');cm.textContent='Command: '+x.why;lab.append(cm);}
-          row.append(lab);if(x.shot){const im=el('img');im.src='/api/runs/'+run.id+'/shot/'+x.shot;im.style.cssText='width:110px;border-radius:5px;margin-left:8px;cursor:zoom-in;border:1px solid '+(x.error?'#ff6b6b':'rgba(0,230,118,.3)');im.onclick=()=>window.open(im.src,'_blank');row.append(im);}
+          row.append(lab);if(x.shot){const im=el('img');im.src='/api/runs/'+run.id+'/shot/'+x.shot;im.style.cssText='width:110px;border-radius:5px;margin-left:8px;cursor:zoom-in;border:1px solid '+(x.error?'#ff6b6b':'rgba(0,230,118,.3)');im.onclick=()=>lightbox(im.src,'Step '+(i+1)+': '+(x.do||'')+' “'+String(x.control||'')+'”  ·  '+secs(x.ms)+(x.error?'  ·  FAILED: '+x.error:''));row.append(im);}
           list.append(row);});
         runBox.append(el('div','mute',(run.kind==='replay'?'LAST REPLAY':'LAST ATTEMPT')+' · '+new Date(run.at*1000).toLocaleString()+' · '+secs(run.ms)+' · '+(run.ok?'worked':'did not work')+(bad?' · '+bad+' step(s) failed':'')+' · '+(run.say||'')));
         if(run.sentence)runBox.append(el('div','mute','Asked as: “'+run.sentence+'”'+(run.opened&&run.opened.how?'  ·  step 1, open the app: '+run.opened.how+(run.opened.ms!=null?' ('+secs(run.opened.ms)+')':''):'')));
@@ -339,7 +344,8 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       const working=(btn,label,on)=>{busy=on;btn.textContent=on?'STOP':label;btn.classList.toggle('no',on);btn.classList.toggle('part',!on);};
       const stopIt=async()=>{await POST('/api/pc/stop');note.textContent='Stopping: it ends at its next step.';};
       const routinesStatus=()=>{};
-      stepsBtn.onclick=()=>{if(stepsBox.childNodes.length){stepsBox.replaceChildren();return;}showSteps();};
+      let stepsOpen=false;stepsBtn.setAttribute('aria-expanded','false');
+      stepsBtn.onclick=()=>{stepsOpen=!stepsOpen;stepsBtn.classList.toggle('on',stepsOpen);stepsBtn.setAttribute('aria-expanded',String(stepsOpen));if(!stepsOpen){stepsBox.replaceChildren();return;}showSteps();};
       sCand.title='Not yet approved. The default: a routine never becomes trusted by itself, however many times it worked.';sTrust.title='You have read the steps and approve this routine. Only you can set this.';sOff.title='Never run this routine.';
       [[sCand,'candidate'],[sTrust,'trusted'],[sOff,'disabled']].forEach(p=>{p[0].classList.toggle('on',r.status===p[1]);p[0].setAttribute('aria-pressed',String(r.status===p[1]));});
       [[sCand,'candidate'],[sTrust,'trusted'],[sOff,'disabled']].forEach(p=>{p[0].onclick=async()=>{if(r.status===p[1])return;await POST('/api/pc/routines/'+r.id+'/status',{status:p[1]});routines();};});
@@ -369,7 +375,11 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
         try{const x=await POST('/api/pc/routines/'+r.id+'/reattempt');const j=x.ok?await x.json():null;if(j)say((j.ok?'ATTEMPT WORKED: ':'ATTEMPT FAILED: ')+(j.say||''),j.ok?'ok':'bad');else say('ATTEMPT FAILED: '+(await x.text()),'bad');}catch(e){say('ATTEMPT FAILED: '+String(e),'bad');}
         working(again,'ATTEMPT AGAIN',false);rp.disabled=false;await loadRun();routines();};
 
-      why.onclick=async()=>{if(wy.childNodes.length){wy.replaceChildren();return;}wy.append(el('div','mute','Working it out...'));try{wy.replaceChildren(whyView(await J('/api/yard/why/routine/'+r.id)));}catch(e){wy.replaceChildren(el('div','mute','Could not explain this routine.'));}};
+      let whyOpen=false;why.setAttribute('aria-expanded','false');
+      why.onclick=async()=>{whyOpen=!whyOpen;why.classList.toggle('on',whyOpen);why.setAttribute('aria-expanded',String(whyOpen));if(!whyOpen){wy.replaceChildren();return;}
+        wy.replaceChildren(el('div','mute','Working out what the learner would press...'));wy.scrollIntoView({block:'nearest'});
+        try{const j=await J('/api/yard/why/routine/'+r.id);wy.replaceChildren(el('div','whyh','WHY: what the learner would press on each screen, and the features behind it'),whyView(j));}
+        catch(e){wy.replaceChildren(el('div','mute','Could not explain this routine: '+e));}wy.scrollIntoView({block:'nearest'});};
       box.append(c);if(openId===r.id)setOpen(true);});}
 
   // ---- SCORES

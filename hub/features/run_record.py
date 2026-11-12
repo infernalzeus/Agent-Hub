@@ -145,6 +145,16 @@ def note_outcome(routine: str, ok: bool) -> None:
         logger.info("run_record: could not keep the replay history: %s", exc)
 
 
+def clear_failures(routine: str) -> None:
+    try:
+        h = _history()
+        h[routine] = []
+        _root().mkdir(parents=True, exist_ok=True)
+        (_root() / "history.json").write_text(json.dumps(h), encoding="utf-8")
+    except OSError as exc:
+        logger.info("run_record: could not clear the replay history: %s", exc)
+
+
 def trailing_failures(routine: str) -> int:
     n = 0
     for ok in reversed(_history().get(routine, [])):

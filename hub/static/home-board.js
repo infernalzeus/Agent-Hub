@@ -590,6 +590,7 @@
     // A live window of this PC takes its shape; any other page takes the size of its own content, within what the screen can show.
     function fitToContent(id) {
       var b = blocks[id], l = L[id], f = b && b.querySelector('iframe'); if (!b || !l || !l.exp || !f) return;
+      if (id === 'card:oc') { fillStage(id); return; }
       var sr = stageRect(), k = V.k || 1, maxW = Math.max(320, Math.min(1100, (sr.width - 16) / k)), maxH = Math.max(260, Math.min(900, (sr.height - 16) / k));
       try {
         var win = f.contentWindow, doc = f.contentDocument;
@@ -611,12 +612,25 @@
       if (motion && !f.classList.contains('hk-mobile-mirror')) motion.frame(f);
       return f;
     }
+    // FILL: a reading panel (the Auto-LLM card with its Missions, Graph, Reinforcement learning, Agency and Chats tabs) opens as large as the board allows: from just under the buttons at the top to
+    // the bottom of the board, edge to edge. It is read, not glanced at. Drag its corner afterwards to make it smaller; FIT in its header fills it again.
+    function fillStage(id) {
+      var l = L[id], b = blocks[id]; if (!l || !b) return;
+      var sr = stageRect(), hr = host.getBoundingClientRect(), k = V.k || 1, m = 10, right = sr.right, bottom = sr.bottom;
+      try { if (!rightPanel.hidden) { var rr = rightPanel.getBoundingClientRect(); if (rr.width > 0) right = Math.min(right, rr.left - hr.left - 8); } } catch (e) {}        // not over the buttons down the right side
+      try { var tr = tray.getBoundingClientRect(); if (tr.width > 0 && tr.top > hr.top + hr.height * 0.5) bottom = Math.min(bottom, tr.top - hr.top - 8); } catch (e) {}      // nor over the tray at the bottom
+      l.w = Math.round(Math.max(360, (right - sr.left - 2 * m) / k)); l.h = Math.round(Math.max(300, (bottom - sr.top - 2 * m) / k));
+      l.x = (sr.left + m - V.x) / k; l.y = (sr.top + m - V.y) / k;
+      if (b._spec) { b._spec.w = l.w; b._spec.h = l.h; }
+      applyBlock(id); resolve(id);
+    }
     function expand(id) {
       var b = blocks[id], l = L[id], sp = b._spec; if (!sp) return;
       if (l.exp) { collapse(id); return; }
       var before = b.getBoundingClientRect();
       l.exp = 1; l.ow = l.w; l.oh = l.h; l.min = 0; l.z = ++zTop; b._icon = Array.prototype.slice.call(b._in.childNodes); b._in.replaceChildren();
       b.classList.add('exp'); if (sp.tabs || sp.app) b.classList.add('can-dup'); b.querySelector('.hk-h .t').textContent = String(b._name).toUpperCase(); l.w = host.clientWidth < 900 ? Math.max(260, Math.min(sp.w, host.clientWidth - 28)) : sp.w; l.h = host.clientWidth < 900 ? Math.max(240, Math.min(sp.h, host.clientHeight - TOP() - 28)) : sp.h; applyBlock(id); resolve(id);
+      if (id === 'card:oc' && host.clientWidth >= 700) fillStage(id);
       if (sp.app) {
         b._in.appendChild(motion.skeleton('Starting ' + b._name));
         fetch('/api/start/' + sp.app, { method: 'POST' }).then(function (r) { if (!r.ok) throw new Error('could not start'); return r.json(); }).then(function (j) {
@@ -633,7 +647,7 @@
       }
       if (b.querySelector('.hk-mobile-mirror')) return;
       if (motion) motion.flip(b, before, V.k, 'open');
-      setTimeout(function () { if (alive && l.exp && L[id] === l && blocks[id]) { l.looked = 1; lookAt(id); } }, 420);        // a window closed within 420 ms is gone
+      if (!(id === 'card:oc' && host.clientWidth >= 700)) setTimeout(function () { if (alive && l.exp && L[id] === l && blocks[id]) { l.looked = 1; lookAt(id); } }, 420);        // a filled reading panel is not zoomed again: that would put it back under the buttons at the side        // a window closed within 420 ms is gone
     }
     function collapse(id, faded) {
       var b = blocks[id], l = L[id]; if (!l.exp || l.closing) return;
@@ -1188,7 +1202,7 @@
         var fr = b.querySelector('iframe'), want = u.pathname.slice(1).toUpperCase();
         Array.prototype.forEach.call(b.querySelectorAll('.hk-tabs button'), function (t) { t.classList.toggle('on', t.textContent === want); });
         if (fr) { var next = embedUrl(u.pathname + u.search); if (fr.src !== next) { fr.src = next; if (motion) motion.frame(fr); } b._url = u.pathname + u.search; }
-        L[id].z = ++zTop; applyBlock(id); if (stackDepth) stackDepth(); lookAt(id); return true;
+        L[id].z = ++zTop; applyBlock(id); if (stackDepth) stackDepth(); if (!(id === 'card:oc' && host.clientWidth >= 700)) lookAt(id); return true;
       }
     };
     root.__hubBoardInstance = instance; window.__hubBoard.active = instance;

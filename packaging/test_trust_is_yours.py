@@ -66,3 +66,24 @@ def test_what_the_old_automatic_promotion_granted_is_withdrawn_once_and_an_appro
     asyncio.run(go())
     with PC._db() as db:
         assert {r["id"]: r["status"] for r in db.execute("SELECT id,status FROM pc_routines")} == {"o0": "trusted", "o1": "candidate", "o2": "candidate"}   # the migration ran once: your approval is kept
+
+
+def test_promoting_clears_the_failures_held_against_a_routine_and_a_good_attempt_ends_a_run_of_them():
+    from hub.features import run_record as RR
+    import tempfile, pathlib
+    RR.STATE = pathlib.Path(tempfile.mkdtemp())
+    _add(rid="r7", intent="open:claude")
+    RR.note_outcome("r7", False)
+    RR.note_outcome("r7", False)
+    assert RR.trailing_failures("r7") == 2
+    app = web.Application()
+    app.add_routes(PC.routes)
+
+    async def go():
+        async with TestClient(TestServer(app)) as c:
+            assert (await c.post("/api/pc/routines/r7/status", json={"status": "trusted"})).status == 200
+    asyncio.run(go())
+    assert RR.trailing_failures("r7") == 0                                                              # you approved it: the old failures are not held against it
+    RR.note_outcome("r7", False)
+    RR.note_outcome("r7", True)
+    assert RR.trailing_failures("r7") == 0                                                              # a success ends the run of failures

@@ -1586,6 +1586,11 @@ async def api_reattempt(request: web.Request) -> web.Response:
     got = await launch_app(app, sentence, then=goal, fresh=True)
     if got.get("confirm") or got.get("action"):                          # a question is not a result: nothing was done
         got = {"ok": False, "say": "It stopped to ask you something instead of doing the task, so nothing was done: " + str(got.get("say") or "")[:200]}
+    if got.get("ok") and not (got.get("confirm") or got.get("action")):
+        try:
+            RR.note_outcome(routine["id"], True)                      # a good attempt ends a run of failed replays
+        except Exception:  # noqa: BLE001
+            pass
     rid = ((got.get("tries") or [{}])[-1] or {}).get("rid", "")
     if rid:
         try:
@@ -1698,6 +1703,12 @@ async def api_set_status(request: web.Request) -> web.Response:
             raise web.HTTPNotFound(text="no such routine")
         db.execute("UPDATE pc_routines SET status=?, approved=?, updated=? WHERE id=?",
                    (status, int(status == "trusted"), time.time(), row["id"]))
+        if status == "trusted":                                   # you looked at it and approved it: failures from before that decision are not held against it
+            try:
+                from . import run_record as RR
+                RR.clear_failures(row["id"])
+            except Exception:  # noqa: BLE001
+                pass
         try:                                                      # who decided, recorded with the routine
             from . import learning as LRN
             LRN.note("trust", "routine", status, ["trusted", "candidate", "disabled"], status == "trusted", by="you", routine=row["id"])
