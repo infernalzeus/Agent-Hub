@@ -94,8 +94,12 @@ def test_the_panel_opens_a_routine_lists_its_steps_and_lets_you_drop_one(hub):
         pg.click(".rc .step:first-child button[title='Remove this step']")
         pg.wait_for_function("document.querySelectorAll('.rc .step').length===5")
         assert calls == [("DELETE", "0")]
-        buttons = pg.evaluate("[...document.querySelectorAll('.rc .rbody > .row button')].map(b=>b.textContent)")
-        assert buttons[:3] == ["REPLAY", "ATTEMPT AGAIN", "STEPS"]                                           # the buttons sit above what they open: nothing to scroll to close it
+        how = pg.evaluate("[...document.querySelectorAll('.rc .rbody .rgrp.left button')].map(b=>b.textContent)")
+        assert how == ["REPLAY", "ATTEMPT AGAIN", "STEPS", "WHY"]                                           # how it is done: on the left, above what they open
+        state = pg.evaluate("[...document.querySelectorAll('.rc .rbody .seg button')].map(b=>b.textContent)")
+        assert state == ["CANDIDATE", "TRUSTED", "DISABLED"]                                                # what state it is in: one selector, on the right
+        left, right = pg.locator(".rc .rbody .rgrp.left").bounding_box(), pg.locator(".rc .rbody .rgrp.right").bounding_box()
+        assert right["x"] > left["x"] + left["width"] - 1 and pg.locator(".rc .rbody .seg button:text-is('DELETE')").count() == 0   # the state selector is apart from the how, and DELETE is not part of it
         pg.click(".rc .rhead")
         assert pg.locator(".rc .rbody").is_hidden()
         b.close()
@@ -140,7 +144,7 @@ def test_a_replay_counts_its_seconds_ends_with_one_clear_line_and_a_launch_routi
     assert errors == []
 
 
-def test_every_routine_has_promote_or_demote_and_the_click_sets_the_status(hub):
+def test_the_state_selector_shows_the_state_and_a_click_sets_it_and_delete_stands_apart(hub):
     rows = [{"id": "t1", "title": "Open Apple Music", "status": "trusted", "successes": 20, "failures": 0, "updated": 0, "tool": "App"},
             {"id": "c1", "title": "Open Claude", "status": "candidate", "successes": 4, "failures": 0, "updated": 0, "tool": "App"}]
     posted = []
@@ -153,14 +157,17 @@ def test_every_routine_has_promote_or_demote_and_the_click_sets_the_status(hub):
         pg.goto(hub + "/yard")
         pg.click("[data-tab=routines]")
         pg.wait_for_selector(".rc .rhead")
-        heads = pg.locator(".rc")
         pg.locator(".rc .rhead").nth(0).click()
-        assert pg.locator(".rc").nth(0).locator("button:text-is('DEMOTE')").is_visible() and pg.locator(".rc").nth(0).locator("button:text-is('PROMOTE')").is_hidden()
-        pg.locator(".rc").nth(0).locator("button:text-is('DEMOTE')").click()
-        pg.wait_for_function("true")
+        first = pg.locator(".rc").nth(0)
+        assert "on" in (first.locator(".seg button:text-is('TRUSTED')").get_attribute("class") or "").split() and "on" not in (first.locator(".seg button:text-is('CANDIDATE')").get_attribute("class") or "").split()
+        assert first.locator("button:text-is('ATTEMPT AGAIN')").is_hidden()                                  # a launch routine is replayed, not attempted again
+        first.locator(".seg button:text-is('CANDIDATE')").click()
+        pg.wait_for_timeout(300)
         pg.locator(".rc .rhead").nth(1).click()
-        assert pg.locator(".rc").nth(1).locator("button:text-is('PROMOTE')").is_visible() and pg.locator(".rc").nth(1).locator("button:text-is('DEMOTE')").is_hidden()
-        pg.locator(".rc").nth(1).locator("button:text-is('PROMOTE')").click()
+        second = pg.locator(".rc").nth(1)
+        assert "on" in second.locator(".seg button:text-is('CANDIDATE')").get_attribute("class").split()
+        second.locator(".seg button:text-is('TRUSTED')").click()
         pg.wait_for_timeout(500)
+        assert pg.locator(".rc").nth(0).locator(".rgrp.right > button:text-is('DELETE')").count() == 1      # DELETE is its own control beside the selector, not one of its three states
         b.close()
     assert posted == [("t1", "candidate"), ("c1", "trusted")]

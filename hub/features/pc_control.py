@@ -628,7 +628,7 @@ async def _fast_open(name: str) -> "dict | None":
     return None
 
 
-async def launch_app(app: str, request: str, then: str = "") -> dict:
+async def launch_app(app: str, request: str, then: str = "", fresh: bool = False) -> dict:
     """Open an installed application, say truthfully whether it opened, and only
     then remember it.
 
@@ -708,10 +708,11 @@ async def launch_app(app: str, request: str, then: str = "") -> dict:
     tag = {"id": routine["id"], "status": routine["status"], "successes": routine["successes"], "tag": "ROUTINE"}
     said = f"Opened {target}." if not corrected else f"Opened {target} — I heard “{heard}”."
     how = fast["how"] if fast else "by the Windows tool (windows.App launch)"
+    open_ms = int((time.time() - t0) * 1000)                       # the opening alone: the rest of the sentence is timed by what it does
     if then:
-        got = await after(key, then, request)
+        got = await after(key, then, request, fresh=fresh)
         _record_second_half(request, then, got)
-        return {**got, "routine": got.get("routine") or tag, "how": how}
+        return {**got, "routine": got.get("routine") or tag, "how": how, "open_ms": open_ms}
     return {"ok": True, "say": said, "routine": tag, "how": how}
 
 
@@ -1555,28 +1556,35 @@ async def api_last_run(request: web.Request) -> web.Response:
 
 @routes.post("/api/pc/routines/{id}/reattempt")
 async def api_reattempt(request: web.Request) -> web.Response:
-    """Ask the agent to do the routine's task again from scratch (not a replay), keeping a record with pictures. A success replaces a candidate's steps; a trusted routine is left alone."""
-    from . import desktop_agent as DA, run_record as RR
+    """ATTEMPT AGAIN: say the routine's own sentence to the Hub again ("open Apple Music and play something from the adhd playlist") and let it follow the pipeline Smith follows: open the app (a step
+    of its own, by the fast way), then do the task fresh with the desktop agent and check the result. The old recording is not replayed. A good attempt replaces a candidate's steps; the pictures
+    of the attempt are the ones shown for this routine. A trusted routine is left alone, so an attempt cannot replace what you approved."""
+    from . import run_record as RR
     with _db() as db:
         row = db.execute("SELECT * FROM pc_routines WHERE id=?", (request.match_info["id"],)).fetchone()
     if not row:
         raise web.HTTPNotFound(text="no such routine")
     routine = dict(row)
     if routine["status"] == "trusted":
-        return web.json_response({"ok": False, "say": "That routine is trusted. Delete it or change a step first, so a new attempt cannot replace what you approved."})
+        return web.json_response({"ok": False, "say": "That routine is trusted. Demote it first, so a new attempt cannot replace what you approved."})
+    if routine["tool"] != "ui":
+        return web.json_response({"ok": False, "say": "ATTEMPT AGAIN is for routines that press things inside an app. This one only opens an app: use REPLAY."})
     app, goal = _app_of(routine), _goal_of(routine)
     if not app or not goal:
         return web.json_response({"ok": False, "say": "This routine has no app and task I can read from its name."})
-    got = await DA.run(goal, app, remember=True)
+    sentence = f"open {display_app_name(app)} and {goal}"
+    t0 = time.time()
+    got = await launch_app(app, sentence, then=goal, fresh=True)
     rid = ((got.get("tries") or [{}])[-1] or {}).get("rid", "")
     if rid:
-        try:                                              # the pictures of the newest attempt are the ones shown for this routine
+        try:
+            RR.annotate(rid, sentence=sentence, opened={"how": got.get("how", ""), "ms": got.get("open_ms")})
             latest = RR._latest()
             latest[routine["id"]] = rid
             (RR._root() / "latest.json").write_text(json.dumps(latest), encoding="utf-8")
         except OSError:
             pass
-    return web.json_response({"ok": bool(got.get("ok")), "say": got.get("say", ""), "rid": rid, "routine": got.get("routine")})
+    return web.json_response({"ok": bool(got.get("ok")), "say": got.get("say", ""), "rid": rid, "ms": int((time.time() - t0) * 1000), "sentence": sentence, "how": got.get("how", ""), "routine": got.get("routine")})
 
 
 @routes.post("/api/pc/routines/{id}/run")
@@ -2118,7 +2126,7 @@ def _open_ended_play(then: str, app: str = "") -> bool:
     return bool(words) and bool(re.search(r"\b(?:play|put|start)\b", then or "", re.I)) and all(w in _GENERIC_PLAY or w in appw for w in words)
 
 
-async def after(app: str, then: str, request: str, tree=None) -> dict:
+async def after(app: str, then: str, request: str, tree=None, fresh: bool = False) -> dict:
     """Deal with the rest of the sentence, once the app is open.
 
     `tree` is injectable so every branch is testable against a captured snapshot
@@ -2132,7 +2140,7 @@ async def after(app: str, then: str, request: str, tree=None) -> dict:
         # "play some music" names nothing. Guessing wastes a minute on a library full of choices; one short question does not.
         return _ask(f"{name} is open. You did not name anything, so I can shuffle your whole library, or start a radio station. Shall I shuffle your library?",
                     "desktop_task", {"app": app, "goal": "shuffle all songs in my library"}, "Shuffle my library")
-    taught = routine_for_do(app, then)
+    taught = None if fresh else routine_for_do(app, then)          # "try again" is the sentence said again, not the old recording played again
     if taught and taught["tool"] == "surface" and taught["status"] != "disabled":
         from . import machine_routines as MR
         got = await MR.replay_machine_routine(taught, request=request)

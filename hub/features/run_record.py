@@ -112,6 +112,14 @@ class Recorder:
         return self.rid
 
 
+def annotate(rid: str, **extra) -> None:
+    """Add facts about a run that the step loop does not know (the sentence it answered, how the app was opened)."""
+    f = _dir(rid) / "run.json"
+    row = json.loads(f.read_text(encoding="utf-8"))
+    row.update(extra)
+    f.write_text(json.dumps(row, ensure_ascii=False), encoding="utf-8")
+
+
 def _latest() -> dict:
     try:
         return json.loads((_root() / "latest.json").read_text(encoding="utf-8"))

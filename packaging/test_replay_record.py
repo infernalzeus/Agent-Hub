@@ -397,3 +397,59 @@ def test_the_replay_names_the_measured_reason_when_it_could_read_nothing(tmp_pat
     monkeypatch.setattr(asyncio, "sleep", lambda s: _real_sleep(0))
     res = asyncio.run(PC.replay_ui_routine(routine, "test"))
     assert res["ok"] is False and "would not let me bring" in res["say"] and "did not press anything" in res["say"]
+
+
+def test_attempt_again_follows_smiths_pipeline_it_opens_the_app_then_does_the_task_fresh_without_replaying_the_old_recording(tmp_path, monkeypatch):
+    """11 Nov: ATTEMPT AGAIN called the desktop agent directly, so with the app closed it said it could not read the window. It now says the sentence again to the same pipeline."""
+    routine = _routine(tmp_path, monkeypatch)
+    seen = {}
+
+    async def launch(app, request, then="", fresh=False):
+        seen.update(app=app, request=request, then=then, fresh=fresh)
+        return {"ok": True, "say": "Opened Apple Music. Done.", "how": "started it by its Start-menu id", "open_ms": 2100, "tries": [{"rid": "abc123", "model": "m"}]}
+    monkeypatch.setattr(PC, "launch_app", launch)
+    RR.write("abc123", "play my adhd playlist", "apple music", "m", {"ok": True, "trace": [], "steps": []}, 1000)
+    app = web.Application()
+    app.add_routes(PC.routes)
+
+    async def go():
+        async with TestClient(TestServer(app)) as c:
+            j = await (await c.post(f"/api/pc/routines/{routine['id']}/reattempt")).json()
+            assert j["ok"] and j["rid"] == "abc123" and j["sentence"] == "open Apple Music and play my adhd playlist" and "Start-menu" in j["how"]
+            last = await (await c.get(f"/api/pc/routines/{routine['id']}/last-run")).json()
+            assert last["run"]["opened"]["ms"] == 2100 and last["run"]["sentence"].startswith("open Apple Music")
+    asyncio.run(go())
+    assert seen == {"app": "Apple Music", "request": "open Apple Music and play my adhd playlist", "then": "play my adhd playlist", "fresh": True}
+
+
+def test_fresh_means_the_taught_routine_is_not_replayed(monkeypatch):
+    replayed = []
+
+    async def replay(routine, request, **kw):
+        replayed.append(routine["id"])
+        return {"ok": False, "route": "routine", "say": "ran"}
+    monkeypatch.setattr(PC, "routine_for_do", lambda app, then: {"id": "t", "tool": "ui", "status": "candidate"})
+    monkeypatch.setattr(PC, "_steps", lambda rid: [{"ordinal": 0}])
+    monkeypatch.setattr(PC, "replay_ui_routine", replay)
+    monkeypatch.setattr(PC, "_open_ended_play", lambda then, app="": False)
+
+    async def snap():
+        return None
+    monkeypatch.setattr(PC, "_snap", snap)
+    ran = []
+
+    async def agent(then, app, **kw):
+        ran.append(then)
+        return {"ok": True, "say": "Done.", "tries": [{"model": "m", "trace": []}]}
+    from hub.features import desktop_agent as DA
+    monkeypatch.setattr(DA, "run", agent)
+    monkeypatch.setattr(PC, "_learn", lambda *a, **k: None)
+
+    async def evidence(*a, **k):
+        return None
+    monkeypatch.setattr(PC, "_evidence", evidence)
+    monkeypatch.setattr(PC, "_record_run", lambda *a, **k: None)
+    asyncio.run(PC.after("apple music", "play something", "q", fresh=True))
+    assert replayed == [] and ran == ["play something"]
+    asyncio.run(PC.after("apple music", "play something", "q"))
+    assert replayed == ["t"]

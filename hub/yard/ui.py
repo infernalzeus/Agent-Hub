@@ -24,6 +24,9 @@ body{background:#080c28;color:var(--text);font:12.5px/1.4 Outfit,system-ui,sans-
 main{max-width:1100px;margin:0 auto}
 h2{font:700 11px Orbitron,system-ui,sans-serif;letter-spacing:.08em;color:var(--accent);margin:12px 0 4px}
 .row{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin:6px 0}
+.rbar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px 18px;margin:6px 0}.rgrp{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.rgrp.right{margin-left:auto}.rgrp.right .mute{font-size:9px;letter-spacing:1px}.rgrp.right .no{margin-left:10px;padding-left:12px;border-left:1px solid rgba(0,230,118,.25)}
+.seg{display:inline-flex;border:1px solid rgba(0,230,118,.4);border-radius:8px;overflow:hidden}.seg button{border:0;border-radius:0;margin:0;opacity:.65}.seg button+button{border-left:1px solid rgba(0,230,118,.25)}.seg button.on{opacity:1;background:rgba(0,230,118,.22);color:#00e676;box-shadow:inset 0 0 8px rgba(0,230,118,.3)}
 button{background:var(--panel);color:var(--accent);border:1px solid var(--accent);border-radius:7px;padding:5px 10px;font:700 10px Orbitron,system-ui,sans-serif;letter-spacing:.08em;cursor:pointer}
 button:disabled{opacity:.5;cursor:default}button.on{background:var(--accent);color:#04120a}button.stop{border-color:var(--red);color:var(--red)}button.part{border-color:var(--amber);color:var(--amber)}button.skip{border-color:var(--border);color:var(--mute)}button.no{border-color:var(--red);color:var(--red)}
 .chip{border:1px solid var(--border);border-radius:99px;padding:1px 8px;font-size:11px;color:var(--mute);display:inline-block}.chip.ok{color:var(--accent);border-color:var(--accent)}.chip.part{color:var(--amber);border-color:var(--amber)}.chip.no{color:var(--red);border-color:var(--red)}
@@ -275,15 +278,17 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       const k=chk[r.id];if(k){m.append(document.createTextNode(' '),el('span','chip '+(k.ready?'ok':'part'),k.ready?'yard: looks ready':'yard: not ready'));}
       head.append(m);c.append(head,body);
       // the buttons are the first thing in the body, so what they open appears under them and never needs a scroll to be closed again
-      const bar=el('div','row'),rp=el('button','part','REPLAY'),again=el('button','part','ATTEMPT AGAIN'),stepsBtn=el('button','skip','STEPS'),why=el('button','skip','WHY'),ok=el('button',null,'PROMOTE'),dem=el('button','part','DEMOTE'),off=el('button','part',r.status==='disabled'?'RE-ENABLE':'DISABLE'),del=el('button','no','DELETE');
-      rp.title='Run it now, on this PC, to watch how it works. It does not count for or against the routine.';
-      again.title='Ask the agent to do this task again from the start (not a replay). It keeps the steps and pictures of this attempt; for a candidate, a good attempt replaces the steps.';
+      const bar=el('div','rbar'),howBox=el('div','rgrp left'),stateBox=el('div','rgrp right'),seg=el('div','seg'),rp=el('button','part','REPLAY'),again=el('button','part','ATTEMPT AGAIN'),stepsBtn=el('button','skip','STEPS'),why=el('button','skip','WHY'),sCand=el('button',null,'CANDIDATE'),sTrust=el('button',null,'TRUSTED'),sOff=el('button',null,'DISABLED'),del=el('button','no','DELETE');
+      stateBox.append(el('span','mute','STATE'),seg,del);seg.append(sCand,sTrust,sOff);howBox.append(rp,again,stepsBtn,why);bar.append(howBox,stateBox);
+      rp.title='Play the saved steps now, on this PC, and keep a record of each one. It opens the app first if it is closed. It does not change the routine.';
+      stepsBtn.title='The steps this routine presses, in order. You can remove, move or rename them.';why.title='What the learner would press on each screen and the features behind that. It only explains: it is not where you write a reason.';
+      again.title='Say the task to the Hub again, as you would to Smith: it opens the app first, then does the task fresh and checks it. The old recording is not replayed. A good attempt replaces the steps of a candidate.';
       const note=el('div','why'),stepsBox=el('div'),runBox=el('div'),wy=el('div');
       const NOTES=(window.__rlNotes=window.__rlNotes||{});const say=(txt,kind)=>{NOTES[r.id]={txt,kind};note.textContent=txt;note.style.color=kind==='ok'?'#00e676':kind==='bad'?'#ff6b6b':kind==='stop'?'#e0a53c':'';note.style.fontWeight=kind?'700':'';};
       if(NOTES[r.id])say(NOTES[r.id].txt,NOTES[r.id].kind);
       if(k&&!k.ready)note.textContent=k.reasons.join('. ')+'.';
       if(k&&k.ready)note.textContent='No forbidden control, replayed clean, and the learner agrees on '+(k.agree==null?'(no learner yet)':pct(k.agree))+' of its steps. Only you can approve it.';
-      bar.append(rp,again,stepsBtn,why,ok,dem,off,del);body.append(bar,note,runBox,stepsBox,wy);again.hidden=r.status==='trusted';
+      body.append(bar,note,runBox,stepsBox,wy);again.hidden=r.status==='trusted'||r.tool!=='ui';
       const setOpen=v=>{if(v&&!runBox.childNodes.length)loadRun();body.hidden=!v;tw.textContent=v?'▾':'▸';c.classList.toggle('open',v);try{if(v)sessionStorage.setItem('hub-rl-open',r.id);else if(sessionStorage.getItem('hub-rl-open')===r.id)sessionStorage.removeItem('hub-rl-open');}catch(e){}};
       head.onclick=()=>setOpen(body.hidden);
       // the steps, as a list you can change: drop a step, move it, or say which control it presses
@@ -311,17 +316,18 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
           if(x.why&&!x.error){const cm=el('div','mute');cm.textContent='Command: '+x.why;lab.append(cm);}
           row.append(lab);if(x.shot){const im=el('img');im.src='/api/runs/'+run.id+'/shot/'+x.shot;im.style.cssText='width:110px;border-radius:5px;margin-left:8px;cursor:zoom-in;border:1px solid '+(x.error?'#ff6b6b':'rgba(0,230,118,.3)');im.onclick=()=>window.open(im.src,'_blank');row.append(im);}
           list.append(row);});
-        runBox.append(el('div','mute',(run.kind==='replay'?'LAST REPLAY':'LAST ATTEMPT')+' · '+new Date(run.at*1000).toLocaleString()+' · '+secs(run.ms)+' · '+(run.ok?'worked':'did not work')+(bad?' · '+bad+' step(s) failed':'')+' · '+(run.say||'')),list);};
+        runBox.append(el('div','mute',(run.kind==='replay'?'LAST REPLAY':'LAST ATTEMPT')+' · '+new Date(run.at*1000).toLocaleString()+' · '+secs(run.ms)+' · '+(run.ok?'worked':'did not work')+(bad?' · '+bad+' step(s) failed':'')+' · '+(run.say||'')));
+        if(run.sentence)runBox.append(el('div','mute','Asked as: “'+run.sentence+'”'+(run.opened&&run.opened.how?'  ·  step 1, open the app: '+run.opened.how+(run.opened.ms!=null?' ('+secs(run.opened.ms)+')':''):'')));
+        runBox.append(list);};
       const loadRun=async()=>{try{const j=await J('/api/pc/routines/'+r.id+'/last-run');showRun(j.run);}catch(e){}};
       let busy=false;
       const working=(btn,label,on)=>{busy=on;btn.textContent=on?'STOP':label;btn.classList.toggle('no',on);btn.classList.toggle('part',!on);};
       const stopIt=async()=>{await POST('/api/pc/stop');note.textContent='Stopping: it ends at its next step.';};
       const routinesStatus=()=>{};
       stepsBtn.onclick=()=>{if(stepsBox.childNodes.length){stepsBox.replaceChildren();return;}showSteps();};
-      ok.title='Trust this routine: it counts as approved by you. Nothing trusts a routine automatically, however many times it worked.';dem.title='Take the trust back: it becomes a candidate again.';
-      ok.onclick=async()=>{await POST('/api/pc/routines/'+r.id+'/status',{status:'trusted'});routines();};
-      dem.onclick=async()=>{await POST('/api/pc/routines/'+r.id+'/status',{status:'candidate'});routines();};
-      off.onclick=async()=>{await POST('/api/pc/routines/'+r.id+'/status',{status:r.status==='disabled'?'candidate':'disabled'});routines();};
+      sCand.title='Not yet approved. The default: a routine never becomes trusted by itself, however many times it worked.';sTrust.title='You have read the steps and approve this routine. Only you can set this.';sOff.title='Never run this routine.';
+      [[sCand,'candidate'],[sTrust,'trusted'],[sOff,'disabled']].forEach(p=>{p[0].classList.toggle('on',r.status===p[1]);p[0].setAttribute('aria-pressed',String(r.status===p[1]));});
+      [[sCand,'candidate'],[sTrust,'trusted'],[sOff,'disabled']].forEach(p=>{p[0].onclick=async()=>{if(r.status===p[1])return;await POST('/api/pc/routines/'+r.id+'/status',{status:p[1]});routines();};});
       del.onclick=async()=>{if(!confirm('Delete this routine for good? '+r.title))return;await fetch('/api/pc/routines/'+r.id,{method:'DELETE'});routines();};
       // A replay can take a while (Windows needed 14 s to start Apple Music), so it counts its seconds out loud, and ends with one line that cannot be misread.
       const clock=(label)=>{const t0=Date.now();const tick=setInterval(()=>{note.style.color='';note.textContent=label+' '+Math.round((Date.now()-t0)/1000)+' s...  (STOP ends it)';},500);return ()=>clearInterval(tick);};
@@ -339,7 +345,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
         if(!confirm('Ask the agent to do "'+r.title+'" again from the start? It will press things on this PC; STOP ends it.'))return;working(again,'ATTEMPT AGAIN',true);rp.disabled=true;say('Trying again from the start...','');
         try{const x=await POST('/api/pc/routines/'+r.id+'/reattempt');const j=x.ok?await x.json():null;if(j)say((j.ok?'ATTEMPT WORKED: ':'ATTEMPT FAILED: ')+(j.say||''),j.ok?'ok':'bad');else say('ATTEMPT FAILED: '+(await x.text()),'bad');}catch(e){say('ATTEMPT FAILED: '+String(e),'bad');}
         working(again,'ATTEMPT AGAIN',false);rp.disabled=false;await loadRun();routines();};
-      ok.hidden=r.status==='trusted'||r.status==='disabled';dem.hidden=r.status!=='trusted';
+
       why.onclick=async()=>{if(wy.childNodes.length){wy.replaceChildren();return;}wy.append(el('div','mute','Working it out...'));try{wy.replaceChildren(whyView(await J('/api/yard/why/routine/'+r.id)));}catch(e){wy.replaceChildren(el('div','mute','Could not explain this routine.'));}};
       box.append(c);if(openId===r.id)setOpen(true);});}
 
