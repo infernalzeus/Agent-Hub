@@ -464,6 +464,10 @@ let shown = null, starting = false, misses = 0, startTimer = null;
 // only sees it greyed), ENTER once it is live. Starting and entering are separate actions.
 function enterHub() {
   try { sessionStorage.setItem('agenthub:entered', '1'); } catch (e) {}
+  if (matchMedia('(pointer:coarse) and (max-width:760px)').matches) {           // a phone: no cube show, a short fade, then the dashboard
+    document.body.style.transition = 'opacity .18s ease'; document.body.style.opacity = '0';
+    setTimeout(() => location.replace('/?enter=1'), 190); return;
+  }
   location.replace('/?enter=1');
 }
 

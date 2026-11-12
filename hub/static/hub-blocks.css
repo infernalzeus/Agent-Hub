@@ -621,3 +621,19 @@ html.hub-legend-on .hands-log .hl-legend{display:block!important;opacity:1!impor
 /* An iPhone's notch / Dynamic Island: the glass header and the bar of buttons start below it, not under it (the board's own header is fixed at 8px). */
 html.hub-board-on body>header{top:max(8px,env(safe-area-inset-top))!important}
 @media(min-width:1101px){.hb .hb-bar{top:max(8px,env(safe-area-inset-top))}}   /* narrower screens place the bar under the header, which already sits below the notch (--hb-top) */
+
+
+/* The R button's panel (reinforcement learning) is read, so on a screen of desktop width it takes the whole board: under the buttons at the top, clear of the buttons down the right side. */
+@media (min-width:900px) and (pointer:fine){
+ .hb-glass-panel{left:12px;right:140px;top:calc(var(--hub-chrome-bottom,70px) + 12px);bottom:16px;width:auto;height:auto;max-height:none;transform:none}
+}
+/* a live window is not drawn while the board moves */
+.hk.hk-mirror-moving .hk-mobile-mirror{visibility:hidden}
+/* a phone: the little map of the board adds a box to the crowd and is of no use under a thumb */
+@media (pointer:coarse) and (max-width:760px){.hb-map{display:none!important}}
+
+/* a phone: the bottom row has room for the tray on the left, the batch buttons and the log button on the right, and none of them lies over another */
+@media (pointer:coarse) and (max-width:760px){
+ .hb .hb-log-toggle{left:auto!important;right:calc(12px + env(safe-area-inset-right))!important}
+ .hb .hb-batch-controls{left:auto!important;right:calc(12px + env(safe-area-inset-right) + 80px)!important;transform:none!important}
+}

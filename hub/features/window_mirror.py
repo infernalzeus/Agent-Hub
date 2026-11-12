@@ -616,7 +616,7 @@ function start(keepPicture=false){if(!cur||!alive)return;
   const det=Number(cfg.det),w=SMALL_PHONE?864:MOBILE_PANEL?Math.min(900,Math.round(shown*dpr*(det||1))):PHONE?Math.min(1400,Math.round(shown*dpr*(det||1))):(det===0?3000:Math.min(2600,Math.round(shown*dpr*det)));
   pic.classList.toggle('fit',cfg.zoom==='fit');pic.style.width=cfg.zoom==='fit'?'100%':shown+'px';pic.style.maxWidth=cfg.zoom==='fit'?'100%':'none';
   if(MOBILE_PANEL){
-    clearMobile(keepPicture===true||moving);gestureMode();
+    clearMobile(keepPicture===true&&!moving);gestureMode();
     if(visible&&!moving&&active&&!document.hidden)mobileFrame(w,mobileGen);
     $('stat').textContent=fpsNow()+' / s, up to '+w+' px wide (single pictures)';
     return;

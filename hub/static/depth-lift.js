@@ -17,6 +17,8 @@
  function trace(name,data){if(window.__hubTrace)window.__hubTrace(name,data);if(name==='prep-timeout'||name==='transition-abort'||name==='fallback'){try{sessionStorage.setItem('agenthub:transition-exit',JSON.stringify({at:Date.now(),name:name,data:data||{},build:BUILD}));}catch(e){}}}
  DL.debugLine=function(){var child=null;try{child=activeView&&activeView.contentWindow.DepthLift&&activeView.contentWindow.DepthLift.build;}catch(e){}var ring=window.__hubTiming||[];return 'host '+BUILD+' active-child '+(child||'root')+' build-fallback '+!!window.__hubLastBuildFallback+(window.__hubPreviousTransitionExit?'\nprevious-exit '+JSON.stringify(window.__hubPreviousTransitionExit):'')+'\n'+ring.slice(-16).map(function(e){return Math.round(e.at-performance.timeOrigin)+'ms '+e.name+' '+JSON.stringify(e.data);}).join('\n');};
  function reduced(){return matchMedia('(prefers-reduced-motion: reduce)').matches;}
+ // A phone has too little memory and graphics to build the cube transition and a second copy of the dashboard behind it: it goes straight there, with a short fade (see enterHub).
+ function phoneLite(){return matchMedia('(pointer:coarse) and (max-width:760px)').matches;}
  function viewport(){
   // Mobile toolbar expansion is not a change of the crystal field's geometry.
   // Draw a full-screen-height field and clip it to the current viewport, never scale its pixels.
@@ -132,7 +134,7 @@
   }finally{document.createElement=create;Object.keys(originals).forEach(function(k){gl[k]=originals[k];});}
  }
  function startWarm(){
-  warmTimer=0;if(ready||warmPending||closed||document.hidden||reduced())return;warmPending=true;var epoch=++warmEpoch;
+  warmTimer=0;if(ready||warmPending||closed||document.hidden||reduced()||phoneLite())return;warmPending=true;var epoch=++warmEpoch;
   var canvas=document.createElement('canvas'),gl=null,vs=null,fs=null,program=null,owned=false;
   function clean(){if(gl&&!owned){if(program)gl.deleteProgram(program);if(vs)gl.deleteShader(vs);if(fs)gl.deleteShader(fs);var lose=gl.getExtension('WEBGL_lose_context');if(lose)lose.loseContext();}gl=null;}
   cancelWarm=clean;
@@ -183,7 +185,7 @@
  DL.viewStatus=function(win,status){if(activeView&&activeView.contentWindow===win&&!busy){if(status.page==='landing'&&status.state!=='up')release();else later(warm,0);}};
  DL.go=function(destination,navigate,element){
   trace(destination==='home'?'enter-tap':'orb-tap',{host:BUILD});tapFeedback(element);if(busy){trace('ignored',{reason:'busy'});return;}trace('accepted',{destination:destination});
-  if(closed||document.hidden||reduced()||(ready&&!equal(ready.v,viewport()))){release();clearFeedback();navigate();return;}
+  if(closed||document.hidden||reduced()||phoneLite()||(ready&&!equal(ready.v,viewport()))){release();clearFeedback();navigate();return;}
   busy=true;DL.last={phase:'preparing'};if(!ready)warm(true);
   var existing=views[destination],discard=null;if(existing&&staleView(existing,destination)){discard=existing;trace('stale-view-replaced',{page:destination});if(existing!==activeView)existing.remove();views[destination]=null;existing=null;}var created=!existing,frame=existing||document.createElement('iframe');destinationFrame=frame;frame.removeAttribute('data-dl-view');frame.removeAttribute('data-dl-cached');frame.setAttribute('data-dl-destination','');frame.title=destination==='home'?'Agent Hub Home':'Agent Hub landing';
   if(created)frame.style.cssText='position:fixed;inset:0;border:0;width:100%;height:100%;z-index:2147482999;background:#080c28;visibility:hidden;clip-path:inset(100%)';

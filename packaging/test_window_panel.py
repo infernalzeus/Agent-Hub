@@ -417,3 +417,96 @@ def test_the_auto_llm_card_with_its_reinforcement_learning_tab_fills_the_board_u
     l, t, r, bt = got["box"]
     assert l >= sl - 14 and t >= stp - 14 and r <= sr + 14 and bt <= sb + 14, got                           # inside the boundaries of the buttons around it
     assert (r - l) > 0.6 * (sr - sl) and (bt - t) > 0.6 * (sb - stp), got                                    # and large: it is read, not glanced at
+
+
+def test_the_r_button_panel_takes_the_board_on_a_desktop_screen_and_stays_clear_of_the_buttons(hub):
+    with sync_playwright() as pw:
+        b = pw.chromium.launch(headless=True)
+        pg = b.new_context(service_workers="block", viewport={"width": 1700, "height": 950}).new_page()
+        pg.goto(hub + "/?enter=1")
+        pg.wait_for_function("!!window.__hubBoard && !!window.__hubBoard.active", timeout=20000)
+        pg.evaluate("(()=>{const r=document.querySelector('.hb-learning');r.hidden=false;r.click()})()")
+        pg.wait_for_selector(".hb-glass-panel", timeout=8000)
+        pg.wait_for_timeout(700)
+        got = pg.evaluate("""()=>{const p=document.querySelector('.hb-glass-panel').getBoundingClientRect(),rail=document.querySelector('.hb-right-panel').getBoundingClientRect(),
+          bar=document.querySelector('.hb-bar').getBoundingClientRect(),h=document.querySelector('body>header').getBoundingClientRect();return {p:[p.left,p.top,p.right,p.bottom],railLeft:rail.left,barBottom:Math.max(bar.bottom,h.bottom),vw:innerWidth,vh:innerHeight}}""")
+        b.close()
+    l, t, r, bt = got["p"]
+    assert t >= got["barBottom"] and r <= got["vw"] - 130 and l < 40, got                              # under the buttons at the top, clear of the ones down the right
+    assert (r - l) > 0.7 * got["vw"] and (bt - t) > 0.7 * got["vh"] - got["barBottom"], got                  # and large: it is read
+
+
+def test_opening_a_small_block_does_not_blow_it_up_to_more_than_a_readable_size(hub):
+    with sync_playwright() as pw:
+        b = pw.chromium.launch(headless=True)
+        pg = b.new_context(service_workers="block", viewport={"width": 2000, "height": 1100}).new_page()
+        pg.goto(hub + "/?enter=1")
+        pg.wait_for_function("!!window.__hubBoard && !!window.__hubBoard.active", timeout=20000)
+        pg.evaluate("window.__hubBoard.applyUi({window: {title: 'Notes', url: '/mirror?id=3'}})")
+        pg.wait_for_selector(".hk[data-id^='extra:win-notes'] iframe", timeout=10000)
+        pg.wait_for_timeout(1500)
+        k = pg.evaluate("window.__hubBoard.active.state().V.k")
+        b.close()
+    assert k <= 1.36, k                                                                                   # it used to be framed up to 2.4 times its size on a big screen
+
+
+def test_the_dashboard_on_a_phone_starts_with_the_side_buttons_hidden_the_map_gone_and_a_readable_zoom(hub):
+    with sync_playwright() as pw:
+        d = pw.devices["iPhone 13"]
+        b = pw.webkit.launch()
+        pg = b.new_context(**d, service_workers="block").new_page()
+        pg.goto(hub + "/?enter=1")
+        pg.wait_for_function("!!window.__hubBoard && !!window.__hubBoard.active", timeout=30000)
+        pg.wait_for_timeout(2000)
+        got = pg.evaluate("""()=>({rail:getComputedStyle(document.querySelector('.hb-right-panel')).display!=='none'&&!document.querySelector('.hb-right-panel').hidden,
+          map:(()=>{const m=document.querySelector('.hb-map');return !!m&&getComputedStyle(m).display!=='none'})(),k:window.__hubBoard.active.state().V.k})""")
+        b.close()
+    assert got["rail"] is False and got["map"] is False and got["k"] >= 0.6, got
+
+
+def test_a_live_window_is_hidden_and_its_picture_let_go_while_the_board_moves_on_a_phone(hub):
+    GIFB = bytes.fromhex("47494638396101000100800000ffffff00000021f90401000000002c00000000010001000002024401003b")
+    with sync_playwright() as pw:
+        b = pw.chromium.launch(headless=True)
+        ctx = b.new_context(service_workers="block", viewport={"width": 390, "height": 760}, has_touch=True, is_mobile=True, user_agent=ANDROID)
+        pg = ctx.new_page()
+        pg.route("**/api/windows/*/frame*", lambda r: r.fulfill(status=200, content_type="image/gif", body=GIFB))
+        pg.route("**/api/windows", lambda r: r.fulfill(json={"supported": True, "windows": [{"id": 5, "title": "Claude", "exe": "claude.exe", "w": 1900, "h": 1000, "minimised": False}]}))
+        pg.goto(hub + "/?enter=1")
+        pg.wait_for_function("!!window.__hubBoard && !!window.__hubBoard.active", timeout=20000)
+        pg.evaluate("window.__hubBoard.applyUi({window: {title: 'Claude', url: '/mirror?id=5'}})")
+        pg.wait_for_selector(".hk[data-id^='extra:win-claude'] iframe", timeout=10000)
+        pg.wait_for_function("(()=>{const i=document.querySelector(\".hk[data-id^='extra:win-claude'] iframe\").contentDocument.getElementById('pic');return !!i&&i.naturalWidth>0})()", timeout=15000)
+        pg.wait_for_timeout(1500)                                                                         # the board has stopped moving
+        pg.evaluate("document.querySelector('.hb').dispatchEvent(new WheelEvent('wheel',{deltaY:30,bubbles:true,cancelable:true}))")
+        moving = pg.evaluate("""()=>{const f=document.querySelector(".hk[data-id^='extra:win-claude'] iframe");return {vis:getComputedStyle(f).visibility,src:f.contentDocument.getElementById('pic').getAttribute('src')}}""")
+        pg.wait_for_function("getComputedStyle(document.querySelector(\".hk[data-id^='extra:win-claude'] iframe\")).visibility==='visible'", timeout=4000)
+        b.close()
+    assert moving["vis"] == "hidden" and not moving["src"], moving                                         # not drawn, and no decoded picture held, while it moves
+
+
+def test_no_two_buttons_lie_over_each_other_on_a_phone_dashboard_and_the_landing_goes_straight_to_it(hub):
+    import time
+    with sync_playwright() as pw:
+        d = pw.devices["iPhone 13"]
+        b = pw.webkit.launch()
+        pg = b.new_context(**d, service_workers="block").new_page()
+        pg.goto(hub + "/offline.html")
+        pg.wait_for_selector("#wake-btn[data-s='enter']", timeout=30000)
+        pg.wait_for_timeout(1500)
+        t0 = time.time()
+        pg.click("#wake-btn")
+        pg.wait_for_url("**/?enter=1", timeout=8000)
+        took = time.time() - t0
+        assert pg.evaluate("document.querySelectorAll('iframe[data-dl-destination]').length") == 0 and took < 3          # no hidden second dashboard, no cube show: a fade and the dashboard
+        pg.wait_for_function("!!window.__hubBoard && !!window.__hubBoard.active", timeout=30000)
+        pg.wait_for_timeout(2000)
+        boxes = pg.evaluate("""()=>[...document.querySelectorAll('.hb-bar>*, .hb-tray>*, .hb-batch-controls, .hb-log-toggle, body>header button, .hb-right-panel>*')].filter(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>10&&r.height>10&&s.visibility!=='hidden'&&s.display!=='none'}).map(e=>{const r=e.getBoundingClientRect();return [(e.className||e.tagName).toString().slice(0,30),r.left,r.top,r.right,r.bottom]})""")
+        b.close()
+    clashes = []
+    for i, a in enumerate(boxes):
+        for c in boxes[i + 1:]:
+            ox, oy = min(a[3], c[3]) - max(a[1], c[1]), min(a[4], c[4]) - max(a[2], c[2])
+            if ox > 4 and oy > 4 and not (a[0].startswith("hb-batch") and c[0].startswith("hb-btn")) and not (c[0].startswith("hb-batch") and a[0].startswith("hb-btn")):
+                clashes.append((a[0], c[0], round(ox), round(oy)))
+    assert clashes == [], clashes

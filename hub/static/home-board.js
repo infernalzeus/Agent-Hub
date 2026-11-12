@@ -484,6 +484,7 @@
       var frame = block.querySelector('.hk-mobile-mirror');
       if (!frame) return;
       block.classList.toggle('hk-mirror-moving', moving);
+      frame.style.visibility = moving ? 'hidden' : '';
       try { frame.contentWindow.setMirrorMoving(moving); } catch (e) {}
     }
     // Every live window stands still while the board moves (a drag, a pinch, the wheel, a view turn, a camera glide), on every device whose mirror runs as single pictures, and carries on 0.4 s after the
@@ -773,10 +774,15 @@
       }
       world.style.transform=old;return to;
     }
-    function fit(anim){var ids=Object.keys(blocks).filter(function(id){return !isHidden(id);});var to=cameraFor(ids,1.2);if(to)cam(to,anim?520:0,true);}
+    function fit(anim){var ids=Object.keys(blocks).filter(function(id){return !isHidden(id);});var to=cameraFor(ids,1.2);
+      if(to&&ids.length&&host.clientWidth<700&&to.k<.62){            // a phone: fitting a tall column of blocks into the screen leaves them too small to read, so it opens at a readable size, at the top of the column
+        var r=stageRect(),x0=Infinity,y0=Infinity,x1=-Infinity;ids.forEach(function(id){var q=L[id];x0=Math.min(x0,q.x);y0=Math.min(y0,q.y);x1=Math.max(x1,q.x+q.w);});
+        to={k:.62,x:(r.left+r.right)/2-(x0+x1)/2*.62,y:r.top+8-y0*.62};}
+      if(to)cam(to,anim?520:0,true);}
     function undim() { Object.keys(blocks).forEach(function (i) { blocks[i].classList.remove('dim'); }); }
     // the camera goes to a block you opened, but the others stay clickable (focus dims them; opening does not)
-    function lookAt(id){var to=cameraFor([id],2.4);if(to)cam(to,520);}
+    // The most a block is magnified: an open one is read at up to 1.35 times (more makes text and pictures coarse), a closed tile at up to 1.1 (it only needs to be found); the least is what fits.
+    function lookAt(id){var l=L[id],to=cameraFor([id],l&&l.exp?1.35:1.1);if(to)cam(to,520);}
     function focusBlock(id){if(focusId===id){focusId=null;undim();fit(true);return;}focusId=id;Object.keys(blocks).forEach(function(i){blocks[i].classList.toggle('dim',i!==id);});lookAt(id);}
     var trayLiveAt=0;function updateTrayLive(){var now=performance.now();if(now-trayLiveAt>80){trayLiveAt=now;trayDraw();}}
     var trayButtons={},trayLists={},trayRows={hidden:{},outside:{}};
@@ -1155,7 +1161,7 @@
     hidePanel.onclick=function(){toggleRight(true);};showPanel.onclick=function(){toggleRight(false);};var fixedPhoneControls=matchMedia('(pointer:coarse) and (max-width:1000px)');
     function loadRightVisibility(){
       var hidden=false;
-      if(!fixedPhoneControls.matches){try{hidden=localStorage.getItem('agenthub:board:right-hidden')==='1';}catch(e){}}
+      try{var saved=localStorage.getItem('agenthub:board:right-hidden');hidden=fixedPhoneControls.matches?saved!=='0':saved==='1';}catch(e){hidden=fixedPhoneControls.matches;}     // a phone: hidden until you ask for them
       rightPanel.hidden=hidden;showPanel.hidden=!hidden;hidePanel.hidden=hidden;
       stageRect();
     }
