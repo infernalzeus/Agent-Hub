@@ -384,7 +384,7 @@ details.fold summary{cursor:pointer;padding:10px 0;font-family:'Orbitron',monosp
     <div class="st">1 · ASK</div>
     <div class="d">project + brief. Default run type: <b>Orchestrated</b>.</div>
     <div class="arrow">↓</div>
-    <div class="st">VICTOR · ORCHESTRATOR</div>
+    <div class="st">VIKTOR · ORCHESTRATOR</div>
     <div class="d">reads the project, then either asks you (status <b>REPLY</b> — answer on the card) or writes a plan. It writes no code.</div>
     <div class="arrow">↓</div>
     <div class="st">2 · APPROVE</div>
@@ -405,7 +405,7 @@ details.fold summary{cursor:pointer;padding:10px 0;font-family:'Orbitron',monosp
   </div>
   <dl class="arch-facts">
     <dt>WORK TYPE</dt>
-    <dd>Software · Marketing &amp; content · Business &amp; operations · Research. Picks which agents Victor may use and which <b>hub checks</b> run (compile+tests for code; placeholders, channel limits, brand “Avoid” list, unrendered designs for content). Tick <b>LLM Wiki</b> to give agents a citable reference library.</dd>
+    <dd>Software · Marketing &amp; content · Business &amp; operations · Research. Picks which agents Viktor may use and which <b>hub checks</b> run (compile+tests for code; placeholders, channel limits, brand “Avoid” list, unrendered designs for content). Tick <b>LLM Wiki</b> to give agents a citable reference library.</dd>
     <dt>REVIEW LOOP</dt>
     <dd>A reviewer/editor that says <code>changes-needed</code> sends its feedback back to the last writer once, then checks and re-review run again.</dd>
     <dt>RUN TYPES</dt>
@@ -480,7 +480,7 @@ async function refresh(){
   renderList();
   if (SEL && MISSIONS.some(m=>m.id===SEL)) renderDetail(SEL);
 }
-const NEEDS = {needs_input:['REPLY','answer','Victor has questions — reply to continue'],
+const NEEDS = {needs_input:['REPLY','answer','Viktor has questions — reply to continue'],
   plan_ready:['APPROVE','dispatch','a plan is ready — edit it, then press RUN PIPELINE'],
   awaiting_review:['REVIEW','review','work is finished — read the result, then APPLY or DISCARD'],
   paused:['RESUME','resume','paused — press RESUME to continue from the interrupted step']};
@@ -531,7 +531,7 @@ function strip(m){
     // a step can only be "running" while the mission is: otherwise the run was interrupted (never blink for a dead run)
     const eff = (s) => (!live && (s==='running'||s==='queued')) ? (s==='running' ? 'failed' : 'proposed') : s;
     const oc = live && !(m.plan||[]).length ? 'running' : st==='needs_input' ? 'proposed' : ((m.plan||[]).length || st==='awaiting_review') ? 'done' : 'failed';
-    const orch = `<span class="pd ${oc}"><i></i>victor</span>`;
+    const orch = `<span class="pd ${oc}"><i></i>viktor</span>`;
     const steps = (m.plan||[]).map(x=>`<span class="ar">›</span><span class="pd ${eff(x.status)}"><i></i>${esc(x.agent)}</span>`).join('');
     return `<div class="pstrip">${orch}${steps}</div>`;
   }
@@ -677,12 +677,12 @@ const FOLD = {};
 function threadBody(d){
   const st = d.status;
   let h = askBubble(d);
-  if(st==='needs_input') return h + bot(`${orb('breathing',20)}VICTOR<span class="tm2">has questions for you</span>`, actionBanner(d) + pipelineBlock(d));
+  if(st==='needs_input') return h + bot(`${orb('breathing',20)}VIKTOR<span class="tm2">has questions for you</span>`, actionBanner(d) + pipelineBlock(d));
   h += answersBubble(d);
-  if(st==='plan_ready') return h + bot(`${ic('orch')}VICTOR<span class="tm2">plan · nothing has run yet</span>`, actionBanner(d) + pipelineBlock(d));
+  if(st==='plan_ready') return h + bot(`${ic('orch')}VIKTOR<span class="tm2">plan · nothing has run yet</span>`, actionBanner(d) + pipelineBlock(d));
   if(st==='running' || st==='queued' || st==='blocked'){
     const hero = (d.plan||[]).find(s=>s.status==='running');
-    return h + bot(`${orb(hero?orbFor(hero.agent):'solving',20)}${hero?esc(hero.agent.toUpperCase()):'VICTOR'}<span class="tm2">${hero?'working now':'planning'}</span>`, `<div style="display:flex;gap:16px;align-items:center"><div style="flex:none">${orb(hero?orbFor(hero.agent):'solving',64)}</div><div style="flex:1;min-width:0">${actionBanner(d)}</div></div>`) + workBlock(d) + pipeFold(d, true);
+    return h + bot(`${orb(hero?orbFor(hero.agent):'solving',20)}${hero?esc(hero.agent.toUpperCase()):'VIKTOR'}<span class="tm2">${hero?'working now':'planning'}</span>`, `<div style="display:flex;gap:16px;align-items:center"><div style="flex:none">${orb(hero?orbFor(hero.agent):'solving',64)}</div><div style="flex:1;min-width:0">${actionBanner(d)}</div></div>`) + workBlock(d) + pipeFold(d, true);
   }
   const who = st==='awaiting_review' ? `${ic('orch')}REVIEW<span class="tm2">YOUR TURN · nothing has touched the project</span>` : `${ic('orch')}${esc(sname(st))}`;
   // Order matters: what happened, then whether it can be trusted, then who did
@@ -719,7 +719,7 @@ function tbarHtml(d){
 // Printing the commands under the box told you they existed but not what they
 // took. These are the real lists, filtered as you type.
 const SLASH = [
-  ['run', 'start the pipeline Victor planned'],
+  ['run', 'start the pipeline Viktor planned'],
   ['pause', 'stop the agents where they are'],
   ['resume', 'carry on from where it paused'],
   ['apply', 'merge the working copy into your project'],
@@ -727,7 +727,7 @@ const SLASH = [
   ['archive', 'put it away without deciding — keeps everything'],
   ['retry', 'run it again from the start'],
   ['status', 'steps done, and how long it has taken'],
-  ['defaults', 'answer Victor with his own suggestions'],
+  ['defaults', 'answer Viktor with his own suggestions'],
   ['changes <text>', 'ask for a change in words'],
 ];
 let MENU = {items: [], sel: 0, kind: null};
@@ -936,9 +936,9 @@ function actionBanner(d){
   const b = (id, cls, txt) => `<button class="btn ${cls||''}" id="${id}">${txt}</button>`;
   let cls='', title='', text='', btns='', dest='';
   if(st==='needs_input'){ cls='answer'; title='YOUR TURN · REPLY';
-    text=`Victor needs ${d.questions.length} answer${d.questions.length>1?'s':''} before it can plan. Nothing has been planned or run yet. Answer in the yellow card below, or take the ★ defaults.`; btns=b('m-discard','stop','DISCARD'); }
+    text=`Viktor needs ${d.questions.length} answer${d.questions.length>1?'s':''} before it can plan. Nothing has been planned or run yet. Answer in the yellow card below, or take the ★ defaults.`; btns=b('m-discard','stop','DISCARD'); }
   else if(st==='plan_ready'){ cls='dispatch'; title='YOUR TURN · APPROVE';
-    text=`Victor finished planning in <b>${os.orch ? fmtS(os.orch) : 'a few seconds'}</b>: <b>${n} step${n===1?'':'s'}</b>. <b>Nothing has run yet</b> — RUN PIPELINE is what starts the agents. Read the pipeline below (click a step to change its agent, model or instructions), then press RUN PIPELINE.`;
+    text=`Viktor finished planning in <b>${os.orch ? fmtS(os.orch) : 'a few seconds'}</b>: <b>${n} step${n===1?'':'s'}</b>. <b>Nothing has run yet</b> — RUN PIPELINE is what starts the agents. Read the pipeline below (click a step to change its agent, model or instructions), then press RUN PIPELINE.`;
     btns=b('m-runplan','go',`RUN PIPELINE (${n} steps)`)+`<label class="ck" style="display:inline-flex;margin:0"><input type="checkbox" id="m-usesug"> use the suggested model per agent</label>`+b('m-discard','stop','DISCARD'); }
   else if(st==='awaiting_review'){ cls='review'; title='YOUR TURN · REVIEW';
     text=`Finished in <b>${fmtS(t)}</b>${d.verify?` · hub checks ${d.verify.ok?'passed ✓':'failed ✗'}`:''}. Nothing has touched your project yet.`;
@@ -947,7 +947,7 @@ function actionBanner(d){
   else if(st==='paused'){ cls='paused'; title='PAUSED';
     text=`${esc(d.error||'')} Finished steps are kept. RESUME re-runs the interrupted step and carries on; or open any step and press RE-RUN FROM THIS STEP.`; btns=b('m-resume','go','RESUME')+b('m-discard','stop','DISCARD'); }
   else if(st==='running'){ cls='run';
-    title = cur ? `WORKING · step ${done+1} of ${n}: ${cur.agent}` : (n ? 'WORKING · hub checks / review' : 'WORKING · Victor is planning');
+    title = cur ? `WORKING · step ${done+1} of ${n}: ${cur.agent}` : (n ? 'WORKING · hub checks / review' : 'WORKING · Viktor is planning');
     text='Nothing needs you right now. The bar and dots update live; click a step to read its transcript as it happens.'; btns=b('m-abort','stop',(d.kind==='orchestrator'&&n)?'PAUSE':'ABORT')+b('m-archive','',ic('archive')+'ARCHIVE'); }
   else if(st==='failed'||st==='timed_out'){ cls='fail'; title='STOPPED · '+sname(st);
     text=esc(d.error||'The run stopped.'); btns=((n&&d.kind==='orchestrator')?b('m-resume','go','RESUME'):'')+b('m-retry','','RETRY')+(fb?b('m-retryfb','',`RETRY ON ${esc(fb)}`):'')+b('m-discard','stop','DISCARD')+b('m-archive','',ic('archive')+'ARCHIVE')+b('m-forget','','CLEAR'); }
@@ -1051,7 +1051,7 @@ function timeBar(d){
   if(!items.length) return '';
   const tot = items.reduce((a,n)=>a+(os[n.id]||0),0) || 1;
   const n = (d.plan||[]).length, done = (d.plan||[]).filter(s=>s.status==='done').length;
-  const lab = (x) => x.id==='orch' ? 'victor' : x.id==='gate' ? 'hub checks' : (x.step ? x.step.agent : x.name.toLowerCase());
+  const lab = (x) => x.id==='orch' ? 'viktor' : x.id==='gate' ? 'hub checks' : (x.step ? x.step.agent : x.name.toLowerCase());
   const segs = items.map(x=>{ const secs = os[x.id]||0, st = nodeState(d,x);
     return `<span class="ts ${st}" style="flex:${Math.max(secs, tot*0.05)}" title="${esc(lab(x))} · ${fmtS(secs)}">${secs/tot>0.13?esc(lab(x)):''}</span>`; }).join('');
   const leg = items.map(x=>`<b>${esc(lab(x))}</b> ${fmtS(os[x.id]||0)}`).join(' · ');
@@ -1095,7 +1095,7 @@ function stepModel(d, st){                        // same order the hub uses: st
 function pipeGraph(d){
   const steps = (d.plan && d.plan.length) ? d.plan : synthSteps(d);
   const hasOrch = d.kind==='orchestrator';
-  const nodes = hasOrch ? [{id:'orch',name:'VICTOR',kind:'agent',deps:[]}] : [];      // the ask itself is the page title
+  const nodes = hasOrch ? [{id:'orch',name:'VIKTOR',kind:'agent',deps:[]}] : [];      // the ask itself is the page title
   if(steps.length){
     const order = topoSteps(steps);
     const firstRO = order.findIndex(x=>RO.includes(x.agent));
@@ -1201,7 +1201,7 @@ function pipelineBlock(d){
       <div class="hd"><span class="dot ${s==='proposed'?'plan_ready':s==='fail'?'failed':s==='wait'?'needs_input':s==='done'?'awaiting_review':s}"></span>${n.name}<span class="tm">${tm}</span></div>
       <div class="tg">${esc(tg)}</div>${i?`<span class="io"><em>IN</em>${esc(i)}</span>`:''}${o?`<span class="io o"><em>OUT</em>${esc(o)}</span>`:''}${act?`<div class="st">${esc(act)}</div>`:''}</button>`;
   }).join('');
-  return `<h2>${(d.plan||[]).length?'Pipeline — who does what, in order':'Pipeline — appears once Victor has planned'}</h2>
+  return `<h2>${(d.plan||[]).length?'Pipeline — who does what, in order':'Pipeline — appears once Viktor has planned'}</h2>
     ${askOpen ? askBlock(d) : ''}
     <div class="cv" id="cv"><div class="pwrap" id="pwrap"><div class="pcanvas" id="pcanvas" style="width:${g.w}px;height:${g.h}px"><svg><defs><marker id="pa" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="rgba(0,230,118,.8)"/></marker><marker id="pap" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#b07cd6"/></marker></defs>${ed}</svg>${nd}</div></div>
       <div class="pleg"><span>solid box = LLM agent</span><span>dashed box = hub-run (no LLM)</span><span style="color:var(--purple)">purple = planned, not dispatched</span><span>click a box for its brief, result, model, transcript</span></div></div>
@@ -1229,7 +1229,7 @@ function pipeDrawer(d,g,sel){
        + ((sg&&sg.files||[]).length ? `<span>wrote</span><span>${esc(sg.files.join(', '))}</span>` : '')
        + (recPick(st.agent) ? `<span>suggested</span><span>${esc(recPick(st.agent))}${st.model?` · pinned: ${esc(st.model)}`:''}</span>` : '');
     body = d.status==='plan_ready' ? stepEditor(d, st) :
-           `<div class="lb">ITS BRIEF (from Victor)</div><pre>${esc(st.brief)}</pre>`
+           `<div class="lb">ITS BRIEF (from Viktor)</div><pre>${esc(st.brief)}</pre>`
          + (st.summary ? `<div class="lb">WHAT IT REPORTED</div><pre>${esc(st.summary)}</pre>` : '');
   }
   return `<b style="font-size:13px">${esc(n.name)}</b> <span class="pill">${lab}</span><div class="kv">${kv}</div>${body}
@@ -1276,7 +1276,7 @@ async function loadNodeRows(d){
 }
 function askBlock(d){
   const sel = ASKSEL[d.id] = ASKSEL[d.id] || {};
-  return `<div class="ask" id="askcard"><h3>VICTOR NEEDS YOUR INPUT · ${d.questions.length} QUESTION${d.questions.length>1?'S':''}</h3>
+  return `<div class="ask" id="askcard"><h3>VIKTOR NEEDS YOUR INPUT · ${d.questions.length} QUESTION${d.questions.length>1?'S':''}</h3>
     ${d.questions.map((q,i)=>`<div class="q"><b>${esc(q.q)}</b>${q.why?`<i>${esc(q.why)}</i>`:''}
       <div class="chips" data-qi="${i}">${(q.options||[]).map(o=>`<button type="button" class="pick ${o===q.default?'rec':''} ${((sel[i]!=null?sel[i]:q.default)===o)?'sel':''}" data-v="${esc(o)}">${esc(o)}</button>`).join('')}</div>
       <input type="text" data-qi="${i}" placeholder="or type your own answer" value="${esc((q.options||[]).includes(sel[i])||sel[i]==null?'':sel[i])}"></div>`).join('')}
@@ -1397,7 +1397,7 @@ function newMission(preProject){
         ${[['orchestrator','Orchestrated (recommended)'],['single','Direct — one agent'],['team','Team relay'],['parallel','Parallel drafts']].map(([v,t],i)=>
           `<label style="display:flex;gap:6px;align-items:center;margin:0;color:var(--text)"><input type="radio" name="nm-kind" value="${v}" ${i===0?'checked':''} style="width:auto"> ${t}</label>`).join('')}
       </div>
-      <div class="note" style="color:var(--text-muted)">Orchestrated: Victor (the orchestrator) asks you what he needs, plans, then a pipeline of agents runs in one working copy — you approve the plan, review the result, APPLY.</div>
+      <div class="note" style="color:var(--text-muted)">Orchestrated: Viktor (the orchestrator) asks you what he needs, plans, then a pipeline of agents runs in one working copy — you approve the plan, review the result, APPLY.</div>
 
       <div id="nm-m-single" style="display:none"><label>Agent</label><select id="nm-agent">${agentSel}</select></div>
 
@@ -1414,7 +1414,7 @@ function newMission(preProject){
       </div>
 
       <div id="nm-m-orch">
-        <label>Agents Victor may put in his plan</label>
+        <label>Agents Viktor may put in his plan</label>
         <div class="cklist" id="nm-oa-list"></div>
         <div class="note" style="color:var(--text-faint)">Tick one project above (the pipeline runs in a copy of it).</div>
       </div>
@@ -1471,7 +1471,7 @@ function newMission(preProject){
     if(PMODE==='existing'){
       $('nm-proj').style.display   = multi?'none':'block';
       $('nm-pmulti').style.display = multi?'flex':'none';
-      $('nm-phint').textContent = multi ? 'tick every project Victor may touch' : '';
+      $('nm-phint').textContent = multi ? 'tick every project Viktor may touch' : '';
     }
   }
   document.querySelectorAll('input[name=nm-kind]').forEach(r=>r.onchange=syncMode);

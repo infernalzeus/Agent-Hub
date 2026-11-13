@@ -450,7 +450,7 @@ def _load_persona(name: str) -> dict | None:
     return {"frontmatter": fm, "body": body.strip()}
 
 
-AGENT_NAMES = {"smith": ("Smith", "Voice of the Hub"), "orchestrator": ("Victor", "Orchestrator"), "neo": ("Neo", "Agent designer"), "doctor": ("Doctor", "Hub doctor")}
+AGENT_NAMES = {"smith": ("Smith", "Voice of the Hub"), "orchestrator": ("Viktor", "Orchestrator"), "neo": ("Neo", "Agent designer"), "doctor": ("Doctor", "Hub doctor")}
 # Talk, the Agency page, the map of who calls whom, the Missions page and the website all read their names from here (the website is built from it by tools/build_site.py).
 
 
@@ -594,7 +594,9 @@ def effective_settings(name: str) -> dict:
         if use:
             for k in ("temperature", "top_p"):
                 if out[k]["source"] != "override":
-                    out[k] = {"value": use[k], "source": "preset", "note": f"the {use['name']} preset, picked by the tally for this role"}
+                    out[k] = {"value": use[k], "source": "preset", "note": f"the {use['name']} preset, {use['by'] == 'you' and 'chosen by you' or 'picked by the tally'} for this role"}
+            have = out["options"]["value"]
+            out["options"] = {"value": {**use["options"], **have}, "source": "preset" if not have else "override"}      # your own options win key by key
     except Exception:  # noqa: BLE001
         pass
     return out
@@ -840,13 +842,23 @@ def render_agent_file(name: str, *, subdir: str, roster: list[str],
                 out_fm[key] = float(v)
             except Exception:
                 pass
+    try:                                      # the preset chosen for this agent (or picked by the tally in apply mode) fills what was not set by hand
+        from ..yard import presets as _PRE
+        use = _PRE.applied(name)
+        if use:
+            for key in ("temperature", "top_p"):
+                if ov.get(key) in (None, ""):
+                    out_fm[key] = use[key]
+            out_fm["options"] = {**use["options"], **(ov.get("options") if isinstance(ov.get("options"), dict) else {})}
+    except Exception:
+        pass
     steps = ov.get("steps", fm.get("steps"))
     if steps not in (None, ""):
         try:
             out_fm["steps"] = int(steps)
         except Exception:
             pass
-    if isinstance(ov.get("options"), dict) and ov["options"]:
+    if isinstance(ov.get("options"), dict) and ov["options"] and "options" not in out_fm:
         out_fm["options"] = ov["options"]
 
     out_fm["permission"] = perm

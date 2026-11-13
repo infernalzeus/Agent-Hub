@@ -127,6 +127,7 @@ def test_the_panel_has_scores_routines_with_a_fresh_start_and_smaller_type(hub):
         pg.click("[data-tab=scores]")
         pg.wait_for_function("document.querySelectorAll('#fit tr').length>=5")
         pg.wait_for_function("document.querySelectorAll('#chal tr').length>=7")           # tally, thompson and linucb behind two choices
+        pg.click("#chalbtn")                                             # the methods table is closed until you open it
         txt = pg.inner_text("#tab-scores")
         for word in ("Route", "Task confidence", "Control (yard)", "METHODS BEHIND EACH CHOICE", "thompson", "linucb", "Gate for a new version"):
             assert word in txt, word

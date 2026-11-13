@@ -668,7 +668,11 @@ function focusKb(){if($('ctl').checked)$('kb').focus({preventScroll:true});}
 pic.addEventListener('pointerdown',focusKb);pic.addEventListener('touchstart',focusKb,{passive:true});
 const tgt=()=>($('vid').hidden?pic:$('vid'));
 // VIDEO: where the browser plays HLS itself (Safari, the iPhone), the window can be watched as real video instead of pictures. It is asked for, never automatic; a phone cannot hold pictures at that rate, but it decodes video in hardware.
-var vidOn=false;
+var vidOn=false,beatTimer=0;
+// What this page tells the Hub while it plays: alive every 4 s, and at once when it waits, stalls, errors or leaves (the Hub's log and /api/windows/video/report keep it; silence without a goodbye is how a crash shows).
+function beat(kind){try{const v=$('vid'),q=v.getVideoPlaybackQuality?v.getVideoPlaybackQuality():{},view=(()=>{try{return parent.__hubBoard.active.view().mode();}catch(e){return window===top?'page':'';}})();
+  navigator.sendBeacon('/api/windows/video/beat',new Blob([JSON.stringify({id:cur,kind,t:Math.round(v.currentTime*10)/10,ready:v.readyState,dropped:q.droppedVideoFrames,total:q.totalVideoFrames,view,moving:!!moving})],{type:'application/json'}));}catch(e){}}
+['waiting','stalled','error'].forEach(n=>$('vid').addEventListener(n,()=>{if(vidOn)beat(n);}));
 const canHls=!!document.createElement('video').canPlayType('application/vnd.apple.mpegurl');
 if(canHls)$('vidbtn').hidden=false;
 async function videoStart(){
@@ -677,16 +681,16 @@ async function videoStart(){
   if(!j.ok){vidOn=false;$('vidbtn').classList.remove('on');$('note').textContent=j.error||'The video did not start.';return false;}
   vidOn=true;$('vidbtn').classList.add('on');$('vidbtn').textContent='PICTURES';
   if(typeof clearMobile==='function')clearMobile();pollGen++;clearTimeout(streamT);pic.removeAttribute('src');pic.hidden=true;
-  const v=$('vid');v.hidden=false;v.src=j.playlist;v.play&&v.play().catch(()=>{});
+  const v=$('vid');v.hidden=false;v.src=j.playlist;v.play&&v.play().catch(()=>{});beat('start');beatTimer=setInterval(()=>beat('beat'),4000);
   $('note').textContent='Live video ('+j.encoder+', '+j.fps+' a second, no sound).';return true;}
 async function videoStop(){
-  vidOn=false;$('vidbtn').classList.remove('on');$('vidbtn').textContent='VIDEO';
+  clearInterval(beatTimer);beat('stop');vidOn=false;$('vidbtn').classList.remove('on');$('vidbtn').textContent='VIDEO';
   const v=$('vid');v.pause&&v.pause();v.removeAttribute('src');v.load&&v.load();v.hidden=true;pic.hidden=false;
   try{await fetch('/api/windows/'+cur+'/video/stop',{method:'POST'});}catch(e){}
   start();}
 $('vidbtn').onclick=()=>vidOn?videoStop():videoStart();
 $('vid').onclick=e=>pic.onclick(e);
-addEventListener('pagehide',()=>{if(vidOn){try{navigator.sendBeacon('/api/windows/'+cur+'/video/stop');}catch(e){}}});
+addEventListener('pagehide',()=>{if(vidOn){beat('pagehide');try{navigator.sendBeacon('/api/windows/'+cur+'/video/stop');}catch(e){}}});
 pic.onclick=async e=>{if(!on())return;focusKb();const r=tgt().getBoundingClientRect();
   const x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;const x2=await post('/click',{x,y});
   $('note').textContent=x2.ok?'Clicked. Type in the box above, the keyboard is for it.':'That click did not land.';focusKb();};

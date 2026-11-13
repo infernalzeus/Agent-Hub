@@ -125,6 +125,48 @@ def status() -> dict:
     return {"running": bool(cur), "window": cur and cur["id"], "encoder": cur and cur["encoder"], "mode": cur and cur["mode"], "ffmpeg": bool(ffmpeg_path())}
 
 
+# ---- what the phone says while it watches: the only crash report Safari gives us is silence
+BEATS: list = []                                   # the last 300 things the page said: {"at", "id", "kind", "t", "ready", "dropped", "total", "view", "ua", ...}
+
+
+@routes.post("/api/windows/video/beat")
+async def api_beat(request: web.Request) -> web.Response:
+    """The page watching a video says, every 4 seconds, that it is alive, and at once when it waits, stalls, errors or leaves. A page that stops saying anything while the stream is still being
+    fetched, and never said it was leaving, has crashed (or the phone slept)."""
+    try:
+        b = await request.json()
+    except Exception:  # noqa: BLE001
+        raise web.HTTPBadRequest(text="json please")
+    row = {"at": time.time(), "id": b.get("id"), "kind": str(b.get("kind") or "beat")[:20], "t": b.get("t"), "ready": b.get("ready"), "dropped": b.get("dropped"), "total": b.get("total"),
+           "view": str(b.get("view") or "")[:12], "moving": bool(b.get("moving")), "ua": request.headers.get("User-Agent", "")[:60]}
+    BEATS.append(row)
+    del BEATS[:-300]
+    if row["kind"] != "beat":
+        logger.info("window video: the page reports %s (window %s, board view %s, %s dropped of %s frames)", row["kind"], row["id"], row["view"] or "?", row["dropped"], row["total"])
+    return web.json_response({"ok": True})
+
+
+def report() -> dict:
+    """What happened in the last video session, in words: how long it ran, what the page reported, and whether it went quiet without saying goodbye."""
+    if not BEATS:
+        return {"seen": False, "say": "No phone has reported watching a video yet."}
+    last = BEATS[-1]
+    start = next((r for r in reversed(BEATS) if r["kind"] == "start"), BEATS[0])
+    mine = [r for r in BEATS if r["at"] >= start["at"]]
+    bad = [r["kind"] for r in mine if r["kind"] in ("waiting", "stalled", "error")]
+    left = any(r["kind"] == "pagehide" for r in mine)
+    quiet = time.time() - last["at"]
+    cur = _RUN.get("cur")
+    verdict = ("left normally" if left else f"went quiet {int(quiet)} s ago without saying goodbye while the stream " + ("is still being fetched: the page most likely crashed" if cur and time.time() - cur["last"] < 8 else "had already stopped") if quiet > 12 else "is still reporting")
+    return {"seen": True, "ran_seconds": int(last["at"] - start["at"]), "view": last["view"], "problems": {k: bad.count(k) for k in set(bad)}, "dropped": last.get("dropped"), "total": last.get("total"),
+            "verdict": verdict, "say": f"Video on the {last['view'] or '?'} board ran {int(last['at'] - start['at'])} s; " + (", ".join(f"{bad.count(k)} {k}" for k in set(bad)) or "no stalls") + f"; the page {verdict}."}
+
+
+@routes.get("/api/windows/video/report")
+async def api_report(request: web.Request) -> web.Response:
+    return web.json_response(report())
+
+
 @routes.get("/api/windows/video")
 async def api_status(request: web.Request) -> web.Response:
     return web.json_response(status())

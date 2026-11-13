@@ -68,3 +68,31 @@ def test_a_stream_nobody_watches_stops(monkeypatch):
         await asyncio.sleep(5)
         assert V.status()["running"] is False
     _run(go())
+
+
+def test_the_phones_heartbeat_becomes_a_crash_report_in_words(monkeypatch):
+    import time
+    V.BEATS.clear()
+    assert V.report()["seen"] is False
+
+    async def post(c, **kw):
+        return await c.post("/api/windows/video/beat", json=kw)
+
+    async def go():
+        app = web.Application()
+        app.add_routes(V.routes)
+        async with TestClient(TestServer(app)) as c:
+            await post(c, id=5, kind="start", t=0, ready=4, view="3d")
+            await post(c, id=5, kind="beat", t=4, ready=4, dropped=0, total=120, view="3d")
+            await post(c, id=5, kind="stalled", t=5, ready=2, view="3d")
+            await post(c, id=5, kind="beat", t=9, ready=4, dropped=3, total=240, view="3d")
+            j = await (await c.get("/api/windows/video/report")).json()
+            assert j["seen"] and j["problems"] == {"stalled": 1} and j["view"] == "3d" and "still reporting" in j["verdict"], j
+            V.BEATS[-1]["at"] -= 30                                                        # the phone goes quiet, no goodbye
+            monkeypatch.setitem(V._RUN, "cur", {"id": 5, "last": time.time(), "proc": None, "dir": None})
+            j = await (await c.get("/api/windows/video/report")).json()
+            assert "most likely crashed" in j["verdict"], j
+            await post(c, id=5, kind="pagehide", view="3d")
+            assert "left normally" in (await (await c.get("/api/windows/video/report")).json())["verdict"]
+    _run(go())
+    V._RUN.pop("cur", None)

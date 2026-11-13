@@ -175,10 +175,10 @@ TALK_PHONE = [
 AGENTS = [('smith', 'Agent Smith', 'Hears you, answers aloud and sends each request the right way. Never acts alone.', ['Router', 'Desktop agent', 'Neo', 'Doctor'], 'Press TALK or type.'),
  ('router', 'The router', 'Sorts a request before any model is used, and learns from your grades.', ['Routine', 'Mission', 'PC task', 'Media'], 'Grade its choices in TEACH.'),
  ('orchestrator', 'orchestrator', 'Plans a mission as briefs for the other agents. Writes no code.', ['To coder', 'To tester', 'To reviewer'], 'Answer if it asks.'),
- ('coder', 'coder', 'Makes the change in a private copy. Your repo stays put until APPLY.', ['From Victor', 'To reviewer'], 'Read the diff.'),
+ ('coder', 'coder', 'Makes the change in a private copy. Your repo stays put until APPLY.', ['From Viktor', 'To reviewer'], 'Read the diff.'),
  ('reviewer', 'reviewer', 'Read-only skeptic: ship, changes-needed or blocked.', ['From coder'], 'Read its verdict.'),
- ('tester', 'tester', 'Writes and runs the tests, reports what failed.', ['From Victor'], 'Read the failures.'),
- ('researcher', 'researcher', 'Reads code, docs and the web. Read-only.', ['From Victor'], 'Read the findings.'),
+ ('tester', 'tester', 'Writes and runs the tests, reports what failed.', ['From Viktor'], 'Read the failures.'),
+ ('researcher', 'researcher', 'Reads code, docs and the web. Read-only.', ['From Viktor'], 'Read the findings.'),
  ('neo', 'Neo', 'Designs a new agent from a description. Ten more roles ship ready to switch on.', ['From Smith', 'To your team'], 'Describe the job, save the file.'),
  ('doctor', 'The Doctor', 'Diagnoses the Hub and proposes a fix. You press APPLY and restart.', ['Mission', 'Checks', 'Your APPLY'], 'Review the diff.'),
  ('desktop-agent', 'Desktop agent', 'Works inside Windows apps. Says so when it cannot find something.', ['Windows only', 'Local model'], 'Approve the press.')]
@@ -223,7 +223,7 @@ def agents_body():
     principal = [next(a for a in AGENTS if a[0]==key) for key in ("orchestrator","neo","smith","doctor")]
     lis=[]
     for i,(img,name,role,ch,you) in enumerate(principal):
-        role = {'orchestrator': 'Victor, the orchestrator. Turns your goal into scoped briefs, assigns the right specialists and manages dependencies between their tasks. Brings their results back for review. Plans and delegates; it does not edit project code.', 'smith': 'Your voice and text front door to the Hub. Checks known commands and routines, then routes your request to a tool, desktop task, helper or mission. You can ask follow-up questions in the same conversation.', 'neo': 'Designs agents for the job you describe. Drafts their responsibilities, instructions and working preferences as an editable persona. You review and save the definition before adding that agent to your team.', 'doctor': 'Investigates Hub problems using current diagnostics, logs and configuration. Explains the likely cause and proposes a repair in a private working copy. You review the diff, choose APPLY and decide when to restart.'}[img]
+        role = {'orchestrator': 'Viktor, the orchestrator. Turns your goal into scoped briefs, assigns the right specialists and manages dependencies between their tasks. Brings their results back for review. Plans and delegates; it does not edit project code.', 'smith': 'Your voice and text front door to the Hub. Checks known commands and routines, then routes your request to a tool, desktop task, helper or mission. You can ask follow-up questions in the same conversation.', 'neo': 'Designs agents for the job you describe. Drafts their responsibilities, instructions and working preferences as an editable persona. You review and save the definition before adding that agent to your team.', 'doctor': 'Investigates Hub problems using current diagnostics, logs and configuration. Explains the likely cause and proposes a repair in a private working copy. You review the diff, choose APPLY and decide when to restart.'}[img]
         definition=role
         if img in ('orchestrator','neo'):
             definition=(Path(__file__).resolve().parent.parent/'hub/agent_knowledge/agents'/f'{img}.md').read_text(encoding='utf-8').split('---',2)[-1].strip()
@@ -253,10 +253,10 @@ def agents_body():
         '<button type="button" class="ui-btn" data-work-example="calculator" aria-pressed="true">Simple ask</button>'
         '<button type="button" class="ui-btn" data-work-example="launch" aria-pressed="false">Bigger ask</button></div>'
         '<article data-work-scenario="calculator"><h3>Build a simple calculator</h3>'
-        '<p>Victor, the orchestrator, briefs one coder to build a calculator with four operations and handle invalid input. The coder returns the working change for your review.</p>'
+        '<p>Viktor, the orchestrator, briefs one coder to build a calculator with four operations and handle invalid input. The coder returns the working change for your review.</p>'
         '<ol class="work-briefs"><li><b>Coder</b><span>Implement the calculator and check the basic cases.</span></li></ol></article>'
         '<article data-work-scenario="launch" hidden><h3>Build and launch a calculator site</h3>'
-        '<p>Victor breaks the request into briefs. The crew grows with the task, and briefs that depend on earlier work run after it.</p>'
+        '<p>Viktor breaks the request into briefs. The crew grows with the task, and briefs that depend on earlier work run after it.</p>'
         '<ol class="work-briefs"><li><b>Designer</b><span>Sketch the interface for phone and desktop.</span></li>'
         '<li><b>Coder</b><span>Build the calculator and integrate the design.</span></li>'
         '<li><b>Copywriter</b><span>Draft the launch page and social copy for the intended audience.</span></li>'

@@ -17,6 +17,15 @@ import json
 import random
 import re
 import time
+from contextvars import ContextVar
+
+from aiohttp import web
+
+routes = web.RouteTableDef()
+CORE = ("smith", "orchestrator", "neo", "doctor")                  # the four agents you talk to; each can be given a preset of its own
+DESCRIBE = {"precise": "same answer each time; short and exact", "balanced": "the usual mix", "varied": "more different each time; more ideas, less repeatable",
+            "terse": "very short answers", "long": "room for long answers"}
+_AS: ContextVar = ContextVar("preset_as", default={})              # {persona: role}: for the length of one call, a persona speaks with another role's preset (the Doctor's answers use "researcher")
 
 PRESETS = {
     "precise": {"temperature": 0.0, "top_k": 20, "top_p": 0.8, "min_p": 0.05, "presence_penalty": 0.0, "frequency_penalty": 0.0, "max_tokens": 1024},
@@ -161,18 +170,73 @@ def note_mission(m) -> "list[dict]":
         return []
 
 
-def applied(role: str) -> "dict | None":
-    """What an agent should use now, only in APPLY mode and only once a pick exists: {"name", "temperature", "top_p"}."""
+def choices() -> dict:
     try:
-        if mode() != "apply":
+        d = json.loads((_dir() / "preset_choice.json").read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def set_choice(role: str, name: str) -> None:
+    """name: a preset, "tally" (follow what the tally picks) or "" / "own" (the agent's own settings)."""
+    d = choices()
+    if name in PRESETS or name == "tally":
+        d[role] = name
+    else:
+        d.pop(role, None)
+    _dir().mkdir(parents=True, exist_ok=True)
+    (_dir() / "preset_choice.json").write_text(json.dumps(d), encoding="utf-8")
+
+
+def applied(role: str) -> "dict | None":
+    """What an agent uses now besides its own settings: the preset YOU chose for it, or (choice "tally", or APPLY mode with no choice) the one the tally picked. {"name", "by", and the settings}."""
+    try:
+        role = _AS.get().get(role, role)
+        c = choices().get(role, "")
+        if c in PRESETS:
+            by, name = "you", c
+        elif c == "tally" or (not c and mode() == "apply"):
+            p = _picks().get(role)
+            if not p or p.get("name") not in PRESETS:
+                return None
+            by, name = "the tally", p["name"]
+        else:
             return None
-        p = _picks().get(role)
-        if not p or p.get("name") not in PRESETS:
-            return None
-        v = PRESETS[p["name"]]
-        return {"name": p["name"], "temperature": v["temperature"], "top_p": v["top_p"]}
+        v = PRESETS[name]
+        return {"name": name, "by": by, "temperature": v["temperature"], "top_p": v["top_p"],
+                "options": {k: v[k] for k in ("top_k", "min_p", "presence_penalty", "frequency_penalty") if k in v} | {"num_predict": v["max_tokens"]}}
     except Exception:  # noqa: BLE001
         return None
+
+
+def speaking_as(persona: str, role: str):
+    """A context in which `persona` uses `role`'s preset (Talk gives the Doctor's answers to the researcher persona)."""
+    class _Ctx:
+        def __enter__(self):
+            self.t = _AS.set({**_AS.get(), persona: role})
+
+        def __exit__(self, *a):
+            _AS.reset(self.t)
+    return _Ctx()
+
+
+@routes.get("/api/agents/presets")
+async def api_presets(request: web.Request) -> web.Response:
+    return web.json_response({"presets": {n: {**v, "about": DESCRIBE[n]} for n, v in PRESETS.items()}, "choices": choices(), "core": list(CORE), "mode": mode()})
+
+
+@routes.post("/api/agents/{role}/preset")
+async def api_set_preset(request: web.Request) -> web.Response:
+    role = request.match_info["role"]
+    if role not in CORE:
+        raise web.HTTPNotFound(text="presets are chosen for Smith, the Orchestrator, Neo and the Doctor")
+    try:
+        name = str((await request.json()).get("preset") or "")
+    except Exception:  # noqa: BLE001
+        raise web.HTTPBadRequest(text='send {"preset": "precise"}')
+    set_choice(role, name)
+    return web.json_response({"ok": True, "choices": choices()})
 
 
 def summary() -> dict:

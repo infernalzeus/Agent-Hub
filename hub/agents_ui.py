@@ -689,6 +689,7 @@ const SMITH_A = '/static/agent-icons/smith.png';
 
 async function load(){
   DATA = await jget('/api/agents');
+  if (typeof agLoadPresets === 'function') await agLoadPresets();
   try { RECS = await jget('/api/model-recommendations'); } catch(e){ RECS = {}; }
   try { PROFILES = (await jget('/api/profiles')).profiles || {}; } catch(e){ PROFILES = {}; }
   try { HELPERS = (await jget('/api/hub/helpers')).helpers || []; } catch(e){ HELPERS = []; }

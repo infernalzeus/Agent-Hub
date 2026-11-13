@@ -108,7 +108,12 @@ def _unlabelled(limit: int = 100) -> "tuple[list[dict], int]":
 async def api_items(request: web.Request) -> web.Response:
     from ..features import binning as BIN
     items, left = _unlabelled()
-    return web.json_response({"order": "most useful first: unsure decisions before obvious ones", "items": items, "left": left, "bins": [{"id": b, "help": BIN_HELP.get(b, "")} for b in BIN.BINS], "causes": CAUSES})
+    from ..yard import settings as YS
+    rows = BIN._rows()
+    said = [r for r in rows if r.get("kind") not in ("outcome", "verdict") and r.get("at") and r.get("text")]
+    since = YS.fresh_since()
+    status = {"logged": len(said), "since_fresh": sum(1 for r in said if not since or r["at"] >= since), "last": max((r["at"] for r in said), default=0), "fresh": since}
+    return web.json_response({"status": status, "order": "most useful first: unsure decisions before obvious ones", "items": items, "left": left, "bins": [{"id": b, "help": BIN_HELP.get(b, "")} for b in BIN.BINS], "causes": CAUSES})
 
 
 @routes.post("/api/learning/teach")
@@ -271,7 +276,7 @@ textarea{width:100%;font:14px Outfit,system-ui,sans-serif;color:var(--text);back
 (function(){
   let items=[],bins=[],causes={},i=0,left=0;
   const $=id=>document.getElementById(id),el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;};
-  async function load(){const r=await fetch('/api/learning/teach',{cache:'no-store'});const j=await r.json();items=j.items;bins=j.bins;causes=j.causes||{};left=j.left;i=0;show();}
+  async function load(){const r=await fetch('/api/learning/teach',{cache:'no-store'});const j=await r.json();items=j.items;window.__teachStatus=j.status||{};bins=j.bins;causes=j.causes||{};left=j.left;i=0;show();}
   function help(b){const x=bins.find(y=>y.id===b);return x&&x.help?x.help:b;}
   async function send(url,body,next){try{await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});}catch(e){}next();}
   // PARTLY and WRONG ask what actually happened: whose fault it was (a garbled transcript is not the router's), which step, and your own words
@@ -290,7 +295,7 @@ textarea{width:100%;font:14px Outfit,system-ui,sans-serif;color:var(--text);back
   function show(){
     const c=$('card');c.replaceChildren();$('count').textContent=left?left+' left to answer. SKIP hides one for good.':'';
     const it=items[i];
-    if(!it){c.appendChild(el('div','card',left?'That is the batch. Reload for more.':'Nothing left to answer. Thank you.'));return;}
+    if(!it){const s=window.__teachStatus||{};const msg=left?'That is the batch. Reload for more.':(s.logged===0?'Nothing has been logged yet.':s.since_fresh===0?'Nothing to answer: '+s.logged+' earlier request'+(s.logged===1?' is':'s are')+' kept apart since the fresh start (the last was '+new Date(s.last*1000).toLocaleDateString()+'), and no new request has been logged since. Requests appear here as you use Talk and the router decides what you meant.':'Nothing left to answer. Thank you.');c.appendChild(el('div','card',msg));return;}
     const card=el('div','card');card.appendChild(el('div','said','“'+it.text+'”'));
     const p=el('div','mute','The Hub took that as: ');p.appendChild(el('span','bin',help(it.chosen)));p.append(' (chosen by '+(it.by==='you'?'your earlier correction':it.by)+')');card.appendChild(p);
     if(it.said)card.appendChild(el('div','mute','It said: '+it.said));

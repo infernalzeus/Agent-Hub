@@ -37,7 +37,7 @@ COVERAGE: "dict[str, dict]" = {
 }
 from ..agent_knowledge import AGENT_NAMES as _AN
 DISPLAY = {k: f"{v[0].lower()} ({v[1].lower()})" for k, v in _AN.items() if k == "orchestrator"}                 # his name and his designation; the id stays "orchestrator"
-_PERSONA_DEFAULT = {"decides": "nothing alone: it is chosen by Victor (the orchestrator) and runs on a model the model bandit picks", "kind": "model", "state": "logged",
+_PERSONA_DEFAULT = {"decides": "nothing alone: it is chosen by Viktor (the orchestrator) and runs on a model the model bandit picks", "kind": "model", "state": "logged",
                     "note": "Its model is logged with the mission result; which persona was picked is logged with your verdict."}
 _UTILITY = {"scout": {"decides": "what an unfamiliar repo needs to be fronted by the Hub", "kind": "none", "state": "by-design",
                       "note": "Runs once per app; the manifest it writes is read and checked by a person."}}

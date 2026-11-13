@@ -26,6 +26,7 @@ def _open(pw, hub, w=1300, h=950):
     errors = []
     pg.on("pageerror", lambda e: errors.append(str(e)))
     pg.goto(hub + "/yard")
+    pg.click("[data-tab=yard]")                                                                  # the panel opens on the overview; these tests are about the flow
     pg.evaluate("localStorage.removeItem('hub-rl-flow')")
     _post(pg, "/api/yard/knobs/reset", {})
     pg.reload()

@@ -82,7 +82,7 @@ def test_the_doctor_diagnoses_a_fault_and_answers_a_question(monkeypatch):
         return {"id": "m1"}
     monkeypatch.setattr(SUP, "start", start)
 
-    async def persona(agent, brief):
+    async def persona(agent, brief, role=None):
         return "The Hub keeps its state in the data folder."
     monkeypatch.setattr(TA, "_persona", persona)
     r = asyncio.run(TA.speak_as("doctor", "the dashboard is broken and nothing opens", [], None, _smith("", [], None)))
@@ -94,7 +94,7 @@ def test_the_doctor_diagnoses_a_fault_and_answers_a_question(monkeypatch):
 def test_neo_drafts_an_agent_but_saves_nothing(monkeypatch):
     seen = []
 
-    async def persona(agent, brief):
+    async def persona(agent, brief, role=None):
         seen.append(agent)
         return "Invoice checker: reads invoices, flags totals that do not add up."
     monkeypatch.setattr(TA, "_persona", persona)
@@ -138,16 +138,16 @@ def test_the_talk_window_sends_the_chosen_speaker_and_a_mission_hands_it_to_the_
         b.close()
 
 
-def test_victor_is_the_orchestrators_name_and_orchestrator_his_designation():
-    assert TA.NAME["orchestrator"] == "Victor" and TA.DESIGNATION["orchestrator"] == "Orchestrator"
-    for said in ("Victor", "Viktor, what is running", "hey victor the orchestrator", "Orchestrator what is running", "Agent Victor stop"):
+def test_viktor_is_the_orchestrators_name_and_orchestrator_his_designation():
+    assert TA.NAME["orchestrator"] == "Viktor" and TA.DESIGNATION["orchestrator"] == "Orchestrator"
+    for said in ("Viktor", "Victor", "Viktor, what is running", "hey viktor the orchestrator", "Orchestrator what is running", "Agent Viktor stop"):
         assert TA.address(said)[0] == "orchestrator", said
 
 
 def test_asking_for_an_agent_moves_the_conversation_and_a_question_about_one_does_not():
-    want = {"Smith, pull up Victor": ("orchestrator", ""), "can I talk to Neo": ("neo", ""), "get the doctor": ("doctor", ""), "put Viktor on": ("orchestrator", ""),
-            "switch to the orchestrator": ("orchestrator", ""), "Hey Smith, can you bring up Victor please": ("orchestrator", ""), "call the doctor": ("doctor", ""),
-            "get Neo to draft an agent that checks invoices": ("neo", "draft an agent that checks invoices"), "ask Victor to run the plan": ("orchestrator", "run the plan"),
+    want = {"Smith, pull up Viktor": ("orchestrator", ""), "can I talk to Neo": ("neo", ""), "get the doctor": ("doctor", ""), "put Viktor on": ("orchestrator", ""),
+            "switch to the orchestrator": ("orchestrator", ""), "Hey Smith, can you bring up Viktor please": ("orchestrator", ""), "call the doctor": ("doctor", ""),
+            "get Neo to draft an agent that checks invoices": ("neo", "draft an agent that checks invoices"), "ask Viktor to run the plan": ("orchestrator", "run the plan"),
             "I want to speak with the Doctor about the slow dashboard": ("doctor", "the slow dashboard")}
     for said, (to, rest) in want.items():
         got = TA.summon(said, "smith")
@@ -157,7 +157,7 @@ def test_asking_for_an_agent_moves_the_conversation_and_a_question_about_one_doe
     assert TA.summon("talk to Smith", "smith")["same"] is True
 
 
-def test_the_talk_window_moves_from_smith_to_victor_with_a_line_from_each(hub):
+def test_the_talk_window_moves_from_smith_to_viktor_with_a_line_from_each(hub):
     """The real chat route and the real window: nothing stubbed but the voice."""
     with sync_playwright() as pw:
         b = pw.chromium.launch(headless=True)
@@ -167,14 +167,35 @@ def test_the_talk_window_moves_from_smith_to_victor_with_a_line_from_each(hub):
         pg.wait_for_function("!!window.__hubBoard && !!window.__hubBoard.active && !!window.HubVoice", timeout=20000)
         pg.evaluate("document.getElementById('voice').hidden=false")
         pg.wait_for_function("document.getElementById('v-name').textContent==='SMITH'", timeout=5000)
-        pg.evaluate("HubVoice.ask('Smith, pull up Victor'); void 0")
+        pg.evaluate("HubVoice.ask('Smith, pull up Viktor'); void 0")
         pg.wait_for_function("document.querySelector('#v-who .on').dataset.who==='orchestrator'", timeout=10000)
-        pg.wait_for_function("document.getElementById('v-name').textContent==='VICTOR'", timeout=5000)
+        pg.wait_for_function("document.getElementById('v-name').textContent==='VIKTOR'", timeout=5000)
         face_on_board = pg.evaluate("(document.querySelector('.talk-btn img')||{}).src||''")
         got = pg.evaluate("""()=>({role:document.getElementById('v-role').textContent,face:document.getElementById('v-face').getAttribute('src'),chip:document.querySelector('#v-who [data-who=orchestrator]').textContent,
           log:[...document.querySelectorAll('#v-log .v-msg')].map(e=>e.textContent)})""")
         b.close()
-    assert got["role"] == "Orchestrator" and got["face"].endswith("/orchestrator.png") and got["chip"] == "VICTOR", got
+    assert got["role"] == "Orchestrator" and got["face"].endswith("/orchestrator.png") and got["chip"] == "VIKTOR", got
     assert face_on_board.endswith("/static/agent-icons/orchestrator.png") or face_on_board == "", face_on_board          # the Talk button on the board wears his face (when the board has one)
     text = " | ".join(got["log"])
-    assert "bring in Victor" in text and "Victor here" in text, text                                   # Smith says he is bringing Victor in, then Victor speaks
+    assert "bring in Viktor" in text and "Viktor here" in text, text                                   # Smith says he is bringing Viktor in, then Viktor speaks
+
+
+def test_each_of_the_four_agents_has_a_preset_selector_in_the_talk_window_and_on_the_agency_page(hub):
+    with sync_playwright() as pw:
+        b = pw.chromium.launch(headless=True)
+        pg = b.new_context(service_workers="block", viewport={"width": 1280, "height": 900}).new_page()
+        pg.route("**/api/voice/speak", lambda r: r.fulfill(status=503, body="no voice in a test"))
+        pg.goto(hub + "/?enter=1")
+        pg.wait_for_function("!!window.__hubBoard && !!window.__hubBoard.active && !!window.HubVoice", timeout=20000)
+        pg.evaluate("document.getElementById('voice').hidden=false")
+        pg.wait_for_function("document.querySelectorAll('#v-preset option').length>=7", timeout=8000)
+        pg.locator("#v-who [data-who=neo]").click(force=True)
+        pg.select_option("#v-preset", "varied")
+        pg.wait_for_timeout(400)
+        pg.goto(hub + "/agents")
+        pg.wait_for_selector(".ag-entry", timeout=15000)
+        pg.wait_for_function("document.querySelectorAll('[data-agent-preset]').length>=4", timeout=8000)
+        roles = pg.evaluate("[...document.querySelectorAll('[data-agent-preset]')].map(s=>s.dataset.agentPreset+':'+s.value)")
+        b.close()
+    assert sorted(r.split(":")[0] for r in roles) == ["doctor", "neo", "orchestrator", "smith"] and "neo:varied" in roles, roles
+    assert (__import__("json").loads(__import__("urllib.request", fromlist=["x"]).urlopen(hub + "/api/agents/presets").read())["choices"]).get("neo") == "varied"

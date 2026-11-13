@@ -56,7 +56,7 @@ repository; nothing you change reaches the running Hub until the owner presses A
   `python -c "import sys; sys.path.insert(0,'packaging'); import stage_release as S; from pathlib import Path; print(S.unshipped_surprises(Path('.')))"` lists what a build would silently drop.
   The install check is in the facts below (install.problems).
 - On screen: Orbitron for text, the dark glass look the dashboard has (a translucent card, a soft glowing green edge, a little blur; /theme.css carries it for every page), line icons as inline SVG
-  and never emoji, no layout that moves when something loads. The four core agents are Victor (the Orchestrator), Neo, Smith and the Doctor; their pictures are hub/static/agent-art/*.svg.
+  and never emoji, no layout that moves when something loads. The four core agents are Viktor (the Orchestrator), Neo, Smith and the Doctor; their pictures are hub/static/agent-art/*.svg.
 - Never restart, stop or start the Hub, and never call its power or shutdown endpoints.
 - Neo is the agent that designs and edits agents (Smith is only the voice the owner talks to). When the work is in an agent's instructions (hub/agent_knowledge/agents/*.md) you may call Neo: POST {"description": "what to change", "base": "<the current file text, optional>"} to THE RUNNING HUB below at /api/agents/draft, with an Origin header equal to that address. You get markdown back; nothing is saved. Put it in your copy as hub/agent_knowledge/agents/<name>.md and it reaches the owner through APPLY like any other change. Use it for nothing else.
 - If the facts say this is an INSTALLED copy (install.can_edit_code is false) there is no source here to change: diagnose, say exactly which file and what the change is, and finish with DONE: naming it,

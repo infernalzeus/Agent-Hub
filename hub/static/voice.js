@@ -4,7 +4,7 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   const KEY = 'hubVoiceSession';
-  const AGENT_IDS = __AGENT_NAMES__;                                                    // id -> [name, designation], from the one place that holds them; Victor is the name, Orchestrator his designation (the id stays 'orchestrator')
+  const AGENT_IDS = __AGENT_NAMES__;                                                    // id -> [name, designation], from the one place that holds them; Viktor is the name, Orchestrator his designation (the id stays 'orchestrator')
   const WHO = Object.fromEntries(Object.entries(AGENT_IDS).map(([k, v]) => [k, v[0]])), ROLE = Object.fromEntries(Object.entries(AGENT_IDS).map(([k, v]) => [k, v[1]]));
   const S = { who: 'smith', mission: null, on: false, speaking: false, pending: null, history: [], stream: null, ctx: null, an: null, whisper: null, voice: null, mute: false,
               audio: null, actx: null, stop: null, carry: null, turn: 0, capture: 0, listen: 0, busy: false,
@@ -490,9 +490,20 @@
       });
       if (!quiet) { try { $('v-in').focus(); } catch (e) {} }
     }
-    window.__hubTalkWho = setWho;
+    // PRESET of the speaker: chosen here or on the Agency page, saved at once.
+    let PRE = null;
+    async function paintPreset() {
+      const sel = $('v-preset'); if (!sel) return;
+      try { if (!PRE) PRE = await (await fetch('/api/agents/presets', { cache: 'no-store' })).json(); } catch (e) { return; }
+      const cur = (PRE.choices || {})[S.who] || '';
+      sel.replaceChildren(...[['', 'Own settings'], ...Object.entries(PRE.presets).map(([k, v]) => [k, k[0].toUpperCase() + k.slice(1) + ' - ' + v.about]), ['tally', 'Let the tally choose']].map(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; o.selected = v === cur; return o; }));
+      sel.onchange = async () => { try { await fetch('/api/agents/' + S.who + '/preset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ preset: sel.value }) }); PRE.choices[S.who] = sel.value; } catch (e) {} };
+    }
+    window.__hubTalkWho = (w, q) => { setWho(w, q); paintPreset(); };
+    document.querySelectorAll('#v-who [data-who]').forEach((b) => { b.onclick = () => window.__hubTalkWho(b.dataset.who); });
     document.querySelectorAll('#v-who [data-who]').forEach((b) => { b.onclick = () => setWho(b.dataset.who); });
     try { setWho(sessionStorage.getItem('hubTalkWho') || 'smith', true); } catch (e) { setWho('smith', true); }
+    paintPreset();
     $('v-new').onclick = fresh;
     $('v-stop').onclick = stopNow;
     $('v-cancel').onclick = () => { cancelTurn(); S.pending = null; showBtns(false); hint('Reply stopped. An action already sent may still finish; check its status before retrying.'); ready(); };

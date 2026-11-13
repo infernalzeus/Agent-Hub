@@ -17,7 +17,7 @@ function agAgentOptions(p){
  const models=(DATA.models||[]).slice();if(own&&o.value&&!models.some(m=>m.id===o.value))models.push({id:o.value,name:o.value});
  html+=models.map(m=>`<option value="${esc(m.id)}" ${own&&m.id===o.value?'selected':''}>${esc(m.name||m.id)}</option>`).join('');return html;
 }
-// Victor is the name, Orchestrator the designation; the id stays 'orchestrator' (files, missions, settings).
+// Viktor is the name, Orchestrator the designation; the id stays 'orchestrator' (files, missions, settings).
 const AG_ICON={'agent-smith':'neo'};
 function agCompact(p){
  const id=p.name,open=AG_OPEN.has(id),links=agLinks(id),o=p.settings?.model||{},own=o.source==='override'||o.source==='persona';
@@ -76,7 +76,7 @@ function agPaintList(){
    if(p){used.add(p.name);if(AG_SCOPE!=='helpers'&&has(p))core.push({kind:'persona',p});}
    else if(h&&AG_SCOPE!=='missions'&&hasH(h))core.push({kind:'helper',h});
   }
-  html+=section('Core team','The four agents that form the agentic team: Victor (the orchestrator), Neo, Smith and the Doctor. Everything below is an operative they call on.',core,x=>x.kind==='persona'?agCompact(x.p):agHelper(x.h));
+  html+=section('Core team','The four agents that form the agentic team: Viktor (the orchestrator), Neo, Smith and the Doctor. Everything below is an operative they call on.',core,x=>x.kind==='persona'?agCompact(x.p):agHelper(x.h));
  }
  if(AG_SCOPE!=='helpers'){
   // 2. operatives, grouped by the work they do
@@ -86,7 +86,7 @@ function agPaintList(){
  if(AG_SCOPE!=='missions'&&!AG_WORK){
   // 3. the Hub's own helpers that are not part of the core team
   const helpers=HELPERS.filter(h=>!AG_CORE.includes(h.id)&&!persons.some(p=>p.name===h.id)&&hasH(h)),util=persons.filter(p=>!used.has(p.name)&&p.utility).filter(has);
-  html+=section('Hub helpers','Parts of the Hub that act for you. They are not called by Victor.',helpers,agHelper)+section('Agent design','',util,agCompact);
+  html+=section('Hub helpers','Parts of the Hub that act for you. They are not called by Viktor.',helpers,agHelper)+section('Agent design','',util,agCompact);
  }
  $('list').innerHTML=html;
  agDecorate();
@@ -121,7 +121,26 @@ function agControls(p){
    <div class="ag-c"><label>STOP SEQUENCES</label><input type="text" data-k="stop" data-opt="1" value="${esc(stop)}" placeholder="comma separated"><small>text that ends its answer</small></div></div>
    <p class="ag-fine">Settings are saved as you change them and used the next time this agent starts. Options the chosen model does not know are ignored by it.</p></div><span class="ag-saved" data-ctl-status></span></div>`;
 }
+// PRESET: one of five named sets of the sampling settings, chosen for each of the four agents you talk to. "Own settings" leaves the agent as it is; "Let the tally choose" follows what the
+// scoring of finished missions picks. A setting you set yourself on an agent always wins over the preset. Smith and Viktor and Neo use it on their next answer; the Doctor's diagnosis runs in Claude Code, which ignores it.
+let AG_PRESETS=null;
+async function agLoadPresets(){try{AG_PRESETS=await jget('/api/agents/presets');}catch(e){AG_PRESETS=null;}}
+function agPresetHtml(role){
+ if(!AG_PRESETS)return '';const cur=AG_PRESETS.choices[role]||'';
+ const opts=[['','Own settings'],...Object.entries(AG_PRESETS.presets).map(([k,v])=>[k,k[0].toUpperCase()+k.slice(1)+' - '+v.about]),['tally','Let the tally choose']];
+ return `<div class="ag-model ag-preset"><label for="pre-${esc(role)}">Preset</label><select id="pre-${esc(role)}" data-agent-preset="${esc(role)}" aria-label="Preset for ${esc(role)}">${opts.map(([v,t])=>`<option value="${esc(v)}" ${v===cur?'selected':''}>${esc(t)}</option>`).join('')}</select><span class="ag-source" data-preset-state></span></div>`;
+}
+function agDecoratePresets(){
+ if(!AG_PRESETS)return;
+ document.querySelectorAll('.ag-entry[data-agent],.ag-entry[data-helper]').forEach(card=>{
+  const role=card.dataset.agent||card.dataset.helper;if(!AG_PRESETS.core.includes(role)||card.querySelector('.ag-preset'))return;
+  const m=card.querySelector('.ag-summary .ag-model');(m||card.querySelector('.ag-summary')).insertAdjacentHTML(m?'afterend':'beforeend',agPresetHtml(role));
+ });
+}
+document.addEventListener('change',async e=>{const s=e.target.closest&&e.target.closest('[data-agent-preset]');if(!s)return;const st=s.parentElement.querySelector('[data-preset-state]');
+ try{await jpost('/api/agents/'+encodeURIComponent(s.dataset.agentPreset)+'/preset',{preset:s.value});AG_PRESETS.choices[s.dataset.agentPreset]=s.value;st.textContent='SAVED';}catch(err){st.textContent='NOT SAVED';}});
 function agDecorate(){
+ agDecoratePresets();
  document.querySelectorAll('.ag-entry[data-agent]').forEach(card=>{
   const p=(DATA.personas||[]).find(x=>x.name===card.dataset.agent);if(!p||card.querySelector('.ag-controls'))return;
   card.querySelector('.ag-summary').insertAdjacentHTML('afterend',agControls(p));

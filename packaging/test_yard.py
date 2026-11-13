@@ -187,6 +187,7 @@ def test_the_practice_tab_opens_the_page_inside_the_board_and_a_run_fills_its_ta
         page.evaluate("fetch('/api/yard/knobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({eval_per_cell:4})})")
         assert page.evaluate("fetch('/api/yard/practice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true,episodes:100})}).then(r=>r.status)") == 200
         page.reload()
+        page.click("[data-tab=yard]")                                                              # the panel opens on the overview
         page.wait_for_function("document.getElementById('result').textContent.includes('Last session')", timeout=20000)
         assert "learned" in page.inner_text("#result") and "rule of thumb" in page.inner_text("#result") and "random" in page.inner_text("#result")
         page.evaluate("fetch('/api/yard/knobs/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})")
@@ -239,7 +240,8 @@ def test_the_r_panel_has_four_tabs_with_the_flow_inside_the_yard_and_a_session_c
         errors = []
         pg.on("pageerror", lambda e: errors.append(str(e)))
         pg.goto(hub + "/yard")
-        assert [t.strip() for t in pg.locator(".tabs button").all_inner_texts()] == ["YARD", "TEACH", "ROUTINES", "SCORES"]          # nothing else: no overview, flow, knobs or status tab
+        assert [t.strip() for t in pg.locator(".tabs button").all_inner_texts()] == ["OVERVIEW", "YARD", "TEACH", "ROUTINES", "SCORES"]          # the overview (13 Nov) is the one tab added: no flow, knobs or status tab
+        pg.click("[data-tab=yard]")
         pg.wait_for_function("document.querySelectorAll('#flowsvg .fnode').length===22")            # the flow is part of the yard
         assert pg.locator("#stop").is_hidden() and pg.locator(".infobox").count() == 0 and "i" not in pg.locator("button.i").all_inner_texts()
         pg.evaluate("fetch('/api/yard/knobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({episodes:3000})})")

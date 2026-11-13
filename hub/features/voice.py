@@ -787,6 +787,13 @@ async def _llm(text: str, history: list, mission_id: "str | None") -> "dict | No
         msgs.append({"role": role, "content": str(h.get("text", ""))[:400]})
     msgs.append({"role": "user", "content": text})
     body = {"stream": False, "format": _schema(), "options": {"temperature": 0.4, "num_predict": 220, "num_ctx": 8192}, "messages": msgs}
+    try:                                                                   # the preset you chose for Smith (Agency or the Talk window)
+        from ..yard import presets as _PRE
+        use = _PRE.applied("smith")
+        if use:
+            body["options"].update({"temperature": use["temperature"], "top_p": use["top_p"], **use["options"]})
+    except Exception:  # noqa: BLE001
+        pass
     for mdl in chain[:2]:
         body["model"] = mdl.split("/", 1)[1]
         try:
@@ -1366,7 +1373,7 @@ async def api_chat(request: web.Request) -> web.Response:
     from . import talk_agents as TA
     history = b.get("history") if isinstance(b.get("history"), list) else []
     speaker = str(b.get("speaker") or "smith").lower()
-    sm = TA.summon(text, speaker if speaker in TA.SPEAKERS else "smith")      # "Smith, pull up Victor": the conversation moves, and the one leaving says so
+    sm = TA.summon(text, speaker if speaker in TA.SPEAKERS else "smith")      # "Smith, pull up Viktor": the conversation moves, and the one leaving says so
     if sm:
         to, frm = sm["to"], sm["from"]
         move = {"from": frm, "to": to, "from_name": TA.NAME[frm], "to_name": TA.NAME[to], "designation": TA.DESIGNATION[to]}

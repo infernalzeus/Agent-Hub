@@ -1,15 +1,15 @@
-"""Talk with the four core agents: Smith, Victor (the Orchestrator), Neo and the Doctor.
+"""Talk with the four core agents: Smith, Viktor (the Orchestrator), Neo and the Doctor.
 
 One window, one thread, one SPEAKER at a time. Smith is the front door and routes as he always did. Every speaker shares the same quick layer first (the dashboard, a window of this PC,
 the screen commands: those are answered before any persona is asked), so every agent can do the basic asks. After that each one answers as itself:
 
     smith         the router: tools, apps, answers. When what you ask needs a mission he starts it and hands the conversation to the Orchestrator
-    orchestrator  Victor: owns the missions: where each is, what it is asking you, run the plan, stop it, apply or discard. Other asks go to Smith's router under its name
+    orchestrator  Viktor: owns the missions: where each is, what it is asking you, run the plan, stop it, apply or discard. Other asks go to Smith's router under its name
     neo           agents: describes them, drafts a new one on request (a draft only; saving is done on the Agency page)
     doctor        the Hub itself: starts a diagnosis mission for a fault, answers questions about how the Hub works from its own facts
 
-You can also address one by name in a sentence ("Neo, draft an agent that checks invoices"), ask for one ("Smith, pull up Victor": the conversation moves to Victor and the one leaving says so), and
-the speaker chips in the Talk window do the same. Victor's id stays "orchestrator" everywhere in the code (missions, files, settings); Victor is his name and Orchestrator his designation. A persona answers through the same
+You can also address one by name in a sentence ("Neo, draft an agent that checks invoices"), ask for one ("Smith, pull up Viktor": the conversation moves to Viktor and the one leaving says so), and
+the speaker chips in the Talk window do the same. Viktor's id stays "orchestrator" everywhere in the code (missions, files, settings); Viktor is his name and Orchestrator his designation. A persona answers through the same
 runner and the same per-agent model and settings the Agency page controls. Nothing here changes files: an answer is text, a start is a mission (private copy, you APPLY).
 """
 from __future__ import annotations
@@ -23,12 +23,12 @@ from ..agent_knowledge import AGENT_NAMES as _AN
 
 NAME = {k: v[0] for k, v in _AN.items()}                 # one source of names: agent_knowledge.AGENT_NAMES
 DESIGNATION = {k: v[1] for k, v in _AN.items()}
-_ALIAS = {"agent smith": "smith", "smith": "smith", "victor": "orchestrator", "viktor": "orchestrator", "victor the orchestrator": "orchestrator", "the orchestrator": "orchestrator",
-          "orchestrator": "orchestrator", "neo": "neo", "the doctor": "doctor", "doctor": "doctor"}                 # a speech recogniser may write Victor with a k, or give the Orchestrator by its designation
-_NAMES = r"(?:agent smith|smith|agent victor|victor the orchestrator|victor|viktor|the orchestrator|orchestrator|neo|the doctor|doctor)"
+_ALIAS = {"agent smith": "smith", "smith": "smith", "viktor": "orchestrator", "victor": "orchestrator", "viktor the orchestrator": "orchestrator", "victor the orchestrator": "orchestrator", "the orchestrator": "orchestrator",
+          "orchestrator": "orchestrator", "neo": "neo", "the doctor": "doctor", "doctor": "doctor"}                 # a speech recogniser may write Viktor with a k, or give the Orchestrator by its designation
+_NAMES = r"(?:agent smith|smith|agent viktor|agent victor|viktor the orchestrator|victor the orchestrator|viktor|victor|the orchestrator|orchestrator|neo|the doctor|doctor)"
 _ADDRESS = re.compile(r"^\s*(?:hey |hi |ok |okay )?(" + _NAMES + r")\b[\s,:;.!-]*(.*)$", re.I | re.S)
-# asking for an agent: "Smith, pull up Victor", "can I talk to Neo", "get the Doctor", "put Victor on", "switch to the orchestrator". What follows the name ("get Neo to draft an agent ...") goes to that agent.
-_SUMMON = re.compile(r"^\s*(?:(?:hey |hi |ok |okay )?(?:agent )?(?:smith|victor|viktor|neo|doctor|orchestrator)[\s,:;.!-]+)?(?:(?:please|can you|could you|would you|will you|can i|could i|may i|i'd like to|i would like to|i want to|i need to|let me|let's|lets|i wanna)\s+)*"
+# asking for an agent: "Smith, pull up Viktor", "can I talk to Neo", "get the Doctor", "put Viktor on", "switch to the orchestrator". What follows the name ("get Neo to draft an agent ...") goes to that agent.
+_SUMMON = re.compile(r"^\s*(?:(?:hey |hi |ok |okay )?(?:agent )?(?:smith|viktor|victor|neo|doctor|orchestrator)[\s,:;.!-]+)?(?:(?:please|can you|could you|would you|will you|can i|could i|may i|i'd like to|i would like to|i want to|i need to|let me|let's|lets|i wanna)\s+)*"
                      r"(?:pull up|bring up|bring in|bring over|call up|call in|call on|call|get me|get|put|fetch|put me through to|put me on to|put on|patch me in to|patch me to|connect me to|connect me with|hand me over to|hand me to|hand over to|pass me to|switch to|go to|change to|"
                      r"talk to|talk with|speak to|speak with|chat to|chat with|ask)\s+(" + _NAMES + r")\b\s*(?:on|up|in|over|please)?\W*(?:(?:to|and|about|:|,)\s+(.*))?$", re.I | re.S)
 _TASK = re.compile(r"\b(fix|add|build|make|create|write|change|update|refactor|implement|set up|rename|remove|delete|improve|test|deploy)\b", re.I)
@@ -48,16 +48,16 @@ def address(text: str) -> "tuple[str | None, str]":
     m = _ADDRESS.match(text or "")
     if not m:
         return None, text
-    who = _ALIAS.get(re.sub(r"^agent (?=victor)", "", m.group(1).lower()).strip(), "smith")
+    who = _ALIAS.get(re.sub(r"^agent (?=vi[ck]tor)", "", m.group(1).lower()).strip(), "smith")
     return who, m.group(2).strip()
 
 
 def summon(text: str, current: str = "smith") -> "dict | None":
-    """"Smith, pull up Victor": who is wanted, and what is left of the sentence for them. None when the sentence is not a request for an agent (a question about one, a task, a bare name)."""
+    """"Smith, pull up Viktor": who is wanted, and what is left of the sentence for them. None when the sentence is not a request for an agent (a question about one, a task, a bare name)."""
     m = _SUMMON.match(text or "")
     if not m:
         return None
-    who = _ALIAS.get(re.sub(r"^agent (?=victor)", "", m.group(1).lower()).strip())
+    who = _ALIAS.get(re.sub(r"^agent (?=vi[ck]tor)", "", m.group(1).lower()).strip())
     if not who:
         return None
     return {"to": who, "from": current, "rest": (m.group(2) or "").strip(), "same": who == current}
@@ -113,13 +113,15 @@ async def _post(path: str, body: "dict | None" = None) -> dict:
             return {"ok": r.status == 200, "status": r.status, **(data if isinstance(data, dict) else {})}
 
 
-async def _persona(agent: str, brief: str) -> str:
+async def _persona(agent: str, brief: str, role: "str | None" = None) -> str:
     """One answer from a persona (its own model and settings), in the Hub's scratch workspace: nothing is written, nothing waits for review."""
     from . import converse as CONV
     from . import missions as M
     from .converse import _voice
     try:
-        text = await M.ask_scratch(agent, brief, timeout=CONV.AGENT_TIMEOUT)
+        from ..yard import presets as _PRE
+        with _PRE.speaking_as("researcher", "doctor") if role == "doctor" else _PRE.speaking_as(agent, agent):      # the Doctor answers as the researcher persona, with HIS preset
+            text = await M.ask_scratch(agent, brief, timeout=CONV.AGENT_TIMEOUT)
     except Exception as exc:  # noqa: BLE001
         logger.info("talk_agents: %s did not answer: %s", agent, exc)
         return ""
@@ -166,8 +168,8 @@ async def orchestrator(text: str, history, mission_id, chat_fn) -> dict:
         res = await chat_fn(t, history or [], mission_id)               # a new ask: Smith's router finds the project and asks you to confirm; it stays the Orchestrator's conversation
         res["speaker"] = "orchestrator"
         return res
-    brief = ("You are Victor, the Orchestrator, speaking with the user directly in Talk. Missions now:\n" + digest() + "\n\nRecent conversation:\n" + _history_text(history)
-             + "\n\nUser: " + t + "\n\nAnswer as Victor in at most three plain sentences. Do not write files and do not change anything. If they want work done, say what you would need to know first.")
+    brief = ("You are Viktor, the Orchestrator, speaking with the user directly in Talk. Missions now:\n" + digest() + "\n\nRecent conversation:\n" + _history_text(history)
+             + "\n\nUser: " + t + "\n\nAnswer as Viktor in at most three plain sentences. Do not write files and do not change anything. If they want work done, say what you would need to know first.")
     say = await _persona("orchestrator", brief)
     return _reply("orchestrator", say or "I could not think that through just now. Ask me for the status, or tell me what to do.", mission=m.id if m else None)
 
@@ -200,7 +202,7 @@ async def doctor(text: str, history, mission_id, chat_fn) -> dict:
         except Exception as exc:  # noqa: BLE001
             return _reply("doctor", f"I could not start the diagnosis: {str(exc)[:120]}")
     brief = (SUP.brief_for(text) + "\n\nThis is a question, not a fault: answer it in at most four plain sentences from the facts above. Do not write files and do not change anything.")
-    say = await _persona("researcher", brief)
+    say = await _persona("researcher", brief, role="doctor")
     return _reply("doctor", say or "I could not answer that just now. If something is broken, tell me what you see and I will diagnose it.")
 
 
@@ -216,6 +218,6 @@ async def speak_as(speaker: str, text: str, history, mission_id, chat_fn) -> dic
         res["speaker"] = "smith"
         return res
     if not text.strip():
-        return _reply(speaker, {"orchestrator": "Victor here. Ask me about the missions, or tell me what to get done.", "neo": "Neo here. Ask me about the agents, or have me draft one.",
+        return _reply(speaker, {"orchestrator": "Viktor here. Ask me about the missions, or tell me what to get done.", "neo": "Neo here. Ask me about the agents, or have me draft one.",
                                 "doctor": "The Doctor here. Tell me what looks wrong, or ask how something in the Hub works."}[speaker])
     return await _HANDLERS[speaker](text, history, mission_id, chat_fn)
