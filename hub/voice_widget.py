@@ -10,7 +10,8 @@ _S = Path(__file__).parent / "static"
 
 _HTML = """<div id="voice" hidden>
   <div class="v-head"><span>TALK TO THE HUB</span><div><button type="button" class="vbtn" id="v-size">MINIMISE</button> <button type="button" class="vbtn" id="v-close" aria-label="Close">CLOSE</button></div></div>
-  <div class="v-who" id="v-who" role="group" aria-label="Who you are talking to"><button type="button" class="vbtn on" data-who="smith">SMITH</button><button type="button" class="vbtn" data-who="orchestrator">ORCHESTRATOR</button><button type="button" class="vbtn" data-who="neo">NEO</button><button type="button" class="vbtn" data-who="doctor">DOCTOR</button></div>
+  <div class="v-who" id="v-who" role="group" aria-label="Who you are talking to"><button type="button" class="vbtn on" data-who="smith">SMITH</button><button type="button" class="vbtn" data-who="orchestrator" title="Victor, the Orchestrator">VICTOR</button><button type="button" class="vbtn" data-who="neo">NEO</button><button type="button" class="vbtn" data-who="doctor">DOCTOR</button></div>
+  <div class="v-stage" id="v-stage" data-who="smith" aria-live="polite"><img id="v-face" alt=""><div><b id="v-name"></b><span id="v-role"></span></div></div>
   <div class="v-tools">
     <select id="v-voice" aria-label="TTS voice"></select>
     <select id="v-fx" aria-label="Voice effect amount" title="How much of a robotic layer sits on the same voice"><option value="off">CLEAN</option><option value="p5">ROBOT 5%</option><option value="p10">ROBOT 10%</option><option value="p15">ROBOT 15%</option><option value="p20">ROBOT 20%</option><option value="p25">ROBOT 25%</option><option value="p35">ROBOT 35%</option><option value="p50">ROBOT 50%</option><option value="p75">ROBOT 75%</option><option value="p100">ROBOT 100%</option></select>
@@ -34,13 +35,20 @@ _HTML = """<div id="voice" hidden>
 </div>"""
 
 
+def _names(js: str) -> str:
+    """The names and designations of the four core agents, from the one place that holds them (agent_knowledge.AGENT_NAMES)."""
+    import json
+    from .agent_knowledge import AGENT_NAMES
+    return js.replace("__AGENT_NAMES__", json.dumps(AGENT_NAMES))
+
+
 def _read(name: str) -> str:
     return (_S / name).read_text(encoding="utf-8")
 
 
 def widget(with_orbs: bool = True) -> str:
     orbs = f"<script>{_read('thinking-orbs.min.js')}</script>\n" if with_orbs else ""
-    return f"<style>{_read('voice.css')}</style>\n{_HTML}\n{orbs}<script>{_read('voice-fx.js')}</script>\n<script>{_read('voice-gate.js')}</script>\n<script>{_read('voice.js')}</script>"
+    return f"<style>{_read('voice.css')}</style>\n{_HTML}\n{orbs}<script>{_read('voice-fx.js')}</script>\n<script>{_read('voice-gate.js')}</script>\n<script>{_names(_read('voice.js'))}</script>"
 
 
 TALK_BUTTON = '<button type="button" class="talk-btn" data-talk title="Talk to the hub" aria-label="Talk to the hub"><img src="/smith-icon.png" alt=""></button>'

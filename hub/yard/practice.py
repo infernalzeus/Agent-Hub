@@ -208,7 +208,7 @@ def practice(episodes: "int | None" = None, seed: "int | None" = None, n_eval: "
 
 
 def _practice(episodes: int, seed: int, n_eval: int, write: bool, with_ablation: bool, t0: float, start: "dict | None" = None) -> dict:
-    from . import demos as DM, events as EV, knobs as K, memory as MEM
+    from . import demos as DM, events as EV, knobs as K, memory as MEM, routine_data as RD
     hidden = K.get("hidden_units")
     fams = K.families()
     live_note = None
@@ -225,6 +225,13 @@ def _practice(episodes: int, seed: int, n_eval: int, write: bool, with_ablation:
         for _ in range(epochs):
             p_lin, p_mlp = lin.imitate(data), mlp.imitate(data)
         EV.emit("mem", "imitated", f"imitated {live_note['steps']} approved live steps; it now gives the approved press {p_lin:.0%} (plain) and {p_mlp:.0%} (hidden)", p_lin, edge="mem>upd")
+    rd_train, rd_held, rd_note = [], [], None
+    if RD.enabled():
+        rd_train, rd_held = RD.split()
+        if rd_train and K.get("routine_epochs"):
+            p_lin, p_mlp = RD.imitate(lin, rd_train, K.get("routine_epochs"), seed), RD.imitate(mlp, rd_train, K.get("routine_epochs"), seed)
+            rd_note = {"routines": len(rd_train), "kept_out": len(rd_held), "steps": sum(len(r["steps"]) for r in rd_train)}
+            EV.emit("demos", "imitated", f"imitated {rd_note['steps']} steps of {len(rd_train)} routines you trusted; it now gives your press {p_lin:.0%} (plain) and {p_mlp:.0%} (hidden)", p_lin, edge="demos>gate")
     CONTROL["phase"] = "measuring on layouts and words it has not seen"
     t_train = time.time() - t0
     table = {"random": evaluate(lambda: L.random_policy(5), n_eval, fams),
@@ -233,11 +240,15 @@ def _practice(episodes: int, seed: int, n_eval: int, write: bool, with_ablation:
              "learned, one hidden layer": evaluate(lambda: mlp.policy(False), n_eval, fams)}
     from . import candidates as CD
     safety = CD.breaches(lin, 60)
-    demo = DM.agreement(lin)
+    if RD.enabled() and (rd_held or rd_train):
+        demo = DM.agreement(lin, rd_held or rd_train)                                             # measured on the routines kept out; with too few of them, on the ones it trained on (said so)
+        demo["trained_on"] = not rd_held
+    else:
+        demo = DM.agreement(lin)
     if demo["steps"]:
-        EV.emit("demos", "agreement", f"the plain learner presses what your attested routines press on {demo['agree']} of {demo['steps']} steps", demo["rate"], edge="demos>gate")
+        EV.emit("demos", "agreement", f"the plain learner presses what your {'trusted' if demo.get('trained_on') is not None else 'attested'} routines press on {demo['agree']} of {demo['steps']} steps" + (" (it was trained on them: not a test)" if demo.get("trained_on") else ""), demo["rate"], edge="demos>gate")
     rep = {"at": time.time(), "episodes": episodes, "seed": seed, "eval_per_cell": n_eval, "train_seconds": round(t_train, 1),
-           "curve": {"linear": c_lin, "hidden16": c_mlp}, "table": table, "layouts": fams, "hidden_units": hidden, "live_memory": live_note, "attested_agreement": demo, "safety": safety,
+           "curve": {"linear": c_lin, "hidden16": c_mlp}, "table": table, "layouts": fams, "hidden_units": hidden, "live_memory": live_note, "routine_data": rd_note, "attested_agreement": demo, "safety": safety,
            "methods": {"linear": "advantage actor-critic, linear scorer", "hidden16": f"advantage actor-critic, {hidden} tanh units"},
            "warm_from": (start or {}).get("version"), "knobs": {k: v for k, v in K.values().items() if k in ("episodes", "lr_actor", "lr_critic", "gamma", "entropy_beta", "hindsight", "replay_every", "step_cost", "win")},
            "means": {p: {v: round(float(np.mean([t[f][v]["success"] for f in t])), 3) for v in ("train", "held")} for p, t in table.items()},

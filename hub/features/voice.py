@@ -775,6 +775,9 @@ async def _llm(text: str, history: list, mission_id: "str | None") -> "dict | No
     # Conversation wants an answer in seconds. A model on this PC that is small enough to load quickly goes
     # first; a cloud model (which waits on the network, and was the cause of "took too long") goes last.
     chain.sort(key=lambda m: (":cloud" in m, "32k" not in m and "e4b" not in m and "e2b" not in m))
+    own = agent_knowledge.helper_model("smith")                                  # the model you chose for Smith on the Agency page goes first
+    if own:
+        chain = [own if own.startswith("ollama/") else "ollama/" + own] + [m for m in chain if m != own]
     if not chain:
         _LLM_WHY = "unavailable"
         return None
@@ -1363,6 +1366,17 @@ async def api_chat(request: web.Request) -> web.Response:
     from . import talk_agents as TA
     history = b.get("history") if isinstance(b.get("history"), list) else []
     speaker = str(b.get("speaker") or "smith").lower()
+    sm = TA.summon(text, speaker if speaker in TA.SPEAKERS else "smith")      # "Smith, pull up Victor": the conversation moves, and the one leaving says so
+    if sm:
+        to, frm = sm["to"], sm["from"]
+        move = {"from": frm, "to": to, "from_name": TA.NAME[frm], "to_name": TA.NAME[to], "designation": TA.DESIGNATION[to]}
+        if sm["same"] and not sm["rest"]:
+            return web.json_response({"say": f"{TA.NAME[to]} is already here.", "action": None, "confirm": False, "backend": to, "speaker": to, "ui": ui})
+        got = await TA.speak_as(to, sm["rest"], history, b.get("mission") or None, chat)
+        if not sm["same"]:
+            move["line"] = TA.handoff_line(frm, to)
+            got["transition"] = move
+        return web.json_response({**got, "ui": {**ui, **(got.get("ui") or {})}})
     named, rest = TA.address(text)                                            # "Neo, draft an agent ...": a leading name picks who answers this sentence
     if named:
         speaker, text = named, rest

@@ -107,6 +107,19 @@ def find_window(query: str) -> "dict | None":
     return best
 
 
+def window_rect(hwnd: int) -> "tuple[int, int, int, int] | None":
+    """(x, y, width, height) of a window on the screen, or None."""
+    if not WIN:
+        return None
+    from ctypes import wintypes as wt
+    user32 = ctypes.windll.user32
+    if not user32.IsWindow(hwnd) or user32.IsIconic(hwnd):
+        return None
+    r = wt.RECT()
+    user32.GetWindowRect(hwnd, ctypes.byref(r))
+    return r.left, r.top, r.right - r.left, r.bottom - r.top
+
+
 def capture(hwnd: int, max_w: int = 1000, quality: int = 80) -> "tuple[bytes, str] | None":
     """A picture of one window: (bytes, content type), or None when it is gone or minimised. Asks the window to draw itself (PrintWindow, full content), so another window in front of it
     does not matter; the picture is scaled down inside GDI before it is read."""
@@ -469,7 +482,7 @@ select,button,label{background:rgba(6,10,36,.7);border:1px solid rgba(0,230,118,
 .t.you{border-color:rgba(65,235,255,.45)}.t b{color:var(--accent);font-size:9px;letter-spacing:1px}
 .grow{flex:1}.opts{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.opts label{display:flex;gap:4px;align-items:center;padding:3px 6px}.opts select{padding:3px 4px;font-size:9.5px}
 .kb{display:flex;gap:4px;align-items:center;flex-wrap:wrap}#kbrow{flex:1 1 100%}#kbrow[hidden]{display:none}.kb textarea{flex:1 1 100%;background:rgba(6,10,36,.7);border:1px solid rgba(0,230,118,.35);border-radius:8px;color:var(--ink);padding:7px 9px;font:13px/1.45 Outfit,system-ui,sans-serif;min-height:64px;max-height:36vh;resize:vertical;white-space:pre-wrap;overflow-wrap:anywhere}
-.note-row{display:flex;gap:10px;padding:3px 8px;font-size:9.5px;border-bottom:1px solid rgba(0,230,118,.12)}.view img{transition:none}
+#vid{display:block;width:100%;max-height:100%;background:#000;object-fit:contain}#vid[hidden]{display:none}.mirror-inline #vid{margin-inline:auto;width:auto;max-width:100%;max-height:100%}#vidbtn.on{border-color:#00e676;color:#00e676}.note-row{display:flex;gap:10px;padding:3px 8px;font-size:9.5px;border-bottom:1px solid rgba(0,230,118,.12)}.view img{transition:none}
 html:has(.mirror-inline){height:100%;background:#070d20}
 body.mirror-inline{height:100%;overflow:hidden}
 .mirror-settings{flex:0 0 auto;max-height:46%;overflow:auto;background:#0a1028}
@@ -498,11 +511,11 @@ _MIRROR = _STYLE + """<title>Window</title><body>
   <label>DETAIL <select id="det"><option value="1">FIT</option><option value="1.5">SHARP</option><option value="2">VERY SHARP</option><option value="0">NATIVE</option></select></label>
   <label>QUALITY <select id="qual"><option value="65">NORMAL</option><option value="85">HIGH</option><option value="95">MAX</option></select></label>
   <label>ZOOM <select id="zoom"><option value="fit">FIT</option><option value="50">50 %</option><option value="75">75 %</option><option value="100">100 %</option><option value="150">150 %</option></select></label>
-  <a id="back" href="/?enter=1" hidden>DASHBOARD</a><button id="close" type="button">CLOSE PANEL</button>
+  <a id="back" href="/?enter=1" hidden>DASHBOARD</a><button id="vidbtn" type="button" hidden title="Watch this window as real video, up to 30 frames a second (no sound).">VIDEO</button><button id="close" type="button">CLOSE PANEL</button>
  </span>
 </div>
 <div class="note-row"><span class="mute" id="note">A live picture of the window, no sound.</span><span class="mute" id="stat"></span></div>
-<div class="view" id="stage" tabindex="0"><img id="pic" alt="" draggable="false"></div>
+<div class="view" id="stage" tabindex="0"><img id="pic" alt="" draggable="false"><video id="vid" muted playsinline autoplay hidden></video></div>
 <script>
 const $=id=>document.getElementById(id),q=new URLSearchParams(location.search);let cur=q.get('id')||'',alive=true,sel=null;
 const SKEY='hubMirror:'+(q.get('id')||'x'),defaults={fps:'5',det:'1.5',qual:'85',zoom:'fit'};
@@ -596,7 +609,7 @@ if(MOBILE_PANEL){
     if(phoneW()!==wNow){clearTimeout(zoomT);zoomT=setTimeout(()=>{if(!moving&&phoneW()!==wNow)start(true);},600);}      // zoomed to a new size: a picture with the pixels to match, once the zoom has settled
     return fit;
   };
-  window.setMirrorMoving=value=>{if(moving!==value){moving=value;start(true);}};
+  window.setMirrorMoving=value=>{if(moving!==value){moving=value;if(vidOn){const v=$('vid');if(value)v.pause();else v.play().catch(()=>{});}else start(true);}};
   window.setMirrorActive=value=>{if(active!==value){active=value;start();}};
   try{
     const frame=window.frameElement;
@@ -617,7 +630,7 @@ if(MOBILE_PANEL){
 let wNow=0,zoomT=0;
 function phoneW(){const bw=parseFloat(pic.style.getPropertyValue('--mirror-board-width'))||0,css=pic.classList.contains('board-zoom')&&bw?bw:Math.max(300,$('stage').clientWidth),dpr=Math.min(3,devicePixelRatio||1);
   return Math.max(864,Math.min(1400,Math.ceil(css*dpr/160)*160));}
-function start(keepPicture=false){if(!cur||!alive)return;
+function start(keepPicture=false){if(!cur||!alive||(typeof vidOn!=='undefined'&&vidOn))return;
   const dpr=Math.min(2,devicePixelRatio||1),shown=cfg.zoom==='fit'?Math.max(300,$('stage').clientWidth):Math.round((sel?sel.w:1200)*Number(cfg.zoom)/100);
   const det=Number(cfg.det),w=SMALL_PHONE?phoneW():MOBILE_PANEL?Math.min(900,Math.round(shown*dpr*(det||1))):PHONE?Math.min(1400,Math.round(shown*dpr*(det||1))):(det===0?3000:Math.min(2600,Math.round(shown*dpr*det)));
   pic.classList.toggle('fit',cfg.zoom==='fit');pic.style.width=cfg.zoom==='fit'?'100%':shown+'px';pic.style.maxWidth=cfg.zoom==='fit'?'100%':'none';
@@ -653,7 +666,28 @@ $('ctl').onchange=()=>{$('kbrow').hidden=!$('ctl').checked;gestureMode();};
 // A phone raises its keyboard only for a focus that happens inside the tap itself, so the typing box is focused at once, before the click is sent.
 function focusKb(){if($('ctl').checked)$('kb').focus({preventScroll:true});}
 pic.addEventListener('pointerdown',focusKb);pic.addEventListener('touchstart',focusKb,{passive:true});
-pic.onclick=async e=>{if(!on())return;focusKb();const r=pic.getBoundingClientRect();
+const tgt=()=>($('vid').hidden?pic:$('vid'));
+// VIDEO: where the browser plays HLS itself (Safari, the iPhone), the window can be watched as real video instead of pictures. It is asked for, never automatic; a phone cannot hold pictures at that rate, but it decodes video in hardware.
+var vidOn=false;
+const canHls=!!document.createElement('video').canPlayType('application/vnd.apple.mpegurl');
+if(canHls)$('vidbtn').hidden=false;
+async function videoStart(){
+  $('note').textContent='Starting the video...';
+  let j;try{j=await (await fetch('/api/windows/'+cur+'/video/start?fps=30&w='+(SMALL_PHONE?960:1280),{method:'POST'})).json();}catch(e){j={ok:false,error:String(e)};}
+  if(!j.ok){vidOn=false;$('vidbtn').classList.remove('on');$('note').textContent=j.error||'The video did not start.';return false;}
+  vidOn=true;$('vidbtn').classList.add('on');$('vidbtn').textContent='PICTURES';
+  if(typeof clearMobile==='function')clearMobile();pollGen++;clearTimeout(streamT);pic.removeAttribute('src');pic.hidden=true;
+  const v=$('vid');v.hidden=false;v.src=j.playlist;v.play&&v.play().catch(()=>{});
+  $('note').textContent='Live video ('+j.encoder+', '+j.fps+' a second, no sound).';return true;}
+async function videoStop(){
+  vidOn=false;$('vidbtn').classList.remove('on');$('vidbtn').textContent='VIDEO';
+  const v=$('vid');v.pause&&v.pause();v.removeAttribute('src');v.load&&v.load();v.hidden=true;pic.hidden=false;
+  try{await fetch('/api/windows/'+cur+'/video/stop',{method:'POST'});}catch(e){}
+  start();}
+$('vidbtn').onclick=()=>vidOn?videoStop():videoStart();
+$('vid').onclick=e=>pic.onclick(e);
+addEventListener('pagehide',()=>{if(vidOn){try{navigator.sendBeacon('/api/windows/'+cur+'/video/stop');}catch(e){}}});
+pic.onclick=async e=>{if(!on())return;focusKb();const r=tgt().getBoundingClientRect();
   const x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;const x2=await post('/click',{x,y});
   $('note').textContent=x2.ok?'Clicked. Type in the box above, the keyboard is for it.':'That click did not land.';focusKb();};
 // What is typed in the box goes to the window as it is typed: the new characters, or Backspace for each one taken away (a phone's own keyboard, autocorrect and all, only ever tells us the box changed).
@@ -675,7 +709,7 @@ $('stage').addEventListener('keydown',e=>{if(!on()||e.target.id==='kb')return;
   if(e.key.length===1&&!e.ctrlKey&&!e.metaKey){e.preventDefault();post('/keys',{text:e.key});}
   else if(e.ctrlKey&&e.key.length===1){e.preventDefault();post('/keys',{key:e.key,ctrl:true});}
   else if(['Enter','Backspace','Tab','Escape','ArrowLeft','ArrowUp','ArrowRight','ArrowDown','Delete','Home','End','PageUp','PageDown'].includes(e.key)){e.preventDefault();post('/keys',{key:e.key});}});
-$('stage').addEventListener('wheel',e=>{if(!on())return;e.preventDefault();const r=pic.getBoundingClientRect();post('/wheel',{x:(e.clientX-r.left)/r.width,y:(e.clientY-r.top)/r.height,delta:-Math.sign(e.deltaY)*120});},{passive:false});
+$('stage').addEventListener('wheel',e=>{if(!on())return;e.preventDefault();const r=tgt().getBoundingClientRect();post('/wheel',{x:(e.clientX-r.left)/r.width,y:(e.clientY-r.top)/r.height,delta:-Math.sign(e.deltaY)*120});},{passive:false});
 if(window===top)$('back').hidden=false;      // on a page of its own (a phone opens it so), there is a way back
 $('close').onclick=async()=>{await fetch('/api/windows/panels?url='+encodeURIComponent(location.pathname+location.search),{method:'DELETE'});try{parent.postMessage({hubWindowClose:location.pathname+location.search},'*');}catch(e){}if(window===top)location.href='/?enter=1';};
 list().then(()=>setInterval(list,8000));

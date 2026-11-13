@@ -450,6 +450,10 @@ def _load_persona(name: str) -> dict | None:
     return {"frontmatter": fm, "body": body.strip()}
 
 
+AGENT_NAMES = {"smith": ("Smith", "Voice of the Hub"), "orchestrator": ("Victor", "Orchestrator"), "neo": ("Neo", "Agent designer"), "doctor": ("Doctor", "Hub doctor")}
+# Talk, the Agency page, the map of who calls whom, the Missions page and the website all read their names from here (the website is built from it by tools/build_site.py).
+
+
 def list_agents() -> list[dict]:
     """Every persona (baseline + user), as {name, description, mode, origin}."""
     out: list[dict] = []
@@ -464,7 +468,8 @@ def list_agents() -> list[dict]:
             fm = _parse_frontmatter(md)
             out.append({"name": md.stem, "description": fm.get("description", ""),
                         "mode": fm.get("mode", "subagent"), "origin": origin,
-                        "rationale": fm.get("rationale", "")})
+                        "rationale": fm.get("rationale", ""), "display": AGENT_NAMES[md.stem][0] if md.stem in AGENT_NAMES else None,
+                        "designation": AGENT_NAMES[md.stem][1] if md.stem in AGENT_NAMES else None})
     return out
 
 
@@ -574,7 +579,7 @@ def effective_settings(name: str) -> dict:
             return {"value": fm[key], "source": "persona"}
         return {"value": dflt, "source": "default", "note": dflt_note}
 
-    return {
+    out = {
         "model": _model_pick(pick("model", None, "")),
         "temperature": pick("temperature", None, "model default (~0.7)"),
         "top_p": pick("top_p", None, "model default"),
@@ -583,6 +588,77 @@ def effective_settings(name: str) -> dict:
         # the rest of the sampling and size knobs (top_k, min_p, penalties, output tokens, context window, stop sequences ...) the owner set, passed to the model as options
         "options": {"value": dict(ov.get("options") or {}) if isinstance(ov.get("options"), dict) else {}, "source": "override" if ov.get("options") else "default"},
     }
+    try:                                    # APPLY mode of the sampling presets: the tally's pick, but never over a value you set yourself
+        from ..yard import presets as _P
+        use = _P.applied(name)
+        if use:
+            for k in ("temperature", "top_p"):
+                if out[k]["source"] != "override":
+                    out[k] = {"value": use[k], "source": "preset", "note": f"the {use['name']} preset, picked by the tally for this role"}
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
+# The sampling settings Ollama accepts in a chat call's `options`. A saved setting outside this list is kept on the card but not sent.
+OPTION_TYPES = {"top_k": int, "min_p": float, "presence_penalty": float, "frequency_penalty": float, "num_predict": int, "num_ctx": int, "repeat_penalty": float}
+
+
+def clean_options(opts) -> dict:
+    """The saved per-agent options, reduced to what a model call accepts: numbers of the right kind, and `stop` as a short list of short strings."""
+    out: dict = {}
+    for k, v in (opts or {}).items() if isinstance(opts, dict) else []:
+        if k == "stop":
+            items = v if isinstance(v, list) else [x.strip(" ") for x in str(v or "").split(",")]
+            items = [str(x) for x in items if str(x).strip()][:8]
+            if items:
+                out["stop"] = [x[:40] for x in items]
+        elif k in OPTION_TYPES:
+            try:
+                out[k] = OPTION_TYPES[k](float(v))
+            except (TypeError, ValueError):
+                continue
+    return out
+
+
+def direct_options(name: str) -> dict:
+    """What a one-call model request for this agent sends besides the temperature: top p (a preset's, in apply mode) and the saved options (top k, min p, penalties, output size, stop sequences)."""
+    try:
+        eff = effective_settings(name)
+    except Exception:  # noqa: BLE001
+        return {}
+    out = clean_options((eff.get("options") or {}).get("value"))
+    tp = (eff.get("top_p") or {}).get("value")
+    try:
+        if tp not in (None, ""):
+            out["top_p"] = float(tp)
+    except (TypeError, ValueError):
+        pass
+    return out
+
+
+_HELPER_MODELS = _RT.STATE / "helper_models.json"          # a model of their own for Smith (his talk) and the Doctor (his diagnosis)
+
+
+def helper_model(hid: str) -> str:
+    try:
+        return str((json.loads(_HELPER_MODELS.read_text(encoding="utf-8")) or {}).get(hid) or "")[:80]
+    except (OSError, ValueError, AttributeError):
+        return ""
+
+
+def set_helper_model(hid: str, model: str) -> None:
+    try:
+        d = json.loads(_HELPER_MODELS.read_text(encoding="utf-8"))
+        d = d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        d = {}
+    if model:
+        d[hid] = str(model)[:80]
+    else:
+        d.pop(hid, None)
+    _HELPER_MODELS.parent.mkdir(parents=True, exist_ok=True)
+    _HELPER_MODELS.write_text(json.dumps(d), encoding="utf-8")
 
 
 def load_overrides() -> dict:
@@ -599,7 +675,9 @@ def save_override(name: str, patch: dict) -> None:
     data = load_overrides()
     cur = data.get(name, {})
     for k, v in (patch or {}).items():
-        if v in (None, ""):
+        if k == "options" and isinstance(v, dict):
+            v = {**{a: b for a, b in v.items() if a not in OPTION_TYPES and a != "stop"}, **clean_options(v)}     # only what a model call accepts is kept
+        if v in (None, "", {}):
             cur.pop(k, None)
         else:
             cur[k] = v

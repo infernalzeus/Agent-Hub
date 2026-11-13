@@ -56,7 +56,7 @@ copy of your repo. You read the diff and decide:
 
 ```
 Auto-LLM ─▸ Missions ─▸ Dispatch ─┬─▸ Worktree ─▸ Review ─▸ Apply  (or discard)
-                                  └─▸ Orchestrator
+                                  └─▸ Victor (the orchestrator)
 ```
 
 Your repo is never written to until you approve. The same worktree diff is what feeds the

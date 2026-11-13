@@ -1,6 +1,6 @@
 """What a fine-tune of tev would be trained on, and whether it can be started. Nothing here trains anything or touches the GPU.
 
-The data is every graded request after the fresh start (a RIGHT keeps the bin tev chose; a WRONG that names a bin uses that bin), split by the same fixed hash as the held-out set:
+The data is every graded request after the fresh start (a RIGHT keeps the bin tev chose; a WRONG that names a bin uses that bin) plus the request each routine you trusted answers (routine_data.py), split by the same fixed hash as the held-out set:
 the held-out part is never trained on and is what a fine-tuned model is judged on. The objective is the average of minus the log of the probability it gives the right bin, plus a
 small penalty on how far the adapter's numbers move; nothing is written by hand. `plan()` says how many rows there are, whether that is enough (100), and what hardware this PC
 reports, so you can decide before anything runs. `export()` writes the two files a trainer would read.
@@ -20,9 +20,10 @@ DIR = STATE / "data" / "yard" / "tev"
 
 def split() -> "tuple[list[dict], list[dict]]":
     from . import fitness as FIT, router_challenger as RC
+    from . import routine_data as RD
     train, held = [], []
-    for e in RC.examples():
-        (held if FIT.held_out(e["text"]) else train).append({"text": e["text"], "label": e["label"]})
+    for e in RC.examples() + RD.router_rows():                       # your graded requests, and the requests your trusted routines answer
+        (held if FIT.held_out(e["text"]) else train).append({"text": e["text"], "label": e["label"], "source": e.get("source", "graded")})
     return train, held
 
 
@@ -41,9 +42,11 @@ def hardware() -> dict:
 def plan() -> dict:
     train, held = split()
     n = len(train) + len(held)
-    return {"rows": n, "train": len(train), "held_out": len(held), "needed": NEEDED, "enough": n >= NEEDED, "hardware": hardware(),
+    from . import routine_data as RD
+    return {"rows": n, "graded": sum(1 for r in train + held if r.get("source") == "graded"), "from_trusted_routines": sum(1 for r in train + held if r.get("source") == "trusted routine"),
+            "routines": RD.summary(), "train": len(train), "held_out": len(held), "needed": NEEDED, "enough": n >= NEEDED, "hardware": hardware(),
             "objective": "minimise -(1/n) sum log p(right bin | sentence) + lambda |adapter|^2 over the training rows; judged on the held-out rows against the nearest-neighbour yardstick and the classifier",
-            "output": str(DIR / "adapter"), "note": "Nothing runs until you say go. With fewer than %d graded requests a fine-tune would memorise them." % NEEDED}
+            "output": str(DIR / "adapter"), "note": "Nothing runs until you say go. Rows are the requests you graded plus the request each trusted routine answers. With fewer than %d a fine-tune would memorise them." % NEEDED}
 
 
 def export() -> dict:

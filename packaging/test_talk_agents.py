@@ -104,7 +104,7 @@ def test_neo_drafts_an_agent_but_saves_nothing(monkeypatch):
 
 def test_a_bare_name_greets_and_smith_with_no_words_does_not_reach_the_router(monkeypatch):
     chat = _smith("", [], None)
-    assert "Here" in asyncio.run(TA.speak_as("neo", "", [], None, chat))["say"]
+    assert "here" in asyncio.run(TA.speak_as("neo", "", [], None, chat))["say"].lower()
     assert asyncio.run(TA.speak_as("smith", "", [], None, chat))["say"] == "Here."
 
 
@@ -136,3 +136,45 @@ def test_the_talk_window_sends_the_chosen_speaker_and_a_mission_hands_it_to_the_
         pg.wait_for_function("document.querySelector('#v-who .on').dataset.who==='orchestrator'", timeout=10000)   # ... and the Orchestrator takes the conversation
         assert sent[-1] == "smith"
         b.close()
+
+
+def test_victor_is_the_orchestrators_name_and_orchestrator_his_designation():
+    assert TA.NAME["orchestrator"] == "Victor" and TA.DESIGNATION["orchestrator"] == "Orchestrator"
+    for said in ("Victor", "Viktor, what is running", "hey victor the orchestrator", "Orchestrator what is running", "Agent Victor stop"):
+        assert TA.address(said)[0] == "orchestrator", said
+
+
+def test_asking_for_an_agent_moves_the_conversation_and_a_question_about_one_does_not():
+    want = {"Smith, pull up Victor": ("orchestrator", ""), "can I talk to Neo": ("neo", ""), "get the doctor": ("doctor", ""), "put Viktor on": ("orchestrator", ""),
+            "switch to the orchestrator": ("orchestrator", ""), "Hey Smith, can you bring up Victor please": ("orchestrator", ""), "call the doctor": ("doctor", ""),
+            "get Neo to draft an agent that checks invoices": ("neo", "draft an agent that checks invoices"), "ask Victor to run the plan": ("orchestrator", "run the plan"),
+            "I want to speak with the Doctor about the slow dashboard": ("doctor", "the slow dashboard")}
+    for said, (to, rest) in want.items():
+        got = TA.summon(said, "smith")
+        assert got and got["to"] == to and got["rest"] == rest and got["from"] == "smith", (said, got)
+    for said in ("what does Neo do", "Neo", "play my playlist", "call mum", "get the weather in Leeds", "Doctor, why is it slow", "put Neo's name in the list"):
+        assert TA.summon(said, "smith") is None, said
+    assert TA.summon("talk to Smith", "smith")["same"] is True
+
+
+def test_the_talk_window_moves_from_smith_to_victor_with_a_line_from_each(hub):
+    """The real chat route and the real window: nothing stubbed but the voice."""
+    with sync_playwright() as pw:
+        b = pw.chromium.launch(headless=True)
+        pg = b.new_context(service_workers="block", viewport={"width": 1280, "height": 800}).new_page()
+        pg.route("**/api/voice/speak", lambda r: r.fulfill(status=503, body="no voice in a test"))
+        pg.goto(hub + "/?enter=1")
+        pg.wait_for_function("!!window.__hubBoard && !!window.__hubBoard.active && !!window.HubVoice", timeout=20000)
+        pg.evaluate("document.getElementById('voice').hidden=false")
+        pg.wait_for_function("document.getElementById('v-name').textContent==='SMITH'", timeout=5000)
+        pg.evaluate("HubVoice.ask('Smith, pull up Victor'); void 0")
+        pg.wait_for_function("document.querySelector('#v-who .on').dataset.who==='orchestrator'", timeout=10000)
+        pg.wait_for_function("document.getElementById('v-name').textContent==='VICTOR'", timeout=5000)
+        face_on_board = pg.evaluate("(document.querySelector('.talk-btn img')||{}).src||''")
+        got = pg.evaluate("""()=>({role:document.getElementById('v-role').textContent,face:document.getElementById('v-face').getAttribute('src'),chip:document.querySelector('#v-who [data-who=orchestrator]').textContent,
+          log:[...document.querySelectorAll('#v-log .v-msg')].map(e=>e.textContent)})""")
+        b.close()
+    assert got["role"] == "Orchestrator" and got["face"].endswith("/orchestrator.png") and got["chip"] == "VICTOR", got
+    assert face_on_board.endswith("/static/agent-icons/orchestrator.png") or face_on_board == "", face_on_board          # the Talk button on the board wears his face (when the board has one)
+    text = " | ".join(got["log"])
+    assert "bring in Victor" in text and "Victor here" in text, text                                   # Smith says he is bringing Victor in, then Victor speaks

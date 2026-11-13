@@ -35,7 +35,9 @@ COVERAGE: "dict[str, dict]" = {
     "orchestrator": {"decides": "which agent does which step of a plan", "kind": _P, "state": "logged",
                      "note": "When you APPLY or DISCARD a mission, each step's agent is written to the learning log with that verdict (kind persona, since 5 Nov). Nothing learns from it yet."},
 }
-_PERSONA_DEFAULT = {"decides": "nothing alone: it is chosen by the orchestrator and runs on a model the model bandit picks", "kind": "model", "state": "logged",
+from ..agent_knowledge import AGENT_NAMES as _AN
+DISPLAY = {k: f"{v[0].lower()} ({v[1].lower()})" for k, v in _AN.items() if k == "orchestrator"}                 # his name and his designation; the id stays "orchestrator"
+_PERSONA_DEFAULT = {"decides": "nothing alone: it is chosen by Victor (the orchestrator) and runs on a model the model bandit picks", "kind": "model", "state": "logged",
                     "note": "Its model is logged with the mission result; which persona was picked is logged with your verdict."}
 _UTILITY = {"scout": {"decides": "what an unfamiliar repo needs to be fronted by the Hub", "kind": "none", "state": "by-design",
                       "note": "Runs once per app; the manifest it writes is read and checked by a person."}}
@@ -50,7 +52,7 @@ def _nodes() -> "list[dict]":
             kind = "agent"
         else:
             kind = "persona"
-        out.append({"id": a["name"], "name": a["name"], "kind": kind, "origin": "persona file", "mode": a.get("mode", "")})
+        out.append({"id": a["name"], "name": DISPLAY.get(a["name"], a["name"]), "kind": kind, "origin": "persona file", "mode": a.get("mode", "")})
     ids = {n["id"] for n in out}
     for h in H.build():
         if h["id"] in ids:                   # neo is both a persona file and a helper row: one node, the helper's description wins

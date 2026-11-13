@@ -77,6 +77,15 @@ def _model_block(hid: str) -> "dict | None":
         cur = DA.chosen_model()
         first = options[0] if options else ""
         return {"current": cur, "effective": cur or first, "options": [m for m in dict.fromkeys(([cur] if cur else []) + options)], "note": "tried first; the rest stay as the fall-back order"}
+    if hid in ("smith", "doctor"):
+        from .. import agent_knowledge as AK
+        cur = AK.helper_model(hid)
+        try:
+            opts = [m for m in AK.model_chain(None, None)] if hid == "doctor" else [m.split("/", 1)[1] for m in AK.model_chain(None, None) if m.startswith("ollama/")]
+        except Exception:  # noqa: BLE001
+            opts = []
+        return {"current": cur, "effective": cur or (opts[0] if opts else ""), "options": [m for m in dict.fromkeys(([cur] if cur else []) + opts)],
+                "note": "Smith talks on this one first, then the usual order" if hid == "smith" else "the Doctor's diagnosis mission runs on this one"}
     if hid == "router":
         loc = BIN.settings()["local"]
         return {"current": loc["model"], "effective": loc["model"], "options": list(dict.fromkeys([loc["model"]] + options)),
@@ -96,6 +105,9 @@ async def api_helper_model(request: web.Request) -> web.Response:
         DA.set_chosen_model(model)
     elif hid == "router" and model:
         BIN.save_settings({"local": {"model": model}})
+    elif hid in ("smith", "doctor"):
+        from .. import agent_knowledge as AK
+        AK.set_helper_model(hid, model)
     else:
         raise web.HTTPNotFound(text="this helper has no model of its own")
     return web.json_response({"ok": True, "model": _model_block(hid)})

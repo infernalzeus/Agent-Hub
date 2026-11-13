@@ -17,9 +17,11 @@ function agAgentOptions(p){
  const models=(DATA.models||[]).slice();if(own&&o.value&&!models.some(m=>m.id===o.value))models.push({id:o.value,name:o.value});
  html+=models.map(m=>`<option value="${esc(m.id)}" ${own&&m.id===o.value?'selected':''}>${esc(m.name||m.id)}</option>`).join('');return html;
 }
+// Victor is the name, Orchestrator the designation; the id stays 'orchestrator' (files, missions, settings).
+const AG_ICON={'agent-smith':'neo'};
 function agCompact(p){
  const id=p.name,open=AG_OPEN.has(id),links=agLinks(id),o=p.settings?.model||{},own=o.source==='override'||o.source==='persona';
- return `<article class="ag-entry" data-agent="${esc(id)}"><div class="ag-summary"><button type="button" class="ag-expand" data-ag-expand="${esc(id)}" aria-expanded="${open}"><img src="/static/agent-icons/${esc(id==='agent-smith'?'neo':id)}.png" alt="" onerror="this.hidden=true"><span class="ag-copy"><b>${esc(id==='agent-smith'?'neo':id)}</b><span class="ag-role" title="${esc(p.description||'')}">${esc(agShort(p.frontmatter?.about||p.description))}</span><span class="ag-chips">${links.html}</span></span></button><div class="ag-model"><label for="model-${esc(id)}">Model</label><select id="model-${esc(id)}" data-agent-model="${esc(id)}" aria-label="Model for ${esc(id)}">${agAgentOptions(p)}</select><span class="ag-source ${own?'own':''}" data-model-source>${own?(o.source==='override'?'Own model':'Persona model'):'Follows all agents'}</span><button type="button" class="btn ag-reset" data-model-reset="${esc(id)}" ${o.source==='override'?'':'hidden'}>RESET</button></div></div><div class="ag-full" ${open?'':'hidden'}>${agRelations(id)}${AG_CARD(p)}</div></article>`;
+ return `<article class="ag-entry" data-agent="${esc(id)}"><div class="ag-summary"><button type="button" class="ag-expand" data-ag-expand="${esc(id)}" aria-expanded="${open}"><img src="/static/agent-icons/${esc(AG_ICON[id]||id)}.png" alt="" onerror="this.hidden=true"><span class="ag-copy"><b>${esc((p.display||AG_ICON[id]||id).toLowerCase())}</b><span class="ag-role" title="${esc(p.description||'')}">${esc((p.designation?p.designation+'. ':'')+agShort(p.frontmatter?.about||p.description))}</span><span class="ag-chips">${links.html}</span></span></button><div class="ag-model"><label for="model-${esc(id)}">Model</label><select id="model-${esc(id)}" data-agent-model="${esc(id)}" aria-label="Model for ${esc(id)}">${agAgentOptions(p)}</select><span class="ag-source ${own?'own':''}" data-model-source>${own?(o.source==='override'?'Own model':'Persona model'):'Follows all agents'}</span><button type="button" class="btn ag-reset" data-model-reset="${esc(id)}" ${o.source==='override'?'':'hidden'}>RESET</button></div></div><div class="ag-full" ${open?'':'hidden'}>${agRelations(id)}${AG_CARD(p)}</div></article>`;
 }
 function agHelperModel(h){
  if(!h.model)return '<div class="ag-model"><label>Model</label><span class="ag-source">none of its own</span></div>';
@@ -74,7 +76,7 @@ function agPaintList(){
    if(p){used.add(p.name);if(AG_SCOPE!=='helpers'&&has(p))core.push({kind:'persona',p});}
    else if(h&&AG_SCOPE!=='missions'&&hasH(h))core.push({kind:'helper',h});
   }
-  html+=section('Core team','The four agents that form the agentic team. Everything below is an operative they call on.',core,x=>x.kind==='persona'?agCompact(x.p):agHelper(x.h));
+  html+=section('Core team','The four agents that form the agentic team: Victor (the orchestrator), Neo, Smith and the Doctor. Everything below is an operative they call on.',core,x=>x.kind==='persona'?agCompact(x.p):agHelper(x.h));
  }
  if(AG_SCOPE!=='helpers'){
   // 2. operatives, grouped by the work they do
@@ -84,7 +86,7 @@ function agPaintList(){
  if(AG_SCOPE!=='missions'&&!AG_WORK){
   // 3. the Hub's own helpers that are not part of the core team
   const helpers=HELPERS.filter(h=>!AG_CORE.includes(h.id)&&!persons.some(p=>p.name===h.id)&&hasH(h)),util=persons.filter(p=>!used.has(p.name)&&p.utility).filter(has);
-  html+=section('Hub helpers','Parts of the Hub that act for you. They are not called by the orchestrator.',helpers,agHelper)+section('Agent design','',util,agCompact);
+  html+=section('Hub helpers','Parts of the Hub that act for you. They are not called by Victor.',helpers,agHelper)+section('Agent design','',util,agCompact);
  }
  $('list').innerHTML=html;
  agDecorate();

@@ -259,12 +259,14 @@ LOCAL_TIMEOUT = 40.0                     # a cold 9B model loading is most of th
 
 async def _decide_systemone(state: dict, questions: list[dict], model: str = LOCAL_SYSTEMONE_MODEL,
                             post: "Callable[[dict, str], Awaitable[dict]] | None" = None,
-                            url: str = LOCAL_SYSTEMONE_URL) -> list[dict]:
+                            url: str = LOCAL_SYSTEMONE_URL, options: "dict | None" = None) -> list[dict]:
     def none(note: str) -> list[dict]:
         return [{"id": q["id"], "answer": None, "p": 0.0, "dist": None, "backend": "systemone", "note": note}
                 for q in questions]
     body = {"model": model, "state": json.dumps(state, ensure_ascii=False, default=str)[:60000],
             "questions": _jev_questions(questions)}
+    if options:
+        body["options"] = options                       # sampling settings for this one call (the replay in yard/router_tuning.py varies the temperature)
     try:
         if post is not None:
             got = await post(body, "")

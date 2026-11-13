@@ -325,7 +325,12 @@ async def refine(decision: dict, text: str, post=None) -> dict:
             elif backend == "systemone":
                 if post is None:
                     await _ensure_local_model()
-                got = await DEC._decide_systemone({"utterance": text}, [q], settings()["local"]["model"], post)
+                try:
+                    from ..yard import router_tuning as RT
+                    state = RT.state_for(text)               # R9a: the sentence, and the nearest ones you have settled with their right bin
+                except Exception:  # noqa: BLE001
+                    state = {"utterance": text}
+                got = await DEC._decide_systemone(state, [q], settings()["local"]["model"], post)
             else:
                 got = await DEC.decide({"utterance": text}, [q], backend=backend)
         except Exception as exc:

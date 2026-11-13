@@ -158,6 +158,11 @@ def install(app: web.Application) -> None:
             _PC.stop_all()
         except Exception:  # noqa: BLE001
             pass
+        try:                                         # and a window being filmed for a phone stops with it
+            from .features import window_video as _WV
+            await _WV.stop()
+        except Exception:  # noqa: BLE001
+            pass
         # Runs BEFORE aiohttp's connection-drain phase. An open websocket never
         # finishes on its own, so any subscriber socket still connected (a card
         # left expanded somewhere) would make the drain burn its full

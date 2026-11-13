@@ -4,7 +4,8 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   const KEY = 'hubVoiceSession';
-  const WHO = { smith: 'Smith', orchestrator: 'Orchestrator', neo: 'Neo', doctor: 'Doctor' };
+  const AGENT_IDS = __AGENT_NAMES__;                                                    // id -> [name, designation], from the one place that holds them; Victor is the name, Orchestrator his designation (the id stays 'orchestrator')
+  const WHO = Object.fromEntries(Object.entries(AGENT_IDS).map(([k, v]) => [k, v[0]])), ROLE = Object.fromEntries(Object.entries(AGENT_IDS).map(([k, v]) => [k, v[1]]));
   const S = { who: 'smith', mission: null, on: false, speaking: false, pending: null, history: [], stream: null, ctx: null, an: null, whisper: null, voice: null, mute: false,
               audio: null, actx: null, stop: null, carry: null, turn: 0, capture: 0, listen: 0, busy: false,
               requests: new Set(), loop: null, compact: location.pathname === '/missions', expanded: false, context: null };
@@ -351,6 +352,7 @@
     const board = window.__hubBoard && window.__hubBoard.scene();            // on the dashboard Talk sees its blocks and may move them
     const r = await request('/api/voice/chat', { text, history: S.history.slice(-9, -1), mission: ctx.mission || S.mission || null, scene: board || undefined, speaker: S.who });
     if (turn !== S.turn) return;
+    if (r.transition) log('hub', r.transition.line);                                                         // the one who is leaving says so, under their own name, before the change
     if (r.speaker && r.speaker !== S.who && window.__hubTalkWho) window.__hubTalkWho(r.speaker, true);          // you named another agent: the conversation is theirs from here
     if (r.mission) S.mission = r.mission;
     const serverResult = r.action && !r.confirm && !r.url;          // its own result is the answer: do not also say the model's sentence
@@ -358,7 +360,7 @@
     if (r.ui && board && window.__hubBoard.applyUi(r.ui)) { S.compact = true; S.expanded = false; layout(); }   // a panel asked for, tidy, fit, a mouse scheme: done on the board itself
     if (r.action && r.confirm) { S.pending = r; showBtns(true); setState('breathing', 'Waiting for your yes'); await speak(r.say); return; }
     if (serverResult) return execute(r, turn);
-    await speak(r.say);
+    await speak((r.transition ? r.transition.line + ' ' : '') + r.say);
     if (turn !== S.turn || S.carry) return;                       // you talked over the reply: handle what you said first
     if (r.action) await execute(r, turn);
   }
@@ -477,6 +479,15 @@
       if (!WHO[w]) w = 'smith'; S.who = w; try { sessionStorage.setItem('hubTalkWho', w); } catch (e) {}
       document.querySelectorAll('#v-who [data-who]').forEach((b) => { b.classList.toggle('on', b.dataset.who === w); b.setAttribute('aria-pressed', String(b.dataset.who === w)); });
       $('v-in').placeholder = w === 'smith' ? 'Type, or dictate with your keyboard' : 'Talking to ' + WHO[w] + '. Type, or dictate with your keyboard';
+      const face = $('v-face'), nm = $('v-name'), role = $('v-role'), stage = $('v-stage');
+      if (face && nm && stage && nm.textContent !== WHO[w].toUpperCase()) {                  // the picture and name change with a short cross-fade: the new speaker arrives, the old one leaves
+        stage.classList.add('swap');
+        setTimeout(() => { face.src = '/static/agent-icons/' + w + '.png'; face.alt = WHO[w]; nm.textContent = WHO[w].toUpperCase(); role.textContent = ROLE[w]; stage.dataset.who = w; stage.classList.remove('swap'); }, 220);
+      } else if (face && nm && stage && !face.getAttribute('src')) { face.src = '/static/agent-icons/' + w + '.png'; nm.textContent = WHO[w].toUpperCase(); role.textContent = ROLE[w]; stage.dataset.who = w; }
+      document.querySelectorAll('.talk-btn img').forEach((i) => {                          // the Talk button on the board wears the face of whoever you are talking to; Smith's own is put back for Smith
+        if (!i.dataset.own) i.dataset.own = i.getAttribute('src') || '';
+        i.src = w === 'smith' ? i.dataset.own : '/static/agent-icons/' + w + '.png';
+      });
       if (!quiet) { try { $('v-in').focus(); } catch (e) {} }
     }
     window.__hubTalkWho = setWho;

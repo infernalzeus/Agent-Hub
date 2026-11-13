@@ -173,7 +173,7 @@
    "width": 300,
    "height": 150,
    "color": "#3ba7ff",
-   "text": "## Attested checks\n\nThe routines you checked and trusted. They are never training samples. After a session the learner is asked, step by step on pretend screens built from your routine's control names, which control it would press; the share that match your routine is shown.\n\n*Event: agreement, with the share that match. Adjust: nothing; it only measures.*"
+   "text": "## Trusted routines\n\nThe routines you checked and trusted. They teach the learners: each step that presses a named control becomes a pretend screen (your control among decoys) with your press as the answer, and the request each answers is a router example. Some are kept out as a test: the learner is asked, step by step, which control it would press, and the share that match your routine is shown.\n\n*Events: imitated (how much it agrees with you after learning from them) and agreement (on the ones kept out). Adjust: the switches and numbers under Trusted routines.*"
   },
   {
    "id": "fit",
@@ -233,7 +233,7 @@
    "width": 300,
    "height": 150,
    "color": "#3ba7ff",
-   "text": "## Router yardstick\n\nNearest neighbours and a small classifier trained by gradient descent on every graded request, each judged by leaving a request out and predicting it from the rest, against the current rules and tev. A fine-tune of tev has to beat these to be worth doing.\n\n*Shown in SCORES, not during a session. Adjust: neighbours, share held out, classifier passes, penalty and step size.*"
+   "text": "## Router yardstick\n\nNearest neighbours and a small classifier trained by gradient descent on every graded request, each judged by leaving a request out and predicting it from the rest, against the current rules and tev. A fine-tune of tev has to beat these to be worth doing. Live: the nearest settled sentences are also shown to tev itself as examples when local decisions are on; a replay asks it the stored sentences again at other temperatures; a cut-off is suggested from 20 settled decisions.\n\n*Shown in SCORES, not during a session. Adjust: neighbours, share held out, classifier passes, penalty and step size.*"
   },
   {
    "id": "search",
@@ -253,7 +253,7 @@
    "width": 300,
    "height": 150,
    "color": "#3ba7ff",
-   "text": "## Sampling presets\n\nFive named sets of the eight language-model settings, and a reward that needs no label (valid answer, not cut off, no repeating, checks passed, few tokens) to learn which suits which agent role. Built and tested; not yet called by a live request.\n\n*Not run in a session. Adjust: the five reward weights.*"
+   "text": "## Sampling presets\n\nFive named sets of the eight language-model settings, and a reward that needs no label (valid answer, not cut off, no repeating, checks passed, few tokens) to learn which suits which agent role. Live: every finished mission step is scored and the tally per role is updated; in shadow (the default) it only records what it would pick; in apply mode an agent uses the pick.\n\n*Not run in a session; fed by missions. Adjust: what presets do (off, shadow, apply) and the five reward weights.*"
   },
   {
    "id": "td3",

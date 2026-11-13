@@ -75,7 +75,7 @@ def examples() -> "list[dict]":
             continue
         label = r.get("bin") if v["ok"] else v.get("correct")
         if label:
-            out.append({"text": str(r["text"]), "label": str(label), "rules_right": bool(v["ok"])})
+            out.append({"text": str(r["text"]), "label": str(label), "rules_right": bool(v["ok"]), "confidence": r.get("confidence")})
     return out
 
 

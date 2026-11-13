@@ -91,7 +91,7 @@ brief handed to one agent, run headless to completion. `/missions` is the board:
 
 - **＋ NEW MISSION** → pick a project (a real folder), write the **brief** (what
   exactly the agent should do), choose **Single agent** (pick a persona) or
-  **Orchestrator** (plans the goal into sub-briefs), optional model → DISPATCH.
+  **Victor, the orchestrator** (plans the goal into sub-briefs), optional model → DISPATCH.
 - Each card shows status → the **ACTIVITY** feed (step / tool-call / text /
   error, live) → the **RESULT** (changed files + diff) → **APPLY** (merge the
   branch into the project's base when it's clean on base, else it hands you the

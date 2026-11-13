@@ -1910,6 +1910,11 @@ async def _finalize(m: Mission, wt: Path, data_dir: Path, rc: int, stop: bool) -
                 m.answer = _mission_answer(wt, data_dir)
             except Exception as exc:
                 logger.info("missions %s: could not read an answer: %s", m.id, exc)
+        try:                                       # R8c + R8d: score the result without any grading and update the tally for the agent's role (shadow unless you chose apply)
+            from ..yard import presets as _PRE
+            _PRE.note_mission(m)
+        except Exception:  # noqa: BLE001
+            pass
         # `_questions_from_jsonl` was only ever consulted for the orchestrator, so
         # a single agent that asked something had its question silently dropped
         # and the mission went to review as though it had decided for itself.
@@ -2206,12 +2211,12 @@ async def _ensure_ollama(wait: float = 30.0) -> bool:
 
 
 async def _direct_chat(model: str, system: str, user: str, *, temperature: float = 0.3,
-                       timeout: float = 120.0, num_ctx: int = 32768) -> str:
+                       timeout: float = 120.0, num_ctx: int = 32768, options: "dict | None" = None) -> str:
     """One chat completion straight from Ollama (local or :cloud) — 3-6 s for cloud Nemotron, versus minutes through
     an agent tool-loop. Raises on any failure so the caller can fail over."""
     import aiohttp
     name = model.split("/", 1)[1]
-    body = {"model": name, "stream": False, "think": False, "options": {"temperature": temperature, "num_ctx": num_ctx},
+    body = {"model": name, "stream": False, "think": False, "options": {"temperature": temperature, "num_ctx": num_ctx, **(options or {})},      # the agent's saved settings (top k, min p, penalties, output size, stop) ride along
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
     for attempt in (0, 1):
         try:
@@ -2536,7 +2541,7 @@ async def _direct_step(m: Mission, st: dict, wt: Path, jsonl: Path, brief: str, 
                 t0 = time.time()
                 text = await _direct_chat(mdl, system, user, temperature=float(
                     (agent_knowledge.effective_settings(st["agent"]).get("temperature") or {}).get("value") or 0.4),
-                    timeout=180 if mdl.endswith(":cloud") else 420)
+                    timeout=180 if mdl.endswith(":cloud") else 420, options=agent_knowledge.direct_options(st["agent"]))
         except Exception as exc:
             S.events[m.id].append({"type": "error", "error": f"{st['agent']} on {mdl} failed ({str(exc)[:110]}) — next model"})
             continue

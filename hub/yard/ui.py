@@ -89,6 +89,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
 
 <section id="tab-routines" hidden>
 <div class="row"><span class="mute" id="freshnote"></span><button id="fresh" type="button" class="part">FRESH START</button></div>
+<div id="rdata" class="card"></div>
 <div id="rlist"></div>
 <h2>RECENT LIVE TASKS</h2><div class="mute" id="livenote"></div><div id="livelist"></div>
 </section>
@@ -265,11 +266,23 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       c.append(b,w);L.append(c);});}
 
   // ---- ROUTINES
+  // What the learners take from your trusted routines: said in plain words, with the switch beside it.
+  async function routineData(){
+    const d=$('rdata');let j;try{j=await J('/api/yard/routine-data');}catch(e){d.textContent='Could not read what the routines give the learners.';return;}
+    d.replaceChildren();
+    const head=el('div','row'),sw=el('button',j.on?'part':'skip',j.on?'USED AS TRAINING DATA: ON':'USED AS TRAINING DATA: OFF');
+    sw.title='Switch whether the routines you trusted teach the learners. Off: they are only checks.';sw.onclick=async()=>{await POST('/api/yard/knobs',{routine_data:!j.on});routineData();};
+    head.append(el('b',null,'DATA FROM YOUR TRUSTED ROUTINES'),sw);d.append(head);
+    d.append(el('div','mute',j.routines.length+' trusted routine'+(j.routines.length===1?'':'s')+' · '+j.sentences+' request'+(j.sentences===1?'':'s')+' for the router · '+j.steps+' pressed step'+(j.steps===1?'':'s')+' for the learner'+(j.held_out?' · '+j.held_out+' kept out as a test':'')+'.'));
+    j.routines.forEach(r=>{const x=el('div','mute','• '+r.text+' → '+r.bin+', '+r.steps+' step'+(r.steps===1?'':'s')+(r.confidence!=null?', the model was '+Math.round(r.confidence*100)+' % sure of them when recording (its own word)':'')+', replayed '+r.replays_ok+' good / '+r.replays_bad+' bad · '+r.used_as);d.append(x);});
+    d.append(el('div','mute','Your trust is the label. The confidence the model gave a step only lowers that step weight; it is never the answer. The router fine-tune needs 100 requests: this is how many of them come from routines. '+(j.note||'')));
+  }
   async function routines(){
+    routineData();
     const box=$('rlist');box.replaceChildren();let rows=[],gold={routines:[]},cands=[],s={};
     try{[rows,gold,cands,s]=await Promise.all([J('/api/pc/routines').then(j=>j.routines||[]),J('/api/yard/golden'),J('/api/yard/candidates').then(j=>j.candidates||[]).catch(()=>[]),J('/api/yard/settings')]);}catch(e){box.textContent='Could not read the routines: '+e.message;return;}
     $('freshnote').textContent=s.fresh_since?'Learners read only what happened after '+new Date(s.fresh_since*1000).toLocaleString()+'.':'Learners read everything until the first time shadow mode is switched on.';
-    $('fresh').onclick=async()=>{if(!confirm('FRESH START: learners read only new rows from now on, and the routines trusted right now become attested checks. Nothing is deleted.'))return;await POST('/api/yard/settings',{fresh:true});routines();};
+    $('fresh').onclick=async()=>{if(!confirm('FRESH START: learners read only new rows from now on, and the routines trusted right now stay your checks (and, if the switch is on, training data). Nothing is deleted.'))return;await POST('/api/yard/settings',{fresh:true});routines();};
     const att=new Set((gold.routines||[]).map(r=>r.id)),chk={};cands.forEach(c=>chk[c.id]=c);
     if(!rows.length){box.append(el('div','card','No routines yet.'));return;}
     let openId=null;try{openId=sessionStorage.getItem('hub-rl-open');}catch(e){}

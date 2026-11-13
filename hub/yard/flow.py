@@ -28,11 +28,11 @@ NODE_KNOBS = {
     "mem": ["memory_epochs"], "enc": ["letters"], "actor": ["hidden_units", "lr_actor"], "soft": ["entropy_beta", "support_threshold"],
     "env": ["vocab", "family_direct", "family_modal", "family_search", "family_menu", "family_long", "family_unnamed", "family_tabs", "family_confirm"],
     "rew": ["step_cost", "invalid_cost", "false_done_cost", "forbidden_cost", "win"], "crit": ["lr_critic"], "upd": ["gamma", "warm_start", "clip_norm"],
-    "repl": ["replay_every", "replay_batch", "replay_priority"], "hind": ["hindsight"], "demos": ["candidate_agree"], "fit": ["eval_per_cell"],
+    "repl": ["replay_every", "replay_batch", "replay_priority"], "hind": ["hindsight"], "demos": ["routine_data", "routine_epochs", "routine_weight", "routine_router", "routine_data_test", "candidate_agree"], "fit": ["eval_per_cell"],
     "gate": ["min_frozen", "shadow_n", "shadow_agree"], "ver": ["ema_alpha", "soup_top"], "safety": ["hide_forbidden"],
-    "learners": ["min_n", "thompson_draws", "linucb_alpha", "linucb_lambda", "ope_cap", "ope_boot"], "router": ["knn_k", "held_out_tenths", "clf_epochs", "clf_l2", "clf_lr"],
+    "learners": ["min_n", "thompson_draws", "linucb_alpha", "linucb_lambda", "ope_cap", "ope_boot"], "router": ["router_examples", "knn_k", "held_out_tenths", "clf_epochs", "clf_l2", "clf_lr"],
     "td3": [],
-    "search": ["cma_sigma0", "cma_repeat", "bo_init", "bo_length", "bo_noise"], "presets": ["rw_valid_json", "rw_not_truncated", "rw_no_repeat", "rw_checks", "rw_tokens"],
+    "search": ["cma_sigma0", "cma_repeat", "bo_init", "bo_length", "bo_noise"], "presets": ["preset_mode", "rw_valid_json", "rw_not_truncated", "rw_no_repeat", "rw_checks", "rw_tokens"],
 }
 
 # id: (column, row, state, title, what it is, what it emits / what you can adjust)
@@ -49,7 +49,7 @@ NODES = {
     "repl": (2, 1, "tested", "Replay buffer", "Remembers recent episodes with how unsure the learner was; every N episodes some are learned from again, the unsure ones more often. Off unless you set a number.", "Event: replay. Adjust: Replay every N episodes, Episodes per replay, Which episodes are replayed."),
     "hind": (5, 2, "tested", "Hindsight", "A failed task that ended up playing some other playlist is also learned from as a success for that other playlist (the controls stay the same, only the goal words change). Off by default.", "Event: relabel. Adjust: Hindsight relabelling."),
     "knobs": (0, 1, "tested", "Session", "Every number of the layer you can change by hand, in the KNOBS tab. Changes are saved and read the moment they are used. Safety rules (never-press list, taint gate, confirm before acting) cannot be changed here.", "Event: session, with the settings a session starts with."),
-    "demos": (1, 1, "tested", "Attested checks", "The routines you checked and trusted. They are never training samples. After a session the learner is asked, step by step on pretend screens built from your routine's control names, which control it would press; the share that match your routine is shown.", "Event: agreement, with the share that match. Adjust: nothing; it only measures."),
+    "demos": (1, 1, "tested", "Trusted routines", "The routines you checked and trusted. They teach the learners: each step that presses a named control becomes a pretend screen (your control among decoys) with your press as the answer, and the request each answers is a router example. Some are kept out as a test: the learner is asked, step by step, which control it would press, and the share that match your routine is shown.", "Events: imitated (how much it agrees with you after learning from them) and agreement (on the ones kept out). Adjust: the switches and numbers under Trusted routines."),
     "fit": (3, 2, "tested", "Fitness", "How well it does on layouts and words it has never seen, against random and the rule of thumb the Hub already uses. A block of training that scores clearly higher than the one before is announced as an improvement of the weights.", "Events: improved, evaluated. Adjust: Unseen apps per cell."),
     "gate": (2, 2, "tested", "Gate", "A new version replaces the one in use only if it is at least as good on unseen words (within a small tolerance). Nothing here ever acts on your PC: it only decides which saved learner the shadow watcher uses.", "Event: decided. Adjust: Gate numbers act on live promotion, not on this check."),
     "ver": (1, 2, "tested", "Saved versions", "Each finished session is saved as a version (a few hundred kilobytes of plain numbers) with its scores and the method that made it. The newest twelve are kept so one can be restored. Weight tools can average, smooth or compare versions.", "Event: saved, with the version number and whether it is now the one in use."),
@@ -58,9 +58,9 @@ NODES = {
 NODES.update({
     "safety": (1, 3, "tested", "Safety replay", "After a session the saved learner is shown pretend screens that also list forbidden controls (Delete playlist, Sign out ...) and it is counted how often its top pick is one. The gate needs zero. The real never-press list, the taint gate and the confirm rule stay in force whatever this says, and no learned number can loosen them.", "Event: replayed, with how many screens picked a forbidden control. Adjust: Hide forbidden controls from the live agent."),
     "learners": (1, 4, "tested", "Choice methods", "Tally, Thompson and LinUCB sit behind one interface for the model choice and the way a PC task is done. They are scored against each other on the choices already logged, without repeating any test (a weight-capped estimate of what each would have done). Choosing one only picks which is watched; no live choice changes.", "Shown in SCORES, not during a session. Adjust: tries before trust, draws, optimism, the weight cap."),
-    "router": (2, 4, "tested", "Router yardstick", "Nearest neighbours and a small classifier trained by gradient descent on every graded request, each judged by leaving a request out and predicting it from the rest, against the current rules and tev. A fine-tune of tev has to beat these to be worth doing.", "Shown in SCORES, not during a session. Adjust: neighbours, share held out, classifier passes, penalty and step size."),
+    "router": (2, 4, "tested", "Router yardstick", "Nearest neighbours and a small classifier trained by gradient descent on every graded request, each judged by leaving a request out and predicting it from the rest, against the current rules and tev. A fine-tune of tev has to beat these to be worth doing. Live: the nearest settled sentences are also shown to tev itself as examples when local decisions are on; a replay asks it the stored sentences again at other temperatures; a cut-off is suggested from 20 settled decisions.", "Shown in SCORES, not during a session. Adjust: neighbours, share held out, classifier passes, penalty and step size."),
     "search": (4, 4, "tested", "Number search", "CMA-ES and Bayesian optimisation look for the best set of a few numbers (hand and speech thresholds, sampling settings) when each try is slow and noisy. Built and tested on made-up numbers; applied to no real number until there are labelled traces to score against.", "Not run in a session. Adjust: first step, repeats, random starts, smoothness, noise."),
-    "presets": (3, 4, "tested", "Sampling presets", "Five named sets of the eight language-model settings, and a reward that needs no label (valid answer, not cut off, no repeating, checks passed, few tokens) to learn which suits which agent role. Built and tested; not yet called by a live request.", "Not run in a session. Adjust: the five reward weights."),
+    "presets": (3, 4, "tested", "Sampling presets", "Five named sets of the eight language-model settings, and a reward that needs no label (valid answer, not cut off, no repeating, checks passed, few tokens) to learn which suits which agent role. Live: every finished mission step is scored and the tally per role is updated; in shadow (the default) it only records what it would pick; in apply mode an agent uses the pick.", "Not run in a session; fed by missions. Adjust: what presets do (off, shadow, apply) and the five reward weights."),
 })
 NODES["td3"] = (5, 4, "todo", "TD3", "Twin Delayed DDPG: a policy-and-value method for actions that are numbers, not a pick from a list. It would tune things like a hand or speech threshold, or a sampling temperature, where the action is a real number. NOT BUILT: every choice in the yard is a pick from a list of controls, which an actor with a softmax (A2C) fits; TD3 does not. The number-tuning job is done by CMA-ES and Bayesian optimisation, which need no network.", "Not built. TD3 is DDPG plus three fixes (two value networks and take the smaller, update the policy every second step, add clipped noise to the target action), so it replaces DDPG rather than working alongside it.")
 
@@ -68,7 +68,7 @@ NODES["td3"] = (5, 4, "todo", "TD3", "Twin Delayed DDPG: a policy-and-value meth
 KIND = {
     "live": "real-world log", "mem": "dataset (state, action)", "enc": "state encoder", "actor": "policy network (actor)", "soft": "action sampler (softmax)",
     "env": "environment", "rew": "reward function", "crit": "value network (critic)", "upd": "A2C update (advantage)", "repl": "replay buffer", "hind": "hindsight relabelling",
-    "knobs": "settings", "demos": "expert checks (validation)", "fit": "evaluation", "gate": "promotion gate", "ver": "checkpoints", "safety": "safety check",
+    "knobs": "settings", "demos": "demonstrations and expert checks", "fit": "evaluation", "gate": "promotion gate", "ver": "checkpoints", "safety": "safety check",
     "learners": "bandits (tally, Thompson, LinUCB)", "router": "classifier (kNN, softmax)", "search": "black-box optimiser", "presets": "bandit over presets", "td3": "continuous actor-critic",
 }
 # the frames drawn behind blocks: which part of a reinforcement-learning system each belongs to
@@ -176,7 +176,7 @@ def arch(nid: str) -> dict:
         formula = ["confidence p = 1 - product over markers seen of (1 - w)", "then p = p x factors for warning signs", f"p is capped at {g('conf_cap')} unless Windows confirmed the result"]
         rows = [(k, f"w = {v}") for k, v in pos.items()] + [("warning signs", f"unusable answer x{g('f_invalid')}, nothing changed x{g('f_nothing')}, said done early x{g('f_false_done')}")]
     elif nid == "demos":
-        rows = [("attested", "routines you had trusted at the fresh start: used to measure the learner, never to train it"), ("candidates", f"a candidate looks ready when it presses no forbidden control, replayed clean twice, and the learner agrees on at least {g('candidate_agree')} of its steps")]
+        rows = [("trusted routines", "every routine you have trusted, now or later: training data" if g("routine_data") else "every routine you have trusted: checks only (the switch is off)"), ("kept out", "with three or more, a fixed share by the hash of the request: measured on, never trained on"), ("candidates", f"a candidate looks ready when it presses no forbidden control, replayed clean twice, and the learner agrees on at least {g('candidate_agree')} of its steps")]
     elif nid == "fit":
         formula = ["win rate on layouts and words never seen, against random and the rule of thumb", "95% interval (Wilson): centre +- z sqrt(p(1-p)/n + z^2/4n^2) / (1 + z^2/n)"]
     elif nid == "gate":
@@ -196,7 +196,15 @@ def arch(nid: str) -> dict:
         formula = ["CMA-ES: x_k ~ N(m, sigma^2 C); keep the best half; move m, C, sigma", "Bayesian optimisation: next try where expected improvement is largest"]
         rows = [("not adjustable here", "the hand and speech thresholds live in hand-gestures.js and voice-gate.js and are not read from here yet")]
     elif nid == "presets":
-        rows = [("presets", "precise, balanced, varied, terse, long"), ("eight settings", "temperature, top_k, top_p, min_p, presence penalty, frequency penalty, max tokens, stop sequences")]
+        try:
+            from . import presets as _PR
+            ps = _PR.summary()
+            live = [("mode", ps["mode"] + (" (records only)" if ps["mode"] == "shadow" else "")), ("scored steps so far", str(ps["calls"]))]
+            for r in ps["roles"]:
+                live.append((r["role"], "tries " + ", ".join(f"{k} {v['ok']}/{v['n']}" for k, v in r["tally"].items() if v["n"]) + ("" if not r["pick"] else f"; next pick {r['pick']['name']}") if any(v["n"] for v in r["tally"].values()) else "no preset has a try yet"))
+        except Exception:  # noqa: BLE001
+            live = []
+        rows = live + [("presets", "precise, balanced, varied, terse, long"), ("eight settings", "temperature, top_k, top_p, min_p, presence penalty, frequency penalty, max tokens, stop sequences")]
         formula = [f"reward = {g('rw_valid_json')} valid + {g('rw_not_truncated')} not cut off + {g('rw_no_repeat')} (1 - repeats) + {g('rw_checks')} checks - {g('rw_tokens')} tokens used"]
     elif nid == "td3":
         rows = [("state", "not built"), ("why not the same as the actor here", "its action is a real number; the yard's action is one control out of a list"), ("what it adds to DDPG", "two value networks (the smaller one is used), the policy updated every second step, noise added to the target action"), ("DDPG", "its predecessor: TD3 replaces it, the two are not used together")]

@@ -200,6 +200,22 @@ class Learner:
             self.actor.step(X, h, np.clip(weight * (e - p), -2, 2), self.lr)
         return float(np.mean(probs)) if probs else 0.0
 
+    def imitate_screens(self, items: "list[tuple[dict, int, float]]") -> float:
+        """Learn from screens built from approved routines: (screen, id of the control that was pressed, weight). Returns the mean probability given to the approved press before each step."""
+        probs = []
+        for o, want, w in items:
+            acts, X = candidates(o, self.letters)
+            a = next((i for i, c in enumerate(acts) if c["do"] == "click" and c.get("id") == want), None)
+            if a is None:
+                continue
+            sc, h = self.actor.forward(X)
+            p = softmax(sc)
+            e = np.zeros_like(p)
+            e[a] = 1.0
+            probs.append(float(p[a]))
+            self.actor.step(X, h, np.clip(w * (e - p), -2, 2), self.lr)
+        return float(np.mean(probs)) if probs else 0.0
+
     def dump(self) -> dict:
         """Everything that is learned: the actor's numbers and the critic's. A few kilobytes."""
         return {"actor": self.actor.dump(), "critic": self.v.tolist()}
