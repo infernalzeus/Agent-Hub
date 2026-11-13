@@ -1260,7 +1260,7 @@ async def _stream_one(m: Mission, wt: Path, data_dir: Path, agent: str, brief: s
     st = {"last": time.monotonic(), "moved": time.monotonic(), "stop": False, "got": False}
 
     mdl = m.model or ""
-    local = mdl.startswith("ollama/") and not mdl.endswith(":cloud")
+    local = mdl.startswith("ollama/")
     stall = LOCAL_STALL_SECS if local else STALL_SECS
     no_progress = LOCAL_NO_PROGRESS_SECS if local else NO_PROGRESS_SECS
 
@@ -1449,7 +1449,7 @@ _PROBE_TOOL = [{"type": "function", "function": {"name": "write", "description":
 
 
 def _is_local(model: str) -> bool:
-    return (model or "").startswith("ollama/") and not (model or "").endswith(":cloud")
+    return (model or "").startswith("ollama/")
 
 
 def _health() -> dict:
@@ -2212,7 +2212,7 @@ async def _ensure_ollama(wait: float = 30.0) -> bool:
 
 async def _direct_chat(model: str, system: str, user: str, *, temperature: float = 0.3,
                        timeout: float = 120.0, num_ctx: int = 32768, options: "dict | None" = None) -> str:
-    """One chat completion straight from Ollama (local, or a :cloud model if you pay for one), versus minutes through
+    """One chat completion straight from Ollama (a model on this PC), versus minutes through
     an agent tool-loop. Raises on any failure so the caller can fail over."""
     import aiohttp
     name = model.split("/", 1)[1]
@@ -2273,10 +2273,9 @@ async def _orch_call(m: Mission, wt: Path, data_dir: Path, jsonl: Path, prompt: 
             user = f"{prompt}\n\n---\n{repo}"
             m.phase_started = time.time()
             for mdl in [x for x in chain if x.startswith("ollama/")]:
-                local = not mdl.endswith(":cloud")
                 try:
                     t0 = time.time()
-                    text = await _direct_chat(mdl, PLANNER_SYSTEM, user, timeout=300 if local else 120)
+                    text = await _direct_chat(mdl, PLANNER_SYSTEM, user, timeout=300)
                     _log_direct(m, jsonl, "orchestrator", phase, mdl, text, PLANNER_SYSTEM, user)
                     if mdl != m.model:
                         m.model_note = f"orchestrator ran on {mdl}" if m.model else m.model_note
@@ -2502,7 +2501,7 @@ _SLOTS: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()      # event l
 def _slot_kind(model: str | None) -> str:
     mo = model or ""
     if mo.startswith("ollama/"):
-        return "cloud" if mo.endswith(":cloud") else "local"
+        return "local"
     return "zen" if mo.startswith("opencode/") else "cloud"
 
 
@@ -2541,7 +2540,7 @@ async def _direct_step(m: Mission, st: dict, wt: Path, jsonl: Path, brief: str, 
                 t0 = time.time()
                 text = await _direct_chat(mdl, system, user, temperature=float(
                     (agent_knowledge.effective_settings(st["agent"]).get("temperature") or {}).get("value") or 0.4),
-                    timeout=180 if mdl.endswith(":cloud") else 420, options=agent_knowledge.direct_options(st["agent"]))
+                    timeout=420, options=agent_knowledge.direct_options(st["agent"]))
         except Exception as exc:
             S.events[m.id].append({"type": "error", "error": f"{st['agent']} on {mdl} failed ({str(exc)[:110]}) — next model"})
             continue
@@ -3292,7 +3291,7 @@ async def api_agent_draft(request: web.Request) -> web.Response:
         text = ""
         for mdl in [x for x in agent_knowledge.model_chain(None, None) if x.startswith("ollama/")]:
             try:
-                text = await _direct_chat(mdl, smith, ask + ctx, temperature=0.5, timeout=150 if mdl.endswith(":cloud") else 400)
+                text = await _direct_chat(mdl, smith, ask + ctx, temperature=0.5, timeout=400)
                 break
             except Exception as exc:
                 logger.info("neo direct draft on %s failed: %s", mdl, exc)
@@ -3780,7 +3779,7 @@ async def api_set_model_policy(request: web.Request) -> web.Response:
 
 @routes.get("/api/llm/status")
 async def api_llm_status(request: web.Request) -> web.Response:
-    """What each way of reaching a model is doing: Ollama here, Ollama cloud, the Zen free models, Claude Code, API keys. Reads the last check; asks only cheap things live."""
+    """What each way of reaching a model is doing: Ollama here, the Zen free models, Claude Code, API keys. Reads the last check; asks only cheap things live."""
     from ..agent_knowledge import llm_status as LS
     return web.json_response(await LS.snapshot())
 

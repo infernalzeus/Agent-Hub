@@ -150,7 +150,7 @@ def test_the_picture_reads_as_a_reinforcement_learning_system_frames_names_for_e
         frames = pg.evaluate("[...document.querySelectorAll('#flowsvg .fgl')].map(e=>e.textContent)")
         assert frames == ["DATA AND SETTINGS", "AGENT: what learns", "ENVIRONMENT", "EVALUATION AND RELEASE", "OTHER LEARNERS (not part of the session)"]
         kinds = pg.evaluate("Object.fromEntries([...document.querySelectorAll('#flowsvg .fnode')].map(g=>[g.dataset.id,g.querySelector('.fk').textContent]))")
-        assert kinds["actor"] == "policy network (actor)" and kinds["crit"] == "value network (critic)" and kinds["env"] == "environment" and kinds["repl"] == "replay buffer"
+        assert kinds["actor"] == "Scores each control" and kinds["env"] == "A pretend app to practise on" and kinds["repl"] == "Re-studies surprising tries" and kinds["td3"].endswith("NOT BUILT")        # plain words on the block
         assert all(kinds.values())
         # a frame really surrounds its blocks: the actor sits inside the AGENT frame, the environment block inside ENVIRONMENT
         pg.wait_for_function("[...document.querySelectorAll('#flowsvg .fgroup')].every(e=>+e.getAttribute('width')>0)")                  # frames are placed on the next frame
@@ -163,5 +163,27 @@ def test_the_picture_reads_as_a_reinforcement_learning_system_frames_names_for_e
         assert _has(pg, "continuous actor-critic", "NOT BUILT", "DDPG")
         pg.locator(".fnode[data-id=td3] .fi").click()
         assert _has(pg, "min(Q1", "replaces DDPG")
+        b.close()
+    assert errors == []
+
+
+def test_a_block_is_coloured_by_its_part_of_the_system_and_can_be_let_go(hub):
+    with sync_playwright() as pw:
+        b, pg, errors = _open(pw, hub)
+        col = pg.evaluate("Object.fromEntries(['live','actor','env','gate','router'].map(n=>[n,getComputedStyle(document.querySelector('.fnode[data-id='+n+'] rect')).stroke]))")
+        assert len(set(col.values())) == 5, col                                                          # one colour per part: data, agent, environment, checks, other learners
+        pg.locator(".fnode[data-id=actor] rect").click()
+        pg.wait_for_selector("#nodebox", state="visible")
+        pg.locator(".fnode[data-id=actor] rect").click()                                                 # clicking it again lets go
+        pg.wait_for_selector("#nodebox", state="hidden")
+        assert pg.locator(".fnode.sel").count() == 0
+        pg.locator(".fnode[data-id=env] rect").click()
+        pg.wait_for_selector("#nodebox", state="visible")
+        pg.locator("#flowsvg").click(position={"x": 4, "y": 4})                                          # so does a click on the empty drawing
+        pg.wait_for_selector("#nodebox", state="hidden")
+        pg.locator(".fnode[data-id=env] rect").click()
+        pg.wait_for_selector("#nodebox button:text-is('CLOSE')")
+        pg.locator("#nodebox button:text-is('CLOSE')").click()
+        pg.wait_for_selector("#nodebox", state="hidden")
         b.close()
     assert errors == []

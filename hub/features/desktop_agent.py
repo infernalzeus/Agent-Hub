@@ -466,11 +466,11 @@ def set_chosen_model(name: str) -> None:
 
 
 def ladder() -> "list[str]":
-    """Models to try, quickest first: the ones on this PC that load fast, then the cloud one."""
+    """Models to try, quickest first: the ones on this PC that load fast."""
     from .. import agent_knowledge
     chain = [m.split("/", 1)[1] for m in agent_knowledge.model_chain(None, None) if m.startswith("ollama/")]
     chain = [m for m in chain if not re.search(r"embed|^tev|nomic", m)]          # classifiers and embedders cannot chat
-    chain.sort(key=lambda m: (":cloud" in m, "32k" not in m and "e4b" not in m and "e2b" not in m))
+    chain.sort(key=lambda m: "32k" not in m and "e4b" not in m and "e2b" not in m)
     mine = chosen_model()
     if mine:
         chain = [mine] + [m for m in chain if m != mine]        # your pick goes first; the rest stay as the fall-back order
@@ -497,8 +497,8 @@ async def run(goal: str, app: str, *, models: "list[str] | None" = None, decider
     t0 = time.time()
     tries = []
     chain = ladder()
-    # One model that is quick on this PC, then the cloud one. Not every model on disk: a 24 GB one on a 12 GB card takes minutes per step.
-    pool = models if models is not None else ([m for m in chain if ":cloud" not in m][:1] + [m for m in chain if ":cloud" in m][:1])
+    # One model that is quick on this PC. Not every model on disk: a 24 GB one on a 12 GB card takes minutes per step.
+    pool = models if models is not None else chain[:1]
     deciders = [(m, ollama_decider(m)) for m in pool] if decider is None else [("injected", decider)]
     g0 = PC.stop_gen()
     for name, dec in deciders:

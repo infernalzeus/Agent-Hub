@@ -1,4 +1,4 @@
-"""The default model is this PC's own; a model found dead (Ollama cloud Nemotron needs credits, a withdrawn Zen model) is never tried first; the Doctor says when Claude Code is signed out."""
+"""The default model is this PC's own; a model found dead (a withdrawn Zen model) is never tried first; the Doctor says when Claude Code is signed out."""
 import asyncio
 import json
 import time
@@ -30,9 +30,8 @@ def test_the_default_is_the_local_model_for_a_short_or_a_long_brief_and_no_chain
     assert AK.resolved_default_model() == AK.LOCAL_MODEL
     for brief in ("small", "x" * 900, None):
         chain = AK.model_chain(None, None, brief=brief)
-        assert chain[0] == AK.LOCAL_MODEL and not [m for m in chain if m.endswith(":cloud")]
-    assert "opencode/mimo-v2.5-free" not in AK.model_chain(None, None)                   # withdrawn from Zen on 13 Nov
-    assert AK.resolved_default_model("ollama/nemotron-3-super:cloud") == AK.LOCAL_MODEL    # opencode.json still names it; the Hub does not follow that
+        assert chain[0] == AK.LOCAL_MODEL and not [m for m in chain if m.endswith(":cloud") or m.endswith("v2.5-free")]
+    assert AK.resolved_default_model("ollama/whatever:old") == AK.LOCAL_MODEL            # the OpenCode workspace default is not followed
 
 
 def test_a_local_model_that_is_unmeasured_or_does_badly_hands_the_first_place_to_the_free_models():
@@ -56,7 +55,7 @@ def test_a_model_found_dead_by_a_check_is_left_out_unless_pinned_and_comes_back_
 
 def test_a_check_says_in_plain_words_what_is_dead(monkeypatch):
     async def get(path, timeout=3.0):
-        return 200, {"models": [{"name": "gemma4:e4b-32k", "capabilities": ["completion"]}, {"name": "nemotron-3-super:cloud", "remote_host": "https://ollama.com:443"}, {"name": "nomic-embed-text:latest", "capabilities": ["embedding"]}]}
+        return 200, {"models": [{"name": "gemma4:e4b-32k", "capabilities": ["completion"]}, {"name": "nomic-embed-text:latest", "capabilities": ["embedding"]}]}
 
     async def chat(name, timeout, keep_alive=None):
         return False, "needs usage credits or a subscription on ollama.com", 0.2
@@ -74,13 +73,13 @@ def test_a_check_says_in_plain_words_what_is_dead(monkeypatch):
     j = asyncio.run(LS.snapshot(check=True))
     by = {r["what"]: r for r in j["lines"]}
     assert j["default"] == AK.LOCAL_MODEL and by["Ollama on this PC"]["state"] == "ok" and "1 local model " in by["Ollama on this PC"]["say"]
-    assert by["Ollama cloud: nemotron-3-super:cloud"]["state"] == "bad" and "credits" in by["Ollama cloud: nemotron-3-super:cloud"]["say"]
+    assert not [k for k in by if "cloud" in k.lower()]                                         # there is no Ollama cloud row any more
     assert "2 of 3 answer" in by["OpenCode Zen free models"]["say"] and "glm-5.3-flash-free" in by["OpenCode Zen free models"]["say"]
     assert by["Claude Code (the Doctor)"]["state"] == "ok" and "not an API key" in by["Claude Code (the Doctor)"]["say"]
     assert "none set" in by["Paid API keys"]["say"] and not any(j["keys"].values())
-    assert LS.dead("ollama/nemotron-3-super:cloud") and not LS.dead("ollama/gemma4:e4b-32k")      # remembered for the chain
+    assert LS.dead("opencode/glm-5.3-flash-free") and not LS.dead("ollama/gemma4:e4b-32k")        # remembered for the chain
     j2 = asyncio.run(LS.snapshot())                                                                 # a plain read shows the last answers and asks nothing expensive
-    assert {r["what"]: r["say"] for r in j2["lines"]}["Ollama cloud: nemotron-3-super:cloud"].startswith("needs usage credits")
+    assert "glm-5.3-flash-free" in {r["what"]: r["say"] for r in j2["lines"]}["OpenCode Zen free models"]
 
 
 def test_a_repair_or_change_goes_to_claude_code_and_a_question_is_answered_in_chat(monkeypatch):

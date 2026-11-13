@@ -128,9 +128,8 @@ Zen tier is a shared gateway — a long turn can 504 (`Upstream idle timeout
 exceeded`). Mitigations: `steps` caps + lean prompts; a mission that fails shows
 the error with **RETRY** and **RETRY ON `<local/steadier model>`**; a configured
 id that 404s falls back **free → other free → local** at dispatch. Only
-self-hosted (`ollama` / `vllm`) or BYO-key ids never rotate. `ollama/qwen3.6:latest`
-is the strongest local model installed; `nemotron-3-super:cloud` (Ollama Cloud,
-`ollama signin`) is a good online-but-not-Zen-free middle option.
+self-hosted (`ollama` / `vllm`) or BYO-key ids never rotate. The default is a model on this PC
+(`ollama/gemma4:e4b-32k`); the Zen free models are the fall-back. The Agency page shows which routes answer right now (CHECK NOW).
 
 ## 6. Run it like a desktop app (Windows) — optional
 

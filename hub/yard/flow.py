@@ -71,6 +71,14 @@ KIND = {
     "knobs": "settings", "demos": "demonstrations and expert checks", "fit": "evaluation", "gate": "promotion gate", "ver": "checkpoints", "safety": "safety check",
     "learners": "bandits (tally, Thompson, LinUCB)", "router": "classifier (kNN, softmax)", "search": "black-box optimiser", "presets": "bandit over presets", "td3": "continuous actor-critic",
 }
+# what each block does, in plain words (the line drawn on the block; the field's own name is under INSIDE)
+PLAIN = {
+    "live": "Your real PC tasks, kept", "mem": "What it practises on", "enc": "Turns a screen into numbers", "actor": "Scores each control", "soft": "Chooses, and keeps exploring",
+    "env": "A pretend app to practise on", "rew": "Scores each press", "crit": "Rates its progress", "upd": "Learns from the score", "repl": "Re-studies surprising tries",
+    "hind": "Learns from near misses", "knobs": "Every adjustable number", "demos": "Routines you approved", "fit": "Tests it on unseen apps", "gate": "Lets only better versions in",
+    "ver": "Every saved version", "safety": "Checks it never hits Delete", "learners": "Picks a model or method by results", "router": "Guesses what you meant",
+    "search": "Hunts for the best settings", "presets": "Picks a writing style per agent", "td3": "Not built yet",
+}
 # the frames drawn behind blocks: which part of a reinforcement-learning system each belongs to
 GROUPS = [
     ("data", "DATA AND SETTINGS", ["live", "mem", "knobs", "demos"]),
@@ -261,6 +269,8 @@ async def api_canvas(request: web.Request) -> web.Response:
         n["outside"] = n["id"] in OUTSIDE
         n["arch"] = arch(n["id"])
         n["kind"] = KIND.get(n["id"], "")
+        n["plain"] = PLAIN.get(n["id"], "")
+        n["group"] = next((g for g, _, m in GROUPS if n["id"] in m), "")
     c["groups"] = [{"id": g, "label": lab, "members": m} for g, lab, m in GROUPS]
     return web.json_response(c)
 

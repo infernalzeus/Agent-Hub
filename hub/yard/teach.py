@@ -280,7 +280,7 @@ textarea{width:100%;font:14px Outfit,system-ui,sans-serif;color:var(--text);back
 }
 </style></head><body><main>
 <h1>TEACH</h1>
-<div class="tophead"><div class="seg"><button type="button" id="s-req" class="on">REQUESTS</button><button type="button" id="s-mis">MISSIONS</button><button type="button" id="s-task">PC TASKS</button></div>
+<div class="tophead"><div class="seg"><button type="button" id="s-req" class="on">REQUESTS</button><button type="button" id="s-mis">MISSIONS</button><button type="button" id="s-task">PC TASKS</button></div><button type="button" id="t-refresh" class="skip" title="Read the log again">REFRESH</button>
 <div class="count" id="count"></div></div>
 <div id="card"></div>
 </main>
@@ -307,7 +307,7 @@ textarea{width:100%;font:14px Outfit,system-ui,sans-serif;color:var(--text);back
   function show(){
     const c=$('card');c.replaceChildren();c.className='';$('count').textContent=left?left+' left to answer. SKIP hides one for good.':'';
     const it=items[i];
-    if(!it){const s=window.__teachStatus||{};const msg=left?'That is the batch. Reload for more.':(s.logged===0?'Nothing has been logged yet.':s.since_fresh===0?'Nothing to answer: '+s.logged+' earlier request'+(s.logged===1?' is':'s are')+' kept apart since the fresh start (the last was '+new Date(s.last*1000).toLocaleDateString()+'), and no new request has been logged since. Requests appear here as you use Talk and the router decides what you meant.':'Nothing left to answer. Thank you.');c.appendChild(el('div','card',msg));const how=el('div','card');how.append(el('div','h','HOW ITEMS GET HERE'),el('div','mute','1. Switch SHADOW MODE on (top of this panel).  2. Talk to the Hub or give it a PC task.  3. Each request, finished mission and PC task is listed under REQUESTS, MISSIONS and PC TASKS for you to grade.'));c.appendChild(how);return;}
+    if(!it){const s=window.__teachStatus||{};const msg=left?'That is the batch. Press REFRESH for more.':(s.logged===0?'Nothing to grade yet.':s.since_fresh===0?'Nothing to grade yet. Older requests were set aside by your fresh start; new ones appear once shadow mode is on and you use Talk.':'Nothing left to grade. Thank you.');c.appendChild(el('div','card',msg));const how=el('div','card');how.append(el('div','h','HOW ITEMS GET HERE'),el('div','mute','1. Switch SHADOW MODE on (top of this panel).  2. Talk to the Hub or give it a PC task.  3. Each request, finished mission and PC task is listed under REQUESTS, MISSIONS and PC TASKS for you to grade.'));c.appendChild(how);return;}
     const card=el('div','card rq'),LC=el('div'),RC=el('div');card.append(LC,RC);LC.appendChild(el('div','said','“'+it.text+'”'));
     const p=el('div','mute','The Hub took that as: ');p.appendChild(el('span','bin',help(it.chosen)));p.append(' (chosen by '+(it.by==='you'?'your earlier correction':it.by)+')');LC.appendChild(p);
     if(it.said)LC.appendChild(el('div','mute','It said: '+it.said));
@@ -369,6 +369,7 @@ textarea{width:100%;font:14px Outfit,system-ui,sans-serif;color:var(--text);back
       row.append(yes,no,rp,sk,dl,msg);if(t.label&&(t.label.grade==='right'||t.label.grade==='wrong'))row.append(el('span','chip '+(t.label.grade==='right'?'ok':'no'),'you said '+t.label.grade));card.appendChild(row);c.appendChild(card);});}
   const segs={'s-req':show,'s-mis':missions,'s-task':tasks};
   Object.keys(segs).forEach(k=>$(k).onclick=()=>{Object.keys(segs).forEach(o=>$(o).classList.toggle('on',o===k));segs[k]();});
+  $('t-refresh').onclick=()=>{const on=Object.keys(segs).find(k=>$(k).classList.contains('on'));if(on==='s-req')load().catch(e=>{$('card').textContent='Could not read the decision log: '+e.message;});else segs[on]();};
   load().catch(e=>{$('card').textContent='Could not read the decision log: '+e.message;});
 })();
 </script></body></html>

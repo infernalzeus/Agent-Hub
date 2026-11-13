@@ -772,9 +772,8 @@ async def _llm(text: str, history: list, mission_id: "str | None") -> "dict | No
     _LLM_WHY = "empty"
     from . import missions as _M
     chain = [x for x in agent_knowledge.model_chain(None, None) if x.startswith("ollama/")]
-    # Conversation wants an answer in seconds. A model on this PC that is small enough to load quickly goes
-    # first; a cloud model (which waits on the network, and was the cause of "took too long") goes last.
-    chain.sort(key=lambda m: (":cloud" in m, "32k" not in m and "e4b" not in m and "e2b" not in m))
+    # Conversation wants an answer in seconds: a model on this PC that is small enough to load quickly goes first.
+    chain.sort(key=lambda m: "32k" not in m and "e4b" not in m and "e2b" not in m)
     own = agent_knowledge.helper_model("smith")                                  # the model you chose for Smith on the Agency page goes first
     if own:
         chain = [own if own.startswith("ollama/") else "ollama/" + own] + [m for m in chain if m != own]

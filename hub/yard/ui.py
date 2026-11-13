@@ -38,11 +38,11 @@ button:disabled{opacity:.5;cursor:default}button.on{background:var(--accent);col
 .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin:6px 0}
 .wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:11.5px}
 th{font:700 9.5px Orbitron,system-ui,sans-serif;letter-spacing:.06em;color:var(--accent);text-align:left;padding:4px 8px;border-bottom:1px solid var(--border)}td{padding:3px 8px;border-bottom:1px solid rgba(0,230,118,.08);vertical-align:top}
-section{animation:fadein .18s ease}@keyframes fadein{from{opacity:0}to{opacity:1}}@media (prefers-reduced-motion:reduce){section{animation:none}}
+section{animation:fadein .26s ease}@keyframes fadein{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}.ovcard,.sc,#rlist .rc{animation:rise .34s ease both}.ovcard:nth-child(2),.sc:nth-child(2){animation-delay:.04s}.ovcard:nth-child(3),.sc:nth-child(3){animation-delay:.08s}.ovcard:nth-child(4),.sc:nth-child(4){animation-delay:.12s}.ovcard:nth-child(5),.sc:nth-child(5){animation-delay:.16s}.ovcard:nth-child(6),.sc:nth-child(6){animation-delay:.2s}@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}@media (prefers-reduced-motion:reduce){section,.ovcard,.sc,#rlist .rc{animation:none}}
 iframe.teach{width:100%;height:80vh;min-height:460px;border:1px solid var(--border);border-radius:10px;background:#080c28}
 #top-shadow.on{background:var(--accent);color:#04120a}
 .flowwrap{overflow-x:auto;border:1px solid var(--border);border-radius:10px;background:rgba(8,12,40,.6);margin:6px 0}#flowsvg{width:100%;min-width:720px;height:auto;display:block}
-.fnode{cursor:pointer}.fnode rect{fill:rgba(8,12,40,.92);stroke-width:1.8}.fnode.tested rect{stroke:#3ba7ff}.fnode.built rect{stroke:#e0a53c}.fnode.user rect{stroke:#00e676}.fnode.todo rect{stroke:#ff5c5c;stroke-dasharray:6 4}.fnode.now rect{stroke:#41ebff;stroke-dasharray:3 4}
+.fnode{cursor:pointer}.fnode rect{fill:rgba(8,12,40,.92);stroke-width:1.8}.fnode.g-data rect{stroke:#3ba7ff}.fnode.g-agent rect{stroke:#00e676}.fnode.g-environment rect{stroke:#e0a53c}.fnode.g-release rect{stroke:#b784ff}.fnode.g-others rect{stroke:#7fa8a0}.fnode.todo rect{stroke:#ff5c5c;stroke-dasharray:6 4}.fnode.now rect{stroke:#41ebff;stroke-dasharray:3 4}
 .fnode text{pointer-events:none}.fnode text.ft{fill:#d6f5e6;font:700 14px Orbitron,system-ui,sans-serif}.fnode text.fl{fill:#9fe7c0;font:12px Outfit,system-ui,sans-serif}
 .fnode.sel rect{stroke-width:3.4}.fnode.pulse rect{fill:rgba(20,40,70,.95);stroke-width:3.2}.fnode.improved rect{stroke:#00e676;stroke-width:4;filter:drop-shadow(0 0 7px #00e676)}
 .fedge path{stroke:#6c8f7d;stroke-width:1.6;fill:none}.fedge.lit path{stroke:#41ebff;stroke-width:3.4;stroke-dasharray:10 6;animation:fdash .5s linear infinite}
@@ -86,7 +86,9 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
 .rgrid{display:grid;grid-template-columns:minmax(340px,.8fr) minmax(0,1.6fr);gap:10px;flex:1;min-height:0}.rcol{min-height:0;overflow:auto;padding-right:4px}
 #rdetail{border:1px solid var(--border);border-radius:12px;background:rgba(8,12,40,.45);padding:12px 14px}#rdetail>.said{font-size:15px;margin-bottom:8px}.pad{padding:10px}
 .rc.open{border-color:var(--accent);box-shadow:0 0 10px rgba(0,230,118,.18)}
-.scgrid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:10px;flex:1;min-height:0;margin-top:6px;align-items:start;align-content:start}.scgrid>.card{min-height:0;max-height:100%;overflow:auto;margin:0;padding:10px 12px}.scgrid table{font-size:clamp(13px,1.5vh,16px)}.scgrid td{padding:clamp(6px,1vh,11px) 8px}.scgrid th{font-size:10px}
+.sc{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;min-height:0}.scq{font-size:clamp(13.5px,1.55vh,16px);line-height:1.3;flex:1;min-width:160px}.scn{font:700 clamp(15px,2vh,20px) Orbitron,system-ui,sans-serif;color:var(--accent)}.scn.none{color:var(--mute);font-size:13px;font-weight:600}
+#fitgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-content:start;min-height:0;overflow:auto;padding-right:2px}
+.scgrid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:10px;flex:1;min-height:0;margin-top:6px;align-items:start;align-content:start}.scgrid>.card{min-height:0;max-height:100%;overflow:auto;margin:0;padding:10px 12px}.scgrid table{font-size:clamp(13px,1.5vh,16px)}.scgrid td{padding:clamp(6px,1vh,11px) 8px}.scgrid th{font-size:10px}
 .scgrid .mute{font-size:12.5px;margin-top:8px}.sc-note{margin:8px 2px 0;font-size:13px}
 @media (min-width:900px){
  html,body{height:100%}
@@ -110,7 +112,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
 <div class="mute" id="result"></div>
 <div class="flowwrap"><svg id="flowsvg" role="img" aria-label="The learning layer"></svg></div>
 <div class="mute" id="flog"></div>
-<div class="mute" id="legend">Frames show which part of a reinforcement-learning system a block belongs to. Under each name is what the block is called in the field. A dashed box is not part of a training session. Colours: red not built, orange built and never tested, blue tested by Claude, green tested by you. Click a block for what it is and its settings, its i for the inside (layers, numbers, arithmetic), an arrow for what travels along it.</div>
+<div class="mute" id="legend"><b>How to read it.</b> <span style="color:#3ba7ff">Blue: your data and settings</span> feed <span style="color:#00e676">green: the agent that learns</span>, which practises on <span style="color:#e0a53c">amber: a pretend app</span>. <span style="color:#b784ff">Violet: the checks</span> that decide which saved version is used. <span style="color:#7fa8a0">Grey: other learners</span> scored beside it. Dashed: not part of a practice session; red dashed: not built yet. Click a block to select it, click it again to let go. The i shows what is inside; an arrow shows what travels along it.</div>
 </div>
 <div class="card" id="nodebox" hidden></div></div>
 </section>
@@ -123,9 +125,9 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
 </section>
 
 <section id="tab-scores" hidden>
-<div class="mute sc-note">A score is how often a part was right on rows it never trained on; the last column is what it has to beat. A row without a score says what data it still needs.</div>
-<div class="scgrid"><div class="card"><div class="wrap"><table id="fit"></table></div></div>
-<div class="card"><h2>METHODS BEHIND EACH CHOICE</h2><div class="wrap" id="chalbox"><table id="chal"></table></div><div class="mute" id="chalnone">Nothing to compare yet: a method needs results on this PC before it can be scored.</div><div class="mute" id="knn"></div><div class="mute" id="gateline"></div><div class="mute" id="tevline"></div></div></div>
+<div class="mute sc-note"><b>This is the report card.</b> Each card asks one question about one learner from the OVERVIEW and shows how well it does on data it never trained on, what it has to beat to be trusted, and what data it still needs. Only the two Control cards come from the YARD; the others come from what you grade in TEACH and from the Hub's own logs. No score yet just means it has not seen enough.</div>
+<div class="scgrid"><div id="fitgrid"></div>
+<div class="card"><h2>RIVAL WAYS OF CHOOSING</h2><div class="mute" style="margin:0 0 6px">The same choice (which model, which way to do a PC task) made three ways: tally, thompson and linucb. WATCH makes one of them note what it would have picked beside each live choice. Nothing is switched on its own.</div><div class="wrap" id="chalbox"><table id="chal"></table></div><div class="mute" id="chalnone">Nothing to compare yet: a method needs results on this PC before it can be scored.</div><div class="mute" id="knn"></div><div class="mute" id="gateline"></div><div class="mute" id="tevline"></div></div></div>
 </section>
 </main>
 <script>
@@ -147,9 +149,9 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
     $('top-note').textContent=sh.forced_off_by_environment?'Held off by an environment variable.':sh.on?'Observing. Nothing is pressed.':'Off. Nothing is recorded.';}catch(e){}}
 
   // ---- YARD: the architecture as small blocks you can move, with the inside of each block one click away
-  let CV=null,KN=null,gById={},eEls=[],GR=[],lastN=0,timer=0,wasRunning=false,flog=[],sel=null,showInside=false,saveT={},POS={},HID=new Set(),NODE={};
+  let selEdge=null,CV=null,KN=null,gById={},eEls=[],GR=[],lastN=0,timer=0,wasRunning=false,flog=[],sel=null,showInside=false,saveT={},POS={},HID=new Set(),NODE={};
   const NS='http://www.w3.org/2000/svg',sv=(t,a,x)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(x!=null)e.textContent=x;return e;};
-  const LS='hub-rl-flow';
+  const LS='hub-rl-flow',GCOL={data:'#3ba7ff',agent:'#00e676',environment:'#e0a53c',release:'#b784ff',others:'#7fa8a0'};
   function loadLayout(){try{const j=JSON.parse(localStorage.getItem(LS)||'{}');POS=j.pos||{};HID=new Set(j.hid||[]);}catch(e){POS={};HID=new Set();}}
   function saveLayout(){try{localStorage.setItem(LS,JSON.stringify({pos:POS,hid:[...HID]}));}catch(e){}}
   const at=n=>POS[n.id]||[n.x,n.y];
@@ -211,20 +213,22 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
   async function loadFlow(){
     try{CV=await J('/api/yard/canvas?compact=1');KN=await J('/api/yard/knobs');}catch(e){$('result').textContent='Could not read the yard: '+e.message;return;}
     loadLayout();const svg=$('flowsvg');svg.replaceChildren();const defs=sv('defs',{}),mk=sv('marker',{id:'farrow',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:6,markerHeight:6,orient:'auto'});mk.appendChild(sv('path',{d:'M0 0L10 5L0 10z',fill:'#8fb3a0'}));defs.appendChild(mk);svg.appendChild(defs);
-    NODE={};CV.nodes.forEach(n=>NODE[n.id]=n);gById={};eEls=[];GR=[];(CV.groups||[]).forEach(g=>{const r=sv('rect',{class:'fgroup',rx:14}),tx=sv('text',{class:'fgl'},g.label);svg.appendChild(r);svg.appendChild(tx);GR.push({g,r,t:tx});});
+    NODE={};CV.nodes.forEach(n=>NODE[n.id]=n);gById={};eEls=[];GR=[];(CV.groups||[]).forEach(g=>{const r=sv('rect',{class:'fgroup',rx:14}),tx=sv('text',{class:'fgl'},g.label);r.style.stroke=(GCOL[g.id]||'#8fb3a0')+'99';tx.style.fill=GCOL[g.id]||'#8fb3a0';svg.appendChild(r);svg.appendChild(tx);GR.push({g,r,t:tx});});
     CV.edges.forEach(e=>{const g=sv('g',{class:'fedge'+((NODE[e.fromNode].state==='todo'||NODE[e.toNode].state==='todo')?' todo':''),'data-id':e.id}),p=sv('path',{'marker-end':'url(#farrow)'}),h=sv('path',{class:'hit'});g.appendChild(p);g.appendChild(h);g.appendChild(sv('title',{},NODE[e.fromNode].title+' → '+NODE[e.toNode].title+': '+e.label));h.onclick=()=>openEdge(e.id);svg.appendChild(g);eEls.push({e,g,p,h});});
-    CV.nodes.forEach(n=>{const g=sv('g',{class:'fnode '+n.state+(n.outside?' outside':''),'data-id':n.id}),r=sv('rect',{width:n.width,height:n.height,rx:8});g.appendChild(r);
-      g.appendChild(sv('text',{x:10,y:24,class:'ft'},n.title));g.appendChild(sv('text',{x:10,y:41,class:'fk'},n.kind||''));const live=sv('text',{x:10,y:60,class:'fl'},'');g.appendChild(live);g._live=live;glyph(g,n);
+    CV.nodes.forEach(n=>{const g=sv('g',{class:'fnode '+n.state+' g-'+n.group+(n.outside?' outside':''),'data-id':n.id}),r=sv('rect',{width:n.width,height:n.height,rx:8});g.appendChild(r);
+      g.appendChild(sv('text',{x:10,y:24,class:'ft'},n.title));g.appendChild(sv('text',{x:10,y:41,class:'fk'},(n.plain||n.kind||'')+(n.state==='todo'?' - NOT BUILT':n.state==='built'?' - NOT TRIED':'')));const live=sv('text',{x:10,y:60,class:'fl'},'');g.appendChild(live);g._live=live;glyph(g,n);
       const ib=sv('g',{class:'fi'});ib.appendChild(sv('circle',{cx:n.width-14,cy:14,r:9}));ib.appendChild(sv('text',{x:n.width-14,y:19,'text-anchor':'middle'},'i'));g.appendChild(ib);
       const xb=sv('g',{class:'fx'});xb.appendChild(sv('circle',{cx:n.width-14,cy:n.height-12,r:8}));xb.appendChild(sv('text',{x:n.width-14,y:n.height-8,'text-anchor':'middle'},'×'));g.appendChild(xb);
       ib.onpointerdown=ev=>ev.stopPropagation();ib.onclick=ev=>{ev.stopPropagation();openNode(n.id,true);};
       xb.onpointerdown=ev=>ev.stopPropagation();xb.onclick=ev=>{ev.stopPropagation();HID.add(n.id);saveLayout();place();};
       let drag=null;g.onpointerdown=ev=>{if(ev.button)return;const m=svg.getScreenCTM(),[x,y]=at(n);drag={px:ev.clientX,py:ev.clientY,x,y,s:1/m.a,moved:false};g.setPointerCapture(ev.pointerId);};
       g.onpointermove=ev=>{if(!drag)return;const dx=(ev.clientX-drag.px)*drag.s,dy=(ev.clientY-drag.py)*drag.s;if(!drag.moved&&Math.hypot(dx,dy)<4/ (1/drag.s))return;drag.moved=true;POS[n.id]=[Math.round((drag.x+dx)/10)*10,Math.round((drag.y+dy)/10)*10];g.setAttribute('transform','translate('+POS[n.id][0]+' '+POS[n.id][1]+')');redrawEdges();};
-      g.onpointerup=ev=>{if(!drag)return;const moved=drag.moved;drag=null;if(moved){saveLayout();fitView();}else openNode(n.id,false);};
+      g.onpointerup=ev=>{if(!drag)return;const moved=drag.moved;drag=null;if(moved){saveLayout();fitView();}else if(sel===n.id)closeNode();else openNode(n.id,false);};
       svg.appendChild(g);gById[n.id]=g;});
+    svg.onclick=ev=>{if(ev.target===svg||(ev.target.classList&&ev.target.classList.contains('fgroup')))closeNode();};
     place();
   }
+  function closeNode(){sel=null;selEdge=null;showInside=false;eEls.forEach(q=>q.g.classList.remove('sel'));Object.values(gById).forEach(g=>g.classList.remove('sel'));$('nodebox').hidden=true;}
   function place(){CV.nodes.forEach(n=>{const g=gById[n.id],[x,y]=at(n);g.setAttribute('transform','translate('+x+' '+y+')');g.style.display=HID.has(n.id)?'none':'';});redrawEdges();fitView();
     $('showall').hidden=!(HID.size||Object.keys(POS).length);$('showall').textContent=HID.size?'SHOW ALL ('+HID.size+' HIDDEN) · RESET LAYOUT':'RESET LAYOUT';}
   $('showall').onclick=()=>{POS={};HID=new Set();saveLayout();place();};
@@ -245,14 +249,14 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       const box=el('div','irow');box.append(el('b',null,'versions: '));vs.slice(0,6).forEach(v=>{const inuse=s.in_use_version===v.n,b=el('button',inuse?'on':'skip',(inuse?'IN USE ':'RESTORE ')+'v'+v.n);b.title=Math.round(v.held*100)+' % on unseen words'+(v.methods?' · '+v.methods.linear:'');b.disabled=inuse;
         b.onclick=async()=>{if(!confirm('Make version '+v.n+' the one in use? Nothing is deleted.'))return;const r=await POST('/api/yard/rollback',{version:v.n});$('msg').hidden=false;$('msg').textContent=r.ok?'Version '+v.n+' is now in use.':(await r.text());loadResult();openNode('ver',true);};box.append(b,document.createTextNode(' '));});wrap.append(box);}catch(e){}}
   async function openNode(id,inn){try{const c=await J('/api/yard/canvas?compact=1');c.nodes.forEach(m=>{if(NODE[m.id])NODE[m.id].arch=m.arch;});KN=await J('/api/yard/knobs');}catch(e){}
-    sel=id;showInside=!!inn;eEls.forEach(q=>q.g.classList.remove('sel'));Object.values(gById).forEach(g=>g.classList.toggle('sel',g.dataset.id===id));const n=NODE[id],box=$('nodebox');box.hidden=false;box.replaceChildren();
-    const h=el('div','nh');h.append(el('b',null,n.title),el('span','mute',' ('+(n.kind||'')+') '),document.createTextNode(n.info),el('span','sp'));const tg=el('button',showInside?'on':'skip','INSIDE');tg.title='Layers, numbers and arithmetic';tg.onclick=()=>openNode(id,!showInside);h.append(tg);box.append(h);
+    sel=id;selEdge=null;showInside=!!inn;eEls.forEach(q=>q.g.classList.remove('sel'));Object.values(gById).forEach(g=>g.classList.toggle('sel',g.dataset.id===id));const n=NODE[id],box=$('nodebox');box.hidden=false;box.replaceChildren();
+    const h=el('div','nh');h.append(el('b',null,n.title),el('span','mute',' ('+(n.kind||'')+') '),document.createTextNode(n.info),el('span','sp'));const tg=el('button',showInside?'on':'skip','INSIDE');tg.title='Layers, numbers and arithmetic';tg.onclick=()=>openNode(id,!showInside);const cx=el('button','skip','CLOSE');cx.title='Let go of this block';cx.onclick=closeNode;h.append(tg,cx);box.append(h);
     if(showInside)box.append(inside(n));
     const ks=n.knobs.map(name=>KN.knobs.find(k=>k.name===name)).filter(Boolean);
     if(ks.length){box.append(el('div','sub','SETTINGS'));ks.forEach(k=>box.append(knobRow(k)));}else box.append(el('div','mute','Nothing to adjust here.'));}
   // an arrow: what travels along it and what the block at the other end does with it, then how often it lit in the last session
-  async function openEdge(id){const x=eEls.find(q=>q.e.id===id);if(!x)return;sel=null;Object.values(gById).forEach(g=>g.classList.remove('sel'));eEls.forEach(q=>q.g.classList.toggle('sel',q.e.id===id));
-    const e=x.e,box=$('nodebox');box.hidden=false;box.replaceChildren();const h=el('div','nh');h.append(el('b',null,NODE[e.fromNode].title+' → '+NODE[e.toNode].title),document.createTextNode('  '+e.label));box.append(h,el('div','irow',e.info||''));
+  async function openEdge(id){const x=eEls.find(q=>q.e.id===id);if(!x)return;if(selEdge===id){closeNode();return;}selEdge=id;sel=null;Object.values(gById).forEach(g=>g.classList.remove('sel'));eEls.forEach(q=>q.g.classList.toggle('sel',q.e.id===id));
+    const e=x.e,box=$('nodebox');box.hidden=false;box.replaceChildren();const h=el('div','nh');h.append(el('b',null,NODE[e.fromNode].title+' → '+NODE[e.toNode].title),document.createTextNode('  '+e.label));const cx=el('button','skip','CLOSE');cx.onclick=closeNode;h.append(cx);box.append(h,el('div','irow',e.info||''));
     const hist=el('div','mute','Looking at this session...');box.append(hist);
     try{const j=await J('/api/yard/events?since=0'),mine=j.events.filter(v=>v.edge===id);hist.textContent=mine.length?('Seen '+mine.length+' time'+(mine.length>1?'s':'')+' since the Hub started. Latest: '+mine[mine.length-1].text):'Nothing has travelled along this arrow since the Hub started. Start a session and it lights.';}catch(err){hist.textContent='';}}
   const flash=(e,c,ms)=>{e.classList.add(c);setTimeout(()=>e.classList.remove(c),ms);};
@@ -272,7 +276,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       if(j.stopped){$('msg').hidden=false;$('msg').textContent='Stopped. Nothing was saved.';}}catch(e){$('msg').hidden=false;$('msg').textContent=String(e.message||e);}finally{$('go').disabled=false;poll();loadResult();}};
   $('stop').onclick=async()=>{$('stop').disabled=true;try{await POST('/api/yard/practice/stop');}catch(e){}$('stop').disabled=false;};
   $('kreset').onclick=async()=>{if(!confirm('Put every number back to its default?'))return;await POST('/api/yard/knobs/reset',{});await refreshKnobs();};
-  function flowStart(){if(!CV)loadFlow().then(()=>refreshKnobs(true));loadResult();if(!timer)timer=setInterval(poll,500);poll();}
+  function flowStart(){let p=null;if(!CV)p=loadFlow().then(()=>refreshKnobs(true));loadResult();if(!timer)timer=setInterval(poll,500);poll();return p;}
   function flowStop(){clearInterval(timer);timer=0;}
 
   // ---- WHY: what the saved learner would press on each screen, with the features behind it and the weights a step would move
@@ -443,20 +447,23 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       box.append(c);if(openId===r.id)setOpen(true);});}
 
   // ---- SCORES
-  async function scores(){const t=$('fit');head(t,['Part','Score','95 % interval','Evidence','Needs','Compared with']);
-    let j;try{j=await J('/api/yard/fitness');}catch(e){t.append(el('tr'));return;}
-    const rate=r=>r&&r.n?pct(r.rate):'-',iv=r=>r&&r.n?pct(r.lower95)+' to '+pct(r.upper95):'-';
+  async function scores(){
+    const gr=$('fitgrid');gr.replaceChildren();let j;try{j=await J('/api/yard/fitness');}catch(e){gr.append(el('div','mute','Could not read the scores.'));return;}
+    const rate=r=>r&&r.n?pct(r.rate):'-',iv=r=>r&&r.n?'95 % sure it is between '+pct(r.lower95)+' and '+pct(r.upper95):'';
+    const WHAT={'Route':['Did the Hub understand what you meant?','from TEACH'],'Model':['Which AI model finishes missions best?','from missions'],'Rung':['Which way of doing a PC task works best?','from PC tasks'],'Task confidence':['When the Hub is sure a PC task worked, is it right?','from PC tasks you grade'],'Control (yard)':['Can the learner press the right control in pretend apps it has never seen?','from the YARD'],'Control (live shadow)':['Would the learner press what the live agent pressed on your real tasks?','from shadow mode']};
+    const blk=(k,v)=>{const q=el('div');q.append(el('div','ovk',k),el('div','ovv',v||'-'));return q;};
+    const card=(h,score,ev,range)=>{const w=WHAT[h.head]||[h.head,''],c=el('div','sc'),top=el('div','ovtop'),has=!!score&&score!=='-';
+      top.append(el('b','scq',w[0]),el('span','chip',h.head+(w[1]?' | '+w[1]:'')));c.append(top,el('div','scn'+(has?'':' none'),has?score:'No score yet'));
+      if(range)c.append(el('div','mute',range));c.append(blk('EVIDENCE',ev||'nothing yet'),blk('MUST BEAT',h.baseline),blk('STILL NEEDS',h.needs));gr.append(c);};
     j.heads.forEach(h=>{
-      if(h.options){const ks=Object.keys(h.options);if(!ks.length){const r=el('tr');r.append(el('td',null,h.head),el('td','mute','nothing labelled yet'),el('td'),el('td'),el('td','mute',h.needs),el('td','mute',h.baseline));t.append(r);}
-        ks.forEach(k=>{const o=h.options[k],r=el('tr');r.append(el('td',null,h.head+': '+k),el('td',null,rate(o)),el('td','mute',iv(o)),el('td',null,o.k+' of '+o.n),el('td','mute',h.needs),el('td','mute',h.baseline));t.append(r);});return;}
-      const r=el('tr');
-      if(h.train){r.append(el('td',null,h.head),el('td',null,rate(h.train)),el('td','mute',iv(h.train)),el('td',null,h.train.n+' labelled; '+h.frozen.n+' held out'),el('td','mute',h.needs),el('td','mute',h.baseline));}
-      else if(h.in_good_tasks){r.append(el('td',null,h.head),el('td',null,rate(h.in_good_tasks)),el('td','mute',iv(h.in_good_tasks)),el('td',null,h.tasks+' tasks'),el('td','mute',h.needs),el('td','mute',h.baseline));}
-      else if(h.brier!==undefined){r.append(el('td',null,h.head),el('td',null,h.brier===null?'-':'Brier '+h.brier),el('td','mute','lower is better'),el('td',null,h.graded+' graded'),el('td','mute',h.needs),el('td','mute',h.baseline));}
-      else{const sf=h.safety?('forbidden pressed on '+h.safety.breaches+' of '+h.safety.screens+' screens'):'no saved learner';
-        r.append(el('td',null,h.head),el('td',null,h.means?Object.entries(h.means).map(([k,v])=>k+' '+pct(v.held)).join(' · '):'-'),el('td'),el('td','mute','unseen words; '+sf),el('td','mute',h.needs),el('td','mute',h.baseline));}
-      t.append(r);});
-    const ch=j.challengers||{},ct=$('chal');head(ct,['Choice','Method','Scored on','Agreed','Estimate','Worth (rows)','Watched']);
+      if(h.options){const ks=Object.keys(h.options);card(h,ks.length?ks.map(k=>k+' '+rate(h.options[k])).join(' | '):'',ks.length?ks.map(k=>k+': '+h.options[k].k+' of '+h.options[k].n+' right').join('; '):'nothing labelled yet');return;}
+      if(h.train){card(h,rate(h.train),h.train.n+' labelled, '+h.frozen.n+' held out',iv(h.train));return;}
+      if(h.in_good_tasks){card(h,rate(h.in_good_tasks),h.tasks+' tasks',iv(h.in_good_tasks));return;}
+      if(h.brier!==undefined){card(h,h.brier===null?'':'error '+h.brier+' (lower is better)',h.graded+' graded');return;}
+      const sf=h.safety?('forbidden pressed on '+h.safety.breaches+' of '+h.safety.screens+' screens'):'no saved learner yet';
+      card(h,h.means?Object.entries(h.means).map(([k,v])=>k+' '+pct(v.held)).join(' | '):'','unseen words; '+sf);});
+    const ct=$('chal');
+    const ch=j.challengers||{};head(ct,['Choice','Method','Choices scored','Agreed','Estimate','Weight','']);
     if(!ch.error)['model','rung'].forEach(h=>(ch[h]||[]).forEach(l=>{const r=el('tr');r.append(el('td',null,h),el('td',null,l.learner),el('td','mute',l.available===false?('needs '+l.needs):(l.decided||0)+' choices'),el('td',null,l.available===false?'-':(l.agreed||0)),el('td',null,l.estimate==null?'-':pct(l.estimate)),el('td','mute',l.available===false?'-':(l.ess||0).toFixed(1)));
         const w=el('td'),b=el('button',null,(ch.selected||{})[h]===l.learner?'WATCHED':'WATCH');b.disabled=l.available===false||(ch.selected||{})[h]===l.learner;
         b.onclick=async()=>{await POST('/api/yard/learners',{head:h,learner:l.learner});scores();};w.append(b);r.append(w);ct.append(r);}));
@@ -468,12 +475,15 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
 
   // ---- tabs
   const TABS=['overview','yard','teach','routines','scores'];
-  function tab(name){if(!TABS.includes(name))name='overview';document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===name));
-    TABS.forEach(n=>$('tab-'+n).hidden=n!==name);if(name==='yard')flowStart();else flowStop();
-    if(name==='teach'){const f=$('teachframe');if(!f.src)f.src=f.dataset.src;}if(name==='overview')overview();if(name==='routines'){routines();liveTasks();}if(name==='scores')scores();try{localStorage.setItem('hub-rl-tab',name);}catch(e){}}
+  let readied=false;function ready(){if(readied)return;readied=true;try{parent.postMessage({hubReady:true},location.origin);}catch(e){}}
+  function tab(name){let first=null;if(!TABS.includes(name))name='overview';document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===name));
+    TABS.forEach(n=>$('tab-'+n).hidden=n!==name);if(name==='yard')first=flowStart();else flowStop();
+    if(name==='teach'){const f=$('teachframe');if(!f.src)f.src=f.dataset.src;}if(name==='overview')first=overview();if(name==='routines'){first=routines();liveTasks();}if(name==='scores')first=scores();try{localStorage.setItem('hub-rl-tab',name);}catch(e){}
+    return Promise.resolve(first);}
   document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>tab(b.dataset.tab));
   let first='overview';try{first=localStorage.getItem('hub-rl-tab')||'overview';}catch(e){}
-  switches();tab(first);
+  document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&(sel||selEdge)&&!document.getElementById('lb')){closeNode();ev.stopImmediatePropagation();}});
+  switches();Promise.race([Promise.resolve(tab(first)),new Promise(r=>setTimeout(r,1400))]).then(()=>requestAnimationFrame(()=>requestAnimationFrame(ready)));
 })();
 </script></body></html>
 """

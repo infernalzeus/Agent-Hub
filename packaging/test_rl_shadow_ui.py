@@ -125,10 +125,10 @@ def test_the_panel_has_scores_routines_with_a_fresh_start_and_smaller_type(hub):
         pg.goto(hub + "/yard")
         assert pg.evaluate("parseFloat(getComputedStyle(document.body).fontSize)") <= 13
         pg.click("[data-tab=scores]")
-        pg.wait_for_function("document.querySelectorAll('#fit tr').length>=5")
+        pg.wait_for_function("document.querySelectorAll('#fitgrid .sc').length>=5")
         pg.wait_for_function("document.querySelectorAll('#chal tr').length>=7")           # tally, thompson and linucb behind two choices
         txt = pg.inner_text("#tab-scores")
-        for word in ("Route", "Task confidence", "Control (yard)", "METHODS BEHIND EACH CHOICE", "thompson", "linucb", "Gate for a new version"):
+        for word in ("Did the Hub understand what you meant?", "Task confidence", "Control (yard)", "RIVAL WAYS OF CHOOSING", "thompson", "linucb", "Gate for a new version", "report card"):
             assert word in txt, word
         pg.click("[data-tab=routines]")
         pg.wait_for_function("document.getElementById('freshnote').textContent.length>0")

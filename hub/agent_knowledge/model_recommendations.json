@@ -1,5 +1,5 @@
 {
-  "basis": "Checked 13 Nov 2026: Ollama cloud Nemotron now needs paid credits, so it is no longer a pick. This PC's own gemma4:e4b-32k is the default (it parses structured output and calls tools; it costs minutes per run, not seconds); the Zen free models listed answered a one-word call in 8 to 11 s. Quality per role comes from tools/benchmark.py.",
+  "basis": "Checked 13 Nov 2026. This PC's own gemma4:e4b-32k is the default (it parses structured output and calls tools; it costs minutes per run, not seconds). The Zen free models listed answered a one-word call in 8 to 15 s. Quality per role comes from tools/benchmark.py.",
   "updated": "2026-11-13",
   "roles": {
     "orchestrator": {

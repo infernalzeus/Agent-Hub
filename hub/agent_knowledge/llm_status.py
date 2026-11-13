@@ -1,11 +1,11 @@
 """What every way of reaching a model is doing right now: checked, not assumed.
 
-Why this exists (13 Nov 2026): Ollama's cloud Nemotron, the Hub's fast default for two months, started answering "Add usage credits or subscribe",
-and one of the Zen free models it fell back to (`mimo-v2.5-free`) had been withdrawn. Nothing said so: every run just tried the dead model first and
-failed over. This module asks each route once, on demand, keeps the answer for a day, and lets `model_chain` leave out what is known to be dead.
+Why this exists (13 Nov 2026): a model the Hub used first for two months started refusing every call, and a free model it fell back to had been withdrawn.
+Nothing said so: every run just tried the dead model first and failed over. This module asks each route once, on demand, keeps the answer for a day,
+and lets `model_chain` leave out what is known to be dead. There is no Ollama cloud route any more: only models that run on this PC.
 
 Four routes are looked at:
-  Ollama           the server on this PC (up or not), the models installed, and for a *cloud* model one tiny call (it may need credits)
+  Ollama           the server on this PC (up or not) and the models installed
   OpenCode Zen     the free `opencode/*` models: still offered? does a one-word call come back?
   Claude Code      `claude auth status`: signed in, and on which plan (what the Doctor works through)
   API keys         whether a paid provider key is set in the environment (names only, never values)
@@ -111,7 +111,7 @@ async def _get(path: str, timeout: float = 3.0):
 
 
 async def _tiny_chat(name: str, timeout: float, keep_alive=None) -> "tuple[bool, str, float]":
-    """One-word chat with an Ollama model. Returns (ok, why, seconds). A cloud model that wants credits answers at once with a plain sentence about them."""
+    """One-word chat with an Ollama model on this PC. Returns (ok, why, seconds)."""
     import aiohttp
     body = {"model": name, "stream": False, "think": False, "options": {"num_predict": 12}, "messages": [{"role": "user", "content": "Reply with the single word: ok"}]}
     if keep_alive is not None:
@@ -125,9 +125,6 @@ async def _tiny_chat(name: str, timeout: float, keep_alive=None) -> "tuple[bool,
                     return True, "", time.time() - t0
     except Exception as exc:  # noqa: BLE001
         return False, f"no answer ({exc.__class__.__name__})", time.time() - t0
-    low = text.lower()
-    if r.status in (401, 402, 403) or "credits" in low or "subscribe" in low:
-        return False, "needs usage credits or a subscription on ollama.com", time.time() - t0
     return False, f"error {r.status}: {text[:120]}", time.time() - t0
 
 
@@ -173,32 +170,23 @@ def _zen_ids() -> "list[str]":
 
 # ---- the whole picture
 async def snapshot(*, check: bool = False, deep: bool = False) -> dict:
-    """What each route is doing. `check` makes the calls that tell (a tiny call to each cloud model, a one-word run of each free model); without it this reads the last
+    """What each route is doing. `check` makes the calls that tell (a one-word run of each free model); without it this reads the last
     answers and only asks the cheap things live (is Ollama up, what is installed, is Claude Code signed in). `deep` also loads the default local model once."""
     from .. import agent_knowledge as AK
     out: dict = {"checked_at": _read().get("checked_at"), "default": AK.resolved_default_model(), "local_model": AK.LOCAL_MODEL, "policy": AK.model_policy()}
     cache = _read().get("models") or {}
     # Ollama
-    oll: dict = {"up": False, "local": [], "cloud": []}
+    oll: dict = {"up": False, "local": []}
     try:
         st, tags = await _get("/api/tags")
         oll["up"] = st == 200
         for m in tags.get("models", []):
             name = m.get("name", "")
-            if m.get("remote_host"):
-                oll["cloud"].append({"model": name})
-            elif "embedding" not in (m.get("capabilities") or []):
+            if not m.get("remote_host") and "embedding" not in (m.get("capabilities") or []):
                 oll["local"].append(name)
     except Exception:  # noqa: BLE001
         pass
     todo = []
-    for c in oll["cloud"]:
-        key = "ollama/" + c["model"]
-        if check and oll["up"]:
-            todo.append((key, _tiny_chat(c["model"], 30)))
-        else:
-            row = cache.get(key) or {}
-            c.update({"ok": row.get("ok"), "why": row.get("why", ""), "checked": row.get("at")})
     if check and deep and oll["up"]:
         todo.append((AK.LOCAL_MODEL, _tiny_chat(AK.LOCAL_MODEL.split("/", 1)[1], 150, keep_alive=0)))
     # Zen
@@ -223,9 +211,6 @@ async def snapshot(*, check: bool = False, deep: bool = False) -> dict:
             else:                                                       # an Ollama (ok, why, secs)
                 ok, why, secs = r
                 rows[key] = {"ok": ok, "why": why, "at": time.time(), "secs": round(secs, 1)}
-                for c in oll["cloud"]:
-                    if "ollama/" + c["model"] == key:
-                        c.update({"ok": ok, "why": why, "checked": time.time()})
                 if key == AK.LOCAL_MODEL:
                     oll["local_probe"] = {"ok": ok, "why": why, "secs": round(secs, 1)}
         _remember(rows)
@@ -244,9 +229,6 @@ def _lines(s: dict) -> "list[dict]":
     o = s["ollama"]
     rows.append({"what": "Ollama on this PC", "state": "ok" if o["up"] else "bad",
                  "say": (f"running, {len(o['local'])} local model{'s' if len(o['local']) != 1 else ''} installed; the default is {s['local_model']}") if o["up"] else "not running (the Hub starts it when a run needs it)"})
-    for c in o["cloud"]:
-        say = "answers" if c.get("ok") else ((c.get("why") or "failed its check") if c.get("ok") is False else "not checked yet; press CHECK")
-        rows.append({"what": "Ollama cloud: " + c["model"], "state": "ok" if c.get("ok") else ("bad" if c.get("ok") is False else "unknown"), "say": say})
     if s["zen"]:
         good = [z for z in s["zen"] if z.get("ok")]
         bad = [z for z in s["zen"] if z.get("ok") is False]

@@ -475,9 +475,8 @@ def list_agents() -> list[dict]:
 
 # ── model policy ─────────────────────────────────────────────────────────────
 POLICY_FILE = Path(__file__).parent / "model_policy.json"
-# 13 Nov 2026: the default is this PC's own model. Ollama's cloud Nemotron (the fast default since 19 Sep) now answers "Add usage credits or subscribe", and the Zen free model
-# `mimo-v2.5-free` has been withdrawn, so nothing may start with either. The Zen free models below were each asked a one-word question that day and answered
-# (8 to 11 s). `llm_status` re-asks on demand and `model_chain` leaves out what it finds dead.
+# 13 Nov 2026: the default is this PC's own model. There is no Ollama cloud model any more (it wanted paid credits) and the Zen free models that were withdrawn are gone from
+# every list. The Zen free models below each answered a one-word question that day (8 to 15 s); `llm_status` re-asks on demand and `model_chain` leaves out what it finds dead.
 FAST_FREE_MODEL = "opencode/nemotron-3.5-lightning-free"
 LOCAL_MODEL = "ollama/gemma4:e4b-32k"   # 32k-ctx Modelfile variant: Ollama's default 4096 is smaller than one mission prompt
 # what to fall back through on a transient (502 / overloaded) failure
