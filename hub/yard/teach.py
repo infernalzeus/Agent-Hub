@@ -247,7 +247,7 @@ async def api_mission_tap(request: web.Request) -> web.Response:
 
 
 _HTML = """<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><meta name="color-scheme" content="dark">
 <title>AGENT HUB - Teach</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -266,10 +266,22 @@ textarea{width:100%;font:14px Outfit,system-ui,sans-serif;color:var(--text);back
 .count{color:var(--amber);font-size:13px}
 .seg{display:flex;gap:8px;margin:6px 0 10px}.seg button.on{background:var(--accent);color:#04120a}
 .chip{border:1px solid var(--border);border-radius:99px;padding:2px 10px;font-size:12px;color:var(--mute);margin-right:6px;display:inline-block}.chip.ok{color:var(--accent);border-color:var(--accent)}.chip.no{color:var(--red);border-color:var(--red)}
+
+.tophead{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.rq{display:block}.rq .cols{display:contents}
+@media (min-width:900px){
+ html.hub-embed,html.hub-embed body{height:100%}
+ html.hub-embed body{display:flex;flex-direction:column;overflow:hidden;padding:2px 4px 6px;font-size:13.5px}
+ html.hub-embed main{max-width:none;width:100%;margin:0;flex:1;min-height:0;display:flex;flex-direction:column}
+ html.hub-embed .tophead{flex:none;margin-bottom:6px}html.hub-embed .seg{margin:0}
+ html.hub-embed #card{flex:1;min-height:0;overflow:auto}
+ html.hub-embed #card.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(480px,1fr));gap:10px;align-content:start}html.hub-embed #card.grid>.card{margin:0}
+ html.hub-embed .rq{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start;padding:14px 16px}
+ html.hub-embed .said{font-size:18px}html.hub-embed .mute{font-size:13.5px}
+}
 </style></head><body><main>
 <h1>TEACH</h1>
-<div class="seg"><button type="button" id="s-req" class="on">REQUESTS</button><button type="button" id="s-mis">MISSIONS</button><button type="button" id="s-task">PC TASKS</button></div>
-<div class="count" id="count"></div>
+<div class="tophead"><div class="seg"><button type="button" id="s-req" class="on">REQUESTS</button><button type="button" id="s-mis">MISSIONS</button><button type="button" id="s-task">PC TASKS</button></div>
+<div class="count" id="count"></div></div>
 <div id="card"></div>
 </main>
 <script>
@@ -293,23 +305,23 @@ textarea{width:100%;font:14px Outfit,system-ui,sans-serif;color:var(--text);back
     row.appendChild(done);
   }
   function show(){
-    const c=$('card');c.replaceChildren();$('count').textContent=left?left+' left to answer. SKIP hides one for good.':'';
+    const c=$('card');c.replaceChildren();c.className='';$('count').textContent=left?left+' left to answer. SKIP hides one for good.':'';
     const it=items[i];
-    if(!it){const s=window.__teachStatus||{};const msg=left?'That is the batch. Reload for more.':(s.logged===0?'Nothing has been logged yet.':s.since_fresh===0?'Nothing to answer: '+s.logged+' earlier request'+(s.logged===1?' is':'s are')+' kept apart since the fresh start (the last was '+new Date(s.last*1000).toLocaleDateString()+'), and no new request has been logged since. Requests appear here as you use Talk and the router decides what you meant.':'Nothing left to answer. Thank you.');c.appendChild(el('div','card',msg));return;}
-    const card=el('div','card');card.appendChild(el('div','said','“'+it.text+'”'));
-    const p=el('div','mute','The Hub took that as: ');p.appendChild(el('span','bin',help(it.chosen)));p.append(' (chosen by '+(it.by==='you'?'your earlier correction':it.by)+')');card.appendChild(p);
-    if(it.said)card.appendChild(el('div','mute','It said: '+it.said));
+    if(!it){const s=window.__teachStatus||{};const msg=left?'That is the batch. Reload for more.':(s.logged===0?'Nothing has been logged yet.':s.since_fresh===0?'Nothing to answer: '+s.logged+' earlier request'+(s.logged===1?' is':'s are')+' kept apart since the fresh start (the last was '+new Date(s.last*1000).toLocaleDateString()+'), and no new request has been logged since. Requests appear here as you use Talk and the router decides what you meant.':'Nothing left to answer. Thank you.');c.appendChild(el('div','card',msg));const how=el('div','card');how.append(el('div','h','HOW ITEMS GET HERE'),el('div','mute','1. Switch SHADOW MODE on (top of this panel).  2. Talk to the Hub or give it a PC task.  3. Each request, finished mission and PC task is listed under REQUESTS, MISSIONS and PC TASKS for you to grade.'));c.appendChild(how);return;}
+    const card=el('div','card rq'),LC=el('div'),RC=el('div');card.append(LC,RC);LC.appendChild(el('div','said','“'+it.text+'”'));
+    const p=el('div','mute','The Hub took that as: ');p.appendChild(el('span','bin',help(it.chosen)));p.append(' (chosen by '+(it.by==='you'?'your earlier correction':it.by)+')');LC.appendChild(p);
+    if(it.said)LC.appendChild(el('div','mute','It said: '+it.said));
     let bad=new Set();
     if(it.steps&&it.steps.length){
-      card.appendChild(el('div','h','IT TOOK '+it.steps.length+' STEP'+(it.steps.length>1?'S':'')+(it.model?' · MODEL '+it.model:'')+(it.run_said?' · "'+it.run_said+'"':'')));
+      LC.appendChild(el('div','h','IT TOOK '+it.steps.length+' STEP'+(it.steps.length>1?'S':'')+(it.model?' · MODEL '+it.model:'')+(it.run_said?' · "'+it.run_said+'"':'')));
       const box=el('div','steps');
       it.steps.forEach(s=>{const lab=el('label'),cb=el('input');cb.type='checkbox';cb.onchange=()=>{cb.checked?bad.add(s.n):bad.delete(s.n);lab.classList.toggle('bad',cb.checked);};
         lab.append(cb,el('span','n',s.n+'.'),el('span',null,s.what||'(a key press)'));if(s.changed===false)lab.append(el('span','nochg','nothing changed'));if(s.ms)lab.append(el('span','mute',(s.ms/1000).toFixed(1)+' s'));box.appendChild(lab);});
-      card.appendChild(box);card.appendChild(el('div','mute','Tick the steps that went wrong. Leave all unticked if none did.'));
+      LC.appendChild(box);LC.appendChild(el('div','mute','Tick the steps that went wrong. Leave all unticked if none did.'));
     }
     let grade=null,cause='';
     const row=el('div','row'),yes=el('button',null,'RIGHT'),part=el('button','part','PARTLY'),no=el('button','no','WRONG'),skip=el('button','skip','SKIP'),del_=el('button','skip','DELETE');del_.title='Remove this for good. It is used for nothing and never comes back.';skip.title='Do not ask about this again';
-    const why=el('div');card.appendChild(row);card.appendChild(why);
+    const why=el('div');RC.appendChild(row);RC.appendChild(why);
     const why_h=el('div','h','WHY? (OPTIONAL BUT THIS IS WHAT IT LEARNS FROM)');why.appendChild(why_h);
     const opts=el('div','opts');Object.keys(causes).forEach(k=>{const b=el('button',null,causes[k]);b.type='button';b.onclick=()=>{cause=cause===k?'':k;opts.querySelectorAll('button').forEach(x=>x.classList.remove('on'));if(cause)b.classList.add('on');};opts.appendChild(b);});why.appendChild(opts);
     const sel=el('select');const s0=el('option',null,'If the Hub chose wrongly, it should have been...');s0.value='';sel.appendChild(s0);bins.filter(b=>b.id!==it.chosen).forEach(b=>{const o=el('option',null,b.help||b.id);o.value=b.id;sel.appendChild(o);});why.appendChild(sel);
@@ -323,7 +335,7 @@ textarea{width:100%;font:14px Outfit,system-ui,sans-serif;color:var(--text);back
     part.onclick=()=>{grade='partly';paint();};no.onclick=()=>{grade='wrong';paint();};save.onclick=()=>send1(full(grade));
     row.append(yes,part,no,skip,del_,save);c.appendChild(card);
   }
-  async function missions(){const c=$('card');c.replaceChildren();$('count').textContent='Newest first. APPLY already counts as a yes and DISCARD as a no; tap for the rest.';
+  async function missions(){const c=$('card');c.replaceChildren();c.className='grid';$('count').textContent='Newest first. APPLY already counts as a yes and DISCARD as a no; tap for the rest.';
     let j;try{j=await (await fetch('/api/learning/teach/missions',{cache:'no-store'})).json();}catch(e){c.textContent='Could not read the missions: '+e.message;return;}
     if(!j.missions.length){c.appendChild(el('div','card','No missions yet.'));return;}
     j.missions.forEach(m=>{const card=el('div','card');card.appendChild(el('div','said',m.brief||'(no brief)'));
@@ -337,7 +349,7 @@ textarea{width:100%;font:14px Outfit,system-ui,sans-serif;color:var(--text);back
       row.append(g,pt,b,hide,rm);card.appendChild(row);c.appendChild(card);});}
   // PC TASKS: what the Hub did on this PC while shadow mode was on, with the evidence that it worked and how sure it is
   const pctc=v=>Math.round(v*100)+' %';
-  async function tasks(){const c=$('card');c.replaceChildren();let j;
+  async function tasks(){const c=$('card');c.replaceChildren();c.className='grid';let j;
     try{j=await (await fetch('/api/yard/evidence',{cache:'no-store'})).json();}catch(e){c.textContent='Could not read the evidence: '+e.message;return;}
     $('count').textContent=j.on?'Newest first. EXPERIMENTAL: kept on this PC only, the newest '+j.keep+'.':'Shadow mode is OFF, so nothing new is being kept. Turn it on from the R panel.';
     const cal=el('div','card');cal.append(el('div','h','HOW SURE vs WHAT YOU SAID'));
@@ -347,7 +359,7 @@ textarea{width:100%;font:14px Outfit,system-ui,sans-serif;color:var(--text);back
       const meta=el('div','mute');meta.append(el('span','chip',t.app||''),el('span','chip',t.way),el('span','chip',t.seconds+' s'),el('span','chip '+(t.ok?'ok':'no'),t.ok?'it said done':'it said failed'));
       meta.append(el('span','chip '+(t.confidence>=0.9?'ok':t.confidence>=0.6?'':'no'),'confidence '+pctc(t.confidence)+(t.capped?' (capped: nothing independent checked it)':'')));card.appendChild(meta);
       const why=el('div','steps');t.why.forEach(w=>{const l=el('label');l.append(el('span','n',w.startsWith('warning')?'!':'✓'),el('span',null,w.replace(/^warning: /,'')));if(w.startsWith('warning'))l.classList.add('bad');why.appendChild(l);});card.appendChild(why);
-      if(t.pics&&t.pics.length){const pics=el('div','row');t.pics.forEach(w=>{const f=el('div');f.append(el('div','h',w.toUpperCase()));const im=el('img');im.src='/api/yard/evidence/'+t.id+'/'+w+'.jpg';im.alt=w+' picture of the screen';im.loading='lazy';im.style.cssText='max-width:100%;width:290px;border:1px solid var(--border);border-radius:8px';f.append(im);pics.append(f);});card.appendChild(pics);}
+      if(t.pics&&t.pics.length){const pics=el('div','row');t.pics.forEach(w=>{const f=el('div');f.append(el('div','h',w.toUpperCase()));const im=el('img');im.src='/api/yard/evidence/'+t.id+'/'+w+'.jpg';im.alt=w+' picture of the screen';im.loading='lazy';im.style.cssText='max-width:100%;width:230px;border:1px solid var(--border);border-radius:8px';f.append(im);pics.append(f);});card.appendChild(pics);}
       else card.appendChild(el('div','mute','No picture was kept for this one.'));
       const row=el('div','row'),yes=el('button',null,'RIGHT'),no=el('button','no','WRONG'),rp=el('button','part','REPLAY'),sk=el('button','skip','HIDE'),dl=el('button','skip','DELETE');const msg=el('span','mute');sk.title='Do not show this again';dl.title='Remove this task, its pictures and its label for good';
       const lab=g=>fetch('/api/yard/evidence/'+t.id+'/label',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({grade:g})}).then(()=>tasks());

@@ -640,7 +640,7 @@ textarea{min-height:200px;resize:vertical;font-family:ui-monospace,Consolas,mono
 <label class="skill-search">Search skills<input type="search" id="skill-search" placeholder="Find a skill or agent"></label><div id="skills"></div>
 </div>
 <section id="agents-view" role="tabpanel" aria-labelledby="tab-agents">
-<div class="ag-policy"><label for="agency-all-model">All agents use: <select id="agency-all-model" aria-label="All agents use"></select></label><div id="agency-resolved" role="status"></div><small>Auto chooses a configured paid provider when available, otherwise the Hub’s free/cloud and local fallback settings.</small><div id="agency-model-error" class="ag-error" role="status"></div></div>
+<div class="ag-policy"><label for="agency-all-model">All agents use: <select id="agency-all-model" aria-label="All agents use"></select></label><div id="agency-resolved" role="status"></div><small>Auto chooses a configured paid provider when available, otherwise this PC’s own model, then the free Zen models.</small><div id="agency-model-error" class="ag-error" role="status"></div><div id="llmstat" style="margin-top:8px"></div></div>
 <details class="explain"><summary>About agents and their settings</summary><div style="font-size:11px;color:var(--text-muted);margin:12px 0">
   Personas ship in the repo (<code>hub/agent_knowledge/agents/</code>) and are copied into every
   mission's private working copy. Yours (blue) live in <code>agents_user/</code>. LLM settings save to
@@ -671,7 +671,7 @@ textarea{min-height:200px;resize:vertical;font-family:ui-monospace,Consolas,mono
   </div>
   <label>Prompt body</label>
   <textarea id="c-body" placeholder="Who this agent is, its method step by step, what &quot;done&quot; looks like, hard rules…"></textarea>
-  <div class="row"><button class="btn" id="c-draft">__NEO_ICON__DRAFT</button><span class="note" id="c-drafting" style="display:none">Neo is drafting… (a few seconds on cloud Nemotron)</span></div>
+  <div class="row"><button class="btn" id="c-draft">__NEO_ICON__DRAFT</button><span class="note" id="c-drafting" style="display:none">Neo is drafting…</span></div>
   <div class="row" style="margin-top:14px;display:flex;gap:8px">
     <button class="btn go" id="c-save">SAVE</button>
     <button class="btn" id="c-cancel">cancel</button>
@@ -687,6 +687,17 @@ async function jpost(u,b){ const r=await fetch(u,{method:'POST',headers:{'Conten
 let DATA = null, RECS = {}, PROFILES = {};
 const SMITH_A = '/static/agent-icons/smith.png';
 
+async function agLlmStatus(check){
+  const box = $('llmstat'); if (!box) return;
+  box.innerHTML = '<span class="note">' + (check ? 'Asking each model one question (about 15 s)…' : 'Reading the model status…') + '</span>';
+  try {
+    const j = check ? await jpost('/api/llm/check', {}) : await jget('/api/llm/status');
+    const when = j.checked_at ? new Date(j.checked_at*1000).toLocaleString() : 'never';
+    box.innerHTML = '<b>Models, as found:</b> <button class="btn" id="llm-check" style="margin-left:6px">CHECK NOW</button> <span class="note">last check ' + esc(when) + '</span>'
+      + (j.lines||[]).map(l => `<div class="note" style="margin:3px 0"><span style="color:${l.state==='ok'?'#00e676':l.state==='bad'?'#ff5c5c':'#e0a53c'}">&#9679;</span> <b>${esc(l.what)}</b>: ${esc(l.say)}</div>`).join('');
+    $('llm-check').onclick = () => agLlmStatus(true);
+  } catch(e) { box.textContent = ''; }
+}
 async function load(){
   DATA = await jget('/api/agents');
   if (typeof agLoadPresets === 'function') await agLoadPresets();
@@ -696,12 +707,10 @@ async function load(){
   try { AGENTMAP = await jget('/api/hub/agent-map'); } catch(e){ AGENTMAP = null; }
   try {
     const mp = await jget('/api/model-policy'); AG_POLICY=mp;
-    $('mpol').innerHTML = `<b>Model:</b> policy <code>${esc(mp.policy)}</code> → runs use `
-      + `<code>${esc(mp.resolved)}</code>. Measured 2026-09-19: Ollama-cloud Nemotron 3-6 s/call; OpenCode Zen free (<code>opencode/*</code>) `
-      + `6-170 s/call. A call with no answer for 150 s is killed and the run fails over: cloud Nemotron → <code>${esc(mp.local)}</code> `
-      + `→ Zen free. <code>ollama/*</code> without <code>:cloud</code> runs on this machine. `
-      + (mp.has_paid_key ? `A paid provider key is configured — <code>auto</code> uses it.`
-                         : `Add a provider key (<code>opencode auth login</code>) and set policy <code>auto</code> for fast, reliable runs.`);
+    $('mpol').innerHTML = `<b>Model:</b> policy <code>${esc(mp.policy)}</code> → runs use <code>${esc(mp.resolved)}</code>, this PC's own model. `
+      + `If it fails the run falls back to the free Zen models (<code>opencode/*</code>), and a call with no answer for 150 s is killed. `
+      + (mp.has_paid_key ? `A paid provider key is configured — <code>auto</code> uses it.` : `No paid provider key is set, and nothing here needs one.`);
+    agLlmStatus(false);
   } catch(e){ $('mpol').textContent=''; }
   const prim = (DATA.team||{}).primary;
   const card = (p) => {

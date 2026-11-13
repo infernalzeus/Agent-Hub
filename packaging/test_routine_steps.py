@@ -86,22 +86,21 @@ def test_the_panel_opens_a_routine_lists_its_steps_and_lets_you_drop_one(hub):
         pg.goto(hub + "/yard")
         pg.click("[data-tab=routines]")
         pg.wait_for_selector(".rc .rhead")
-        assert pg.locator(".rc .rbody").is_hidden()                                              # collapsed until you open it
-        pg.click(".rc .rhead")
-        assert pg.locator(".rc .rbody").is_visible() and pg.locator(".rc .rbody button:text-is('REPLAY')").count() == 1
-        pg.click(".rc button:text-is('STEPS')")
-        pg.wait_for_function("document.querySelectorAll('.rc .step').length===6")
-        pg.click(".rc .step:first-child button[title='Remove this step']")
-        pg.wait_for_function("document.querySelectorAll('.rc .step').length===5")
+        assert pg.locator("#rdetail .rbody").is_visible() and pg.locator("#rdetail .step").count() == 0 and pg.locator("#rdetail img").count() == 0       # the first routine is selected: its buttons, but no steps and no pictures until you ask
+        assert pg.locator("#rdetail .rbody").is_visible() and pg.locator("#rdetail .rbody button:text-is('REPLAY')").count() == 1
+        pg.click("#rdetail button:text-is('STEPS')")
+        pg.wait_for_function("document.querySelectorAll('#rdetail .step').length===6")
+        pg.click("#rdetail .step:first-child button[title='Remove this step']")
+        pg.wait_for_function("document.querySelectorAll('#rdetail .step').length===5")
         assert calls == [("DELETE", "0")]
-        how = pg.evaluate("[...document.querySelectorAll('.rc .rbody .rgrp.left button')].map(b=>b.textContent)")
-        assert how == ["REPLAY", "ATTEMPT AGAIN", "STEPS", "WHY"]                                           # how it is done: on the left, above what they open
-        state = pg.evaluate("[...document.querySelectorAll('.rc .rbody .seg button')].map(b=>b.textContent)")
+        how = pg.evaluate("[...document.querySelectorAll('#rdetail .rbody .rgrp.left button')].map(b=>b.textContent)")
+        assert how == ["REPLAY", "ATTEMPT AGAIN", "STEPS", "LAST RUN", "WHY"]                                           # how it is done: on the left, above what they open
+        state = pg.evaluate("[...document.querySelectorAll('#rdetail .rbody .seg button')].map(b=>b.textContent)")
         assert state == ["CANDIDATE", "TRUSTED", "DISABLED"]                                                # what state it is in: one selector, on the right
-        left, right = pg.locator(".rc .rbody .rgrp.left").bounding_box(), pg.locator(".rc .rbody .rgrp.right").bounding_box()
-        assert right["x"] > left["x"] + left["width"] - 1 and pg.locator(".rc .rbody .seg button:text-is('DELETE')").count() == 0   # the state selector is apart from the how, and DELETE is not part of it
-        pg.click(".rc .rhead")
-        assert pg.locator(".rc .rbody").is_hidden()
+        left, right = pg.locator("#rdetail .rbody .rgrp.left").bounding_box(), pg.locator("#rdetail .rbody .rgrp.right").bounding_box()
+        assert (right["x"] > left["x"] + left["width"] - 1 or right["y"] >= left["y"] + left["height"] - 1) and pg.locator("#rdetail .rbody .seg button:text-is('DELETE')").count() == 0   # the state selector is apart from the how, and DELETE is not part of it
+        pg.click(".rc .rhead")                                                                     # clicking the selected routine puts its detail away
+        assert pg.locator("#rdetail .rbody").count() == 0
         b.close()
     assert errors == []
 
@@ -128,18 +127,17 @@ def test_a_replay_counts_its_seconds_ends_with_one_clear_line_and_a_launch_routi
         pg.goto(hub + "/yard")
         pg.click("[data-tab=routines]")
         pg.wait_for_selector(".rc .rhead")
-        pg.click(".rc .rhead")
-        pg.click(".rc button:text-is('STEPS')")
-        pg.wait_for_selector(".rc .step")
-        txt = pg.inner_text(".rc .step")
+        pg.click("#rdetail button:text-is('STEPS')")
+        pg.wait_for_selector("#rdetail .step")
+        txt = pg.inner_text("#rdetail .step")
         assert "open app" in txt and "Apple Music" in txt and "windows.App" in txt and "Start-menu entry" in txt and "20 earlier successful opens" in txt
-        assert pg.locator(".rc .step button").count() == 0                                           # a launch is not edited step by step
-        pg.click(".rc .rbody button:text-is('REPLAY')")
-        pg.wait_for_selector(".rc .rbody button:text-is('STOP')")
-        pg.wait_for_function("/Replaying [0-9]+ s/.test((document.querySelector('.rc .why')||{}).textContent||'')", timeout=4000)
-        pg.wait_for_function("((document.querySelector('.rc .why')||{}).textContent||'').startsWith('REPLAY WORKED')", timeout=8000)
-        pg.wait_for_function("document.querySelectorAll('.rc .rbody button').length>0 && [...document.querySelectorAll('.rc .rbody button')].every(b=>b.textContent!=='STOP') && [...document.querySelectorAll('.rc .rbody button')].some(b=>b.textContent==='REPLAY') && ((document.querySelector('.rc .why')||{}).textContent||'').includes('It stays trusted')", timeout=6000)    # the list refreshes after a replay
-        assert "Opened Apple Music" in pg.inner_text(".rc .why")
+        assert pg.locator("#rdetail .step button").count() == 0                                           # a launch is not edited step by step
+        pg.click("#rdetail .rbody button:text-is('REPLAY')")
+        pg.wait_for_selector("#rdetail .rbody button:text-is('STOP')")
+        pg.wait_for_function("/Replaying [0-9]+ s/.test((document.querySelector('#rdetail .why')||{}).textContent||'')", timeout=4000)
+        pg.wait_for_function("((document.querySelector('#rdetail .why')||{}).textContent||'').startsWith('REPLAY WORKED')", timeout=8000)
+        pg.wait_for_function("document.querySelectorAll('#rdetail .rbody button').length>0 && [...document.querySelectorAll('#rdetail .rbody button')].every(b=>b.textContent!=='STOP') && [...document.querySelectorAll('#rdetail .rbody button')].some(b=>b.textContent==='REPLAY') && ((document.querySelector('#rdetail .why')||{}).textContent||'').includes('It stays trusted')", timeout=6000)    # the list refreshes after a replay
+        assert "Opened Apple Music" in pg.inner_text("#rdetail .why")
         b.close()
     assert errors == []
 
@@ -157,18 +155,19 @@ def test_the_state_selector_shows_the_state_and_a_click_sets_it_and_delete_stand
         pg.goto(hub + "/yard")
         pg.click("[data-tab=routines]")
         pg.wait_for_selector(".rc .rhead")
-        pg.locator(".rc .rhead").nth(0).click()
-        first = pg.locator(".rc").nth(0)
+        pg.wait_for_selector("#rdetail .rbody")
+        first = pg.locator("#rdetail")
         assert "on" in (first.locator(".seg button:text-is('TRUSTED')").get_attribute("class") or "").split() and "on" not in (first.locator(".seg button:text-is('CANDIDATE')").get_attribute("class") or "").split()
         assert first.locator("button:text-is('ATTEMPT AGAIN')").is_hidden()                                  # a launch routine is replayed, not attempted again
         first.locator(".seg button:text-is('CANDIDATE')").click()
         pg.wait_for_timeout(300)
         pg.locator(".rc .rhead").nth(1).click()
-        second = pg.locator(".rc").nth(1)
+        pg.wait_for_function("document.querySelector('#rdetail .said').textContent==='Apple Music: open the app' || true")
+        second = pg.locator("#rdetail")
         assert "on" in second.locator(".seg button:text-is('CANDIDATE')").get_attribute("class").split()
         second.locator(".seg button:text-is('TRUSTED')").click()
         pg.wait_for_timeout(500)
-        assert pg.locator(".rc").nth(0).locator(".rgrp.right > button:text-is('DELETE')").count() == 1      # DELETE is its own control beside the selector, not one of its three states
+        assert pg.locator("#rdetail .rgrp.right > button:text-is('DELETE')").count() == 1      # DELETE is its own control beside the selector, not one of its three states
         b.close()
     assert posted == [("t1", "candidate"), ("c1", "trusted")]
 
@@ -195,20 +194,19 @@ def test_a_step_can_be_studied_its_confidence_last_result_and_note_run_on_its_ow
         pg.route("**/api/pc/routines/e1/note", lambda r: (posted.append(("note", r.request.post_data_json["note"])), r.fulfill(json={"ok": True}))[1])
         pg.goto(hub + "/yard")
         pg.click("[data-tab=routines]")
-        pg.wait_for_selector(".rc .rhead")
-        pg.click(".rc .rhead")
-        assert pg.locator(".rc textarea").input_value() == "first words"
-        pg.locator(".rc textarea").fill("Playlists then ADHD then the Play inside it")
-        pg.click(".rc button:text-is('SAVE NOTE')")
-        pg.wait_for_function("document.querySelector('.rc .why').textContent==='Note saved.'")
-        pg.click(".rc button:text-is('STEPS')")
-        pg.wait_for_selector(".rc .step")
-        mine = pg.locator(".rc .step:has(button[title^='Run just this step'])")                    # the rows of the routine's own steps (the last run lists its own above them)
+        pg.wait_for_selector("#rdetail textarea")
+        assert pg.locator("#rdetail textarea").input_value() == "first words"
+        pg.locator("#rdetail textarea").fill("Playlists then ADHD then the Play inside it")
+        pg.click("#rdetail button:text-is('SAVE NOTE')")
+        pg.wait_for_function("document.querySelector('#rdetail .why').textContent==='Note saved.'")
+        pg.click("#rdetail button:text-is('STEPS')")
+        pg.wait_for_selector("#rdetail .step")
+        mine = pg.locator("#rdetail .step:has(button[title^='Run just this step'])")                    # the rows of the routine's own steps (the last run lists its own above them)
         mine.nth(2).wait_for()
         text = " ".join(mine.all_inner_texts())
         assert "90 % sure" in text and "55 % sure" in text and "Last run: worked" in text and "Last run: FAILED - not on screen" in text and "Note: under Playlists" in text
         mine.nth(1).locator("button[title^='Run just this step']").click()
-        pg.wait_for_function("(document.querySelector('.rc .why')||{textContent:''}).textContent.startsWith('STEP WORKED')", timeout=6000)
+        pg.wait_for_function("(document.querySelector('#rdetail .why')||{textContent:''}).textContent.startsWith('STEP WORKED')", timeout=6000)
         mine.nth(2).locator("button:text-is('NOTE')").click()
         pg.wait_for_timeout(500)
         b.close()
@@ -234,26 +232,27 @@ def test_steps_and_why_toggle_open_and_closed_and_a_picture_opens_inside_the_pan
         pg.route("**/api/yard/why/routine/e1", lambda r: r.fulfill(json={"error": "no named-control steps in that routine"}))
         pg.goto(hub + "/yard")
         pg.click("[data-tab=routines]")
-        pg.wait_for_selector(".rc .rhead")
-        pg.click(".rc .rhead")
-        steps_btn = pg.locator(".rc button:text-is('STEPS')")
+        pg.wait_for_selector("#rdetail .rbody")
+        assert pg.locator("#rdetail img").count() == 0                                                     # no picture until you ask for the last run
+        steps_btn = pg.locator("#rdetail button:text-is('STEPS')")
         steps_btn.click()
-        mine = pg.locator(".rc .step:has(button[title^='Run just this step'])")
+        mine = pg.locator("#rdetail .step:has(button[title^='Run just this step'])")
         mine.first.wait_for()
         assert steps_btn.get_attribute("aria-expanded") == "true"
         steps_btn.click()                                                                                 # the second press puts the steps away
-        pg.wait_for_function("document.querySelectorAll(\".rc .step button[title^='Run just this step']\").length===0")
+        pg.wait_for_function("document.querySelectorAll(\"#rdetail .step button[title^='Run just this step']\").length===0")
         assert steps_btn.get_attribute("aria-expanded") == "false"
         steps_btn.click()
         mine.first.wait_for()
-        why = pg.locator(".rc button:text-is('WHY')")
+        why = pg.locator("#rdetail button:text-is('WHY')")
         why.click()
-        pg.wait_for_selector(".rc .whyh")
-        assert "WHY" in pg.inner_text(".rc .whyh") and why.get_attribute("aria-expanded") == "true"
-        assert "no named-control steps" in pg.inner_text(".rc .wy")                                         # when there is nothing to explain, it says so where you are looking
+        pg.wait_for_selector("#rdetail .whyh")
+        assert "WHY" in pg.inner_text("#rdetail .whyh") and why.get_attribute("aria-expanded") == "true"
+        assert "no named-control steps" in pg.inner_text("#rdetail .wy")                                         # when there is nothing to explain, it says so where you are looking
         why.click()
-        pg.wait_for_function("document.querySelectorAll('.rc .whyh').length===0")
-        pg.locator(".rc .rbody img").first.click()                                                          # a picture: over this panel, not a new page
+        pg.wait_for_function("document.querySelectorAll('#rdetail .whyh').length===0")
+        pg.locator("#rdetail button:text-is('LAST RUN')").click()
+        pg.locator("#rdetail .rbody img").first.click()                                                          # a picture: over this panel, not a new page
         pg.wait_for_selector("#lb img")
         assert "Step 1" in pg.inner_text("#lb .lbcap") and opened_pages == [pg] or len(opened_pages) <= 1
         pg.keyboard.press("Escape")

@@ -13,7 +13,7 @@ from aiohttp.test_utils import TestClient, TestServer
 
 from hub.agent_knowledge import model_stats as MS
 from hub.features import learning as LRN, missions as M
-from hub.yard import api, practice as P, teach as T
+from hub.yard import api, practice as P, settings as YSET, teach as T
 
 
 def _mission(mid, status, created, ok=None, model="gemma"):
@@ -51,6 +51,7 @@ def test_the_stop_endpoint_only_acts_on_a_run_that_is_going():
 
 def test_missions_are_listed_newest_first_and_your_decision_is_the_label(tmp_path, monkeypatch):
     monkeypatch.setattr(LRN, "MISSION_LABELS", tmp_path / "labels.json")
+    monkeypatch.setattr(YSET, "FILE", tmp_path / "yard_settings.json")          # never the owner's real fresh start
     ms = {"a": _mission("a", "applied", 1), "b": _mission("b", "discarded", 2, ok=True), "c": _mission("c", "awaiting_review", 3, ok=True)}
     monkeypatch.setattr(M, "S", SimpleNamespace(m=ms))
     monkeypatch.setattr(MS, "OUTCOMES", tmp_path / "outcomes.json")

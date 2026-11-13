@@ -38,6 +38,8 @@ _RUN = re.compile(r"^\W*(run it|run the plan|go ahead|dispatch|start it|do it|ye
 _APPLY = re.compile(r"^\W*apply\b", re.I)
 _DISCARD = re.compile(r"^\W*(discard|throw (it )?away|reject)\b", re.I)
 _FAULT = re.compile(r"\b(wrong|broken|not working|isn'?t working|doesn'?t work|won'?t|fail(ed|s|ing)?|crash(es|ed|ing)?|error|bug|glitch|slow|stuck|freez|can'?t|cannot|unable)\b", re.I)
+_ACTION = re.compile(r"\b(fix|change|add|update|improve|repair|adjust|move|rename|remove|implement|redesign|refactor|tidy|clean up|set up)\b", re.I)
+_QUESTION = re.compile(r"^\s*(?:(?:hey |hi |ok |okay )?doctor[\s,:;.!-]+)?(?:how|what|why|where|when|which|who|is|are|does|do|did|tell me|explain|show me)\b", re.I)
 _NEW_AGENT = re.compile(r"\b(make|create|draft|build|write|design|add)\b.*\b(agent|persona)\b", re.I)
 _ACTIVE = {"running", "queued", "starting", "needs_input", "plan_ready", "awaiting_review"}
 _PENDING: dict = {}                       # mission id -> answers collected so far for the orchestrator's questions
@@ -195,13 +197,19 @@ async def neo(text: str, history, mission_id, chat_fn) -> dict:
 # ---- the Doctor
 async def doctor(text: str, history, mission_id, chat_fn) -> dict:
     from . import support as SUP
-    if _FAULT.search(text):
+    asks_for_work = bool(_FAULT.search(text) or (not _QUESTION.match(text) and (_ACTION.search(text) or len(text.split()) >= 6)))      # a fault, "fix / change / add ...", or a longer statement that is not a question: work for Claude Code, not a chat answer
+    if asks_for_work:
         try:
             m = await SUP.start(text if len(text) > 25 else "")
-            return _reply("doctor", "I am looking at the Hub now. I will show you what I find.", ui={"doctor": True, "doctor_id": m["id"]})
+            return _reply("doctor", "I have started the repair in Claude Code, on a private copy of the Hub. Nothing changes in the live Hub until you say apply.", ui={"doctor": True, "doctor_id": m["id"]})
+        except SUP.SignedOut as exc:
+            return _reply("doctor", f"I cannot repair that yet: {exc} I will not hand a repair to a small local model unasked. To use the local team anyway, open Support and choose LOCAL FIRST (OPENCODE).")
         except Exception as exc:  # noqa: BLE001
-            return _reply("doctor", f"I could not start the diagnosis: {str(exc)[:120]}")
-    brief = (SUP.brief_for(text) + "\n\nThis is a question, not a fault: answer it in at most four plain sentences from the facts above. Do not write files and do not change anything.")
+            return _reply("doctor", f"I could not start the repair: {str(exc)[:120]}")
+    signed = "yes" if SUP.claude_health().get("ok") else "no"
+    brief = (SUP.brief_for(text) + "\n\nHOW YOU WORK: in this chat you answer questions with this PC's own model. A fault, or a change the user asks for, is not done by you here: the Hub hands it to Claude Code on a private copy of the Hub (Claude Code signed in: "
+             + signed + "), and nothing changes until the user applies it. Never say you have no Claude access or that you cannot make changes: say that a repair is started when they report a fault or ask for a change.\n\n"
+             "This is a question, not a fault: answer it in at most four plain sentences from the facts above. Do not write files and do not change anything.")
     say = await _persona("researcher", brief, role="doctor")
     return _reply("doctor", say or "I could not answer that just now. If something is broken, tell me what you see and I will diagnose it.")
 

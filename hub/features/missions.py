@@ -2054,8 +2054,8 @@ async def _run_inner(m: Mission) -> None:
         await _prepare(m, wt, data_dir)
         S.save(m)
 
-    # Every default model in the hub is reached THROUGH Ollama, cloud Nemotron
-    # included, so a mission launched on a cold Ollama died with an opaque
+    # The default model in the hub is reached THROUGH Ollama (this PC's own
+    # model), so a mission launched on a cold Ollama died with an opaque
     # "Cannot connect to API" thrown from inside OpenCode. The direct-call path
     # has started it on demand for a while; this path never did.
     if not str(m.model or "").startswith(("opencode/", "anthropic/", "openai/")):
@@ -2173,8 +2173,8 @@ async def stop_ollama_if_idle() -> bool:
 
 
 async def _ensure_ollama(wait: float = 30.0) -> bool:
-    """Start the Ollama desktop app if nothing answers on :11434, and wait for it. Every default model in the hub goes
-    through Ollama (cloud Nemotron included), so a fresh boot with Ollama not yet running must not just fail."""
+    """Start the Ollama desktop app if nothing answers on :11434, and wait for it. The default model in the hub goes
+    through Ollama, so a fresh boot with Ollama not yet running must not just fail."""
     import aiohttp
     global _ollama_starting
     if _ollama_starting is None:
@@ -2212,7 +2212,7 @@ async def _ensure_ollama(wait: float = 30.0) -> bool:
 
 async def _direct_chat(model: str, system: str, user: str, *, temperature: float = 0.3,
                        timeout: float = 120.0, num_ctx: int = 32768, options: "dict | None" = None) -> str:
-    """One chat completion straight from Ollama (local or :cloud) — 3-6 s for cloud Nemotron, versus minutes through
+    """One chat completion straight from Ollama (local, or a :cloud model if you pay for one), versus minutes through
     an agent tool-loop. Raises on any failure so the caller can fail over."""
     import aiohttp
     name = model.split("/", 1)[1]
@@ -3776,6 +3776,24 @@ async def api_set_model_policy(request: web.Request) -> web.Response:
     b = await _body(request)
     agent_knowledge.set_model_policy((b.get("policy") or "auto").strip())
     return web.json_response({"ok": True, "policy": agent_knowledge.model_policy()})
+
+
+@routes.get("/api/llm/status")
+async def api_llm_status(request: web.Request) -> web.Response:
+    """What each way of reaching a model is doing: Ollama here, Ollama cloud, the Zen free models, Claude Code, API keys. Reads the last check; asks only cheap things live."""
+    from ..agent_knowledge import llm_status as LS
+    return web.json_response(await LS.snapshot())
+
+
+@routes.post("/api/llm/check")
+async def api_llm_check(request: web.Request) -> web.Response:
+    """Ask each cloud model and each free model one question now (about 15 s). {"deep": true} also loads this PC's default model once, then unloads it."""
+    from ..agent_knowledge import llm_status as LS
+    try:
+        deep = bool((await request.json()).get("deep"))
+    except Exception:  # noqa: BLE001
+        deep = False
+    return web.json_response(await LS.snapshot(check=True, deep=deep))
 
 
 def setup(app: web.Application) -> None:

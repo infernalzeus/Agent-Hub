@@ -76,6 +76,14 @@ def rate(model: str, last: int = 20) -> "tuple[int, float]":
     return len(rows), (sum(1 for r in rows if r["ok"]) / len(rows) if rows else 0.0)
 
 
+def trusted_local(local_model: str) -> bool:
+    """Is this PC's own model fit to go first? Measured usable, and (once it has a record) right often enough on the project's own tests."""
+    if not usable(local_model):
+        return False
+    n, ok = rate(local_model)
+    return n < MIN_SAMPLES or ok >= MIN_RATE
+
+
 def prefer_local(local_model: str, brief: "str | None") -> bool:
     if not usable(local_model):
         return False

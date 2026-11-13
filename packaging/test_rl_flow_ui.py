@@ -41,7 +41,7 @@ def test_the_session_is_set_apart_from_the_menu_and_every_setting_sits_on_a_bloc
         assert pg.locator(".sess #go").count() == 1 and pg.locator(".sess .flowwrap").count() == 1             # the session card holds the start button and the flow
         assert pg.locator("#more").count() == 0 and pg.locator("details").count() == 0                           # no "more settings" bucket
         assert pg.locator("#flowsvg .fedge").count() == 23 and pg.locator("#nodebox").is_hidden()
-        assert pg.locator(".fnode[data-id=actor] rect").evaluate("e=>e.getBoundingClientRect().width") < 170      # small blocks
+        assert pg.locator(".fnode[data-id=actor] rect").evaluate("e=>e.getBoundingClientRect().width") < 0.15 * pg.viewport_size["width"]      # small blocks (the drawing scales with the panel)
         assert pg.locator(".fnode.outside").count() == 8                                                       # blocks that do not run inside a session are drawn dashed
         pg.locator(".fnode[data-id=live] rect").click()
         assert _has(pg, "Weight: Windows says it is playing", "Ceiling without Windows confirming")

@@ -307,7 +307,7 @@ async def systemone_status(url: str = LOCAL_SYSTEMONE_URL, model: str = LOCAL_SY
 
 
 # ── the one entry point ──────────────────────────────────────────────────────────────────────────────────────────────
-async def decide(state: dict, questions: list[dict], *, backend: str = "rules", model: str = "ollama/nemotron-3-super:cloud",
+async def decide(state: dict, questions: list[dict], *, backend: str = "rules", model: str = "ollama/gemma4:e4b-32k",
                  chat: "ChatFn | None" = None) -> list[dict]:
     if backend == "rules":
         return _decide_rules(state, questions)

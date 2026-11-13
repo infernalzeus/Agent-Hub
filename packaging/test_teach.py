@@ -6,7 +6,7 @@ from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
 from hub.features import binning as BIN, learning as LRN
-from hub.yard import teach as T
+from hub.yard import settings as YSET, teach as T
 
 
 def _log(tmp_path, monkeypatch):
@@ -16,6 +16,7 @@ def _log(tmp_path, monkeypatch):
             {"kind": "outcome", "at": 101.0, "action": "pc_app", "ok": True}]
     log.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
     monkeypatch.setattr(BIN, "LOG", log)
+    monkeypatch.setattr(YSET, "FILE", tmp_path / "yard_settings.json")          # never the owner's real fresh start, which hides rows this old
     return log
 
 

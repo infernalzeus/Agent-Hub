@@ -426,13 +426,14 @@ def test_the_r_button_panel_takes_the_board_on_a_desktop_screen_and_stays_clear_
         pg.goto(hub + "/?enter=1")
         pg.wait_for_function("!!window.__hubBoard && !!window.__hubBoard.active", timeout=20000)
         got = pg.evaluate("""()=>{const q=document.querySelector('.hb-learning');q.hidden=false;const k=[...document.querySelectorAll('.hb-bar>*')].filter(e=>e.offsetParent).map(e=>e.getBoundingClientRect()),
-          corner={right:Math.max(...k.map(e=>e.right)),bottom:Math.max(...k.map(e=>e.bottom))};q.click();return corner}""")
+          lastB=Math.max(...k.map(e=>e.bottom)),firstT=Math.min(...k.map(e=>e.top)),
+          corner={right:Math.max(...k.filter(e=>e.bottom>lastB-6).map(e=>e.right)),bottom:Math.min(...k.filter(e=>e.top<firstT+6).map(e=>e.bottom))};q.click();return corner}""")
         pg.wait_for_selector(".hb-glass-panel", timeout=8000)
         pg.wait_for_timeout(700)
         got.update(pg.evaluate("""()=>{const p=document.querySelector('.hb-glass-panel').getBoundingClientRect();return {p:[p.left,p.top,p.right,p.bottom],vw:innerWidth,vh:innerHeight}}"""))
         b.close()
     l, t, r, bt = got["p"]
-    assert l >= got["right"] + 12 - 3 and abs(t - (got["bottom"] + 12)) <= 10, got                       # its top-left corner is the bottom-right corner of the Talk / PC control / R buttons (further right only to leave the same space as on the right)
+    assert got["right"] + 4 <= l <= got["right"] + 16 and got["bottom"] + 4 <= t <= got["bottom"] + 30, got           # its top-left corner is the inside corner of the Talk / PC control / R buttons (right of R, under Talk and PC control, under the header), not below all of them
     assert abs(l - (got["vw"] - r)) <= 3, got                                                              # the same space on the right: it sits in the middle, not to one side
     assert (r - l) > 0.7 * got["vw"] and (bt - t) > 0.7 * got["vh"] - got["bottom"], got                  # and large: it is read
 

@@ -116,17 +116,21 @@
         if(!pane.isConnected){removeEventListener('resize',place);return;}
         var s=pane.style;
         if(!wide.matches){s.left=s.right=s.top=s.bottom='';return;}
-        var hr=host.getBoundingClientRect(),b=host.querySelector('.hb-bar'),rp=host.querySelector('.hb-right-panel'),gap=12,br=null;
-        if(b)Array.from(b.children).forEach(function(k){var q=k.offsetParent&&k.getBoundingClientRect();if(!q||!q.width)return;br=br?{right:Math.max(br.right,q.right),bottom:Math.max(br.bottom,q.bottom)}:{right:q.right,bottom:q.bottom};});      // the buttons that are shown, not the empty space of the strip
-        if(!br)return;
-        var left=br.right-hr.left+gap,vb=rp&&rp.offsetParent&&rp.querySelector('.hb-viewbar'),rail=vb?hr.right-vb.getBoundingClientRect().left+gap:0,side=Math.round(Math.max(left,rail));
-        s.left=side+'px';s.right=side+'px';s.top=Math.round(br.bottom-hr.top+gap)+'px';s.bottom='16px';
+        // The panel completes the top of the screen together with the buttons: its top-left corner sits in the inside corner of the little group of buttons (just right of the last row, just under the first row,
+        // and never under the header), and its right edge mirrors its left edge so it is centred. The rail of buttons down the right side is hidden while the panel is open.
+        var hr=host.getBoundingClientRect(),b=host.querySelector('.hb-bar'),rp=host.querySelector('.hb-right-panel'),gap=8,ks=[];
+        if(b)Array.from(b.children).forEach(function(k){var q=k.offsetParent&&k.getBoundingClientRect();if(q&&q.width)ks.push(q);});      // the buttons that are shown, not the empty space of the strip
+        if(!ks.length)return;
+        var lastBottom=Math.max.apply(null,ks.map(function(q){return q.bottom;})),firstTop=Math.min.apply(null,ks.map(function(q){return q.top;})),firstBottom=Math.min.apply(null,ks.filter(function(q){return q.top<firstTop+6;}).map(function(q){return q.bottom;})),
+            lastRight=Math.max.apply(null,ks.filter(function(q){return q.bottom>lastBottom-6;}).map(function(q){return q.right;})),hd=document.querySelector('body>header'),hb=hd&&hd.getClientRects().length?hd.getBoundingClientRect().bottom:0;
+        var side=Math.round(lastRight-hr.left+gap+2);      // the rail of buttons down the right side is hidden while a panel is open (html.hub-modal-open), so it takes no room
+        s.left=side+'px';s.right=side+'px';s.top=Math.round(Math.max(firstBottom,hb)-hr.top+gap)+'px';s.bottom='10px';
       }
       place();addEventListener('resize',place);
     }
     function glassPage(url,title){
       closeOtherPopups(null);var old=host.querySelector('.hb-glass-panel');if(old)old.remove();var voice=document.getElementById('voice');if(voice&&!voice.hidden)document.getElementById('v-close').click();
-      var pane=fadePanel(el('section','hb-glass-panel')),head=el('div','hb-glass-head'),close=el('button','hb-btn','');pane.setAttribute('role','dialog');pane.setAttribute('aria-label',title);close.type='button';close.title='Close '+title;close.setAttribute('aria-label','Close '+title);close.appendChild(svg(ICON.x));close.onclick=function(){pane.remove();};head.append(el('h2','',title),close);var fr=el('iframe','hb-glass-frame');fr.title=title;fr.src=embedUrl(url);fr.onload=function(){try{fr.contentDocument.addEventListener('keydown',function(e){if(e.key==='Escape')pane.remove();});}catch(e){}hookFrame(fr,null);};pane.append(head,fr);host.appendChild(pane);anchorGlass(pane);pane._fadeOpen();close.focus({preventScroll:true});
+      var pane=fadePanel(el('section','hb-glass-panel'+(url==='/yard'?' hb-rl':''))),head=el('div','hb-glass-head'),close=el('button','hb-btn','');pane.setAttribute('role','dialog');pane.setAttribute('aria-label',title);close.type='button';close.title='Close '+title;close.setAttribute('aria-label','Close '+title);close.appendChild(svg(ICON.x));close.onclick=function(){pane.remove();};head.append(el('h2','',title),close);var fr=el('iframe','hb-glass-frame');fr.title=title;fr.src=embedUrl(url);fr.onload=function(){try{fr.contentDocument.addEventListener('keydown',function(e){if(e.key==='Escape')pane.remove();});}catch(e){}hookFrame(fr,null);};pane.append(head,fr);host.appendChild(pane);anchorGlass(pane);pane._fadeOpen();close.focus({preventScroll:true});
     }
     var graphicsNotice=null,graphicsDismissed=false;
     var view = null, L = {}, hid = {}, touched = false, data = null, V = { x: 0, y: 0, k: 1 }, focusId = null, zTop = 2, blocks = {}, nav = null, alive = true, dragCleanups = [];

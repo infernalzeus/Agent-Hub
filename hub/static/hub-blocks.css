@@ -625,7 +625,8 @@ html.hub-board-on body>header{top:max(8px,env(safe-area-inset-top))!important}
 
 /* The R button's panel (reinforcement learning) is read, so on a screen of desktop width it takes the whole board: under the buttons at the top, clear of the buttons down the right side. */
 @media (min-width:900px) and (pointer:fine){
- .hb-glass-panel{left:118px;right:118px;top:calc(var(--hub-chrome-bottom,70px) + 12px);bottom:16px;width:auto;height:auto;max-height:none;transform:none}   /* the board's script sets the real corners from the buttons */
+ .hb-glass-panel{left:72px;right:72px;top:72px;bottom:10px;width:auto;height:auto;max-height:none;transform:none}   /* the board's script sets the real corners from the buttons */
+ .hb-glass-panel.hb-rl{padding:8px 10px 10px}.hb-glass-panel.hb-rl .hb-glass-head{padding-bottom:6px}.hb-glass-panel.hb-rl .hb-glass-head button{width:28px;height:28px}
 }
 /* The buttons down the right side: two narrow columns, as wide as the three at the top left (2D/3D and AXIS side by side), not one wide column. */
 @media (min-width:900px) and (pointer:fine){

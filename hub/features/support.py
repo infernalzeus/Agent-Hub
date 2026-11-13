@@ -152,6 +152,10 @@ def claude_health() -> dict:
     """Is Claude Code, the doctor's default way of working, signed in? Judged from what actually happened: the newest Claude Code doctor mission, and the
     newest Claude Code sessions in its logs. {"ok": False, "why": ...} when the last attempt died on a sign-in error, else ok (or unknown)."""
     from . import missions as M
+    from ..agent_knowledge import llm_status as LS
+    live = LS.claude_status()                                  # `claude auth status`: the truth right now beats what the last mission happened to say
+    if live is not None:
+        return {"ok": bool(live.get("installed", True) and live.get("signed_in")), "why": "" if live.get("signed_in") else (live.get("why") or SIGN_IN), "seen": "claude auth status"}
     for mid in reversed(_ids()):
         m = M.S.m.get(mid)
         if m and m.runtime == "claude-code":
@@ -193,14 +197,21 @@ def latest() -> "dict | None":
     return None
 
 
-async def start(text: str, runtime: "str | None" = None, model: "str | None" = None) -> dict:
+class SignedOut(RuntimeError):
+    """The doctor works through Claude Code, and Claude Code is not signed in. The doctor never quietly swaps in a small local model for a repair: it says so and waits."""
+
+
+async def start(text: str, runtime: "str | None" = None, model: "str | None" = None, allow_local: bool = False) -> dict:
     runtime = runtime if runtime in RUNTIMES else default_runtime()
     if not model:
         from .. import agent_knowledge as _AK
         model = _AK.helper_model("doctor") or None                              # the model you chose for the Doctor on the Agency page
     note = ""
     if runtime == "claude-code" and claude_health().get("ok") is False:
-        runtime, note = "opencode", "Claude Code is signed out, so the doctor used the local team this time. " + SIGN_IN
+        why = claude_health().get("why") or SIGN_IN
+        if not allow_local:
+            raise SignedOut(why)
+        runtime, note = "opencode", "Claude Code is signed out, so the doctor used the local team because you said to. " + why
     m = await _dispatch(brief_for(text), runtime, model)
     m["note"] = note
     write_json(FILE, (_ids() + [m["id"]])[-30:])
@@ -215,7 +226,10 @@ async def api_ask(request: web.Request) -> web.Response:
     except Exception:  # noqa: BLE001
         b = {}
     runtime = b.get("runtime") if b.get("runtime") in RUNTIMES else default_runtime()
-    m = await start(str(b.get("text") or ""), runtime, str(b.get("model") or "") or None)
+    try:
+        m = await start(str(b.get("text") or ""), runtime, str(b.get("model") or "") or None, bool(b.get("allow_local")))
+    except SignedOut as exc:
+        raise web.HTTPConflict(text=str(exc) + " Or choose LOCAL FIRST (OPENCODE) beside the button to use the small local team instead.")
     return web.json_response({"ok": True, "mission": m["id"], "runtime": "opencode" if m.get("note") else runtime, "note": m.get("note", "")})
 
 

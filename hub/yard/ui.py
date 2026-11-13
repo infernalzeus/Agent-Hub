@@ -69,39 +69,63 @@ button.big{background:var(--accent);color:#04120a;padding:8px 16px;font-size:11p
 .nh{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;margin-bottom:4px}.nh .sp{flex:1}.sub{font:700 10px Orbitron,system-ui,sans-serif;letter-spacing:.08em;color:var(--accent);margin:8px 0 2px}
 .inside{border:1px solid var(--border);border-radius:8px;padding:8px;margin:6px 0;background:rgba(0,0,0,.2)}.irow{font-size:11.5px;margin:2px 0}.irow b{color:var(--accent);font-weight:600}
 .chain{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:6px}.chain .arrow{color:var(--mute)}.chain .lay{border:1px solid var(--accent);border-radius:7px;padding:3px 8px;text-align:center;min-width:70px}.chain .ls{font:700 14px Orbitron,system-ui,sans-serif;color:var(--accent)}.chain .ln{font-size:10px;color:var(--mute)}
-.ovgrid{display:grid;grid-template-columns:1.2fr 1.3fr .9fr 1.8fr 1.4fr auto;gap:0;border:1px solid var(--border-dim,rgba(0,230,118,.25));border-radius:10px;overflow:hidden;margin-top:8px}.ovh{padding:6px 8px;font:700 9px Orbitron,monospace;letter-spacing:1px;color:#00e676;background:rgba(0,230,118,.07)}.ovc{padding:8px;border-top:1px solid rgba(0,230,118,.14);font-size:12px;line-height:1.4}.ovd{grid-column:1/-1;padding:6px 12px 10px;background:rgba(0,0,0,.18)}@media(max-width:900px){.ovgrid{grid-template-columns:1fr}.ovh{display:none}.ovc{border-top:0;padding:3px 8px}}
 details.fold>summary{cursor:pointer;font:700 11px Orbitron,monospace;letter-spacing:1px;color:#00e676;margin:10px 0 4px}
 pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;white-space:pre-wrap}
+
+/* ---- one screen, no page scroll: the panel is big and read at a glance, so every tab fills it and only a list inside a tab may scroll */
+.hdr{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.hdr .band{flex:1 1 360px;margin:0;min-width:0}.hdr .tabs{margin:0}
+#ovlist{display:flex;flex-direction:column;flex:1;min-height:0}
+.ovgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(0,1fr);gap:10px;flex:1;min-height:0;margin-top:8px}
+.ovcard{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:7px;min-height:0;overflow:auto}
+.ovtop{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.ovname{font:700 clamp(13px,1.5vh,16px) Orbitron,system-ui,sans-serif;letter-spacing:.04em;color:var(--accent)}
+.ovsum{display:flex;flex-direction:column;gap:clamp(7px,1.3vh,14px)}.ovk{font:700 9px Orbitron,system-ui,sans-serif;letter-spacing:.12em;color:var(--mute)}.ovv{font-size:clamp(13.5px,1.55vh,17px);line-height:1.4}.ovmore{margin-top:auto;align-self:flex-start}
+#ovnext{margin:8px 2px 0;font-size:13.5px}
+.yrow{display:flex;gap:10px;flex:1;min-height:0}.yrow .sess{flex:1;min-width:0;display:flex;flex-direction:column;margin:6px 0 0}.yrow .flowwrap{flex:1;min-height:0;overflow:hidden;display:flex}.yrow #flowsvg{width:100%;height:100%;min-width:0}
+.yrow #nodebox{width:400px;flex:none;overflow:auto;margin:6px 0 0}.yrow #legend{font-size:11px;line-height:1.4;padding:2px 12px 8px}
+.rtop{margin:8px 0 6px}.rtop #rdata{display:contents}.rtop #rdata>.card{flex:1 1 100%}
+.rgrid{display:grid;grid-template-columns:minmax(340px,.8fr) minmax(0,1.6fr);gap:10px;flex:1;min-height:0}.rcol{min-height:0;overflow:auto;padding-right:4px}
+#rdetail{border:1px solid var(--border);border-radius:12px;background:rgba(8,12,40,.45);padding:12px 14px}#rdetail>.said{font-size:15px;margin-bottom:8px}.pad{padding:10px}
+.rc.open{border-color:var(--accent);box-shadow:0 0 10px rgba(0,230,118,.18)}
+.scgrid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:10px;flex:1;min-height:0;margin-top:6px;align-items:start;align-content:start}.scgrid>.card{min-height:0;max-height:100%;overflow:auto;margin:0;padding:10px 12px}.scgrid table{font-size:clamp(13px,1.5vh,16px)}.scgrid td{padding:clamp(6px,1vh,11px) 8px}.scgrid th{font-size:10px}
+.scgrid .mute{font-size:12.5px;margin-top:8px}.sc-note{margin:8px 2px 0;font-size:13px}
+@media (min-width:900px){
+ html,body{height:100%}
+ body{display:flex;flex-direction:column;overflow:hidden;padding:8px 12px 10px}
+ main{max-width:none;width:100%;flex:1;min-height:0;display:flex;flex-direction:column}
+ section{flex:1;min-height:0;display:flex;flex-direction:column}
+ iframe.teach{flex:1;height:auto;min-height:0;margin-top:6px}
+}
+@media (min-width:1200px){body{font-size:13.5px}}
+@media (max-width:1250px){.ovgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:899px){.ovgrid{grid-template-columns:1fr;grid-auto-rows:auto}.rgrid,.scgrid{grid-template-columns:1fr}.yrow{flex-direction:column}.yrow #nodebox{width:auto}}
 </style><link rel="stylesheet" href="/theme.css"></head><body><main>
-<div class="band"><div class="row" id="topbar" style="margin:0"><span class="chip part">EXPERIMENTAL</span><button id="top-shadow" type="button" aria-pressed="false"></button><span class="mute" id="top-note"></span></div></div>
-<div class="tabs" role="tablist"><button type="button" data-tab="overview" class="on">OVERVIEW</button><button type="button" data-tab="yard">YARD</button><button type="button" data-tab="teach">TEACH</button><button type="button" data-tab="routines">ROUTINES</button><button type="button" data-tab="scores">SCORES</button></div>
+<div class="hdr"><div class="band"><div class="row" id="topbar" style="margin:0"><span class="chip part">EXPERIMENTAL</span><button id="top-shadow" type="button" aria-pressed="false"></button><span class="mute" id="top-note"></span></div></div>
+<div class="tabs" role="tablist"><button type="button" data-tab="overview" class="on">OVERVIEW</button><button type="button" data-tab="yard">YARD</button><button type="button" data-tab="teach">TEACH</button><button type="button" data-tab="routines">ROUTINES</button><button type="button" data-tab="scores">SCORES</button></div></div>
 
 <section id="tab-overview"><div class="mute" id="ovnext"></div><div id="ovlist"></div></section>
 
 <section id="tab-yard" hidden>
-<div class="sess">
+<div class="yrow"><div class="sess">
 <div class="sess-head"><span class="ttl">SESSION</span><button id="go" type="button" class="big">START A SESSION</button><button id="stop" type="button" class="stop" hidden>STOP</button><span class="mute" id="phase"></span><span class="chip part" id="msg" hidden></span><span class="sp"></span><button id="showall" type="button" class="skip" hidden>RESET LAYOUT</button><button id="kreset" type="button" class="stop" hidden>RESET SETTINGS</button></div>
 <div class="mute" id="result"></div>
 <div class="flowwrap"><svg id="flowsvg" role="img" aria-label="The learning layer"></svg></div>
 <div class="mute" id="flog"></div>
 <div class="mute" id="legend">Frames show which part of a reinforcement-learning system a block belongs to. Under each name is what the block is called in the field. A dashed box is not part of a training session. Colours: red not built, orange built and never tested, blue tested by Claude, green tested by you. Click a block for what it is and its settings, its i for the inside (layers, numbers, arithmetic), an arrow for what travels along it.</div>
 </div>
-<div class="card" id="nodebox" hidden></div>
+<div class="card" id="nodebox" hidden></div></div>
 </section>
 
-<section id="tab-teach" hidden><iframe class="teach" id="teachframe" title="Teach" data-src="/teach"></iframe></section>
+<section id="tab-teach" hidden><iframe class="teach" id="teachframe" title="Teach" data-src="/teach?embed=1"></iframe></section>
 
 <section id="tab-routines" hidden>
-<div class="row"><span class="mute" id="freshnote"></span><button id="fresh" type="button" class="part">FRESH START</button></div>
-<div id="rdata"></div>
-<div id="rlist"></div>
-<h2>RECENT LIVE TASKS</h2><div class="mute" id="livenote"></div><div id="livelist"></div>
+<div class="row rtop"><span class="mute" id="freshnote"></span><button id="fresh" type="button" class="part">FRESH START</button><span id="rdata"></span></div>
+<div class="rgrid"><div class="rcol" id="rleft"><div id="rlist"></div><h2>RECENT LIVE TASKS</h2><div class="mute" id="livenote"></div><div id="livelist"></div></div><div class="rcol" id="rdetail"><div class="mute pad">Pick a routine on the left.</div></div></div>
 </section>
 
 <section id="tab-scores" hidden>
-<div class="wrap"><table id="fit"></table></div>
-<h2>METHODS BEHIND EACH CHOICE <button type="button" class="skip" id="chalbtn">SHOW</button></h2><div class="wrap" id="chalbox" hidden><table id="chal"></table></div>
-<div class="mute" id="knn"></div><div class="mute" id="gateline"></div><div class="mute" id="tevline"></div>
+<div class="mute sc-note">A score is how often a part was right on rows it never trained on; the last column is what it has to beat. A row without a score says what data it still needs.</div>
+<div class="scgrid"><div class="card"><div class="wrap"><table id="fit"></table></div></div>
+<div class="card"><h2>METHODS BEHIND EACH CHOICE</h2><div class="wrap" id="chalbox"><table id="chal"></table></div><div class="mute" id="chalnone">Nothing to compare yet: a method needs results on this PC before it can be scored.</div><div class="mute" id="knn"></div><div class="mute" id="gateline"></div><div class="mute" id="tevline"></div></div></div>
 </section>
 </main>
 <script>
@@ -287,15 +311,14 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
     $('ovnext').textContent='What to do next: '+j.next;
     const L=$('ovlist');L.replaceChildren();
     const COL={off:'no',recording:'part',practice:'part','shadow-picks':'part',shadow:'part',live:'ok'},WORD={off:'OFF',recording:'COLLECTING','shadow-picks':'SHADOW (CHOOSES NOTHING)',practice:'PRACTISED ON PRETEND APPS',shadow:'SHADOW (CHOOSES NOTHING)',live:'LIVE'};
-    const grid=el('div','ovgrid');
-    ['WHAT LEARNS','LEARNS FROM','HOW MUCH','WHAT IT CHANGES TODAY','WHAT IT STILL NEEDS',''].forEach(h=>grid.append(el('div','ovh',h)));
+    const grid=el('div','ovgrid'),blocks=(box,pairs)=>pairs.forEach(([k,v])=>{const q=el('div');q.append(el('div','ovk',k),el('div','ovv',v));box.append(q);});
     j.rows.forEach(r=>{
-      const name=el('div','ovc'),b=el('b',null,r.name);name.append(b,document.createElement('br'),el('span','chip '+(COL[r.state]||'part'),WORD[r.state]||r.state));
-      const more=el('button','skip','DETAILS'),btn=el('div','ovc');btn.append(more);
-      grid.append(name,el('div','ovc',r.from),el('div','ovc',r.amount),el('div','ovc',r.changes),el('div','ovc',r.needs),btn);
-      const det=el('div','ovd');det.hidden=true;(r.details||[]).forEach(([k,v])=>{const row=el('div','mute');row.append(el('b',null,k+': '),document.createTextNode(v));det.append(row);});
-      grid.append(det);more.onclick=()=>{det.hidden=!det.hidden;more.textContent=det.hidden?'DETAILS':'HIDE';};
-    });
+      const card=el('div','ovcard'),top=el('div','ovtop'),sum=el('div','ovsum'),det=el('div','ovsum ovdet'),more=el('button','skip ovmore','DETAILS');
+      top.append(el('b','ovname',r.name),el('span','chip '+(COL[r.state]||'part'),WORD[r.state]||r.state));
+      blocks(sum,[['LEARNS FROM',r.from],['HOW MUCH',r.amount],['CHANGES TODAY',r.changes],['STILL NEEDS',r.needs]]);
+      det.hidden=true;blocks(det,r.details||[]);more.hidden=!(r.details||[]).length;
+      more.onclick=()=>{det.hidden=!det.hidden;sum.hidden=!det.hidden;more.textContent=det.hidden?'DETAILS':'BACK';};
+      card.append(top,sum,det,more);grid.append(card);});
     L.append(grid);
   }
   async function routines(){
@@ -305,8 +328,8 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
     $('freshnote').textContent=s.fresh_since?'Learners read only what happened after '+new Date(s.fresh_since*1000).toLocaleString()+'.':'Learners read everything until the first time shadow mode is switched on.';
     $('fresh').onclick=async()=>{if(!confirm('FRESH START: learners read only new rows from now on, and the routines trusted right now stay your checks (and, if the switch is on, training data). Nothing is deleted.'))return;await POST('/api/yard/settings',{fresh:true});routines();};
     const att=new Set((gold.routines||[]).map(r=>r.id)),chk={};cands.forEach(c=>chk[c.id]=c);
-    if(!rows.length){box.append(el('div','card','No routines yet.'));return;}
-    let openId=null;
+    if(!rows.length){box.append(el('div','card','No routines yet.'));$('rdetail').replaceChildren(el('div','mute pad','A routine appears here once Smith has done a task on this PC and you have saved it.'));return;}
+    let openId=null;try{openId=sessionStorage.getItem('hub-rl-open');}catch(e){}if(!rows.some(x=>x.id===openId))openId=rows[0].id;
     rows.forEach(r=>{
       const c=el('div','card rc'),head=el('div','rhead'),tw=el('span','tw','▸'),body=el('div','rbody');body.hidden=true;
       head.append(tw,el('span','said',r.title));
@@ -316,10 +339,10 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       if(r.status==='trusted'&&r.last_replay&&r.last_replay.ok===false){m.append(document.createTextNode(' '),el('span','chip part','trusted: its newest run failed'));}
       if(att.has(r.id)){m.append(document.createTextNode(' '),el('span','chip ok','attested'));}
       const k=chk[r.id];if(k){m.append(document.createTextNode(' '),el('span','chip '+(k.ready?'ok':'part'),k.ready?'yard: looks ready':'yard: not ready'));}
-      head.append(m);c.append(head,body);
+      head.append(m);c.append(head);
       // the buttons are the first thing in the body, so what they open appears under them and never needs a scroll to be closed again
-      const bar=el('div','rbar'),howBox=el('div','rgrp left'),stateBox=el('div','rgrp right'),seg=el('div','seg'),rp=el('button','part','REPLAY'),again=el('button','part','ATTEMPT AGAIN'),stepsBtn=el('button','skip','STEPS'),why=el('button','skip','WHY'),sCand=el('button',null,'CANDIDATE'),sTrust=el('button',null,'TRUSTED'),sOff=el('button',null,'DISABLED'),del=el('button','no','DELETE');
-      stateBox.append(el('span','mute','STATE'),seg,del);seg.append(sCand,sTrust,sOff);howBox.append(rp,again,stepsBtn,why);bar.append(howBox,stateBox);
+      const bar=el('div','rbar'),howBox=el('div','rgrp left'),stateBox=el('div','rgrp right'),seg=el('div','seg'),rp=el('button','part','REPLAY'),again=el('button','part','ATTEMPT AGAIN'),stepsBtn=el('button','skip','STEPS'),runBtn=el('button','skip','LAST RUN'),why=el('button','skip','WHY'),sCand=el('button',null,'CANDIDATE'),sTrust=el('button',null,'TRUSTED'),sOff=el('button',null,'DISABLED'),del=el('button','no','DELETE');
+      stateBox.append(el('span','mute','STATE'),seg,del);seg.append(sCand,sTrust,sOff);howBox.append(rp,again,stepsBtn,runBtn,why);bar.append(howBox,stateBox);
       rp.title='Play the saved steps now, on this PC, and keep a record of each one. It opens the app first if it is closed. It does not change the routine.';
       stepsBtn.title='The steps this routine presses, in order. You can remove, move or rename them.';why.title='What the learner would press on each screen and the features behind that. It only explains: it is not where you write a reason.';
       again.title='Say the task to the Hub again, as you would to Smith: it opens the app first, then does the task fresh and checks it. The old recording is not replayed. A good attempt replaces the steps of a candidate.';
@@ -331,10 +354,11 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       const noteBox=el('div','rnote'),ta=el('textarea'),saveN=el('button','part','SAVE NOTE');ta.rows=3;ta.value=r.note||'';ta.placeholder='Why this routine works or does not, and what to change. It is kept with the routine and read when we train; it never changes how the routine runs.';
       saveN.onclick=async()=>{const x=await POST('/api/pc/routines/'+r.id+'/note',{note:ta.value});say(x.ok?'Note saved.':'Note not saved: '+(await x.text()),x.ok?'ok':'bad');};noteBox.append(ta,saveN);
       body.append(bar,noteBox,note,runBox,stepsBox,wy);again.hidden=r.status==='trusted'||r.tool!=='ui';
-      const setOpen=v=>{if(v&&!runBox.childNodes.length)loadRun();body.hidden=!v;tw.textContent=v?'▾':'▸';c.classList.toggle('open',v);try{if(v)sessionStorage.setItem('hub-rl-open',r.id);else if(sessionStorage.getItem('hub-rl-open')===r.id)sessionStorage.removeItem('hub-rl-open');}catch(e){}};
+      const setOpen=v=>{if(v){document.querySelectorAll('#rlist .rc.open').forEach(x=>x._close&&x._close());if(!runBox.childNodes.length)loadRun();body.hidden=false;$('rdetail').replaceChildren(el('div','said',r.title),body);}else{body.hidden=true;if(body.parentNode===$('rdetail'))$('rdetail').replaceChildren(el('div','mute pad','Pick a routine on the left.'));}
+      tw.textContent=v?'▾':'▸';c.classList.toggle('open',v);try{if(v)sessionStorage.setItem('hub-rl-open',r.id);else if(sessionStorage.getItem('hub-rl-open')===r.id)sessionStorage.removeItem('hub-rl-open');}catch(e){}};c._close=()=>setOpen(false);
       head.onclick=()=>setOpen(body.hidden);
       // the steps, as a list you can change: drop a step, move it, or say which control it presses
-      let lastRun=null;
+      let lastRun=null,picsOpen=false;
       const showSteps=async()=>{stepsBox.replaceChildren(el('div','mute','Reading the steps...'));
         try{const j=await J('/api/pc/routines/'+r.id+'/steps'),list=el('div','steps');
           if(!j.steps.length){stepsBox.replaceChildren(el('div','mute','This routine has no steps saved.'));return;}
@@ -357,7 +381,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
             rn.onclick=()=>{const v=prompt('The control this step presses (as it is named on screen):',nm);if(v&&v.trim()&&v!==nm)edit(x.ordinal,{name:v.trim()});};
             rm.onclick=async()=>{const y=await fetch('/api/pc/routines/'+r.id+'/steps/'+x.ordinal,{method:'DELETE'});if(!y.ok)note.textContent=await y.text();await showSteps();routinesStatus();};
             row.append(label);
-            if(t&&t.shot&&lastRun){const im=el('img');im.src='/api/runs/'+lastRun.id+'/shot/'+t.shot;im.style.cssText='width:110px;border-radius:5px;margin-left:8px;cursor:zoom-in;border:1px solid '+(t.error?'#ff6b6b':'rgba(0,230,118,.3)');im.onclick=()=>lightbox(im.src,'Step '+(i+1)+': '+(x.tool||'').toLowerCase()+' “'+nm+'”  ·  '+secs(t.ms)+(t.error?'  ·  FAILED: '+t.error:'  ·  worked'));row.append(im);}
+            if(picsOpen&&t&&t.shot&&lastRun){const im=el('img');im.src='/api/runs/'+lastRun.id+'/shot/'+t.shot;im.style.cssText='width:110px;border-radius:5px;margin-left:8px;cursor:zoom-in;border:1px solid '+(t.error?'#ff6b6b':'rgba(0,230,118,.3)');im.onclick=()=>lightbox(im.src,'Step '+(i+1)+': '+(x.tool||'').toLowerCase()+' “'+nm+'”  ·  '+secs(t.ms)+(t.error?'  ·  FAILED: '+t.error:'  ·  worked'));row.append(im);}
             row.append(go1,goN,nb,up,dn,rn,rm);list.append(row);});
           stepsBox.replaceChildren(list,el('div','mute',r.status==='trusted'?'Changing a step makes this a candidate again with a clean record: it has to be approved or replayed twice before it is trusted. A note or a part-run does not.':'To study one step: put the app on the page it expects, then press its play button. Running a part of the routine never changes its record.'));
         }catch(e){stepsBox.replaceChildren(el('div','mute',String(e)));}};
@@ -365,19 +389,21 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       // The newest replay or attempt: every step with its time and a picture of the window after it. This is what to look at before approving a candidate.
       const showRun=run=>{runBox.replaceChildren();if(!run||!run.trace)return;
         const list=el('div','steps'),bad=run.trace.filter(x=>x.error).length;
-        run.trace.forEach((x,i)=>{const row=el('div','step'),lab=el('span','sl');
+        const fill=()=>run.trace.forEach((x,i)=>{const row=el('div','step'),lab=el('span','sl');
           lab.append(el('b',null,(i+1)+'. '),document.createTextNode((x.do||'')+' '),el('span','sn','“'+String(x.control||'').slice(0,48)+'”'),el('span','mute','  '+secs(x.ms)+(x.confidence!=null?'  ·  model '+Math.round(x.confidence*100)+' % sure':'')+(x.error?'  - '+x.error:'')));
           if(x.why&&!x.error){const cm=el('div','mute');cm.textContent='Command: '+x.why;lab.append(cm);}
           row.append(lab);if(x.shot){const im=el('img');im.src='/api/runs/'+run.id+'/shot/'+x.shot;im.style.cssText='width:110px;border-radius:5px;margin-left:8px;cursor:zoom-in;border:1px solid '+(x.error?'#ff6b6b':'rgba(0,230,118,.3)');im.onclick=()=>lightbox(im.src,'Step '+(i+1)+': '+(x.do||'')+' “'+String(x.control||'')+'”  ·  '+secs(x.ms)+(x.error?'  ·  FAILED: '+x.error:''));row.append(im);}
           list.append(row);});
         runBox.append(el('div','mute',(run.kind==='replay'?'LAST REPLAY':'LAST ATTEMPT')+' · '+new Date(run.at*1000).toLocaleString()+' · '+secs(run.ms)+' · '+(run.ok?'worked':'did not work')+(bad?' · '+bad+' step(s) failed':'')+' · '+(run.say||'')));
         if(run.sentence)runBox.append(el('div','mute','Asked as: “'+run.sentence+'”'+(run.opened&&run.opened.how?'  ·  step 1, open the app: '+run.opened.how+(run.opened.ms!=null?' ('+secs(run.opened.ms)+')':''):'')));
-        runBox.append(list);};
+        const lw=el('div');lw.hidden=!picsOpen;let filled=false;runBox._fill=()=>{if(!filled){filled=true;fill();lw.append(list);}};if(picsOpen)runBox._fill();runBox.append(lw);runBox._lw=lw;};
       const loadRun=async()=>{try{const j=await J('/api/pc/routines/'+r.id+'/last-run');lastRun=j.run;showRun(j.run);}catch(e){}};
       let busy=false;
       const working=(btn,label,on)=>{busy=on;btn.textContent=on?'STOP':label;btn.classList.toggle('no',on);btn.classList.toggle('part',!on);};
       const stopIt=async()=>{await POST('/api/pc/stop');note.textContent='Stopping: it ends at its next step.';};
       const routinesStatus=()=>{};
+      runBtn.title='The newest replay or attempt, step by step, with a picture of the window after each one. Closed until you ask.';runBtn.setAttribute('aria-expanded','false');
+      runBtn.onclick=()=>{picsOpen=!picsOpen;runBtn.classList.toggle('on',picsOpen);runBtn.setAttribute('aria-expanded',String(picsOpen));if(runBox._lw)runBox._lw.hidden=!picsOpen;if(picsOpen&&runBox._fill)runBox._fill();if(stepsOpen)showSteps();};
       let stepsOpen=false;stepsBtn.setAttribute('aria-expanded','false');
       stepsBtn.onclick=()=>{stepsOpen=!stepsOpen;stepsBtn.classList.toggle('on',stepsOpen);stepsBtn.setAttribute('aria-expanded',String(stepsOpen));if(!stepsOpen){stepsBox.replaceChildren();return;}showSteps();};
       sCand.title='Not yet approved. The default: a routine never becomes trusted by itself, however many times it worked.';sTrust.title='You have read the steps and approve this routine. Only you can set this.';sOff.title='Never run this routine.';
@@ -434,6 +460,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
     if(!ch.error)['model','rung'].forEach(h=>(ch[h]||[]).forEach(l=>{const r=el('tr');r.append(el('td',null,h),el('td',null,l.learner),el('td','mute',l.available===false?('needs '+l.needs):(l.decided||0)+' choices'),el('td',null,l.available===false?'-':(l.agreed||0)),el('td',null,l.estimate==null?'-':pct(l.estimate)),el('td','mute',l.available===false?'-':(l.ess||0).toFixed(1)));
         const w=el('td'),b=el('button',null,(ch.selected||{})[h]===l.learner?'WATCHED':'WATCH');b.disabled=l.available===false||(ch.selected||{})[h]===l.learner;
         b.onclick=async()=>{await POST('/api/yard/learners',{head:h,learner:l.learner});scores();};w.append(b);r.append(w);ct.append(r);}));
+    $('chalnone').hidden=ct.rows.length>1;
     const k=ch.router_knn||{},c2=ch.router_classifier||{};
     $('knn').textContent=k.ready?('Router, graded requests left out one at a time: nearest neighbours right on '+pct(k.knn)+(c2.ready?', trained classifier on '+pct(c2.classifier):'')+', current rules and tev on '+pct(k.current)+' ('+k.n+' graded).'):('Router: needs '+(k.needs||5)+' graded requests, has '+(k.n||0)+'.');
     const g=j.gate||{};$('gateline').textContent='Gate for a new version: '+g.min_frozen+' held-out rows · zero forbidden presses · '+g.shadow_n+' watched live choices at '+pct(g.shadow_agree||0)+' · your yes.';
@@ -446,7 +473,6 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
     if(name==='teach'){const f=$('teachframe');if(!f.src)f.src=f.dataset.src;}if(name==='overview')overview();if(name==='routines'){routines();liveTasks();}if(name==='scores')scores();try{localStorage.setItem('hub-rl-tab',name);}catch(e){}}
   document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>tab(b.dataset.tab));
   let first='overview';try{first=localStorage.getItem('hub-rl-tab')||'overview';}catch(e){}
-  $('chalbtn').onclick=()=>{$('chalbox').hidden=!$('chalbox').hidden;$('chalbtn').textContent=$('chalbox').hidden?'SHOW':'HIDE';};
   switches();tab(first);
 })();
 </script></body></html>

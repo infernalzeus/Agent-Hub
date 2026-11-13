@@ -1,35 +1,35 @@
 {
-  "basis": "latency measured 2026-09-19 (quality still unmeasured): ollama-cloud Nemotron 3-6 s/call; local gemma4:e4b-32k 5-125 s/step; OpenCode Zen free 6-170 s/call and stalls under load. Quality per role comes from tools/benchmark.py.",
-  "updated": "2026-09-19",
+  "basis": "Checked 13 Nov 2026: Ollama cloud Nemotron now needs paid credits, so it is no longer a pick. This PC's own gemma4:e4b-32k is the default (it parses structured output and calls tools; it costs minutes per run, not seconds); the Zen free models listed answered a one-word call in 8 to 11 s. Quality per role comes from tools/benchmark.py.",
+  "updated": "2026-11-13",
   "roles": {
     "orchestrator": {
-      "pick": "ollama/nemotron-3-super:cloud",
+      "pick": "ollama/gemma4:e4b-32k",
       "alt": [
-        "opencode/nemotron-3-ultra-free",
+        "opencode/nemotron-3.5-lightning-free",
         "ollama/qwen3.6:32k",
         "claude-code:haiku"
       ],
       "why": "Judgment + strict structured output (the JSON plan). Needs the strongest model you have; speed matters less."
     },
     "reviewer": {
-      "pick": "ollama/nemotron-3-super:cloud",
+      "pick": "ollama/gemma4:e4b-32k",
       "alt": [
-        "opencode/nemotron-3-ultra-free",
+        "opencode/nemotron-3.5-lightning-free",
         "ollama/qwen3.6:32k"
       ],
       "why": "Reading + reasoning about a diff; low temperature; few steps."
     },
     "coder": {
-      "pick": "ollama/nemotron-3-super:cloud",
+      "pick": "ollama/gemma4:e4b-32k",
       "alt": [
         "ollama/qwen3.6:32k",
         "opencode/big-pickle",
-        "opencode/mimo-v2.5-free"
+        "opencode/mimo-v2.6-flash-free"
       ],
       "why": "Edits code and runs it, in many short turns — the loop is long, so per-call speed compounds. A private local model works but costs minutes per run."
     },
     "tester": {
-      "pick": "ollama/nemotron-3-super:cloud",
+      "pick": "ollama/gemma4:e4b-32k",
       "alt": [
         "opencode/big-pickle",
         "ollama/qwen3.6:32k"
@@ -37,30 +37,30 @@
       "why": "Short edit+run loops — favours fast turns."
     },
     "researcher": {
-      "pick": "ollama/nemotron-3-super:cloud",
+      "pick": "ollama/gemma4:e4b-32k",
       "alt": [
-        "opencode/mimo-v2.5-free",
-        "opencode/nemotron-3-ultra-free"
+        "opencode/mimo-v2.6-flash-free",
+        "opencode/nemotron-3.5-lightning-free"
       ],
       "why": "Web/reading heavy; needs breadth more than code precision."
     },
     "doc-writer": {
       "pick": "ollama/gemma4:e4b-32k",
       "alt": [
-        "opencode/mimo-v2.5-free"
+        "opencode/mimo-v2.6-flash-free"
       ],
       "why": "Small, low-stakes edits — the fast local model is enough."
     },
     "analyst": {
-      "pick": "ollama/nemotron-3-super:cloud",
+      "pick": "ollama/gemma4:e4b-32k",
       "alt": [
-        "opencode/mimo-v2.5-free",
-        "opencode/nemotron-3-ultra-free"
+        "opencode/mimo-v2.6-flash-free",
+        "opencode/nemotron-3.5-lightning-free"
       ],
       "why": "Web/reading heavy, needs breadth and careful phrasing."
     },
     "data-analyst": {
-      "pick": "ollama/nemotron-3-super:cloud",
+      "pick": "ollama/gemma4:e4b-32k",
       "alt": [
         "opencode/big-pickle",
         "ollama/qwen3.6:32k"
@@ -68,31 +68,30 @@
       "why": "Short write-run-read loops with pandas — favours fast turns."
     },
     "product-manager": {
-      "pick": "ollama/nemotron-3-super:cloud",
+      "pick": "ollama/gemma4:e4b-32k",
       "alt": [
-        "opencode/nemotron-3-ultra-free",
-        "opencode/mimo-v2.5-free"
+        "opencode/nemotron-3.5-lightning-free",
+        "opencode/mimo-v2.6-flash-free"
       ],
       "why": "Structured spec with judgement about scope."
     },
     "project-manager": {
-      "pick": "ollama/nemotron-3-super:cloud",
+      "pick": "ollama/gemma4:e4b-32k",
       "alt": [
-        "opencode/mimo-v2.5-free",
-        "opencode/nemotron-3-ultra-free"
+        "opencode/mimo-v2.6-flash-free",
+        "opencode/nemotron-3.5-lightning-free"
       ],
       "why": "Plans and status text; consistency over cleverness."
     },
     "copywriter": {
-      "pick": "ollama/nemotron-3-super:cloud",
+      "pick": "ollama/gemma4:e4b-32k",
       "alt": [
-        "opencode/mimo-v2.5-free",
-        "ollama/gemma4:e4b-32k"
+        "opencode/mimo-v2.6-flash-free"
       ],
       "why": "Fluent short-form writing; the small local model is a fair fallback."
     },
     "designer": {
-      "pick": "ollama/nemotron-3-super:cloud",
+      "pick": "ollama/gemma4:e4b-32k",
       "alt": [
         "opencode/big-pickle",
         "ollama/qwen3.6:32k"
@@ -100,9 +99,9 @@
       "why": "HTML/CSS/SVG is code — a coding-tuned model."
     },
     "editor": {
-      "pick": "ollama/nemotron-3-super:cloud",
+      "pick": "ollama/gemma4:e4b-32k",
       "alt": [
-        "opencode/nemotron-3-ultra-free",
+        "opencode/nemotron-3.5-lightning-free",
         "ollama/qwen3.6:32k"
       ],
       "why": "Read + judge against a checklist; wants the strongest model."
@@ -110,20 +109,20 @@
     "ops-writer": {
       "pick": "ollama/gemma4:e4b-32k",
       "alt": [
-        "opencode/mimo-v2.5-free"
+        "opencode/mimo-v2.6-flash-free"
       ],
       "why": "Short, low-stakes process docs — the fast local model is enough."
     },
     "compliance-reviewer": {
-      "pick": "ollama/nemotron-3-super:cloud",
+      "pick": "ollama/gemma4:e4b-32k",
       "alt": [
-        "opencode/nemotron-3-ultra-free",
+        "opencode/nemotron-3.5-lightning-free",
         "ollama/qwen3.6:32k"
       ],
       "why": "Conservative risk screen; wants the strongest model."
     },
     "scout": {
-      "pick": "ollama/nemotron-3-super:cloud",
+      "pick": "ollama/gemma4:e4b-32k",
       "alt": [
         "opencode/big-pickle",
         "ollama/qwen3.6:32k"

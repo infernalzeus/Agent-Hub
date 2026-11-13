@@ -475,19 +475,18 @@ def list_agents() -> list[dict]:
 
 # ── model policy ─────────────────────────────────────────────────────────────
 POLICY_FILE = Path(__file__).parent / "model_policy.json"
-# Measured 2026-09-19 through OpenCode in a warm worktree: Ollama-cloud Nemotron answers in 3-6 s per call; the OpenCode Zen
-# free gateway took 6-15 s idle but 60-170 s per call (and stalled outright) under load. So the fast default is the Ollama
-# cloud model — Zen free models stay as fallbacks.
-FAST_CLOUD_MODEL = "ollama/nemotron-3-super:cloud"
+# 13 Nov 2026: the default is this PC's own model. Ollama's cloud Nemotron (the fast default since 19 Sep) now answers "Add usage credits or subscribe", and the Zen free model
+# `mimo-v2.5-free` has been withdrawn, so nothing may start with either. The Zen free models below were each asked a one-word question that day and answered
+# (8 to 11 s). `llm_status` re-asks on demand and `model_chain` leaves out what it finds dead.
 FAST_FREE_MODEL = "opencode/nemotron-3.5-lightning-free"
 LOCAL_MODEL = "ollama/gemma4:e4b-32k"   # 32k-ctx Modelfile variant: Ollama's default 4096 is smaller than one mission prompt
-# free cloud models to fall back through on a transient (502 / overloaded) failure
-MODEL_FALLBACKS = [LOCAL_MODEL, "opencode/mimo-v2.5-free", FAST_FREE_MODEL]
+# what to fall back through on a transient (502 / overloaded) failure
+MODEL_FALLBACKS = [LOCAL_MODEL, FAST_FREE_MODEL, "opencode/mimo-v2.6-flash-free", "opencode/glm-5.3-flash-free"]
 
 
 def model_policy() -> str:
     """'auto' | 'free-cloud' | 'local' | an explicit model id. From
-    model_policy.json ({"policy": "..."}); defaults to 'auto'."""
+    model_policy.json ({"policy": "..."}); defaults to 'auto' (this PC's own model first)."""
     try:
         v = json.loads(POLICY_FILE.read_text(encoding="utf-8")).get("policy")
         return v.strip() if isinstance(v, str) and v.strip() else "auto"
@@ -516,32 +515,32 @@ def _paid_provider_model() -> str | None:
 
 
 def resolved_default_model(workspace_model: str | None = None) -> str:
-    """The model a mission uses when none is pinned, per the current policy."""
+    """The model a mission uses when none is pinned, per the current policy. 'auto' is this PC's own model (or a paid provider whose key you set). The workspace default
+    in opencode.json is not read for it: it still names a cloud model that now needs credits."""
     pol = model_policy()
     if pol == "local":
         return LOCAL_MODEL
     if pol == "free-cloud":
-        return FAST_CLOUD_MODEL
+        return FAST_FREE_MODEL
     if pol not in ("auto", ""):
         return pol                                   # an explicit id
-    return _paid_provider_model() or workspace_model or FAST_CLOUD_MODEL
+    return _paid_provider_model() or LOCAL_MODEL
 
 
 def model_chain(primary: str | None, workspace_model: str | None = None, brief: str | None = None) -> list[str]:
-    """Ordered models to try for a mission: the pinned/policy model first, then
-    the free-cloud + local fallbacks, deduped.
+    """Ordered models to try for a mission: the pinned/policy model first, then this PC's model and the free Zen models, deduped.
 
-    With nothing pinned and the policy on 'auto', measurements decide the first choice (see model_stats): a small brief goes to
-    the local model when it has been measured usable and its record on the project's own tests is good, otherwise cloud first.
-    A model measured not to load at all is left out unless it was pinned."""
+    With nothing pinned and the policy on 'auto', the first choice is the local model unless it has been measured unusable or has a poor record on the project's own tests
+    (see model_stats), in which case the first free Zen model goes first. A model measured not to load, or found dead by the last status check, is left out unless it was pinned."""
+    from . import llm_status as LS
     from . import model_stats as MS
     first = primary or resolved_default_model(workspace_model)
-    if not primary and model_policy() in ("auto", "") and first != LOCAL_MODEL and MS.prefer_local(LOCAL_MODEL, brief):
-        first = LOCAL_MODEL
-    chain = [first, FAST_CLOUD_MODEL, *MODEL_FALLBACKS]
+    if not primary and model_policy() in ("auto", "") and first == LOCAL_MODEL and not MS.trusted_local(LOCAL_MODEL):
+        first = FAST_FREE_MODEL
+    chain = [first, *MODEL_FALLBACKS]
     seen: set[str] = set()
     out = [m for m in chain if m and not (m in seen or seen.add(m))]
-    return [m for m in out if m == primary or not MS.broken(m)]
+    return [m for m in out if m == primary or not (MS.broken(m) or LS.dead(m))]
 
 
 def _model_pick(own: dict) -> dict:
