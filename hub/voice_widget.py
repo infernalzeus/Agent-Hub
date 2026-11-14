@@ -11,7 +11,7 @@ _S = Path(__file__).parent / "static"
 _HTML = """<div id="voice" hidden>
   <div class="v-head"><span>TALK TO THE HUB</span><div><button type="button" class="vbtn" id="v-size">MINIMISE</button> <button type="button" class="vbtn" id="v-close" aria-label="Close">CLOSE</button></div></div>
   <div class="v-who" id="v-who" role="group" aria-label="Who you are talking to"><button type="button" class="vbtn on" data-who="smith">SMITH</button><button type="button" class="vbtn" data-who="orchestrator" title="Viktor, the Orchestrator">VIKTOR</button><button type="button" class="vbtn" data-who="neo">NEO</button><button type="button" class="vbtn" data-who="doctor">DOCTOR</button></div>
-  <div class="v-stage" id="v-stage" data-who="smith" aria-live="polite"><img id="v-face" alt=""><div><b id="v-name"></b><span id="v-role"></span></div><select id="v-preset" aria-label="Preset for the speaker" title="How this agent answers: a named set of sampling settings. Own settings leaves it as it is."></select></div>
+  <div class="v-stage" id="v-stage" data-who="smith" aria-live="polite"><span class="pic"><img id="v-face" alt=""><img class="lit" id="v-face-lit" alt=""></span><div><b id="v-name"></b><span id="v-role"></span></div><select id="v-preset" aria-label="Preset for the speaker" title="How this agent answers: a named set of sampling settings. Own settings leaves it as it is."></select></div>
   <div class="v-tools">
     <button type="button" class="vbtn" id="v-labbtn" aria-expanded="false" title="Test and choose each agent's voice">VOICES</button>
     <button type="button" class="vbtn" id="v-mute">SOUND ON</button>

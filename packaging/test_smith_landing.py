@@ -80,6 +80,7 @@ def test_pressing_enter_quiets_the_page_microphone_ring_and_picture(hub):
         b, pg = _landing(pw, hub)
         pg.click("#smith-slot")
         pg.wait_for_function("window.__hubWake.state() === 'wake' && window.__hubWake.mic()", timeout=15000)
+        pg.evaluate("window.DepthLift && (DepthLift.software = false); document.documentElement.classList.remove('hub-soft')")       # a headless browser draws in software: this test is about the ring, so say it is not
         pg.wait_for_function("getComputedStyle(document.getElementById('wake-ring')).animationName === 'wkBreath'")
         pg.evaluate("window.__hubWake._leave()")                                                   # what the click on ENTER does first
         assert pg.evaluate("window.__hubWake.mic()") is False                                      # the microphone and its analysers are let go
@@ -194,6 +195,7 @@ def test_smith_stays_a_plain_outline_and_only_a_second_picture_fades_in_while_he
         _shown(pg)
         pg.click("#smith-slot")
         pg.wait_for_function("window.__hubWake.state() === 'wake'", timeout=15000)
+        pg.evaluate("document.getElementById('smith-slot').classList.remove('hear')")              # the fake microphone's tone makes him "hear"; take that away for the resting state
         assert pg.evaluate("getComputedStyle(document.querySelector('#smith-slot .lit-img')).animationName") == "none"      # outline at rest
         pg.evaluate("window.__hubWake._set('think')")
         pg.wait_for_function("getComputedStyle(document.querySelector('#smith-slot .lit-img')).animationName === 'smDigits'", timeout=4000)
@@ -210,3 +212,24 @@ def test_any_agents_name_wakes_that_agent_and_unmatched_speech_is_shown_dimly(hu
         names = pg.evaluate("""() => { const f = window.__hubWake._split; return ['Smith, status', 'hey Viktor what is running', 'Victor', 'agent smith', 'the doctor, fix it', 'Neo draft an agent', 'smif open home', 'banana', 'doc how is it'].map(t => { const r = f(t); return r ? r.who + '|' + r.rest : null; }); }""")
         b.close()
     assert names == ["smith|status", "orchestrator|what is running", "orchestrator|", "smith|", "doctor|fix it", "neo|draft an agent", "smith|open home", None, "doctor|how is it"], names
+
+
+def test_a_slow_answer_is_covered_by_a_short_holding_phrase_that_a_real_answer_cuts_off(hub):
+    """The model took 8 to 35 s to answer in the 14 Nov log and the page said nothing: after a moment he now says one short line (kept ready, so it is instant)."""
+    with sync_playwright() as pw:
+        b, pg = _landing(pw, hub)
+        asked = []
+        pg.route("**/api/voice/speak", lambda r: (asked.append(r.request.post_data_json["text"]), r.fulfill(status=503, body="no voice in a test"))[1])
+
+        def chat(route):
+            time.sleep(2.4)
+            route.fulfill(json={"say": "Here it is.", "action": None, "confirm": False, "speaker": "smith", "ui": {}})
+        pg.route("**/api/voice/chat", chat)
+        _shown(pg)
+        pg.click("#smith-slot")
+        pg.wait_for_function("window.__hubWake.state() === 'wake'", timeout=15000)
+        pg.evaluate("window.__hubWake.say('tell me something long')")
+        pg.wait_for_timeout(2000)
+        assert "One moment." in asked, asked                                                  # said while the answer was still being worked out
+        pg.wait_for_function("document.querySelector('#wake-lines') && [...document.querySelectorAll('#wake-lines .wl')].some(e => e.textContent.includes('Here it is'))", timeout=8000)
+        b.close()

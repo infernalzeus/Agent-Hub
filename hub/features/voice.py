@@ -1615,6 +1615,10 @@ def voice_by_id(vid: str) -> "dict | None":
     v = _VOICE_BY_ID.get(vid)
     if v:
         return v
+    if isinstance(vid, str) and vid.startswith("k:"):                       # a Kokoro voice that is on this PC (see kokoro_tts)
+        from . import kokoro_tts as KT
+        k = next((x for x in KT.voices() if x["id"] == vid), None)
+        return {"id": vid, "name": k["name"], "voice": k["voice"], "rate": "+0%", "pitch": "+0Hz", "engine": "kokoro"} if k else None
     if isinstance(vid, str) and _X_ID.fullmatch(vid):
         short = vid[2:]
         return {"id": vid, "name": short, "voice": short, "rate": "+0%", "pitch": "+0Hz"}
@@ -1736,7 +1740,22 @@ async def api_voices(request: web.Request) -> web.Response:
         ok = True
     except Exception:
         ok = RT.PACKAGED and RT.python_for("speech").is_file()
-    return web.json_response({"voices": [{"id": v["id"], "name": v["name"]} for v in VOICES], "default": VOICES[0]["id"], "neural": ok, "agents": agent_voices(), "recommended": RECOMMENDED, "catalog": await voice_catalog()})
+    return web.json_response({"voices": [{"id": v["id"], "name": v["name"]} for v in VOICES], "default": VOICES[0]["id"], "neural": ok, "agents": agent_voices(), "recommended": RECOMMENDED, "catalog": await voice_catalog(), "kokoro": _kokoro_voices()})
+
+
+def _kokoro_voices() -> "list[dict]":
+    try:
+        from . import kokoro_tts as KT
+        return [{"id": v["id"], "name": v["name"]} for v in KT.voices()]
+    except Exception:  # noqa: BLE001
+        return []
+
+
+@routes.post("/api/voice/warm")
+async def api_warm(request: web.Request) -> web.Response:
+    """Load the on-PC speech model now, so the first sentence of a conversation is not the one that waits for it."""
+    from . import kokoro_tts as KT
+    return web.json_response({"ready": await KT.warm()})
 
 
 @routes.post("/api/voice/agent-voice")
@@ -1806,6 +1825,21 @@ async def api_speak(request: web.Request) -> web.Response:
     if ra or pa:
         v = {**v, "rate": _adj(v["rate"], ra, "%", -60, 60), "pitch": _adj(v["pitch"], pa, "Hz", -60, 40)}
     key = (text, v["id"], ra, pa)
+    if v.get("engine") == "kokoro":
+        if key in _TTS_CACHE:
+            return web.Response(body=_TTS_CACHE[key][0], content_type="audio/wav", headers={"X-Voice-Used": v["voice"], "X-Voice-Fallback": "", "X-Voice-Cached": "1"})
+        from . import kokoro_tts as KT
+        t0 = time.time()
+        try:
+            wav = await KT.synth(text, v["voice"], 1.0 + int(re.sub(r"[^0-9+-]", "", v["rate"]) or 0) / 100.0)
+            if len(_TTS_CACHE) > 80:
+                _TTS_CACHE.pop(next(iter(_TTS_CACHE)))
+            _TTS_CACHE[key] = (wav, v["voice"], "")
+            return web.Response(body=wav, content_type="audio/wav", headers={"X-Voice-Used": v["voice"], "X-Voice-Fallback": "", "X-Engine-Ms": str(int((time.time() - t0) * 1000))})
+        except Exception as exc:  # noqa: BLE001 - the on-PC model is not available just now: the same line is spoken by Microsoft's voice instead
+            logger.info("voice: kokoro failed (%s); using a Microsoft voice", exc)
+            v = _VOICE_BY_ID["ryan"]
+            key = (text, v["id"], 0, 0)
     if key in _TTS_CACHE:
         return web.Response(body=_TTS_CACHE[key][0], content_type="audio/mpeg", headers={"X-Voice-Used": _TTS_CACHE[key][1], "X-Voice-Fallback": _TTS_CACHE[key][2], "X-Voice-Cached": "1"})
     try:
@@ -1876,8 +1910,6 @@ async def smith_icon(request: web.Request) -> web.Response:
     from .. import agents_ui
     # the small, still picture: this one sits on the Talk button at 28 px, so it must be cheap to draw (the animated vector is for the landing page and the Agency page)
     art = Path(__file__).resolve().parent.parent / "static" / "agent-art" / "smith-still.png"      # the full portrait, the same framing as the landing page's vector
-    face = Path(__file__).resolve().parent.parent / "static" / "agent-icons" / "face" / "smith.png"      # the Talk button is a small circle: his face, not the whole bust
-    art = face if face.is_file() else art
     body = art.read_bytes() if art.is_file() else base64.b64decode(agents_ui._SMITH_D_B64)
     return web.Response(body=body, content_type="image/png", headers={"Cache-Control": "no-cache"})
 

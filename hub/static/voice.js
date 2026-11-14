@@ -534,9 +534,11 @@
       const cat = j.catalog || [], opt = (id, t) => `<option value="${id}">${t}</option>`;
       const by = {}; cat.forEach((v) => { (by[v.lang] = by[v.lang] || []).push(v); });
       const langs = Object.keys(by).sort((x, y) => (/^English/.test(y) ? 1 : 0) - (/^English/.test(x) ? 1 : 0) || x.localeCompare(y));
-      sel.innerHTML = '<optgroup label="Tuned for the characters">' + j.voices.map((v) => opt(v.id, v.name)).join('') + '</optgroup>' +
+      const kok = j.kokoro || [];
+      sel.innerHTML = (kok.length ? '<optgroup label="On this PC (Kokoro: no internet, about a second a sentence)">' + kok.map((v) => opt(v.id, v.name)).join('') + '</optgroup>' : '') + '<optgroup label="Tuned for the characters">' + j.voices.map((v) => opt(v.id, v.name)).join('') + '</optgroup>' +
         langs.map((l) => '<optgroup label="' + (/^English/.test(l) ? l : l + ' (reads English with an accent)') + '">' + by[l].map((v) => opt(v.id, v.n + ' \u00b7 ' + v.g)).join('') + '</optgroup>').join('');
-      j.voices = j.voices.concat(cat.map((v) => ({ id: v.id, name: v.n })));
+      j.voices = j.voices.concat(kok, cat.map((v) => ({ id: v.id, name: v.n })));
+      if (Object.values(j.agents || {}).some((a) => String(a.voice || '').startsWith('k:'))) fetch('/api/voice/warm', { method: 'POST' }).catch(() => {});
       S.voices = j.voices; S.av = j.agents || {}; S.defVoice = j.default; L.rec = j.recommended || {};
       const fx = $('v-fx'), fxs = $('v-fxs');
       if (!(fx && window.HubVoiceFx)) { if (fx) fx.hidden = true; if (fxs) fxs.hidden = true; }
@@ -565,6 +567,19 @@
     $('v-size').onclick = () => { S.compact = !S.compact; layout(); };
     $('v-history').onclick = () => { S.expanded = !S.expanded; layout(); };
     // WHO: the four core agents. Smith is the front door; a mission he starts hands the conversation to the Orchestrator; you can also pick anyone or name them in a sentence.
+    // The pictures: Smith's old art on the Talk button, his new outline in the Talk window, the others as they are. A second, glowing copy of each lies over it and only its opacity moves.
+    const ICON = (w) => w === 'smith' ? '/smith-icon.png' : '/static/agent-icons/' + w + '.png';
+    const LIT = (w) => w === 'smith' ? '/static/agent-icons/lit/smith-classic.png' : '/static/agent-icons/lit/' + w + '.png';
+    function paintButton(img, w) {
+      img.src = ICON(w); let lit = img.parentNode.querySelector('img.lit');
+      if (!lit) { lit = document.createElement('img'); lit.className = 'lit'; lit.alt = ''; lit.draggable = false; img.parentNode.appendChild(lit); }
+      lit.src = LIT(w);
+    }
+    function paintStage(w) {
+      const f = $('v-face'), l = $('v-face-lit'); if (!f) return;
+      f.src = w === 'smith' ? '/static/agent-icons/smith-line.png' : ICON(w); f.alt = WHO[w];
+      if (l) l.src = w === 'smith' ? '/static/agent-icons/lit/smith-line.png' : LIT(w);
+    }
     function setWho(w, quiet) {
       if (!WHO[w]) w = 'smith'; S.who = w; try { sessionStorage.setItem('hubTalkWho', w); } catch (e) {}
       document.querySelectorAll('#v-who [data-who]').forEach((b) => { b.classList.toggle('on', b.dataset.who === w); b.setAttribute('aria-pressed', String(b.dataset.who === w)); });
@@ -572,10 +587,10 @@
       const face = $('v-face'), nm = $('v-name'), role = $('v-role'), stage = $('v-stage');
       if (face && nm && stage && nm.textContent !== WHO[w].toUpperCase()) {                  // the picture and name change with a short cross-fade: the new speaker arrives, the old one leaves
         stage.classList.add('swap');
-        setTimeout(() => { face.src = '/static/agent-icons/face/' + (w === 'smith' ? 'smith-new' : w) + '.png'; face.alt = WHO[w]; nm.textContent = WHO[w].toUpperCase(); role.textContent = ROLE[w]; stage.dataset.who = w; stage.classList.remove('swap'); }, 220);
-      } else if (face && nm && stage && !face.getAttribute('src')) { face.src = '/static/agent-icons/face/' + (w === 'smith' ? 'smith-new' : w) + '.png'; nm.textContent = WHO[w].toUpperCase(); role.textContent = ROLE[w]; stage.dataset.who = w; }
+        setTimeout(() => { paintStage(w); face.alt = WHO[w]; nm.textContent = WHO[w].toUpperCase(); role.textContent = ROLE[w]; stage.dataset.who = w; stage.classList.remove('swap'); }, 220);
+      } else if (face && nm && stage && !face.getAttribute('src')) { paintStage(w); nm.textContent = WHO[w].toUpperCase(); role.textContent = ROLE[w]; stage.dataset.who = w; }
       document.querySelectorAll('.talk-btn img').forEach((i) => {                          // the Talk button on the board wears the face of whoever you are talking to; Smith's own is put back for Smith
-        i.src = '/static/agent-icons/face/' + w + '.png';                                  // a small circle shows the face, not the whole bust
+        paintButton(i, w);                                                                // the whole bust, as it always was; a glowing copy fades over it
       });
       applyAgentVoice(w);
       if (!quiet && $('v-lab').hidden) { try { $('v-in').focus({ preventScroll: true }); } catch (e) {} }

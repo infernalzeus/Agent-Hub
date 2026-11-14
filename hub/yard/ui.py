@@ -114,10 +114,11 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
 .term .sh,.term .mh{display:grid;gap:0 18px;color:var(--mute);letter-spacing:.06em;text-transform:uppercase;padding-bottom:2px}
 .term .none{color:var(--mute)}.term .num{color:var(--accent);font-weight:700}.term .dim{color:var(--mute)}
 .term button.mini{justify-self:start;font:inherit;font-size:.8em;padding:1px 8px;border-radius:4px;letter-spacing:.06em;line-height:1.3}
-.term .dr,.term .dh{display:grid;gap:0 16px;grid-template-columns:minmax(20ch,2fr) 7ch 6ch 8ch 9ch 5ch 9ch minmax(0,2.6fr);padding:4px 0;border-top:1px solid rgba(0,230,118,.12)}.term .dh{border:0;color:var(--mute);letter-spacing:.06em;text-transform:uppercase;padding-bottom:2px}
+.term .dr,.term .dh{display:grid;gap:0 14px;grid-template-columns:minmax(20ch,2fr) 6ch 11ch 7ch 6ch 8ch 9ch 5ch 9ch minmax(0,2.4fr);padding:4px 0;border-top:1px solid rgba(0,230,118,.12)}.term .dh{border:0;color:var(--mute);letter-spacing:.06em;text-transform:uppercase;padding-bottom:2px}
 .term .pm{display:flex;gap:8px;align-items:center;margin:0 0 6px;color:var(--mute)}.term .pm button.mini{justify-self:auto}.term .pm button.on{color:#eafff3;border-color:var(--accent);background:rgba(0,230,118,.22);opacity:1}
 .term{overflow-wrap:anywhere}.term.tight .td{display:none}.term .lv{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-left:2ch;color:var(--mute)}.term .lv button.on{color:#eafff3;border-color:var(--accent);background:rgba(0,230,118,.22);opacity:1}
-.term .tl{color:var(--mute);margin-top:3px}.term .tl::before{content:"> ";color:var(--amber)}
+.term .tl{color:var(--mute);margin-top:3px}
+.fold{margin-top:10px;border:1px dashed rgba(0,230,118,.3);border-radius:8px}.fold.over{background:rgba(0,230,118,.1);border-color:var(--accent)}.fhead{cursor:pointer;padding:7px 10px;color:var(--accent);font:700 10px Orbitron,monospace;letter-spacing:.08em}.finner{padding:0 6px 6px}.rc[draggable=true]{cursor:grab}.term .tl::before{content:"> ";color:var(--amber)}
 </style><link rel="stylesheet" href="/theme.css"></head><body><main>
 <div class="hdr"><div class="band"><div class="row" id="topbar" style="margin:0"><span class="chip part">EXPERIMENTAL</span><button id="top-shadow" type="button" aria-pressed="false"></button><span class="mute" id="top-note"></span></div></div>
 <div class="tabs" role="tablist"><button type="button" data-tab="overview" class="on">OVERVIEW</button><button type="button" data-tab="yard">YARD</button><button type="button" data-tab="teach">TEACH</button><button type="button" data-tab="routines">ROUTINES</button><button type="button" data-tab="scores">SCORES</button><button type="button" data-tab="models">MODELS</button></div></div>
@@ -160,8 +161,9 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
   function lamp(on){try{parent.postMessage({hubShadow:!!on},location.origin);}catch(e){}}
   async function switches(){try{const j=await J('/api/yard/settings'),sh=j.shadow||{},t=$('top-shadow');
     t.textContent='SHADOW MODE: '+(sh.on?'ON':'OFF');t.setAttribute('aria-pressed',String(!!sh.on));t.classList.toggle('on',!!sh.on);t.disabled=!!sh.forced_off_by_environment;
-    t.onclick=async()=>{t.disabled=true;try{await POST('/api/yard/settings',{shadow:!sh.on,learning:!sh.on});}finally{await switches();}};lamp(sh.on);
-    $('top-note').textContent=sh.forced_off_by_environment?'Held off by an environment variable.':sh.on?'Observing. Nothing is pressed.':'Off. Nothing is recorded.';}catch(e){}}
+    t.onclick=async()=>{t.disabled=true;try{await POST('/api/yard/settings',{shadow:!sh.on,learning:!sh.on});}finally{await switches();refreshTab();}};lamp(sh.on);
+    $('top-note').textContent=sh.forced_off_by_environment?'Held off by an environment variable.':sh.on?'ON: every routing, model and PC-task choice is logged with its result, and the PC learner writes what it would press beside the live agent. Nothing is pressed.':'OFF: nothing is logged or watched.';}catch(e){}}
+  function refreshTab(){const n=(document.querySelector('.tabs .on')||{}).dataset;const f={overview:overview,scores:scores,models:models,routines:routines}[n&&n.tab];if(f)f();}
 
   // ---- YARD: the architecture as small blocks you can move, with the inside of each block one click away
   let selEdge=null,CV=null,KN=null,gById={},eEls=[],GR=[],lastN=0,timer=0,wasRunning=false,flog=[],sel=null,showInside=false,saveT={},POS={},HID=new Set(),NODE={};
@@ -356,10 +358,22 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
     $('freshnote').textContent=s.fresh_since?'Learners read only what happened after '+new Date(s.fresh_since*1000).toLocaleString()+'.':'Learners read everything until the first time shadow mode is switched on.';
     $('fresh').onclick=async()=>{if(!confirm('FRESH START: learners read only new rows from now on, and the routines trusted right now stay your checks (and, if the switch is on, training data). Nothing is deleted.'))return;await POST('/api/yard/settings',{fresh:true});routines();};
     const att=new Set((gold.routines||[]).map(r=>r.id)),chk={};cands.forEach(c=>chk[c.id]=c);
+    let fol={filed:[],days:30};try{fol=await J('/api/yard/routine-folder');}catch(e){}
+    const filed=new Set(fol.filed||[]);
+    const folder=el('div','fold'),fhead=el('div','fhead'),finner=el('div','finner');let fopen=false;try{fopen=localStorage.getItem('hub-rl-folder')==='1';}catch(e){}
+    const fpaint=()=>{finner.hidden=!fopen;fhead.textContent=(fopen?'▾ ':'▸ ')+'TRUSTED FOLDER ('+filed.size+')  trusted routines move here after '+fol.days+' days; drag one in or out';};
+    fhead.onclick=()=>{fopen=!fopen;try{localStorage.setItem('hub-rl-folder',fopen?'1':'0');}catch(e){}fpaint();};
+    const fileTo=async(id,to)=>{const x=await POST('/api/yard/routine-folder',{id,filed:to});if(!x.ok){alert(await x.text());return;}routines();};
+    folder.addEventListener('dragover',ev=>{ev.preventDefault();folder.classList.add('over');});folder.addEventListener('dragleave',()=>folder.classList.remove('over'));
+    folder.addEventListener('drop',ev=>{ev.preventDefault();folder.classList.remove('over');const id=ev.dataTransfer.getData('text/plain');if(id&&!filed.has(id))fileTo(id,true);});
+    box.addEventListener('dragover',ev=>{if(!folder.contains(ev.target))ev.preventDefault();});
+    box.addEventListener('drop',ev=>{if(folder.contains(ev.target))return;ev.preventDefault();const id=ev.dataTransfer.getData('text/plain');if(id&&filed.has(id))fileTo(id,false);});
+    folder.append(fhead,finner);fpaint();
     if(!rows.length){box.append(el('div','card','No routines yet.'));$('rdetail').replaceChildren(el('div','mute pad','A routine appears here once Smith has done a task on this PC and you have saved it.'));return;}
     let openId=null;try{openId=sessionStorage.getItem('hub-rl-open');}catch(e){}if(!rows.some(x=>x.id===openId))openId=rows[0].id;
     rows.forEach(r=>{
       const c=el('div','card rc'),head=el('div','rhead'),tw=el('span','tw','▸'),body=el('div','rbody');body.hidden=true;
+      if(r.status==='trusted'){c.draggable=true;c.addEventListener('dragstart',ev=>{ev.dataTransfer.setData('text/plain',r.id);ev.dataTransfer.effectAllowed='move';});}
       head.append(tw,el('span','said',r.title));
       const m=el('span','rchips');
       m.append(el('span','chip '+(r.status==='trusted'?'ok':r.status==='disabled'?'no':'part'),r.status.toUpperCase()),document.createTextNode(' '),el('span','chip',r.successes+' good · '+r.failures+' bad'));
@@ -370,7 +384,8 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
       head.append(m);c.append(head);
       // the buttons are the first thing in the body, so what they open appears under them and never needs a scroll to be closed again
       const bar=el('div','rbar'),howBox=el('div','rgrp left'),stateBox=el('div','rgrp right'),seg=el('div','seg'),rp=el('button','part','REPLAY'),again=el('button','part','ATTEMPT AGAIN'),stepsBtn=el('button','skip','STEPS'),runBtn=el('button','skip','LAST RUN'),why=el('button','skip','WHY'),sCand=el('button',null,'CANDIDATE'),sTrust=el('button',null,'TRUSTED'),sOff=el('button',null,'DISABLED'),del=el('button','no','DELETE');
-      stateBox.append(el('span','mute','STATE'),seg,del);seg.append(sCand,sTrust,sOff);howBox.append(rp,again,stepsBtn,runBtn,why);bar.append(howBox,stateBox);
+      stateBox.append(el('span','mute','STATE'),seg,del);seg.append(sCand,sTrust,sOff);howBox.append(rp,again,stepsBtn,runBtn,why);
+      if(r.status==='trusted'){const fb=el('button','skip',filed.has(r.id)?'TAKE OUT OF FOLDER':'FILE AWAY');fb.title='The trusted folder keeps the list short. Filing changes nothing about how the routine runs.';fb.onclick=()=>fileTo(r.id,!filed.has(r.id));howBox.append(fb);}bar.append(howBox,stateBox);
       rp.title='Play the saved steps now, on this PC, and keep a record of each one. It opens the app first if it is closed. It does not change the routine.';
       stepsBtn.title='The steps this routine presses, in order. You can remove, move or rename them.';why.title='What the learner would press on each screen and the features behind that. It only explains: it is not where you write a reason.';
       again.title='Say the task to the Hub again, as you would to Smith: it opens the app first, then does the task fresh and checks it. The old recording is not replayed. A good attempt replaces the steps of a candidate.';
@@ -468,7 +483,8 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
         wy.replaceChildren(el('div','mute','Working out what the learner would press...'));wy.scrollIntoView({block:'nearest'});
         try{const j=await J('/api/yard/why/routine/'+r.id);wy.replaceChildren(el('div','whyh','WHY: what the learner would press on each screen, and the features behind it'),whyView(j));}
         catch(e){wy.replaceChildren(el('div','mute','Could not explain this routine: '+e));}wy.scrollIntoView({block:'nearest'});};
-      box.append(c);if(openId===r.id)setOpen(true);});}
+      (filed.has(r.id)?finner:box).append(c);if(openId===r.id)setOpen(true);});
+    box.append(folder);}
 
   // ---- SCORES
   async function scores(){
@@ -502,12 +518,12 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
     [['off','OFF'],['shadow','SHADOW'],['apply','APPLY']].forEach(([v,t])=>{const b=el('button','mini'+(j.mode===v?' on':''),t);b.type='button';b.disabled=j.mode===v;b.onclick=async()=>{b.disabled=true;await POST('/api/yard/knobs',{preset_mode:v});models();};pm.append(b);});
     pm.append(el('span','dim',{off:'nothing recorded',shadow:'scores every mission step, picks, changes nothing',apply:'agents use the tally pick'}[j.mode]||''));box.append(pm);
     const H=(c,cols)=>{const d=el('div',c);cols.forEach(x=>d.append(el('div',null,x)));return d;};
-    box.append(H('dh',['model','where','steps','reward','checks','cut','s/mission','preset per role (tries)']));
+    box.append(H('dh',['model','order','works','where','steps','reward','checks','cut','s/mission','preset per role (tries)']));
     if(!j.rows.length)box.append(el('div','none','no scored steps yet'));
     j.rows.forEach(r=>{const d=el('div','dr'),ck=r.checks.n?r.checks.ok+'/'+r.checks.n:'-';
-      d.append(el('div','tn',r.model+(r.model===j.current?'  (default)':'')),el('div',r.where==='local'?'ts ok':'dim',r.where),el('div',null,String(r.n)),el('div','num',r.reward==null?'-':r.reward.toFixed(2)),el('div',null,ck),el('div',r.cut?'ts part':'dim',String(r.cut)),el('div',null,r.secs==null?'-':String(Math.round(r.secs))),
+      d.append(el('div','tn',r.model+(r.model===j.current?'  (default)':'')),el('div',null,r.order?String(r.order):'-'),el('div',r.works==='works'?'ts ok':r.works==='unmeasured'?'dim':'ts off',r.works||'-'),el('div',r.where==='local'?'ts ok':'dim',r.where),el('div',null,String(r.n)),el('div','num',r.reward==null?'-':r.reward.toFixed(2)),el('div',null,ck),el('div',r.cut?'ts part':'dim',String(r.cut)),el('div',null,r.secs==null?'-':String(Math.round(r.secs))),
         el('div','dim',Object.entries(r.roles).map(([k,v])=>k+' '+(v.pick||'testing')+' ('+v.n+')').join(' | ')));box.append(d);});
-    box.append(el('div','tl',j.verdict));
+    box.append(el('div','tl',j.verdict));if(j.tally)box.append(el('div','tl',j.tally));
     box.append(el('div','tl','a preset only counts for the model that made the call; each needs '+j.need+' tries before the tally has an opinion; reward = valid, not cut off, no loops, checks passed, few tokens'));
     fit(box);}
 

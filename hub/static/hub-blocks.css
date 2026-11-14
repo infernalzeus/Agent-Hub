@@ -131,7 +131,7 @@ html.hub-hide-hand-legend .hands-legend{display:none!important}
 .hb-setup-secondary{display:none!important}
 .hb-right-panel{position:absolute;top:calc(var(--hub-chrome-bottom,70px) + 8px);right:12px;bottom:112px;width:92px;display:flex;flex-direction:column;align-items:center;gap:10px;z-index:8;pointer-events:auto}
 .hb-right-panel[hidden],.hb-panel-hide[hidden],.hb-panel-show[hidden]{display:none!important}.hb-ingest-dock{padding-bottom:8px;border-bottom:1px solid #6876b344;width:100%;display:flex;justify-content:center;flex:none}
-.hb-right-scroll{min-height:0;overflow-y:auto;overflow-x:hidden;width:100%;scrollbar-width:thin;flex:1}.hb-right-panel .hb-viewbar{position:static;display:flex;width:100%;align-items:center;gap:6px;pointer-events:auto}.hb-right-panel .hb-z{font-size:8px;display:none}
+.hb-right-scroll{min-height:0;overflow:visible;width:100%;flex:1}.hb-right-panel .hb-viewbar{position:static;display:flex;width:100%;align-items:center;gap:6px;pointer-events:auto}.hb-right-panel .hb-z{font-size:8px;display:none}
 .hb-right-panel .hb-viewbar>.hb-btn,.hb-ingest-dock>.hb-btn{width:44px!important;height:44px;min-height:44px;border-radius:50%;padding:0!important;display:inline-flex;align-items:center;justify-content:center;font:700 7px/1.25 Orbitron,monospace;letter-spacing:0;text-align:center;white-space:normal}
 .hb .hb-viewbar .hb-zoomrow{width:auto;gap:3px}.hb .hb-zoomrow .hb-btn{width:32px;height:32px;min-height:32px;border-radius:50%;font-size:14px;display:grid;place-items:center;padding:0}
 .hb-right-panel .hb-gizmo{position:static;right:auto;bottom:auto;width:84px;margin:8px auto 0}.hb-right-panel .hb-gizmo svg{width:60px;height:60px}.hb-right-panel .gz-tools button{border-radius:50%;min-height:28px;font-size:6px}
@@ -338,7 +338,7 @@ html.hub-log-visible .hands-log{animation:hbIn .18s ease both}
 
 /* View tools grow upwards from the minimap, not downwards from power. */
 .hb .hb-right-panel{height:auto;gap:10px}
-.hb .hb-right-scroll{flex:0 1 auto;min-height:0;overflow:auto;padding:2px 0}
+.hb .hb-right-scroll{flex:1 1 auto;min-height:0;overflow:visible;padding:2px 0}
 .hb .hb-right-panel .hb-viewbar{gap:8px}
 .hb-context-panel{height:auto!important;max-height:calc(var(--hub-visible-height,100dvh) - 32px)!important;overflow:auto}
 .hb-context-note{font:14px/1.55 Outfit,system-ui,sans-serif;color:#a8c8cf;margin:0 0 12px}
@@ -675,4 +675,4 @@ html.hub-phone .hb .talk-btn:not(.on)::before,html.hub-phone .hb .talk-btn:not(.
  html.hub-phone .hb .hb-bar{flex-direction:column}
 }
 /* A phone keeps its endless animations off until something is happening (measured: they held every frame at about 100 ms), so the Talk button's picture breathes only while listening or speaking there. */
-html.hub-phone .talk-btn:not(.on):not(.speaking) img{animation:none}
+html.hub-phone .talk-btn:not(.on):not(.speaking) img.lit{animation:none}

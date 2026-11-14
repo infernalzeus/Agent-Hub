@@ -49,7 +49,7 @@
   st.textContent = [
     '#wake-ring{position:absolute;inset:6%;border-radius:50%;pointer-events:none;opacity:0;border:2px solid rgba(0,230,118,.7);box-shadow:0 0 28px rgba(0,230,118,.35),inset 0 0 28px rgba(0,230,118,.15);transition:opacity .45s ease}',
     '#wake-ring.on{opacity:.9;animation:wkBreath 2.6s ease-in-out infinite}#wake-ring.hot{animation:wkBreath 1.2s ease-in-out infinite;border-color:#7bffd0}',
-    '@keyframes wkBreath{50%{transform:scale(1.035);opacity:.45}}',
+    '@keyframes wkBreath{50%{transform:scale(1.035);opacity:.45}}html.hub-soft #wake-ring.on,html.hub-soft #wake-ring.hot{animation:none}',
     '.wk-wave{position:absolute;inset:6%;border-radius:50%;pointer-events:none;border:2px solid rgba(0,230,118,.8)}',
     '#wake-stage{position:fixed;inset:0;pointer-events:none;z-index:6}',
     '.wb{position:absolute;width:236px;pointer-events:auto;text-align:left}',
@@ -99,7 +99,11 @@
     a.onfinish = done;
   }
   function mark() { return window.dormantGlobe; }
+  function soft() { try { return !!(window.DepthLift && DepthLift.software); } catch (e) { return false; } }          // the browser is drawing in software: no globe pulse, no waves, no breathing ring
+  var lastPulse = 0;
   function pulse() {
+    if (soft()) { document.documentElement.classList.add('hub-soft'); return; }
+    var nowT = performance.now(); if (nowT - lastPulse < 500) return; lastPulse = nowT;
     try { var m = mark(); if (m && m.pulse) m.pulse(); } catch (e) {}
     if (!ring || reduce.matches) return;
     var w = document.createElement('div'); w.className = 'wk-wave'; globe.appendChild(w);
@@ -143,10 +147,11 @@
     if (!AGN[w] || S.who === w) return; S.who = w; try { sessionStorage.setItem('hubTalkWho', w); } catch (e) {}
     var img = SM && SM.img; if (!img) return;
     if (SM.slot) SM.slot.classList.toggle('other', w !== 'smith');
+    prefetch(['Yes?', 'One moment.'], w);
     img.style.opacity = '0';
     setTimeout(function () { img.src = w === 'smith' ? SM.own : '/static/agent-icons/' + w + '.png'; SM.live = img.src; img.style.opacity = ''; }, 300);
   }
-  function loadVoices() { if (S.av) return; S.av = {}; fetch('/api/voice/voices').then(function (r) { return r.json(); }).then(function (j) { S.av = j.agents || {}; }).catch(function () { S.av = null; }); }
+  function loadVoices() { if (S.av) return; S.av = {}; fetch('/api/voice/voices').then(function (r) { return r.json(); }).then(function (j) { S.av = j.agents || {}; if (Object.keys(S.av).some(function (k) { return String((S.av[k] || {}).voice || '').indexOf('k:') === 0; })) fetch('/api/voice/warm', { method: 'POST' }).catch(function () {}); }).catch(function () { S.av = null; }); }
 
   // ---- blocks around the ring
   var blocks = [];
@@ -250,20 +255,23 @@
   }
 
   // ---- speaking, with the ring pulsing to the voice; talking over it cuts it off
-  function play(text, as) {                                                          // as: the agent whose voice to use (default: whoever is on the page)
+  S.cache = {};
+  function prefetch(texts, as) { texts.forEach(function (t) { var k = as + '|' + t; if (S.cache[k]) return; post('/api/voice/speak', { text: t, voice: as === 'smith' ? ((function () { try { return localStorage.getItem('hubVoiceName'); } catch (e) { return null; } })() || undefined) : undefined, agent: as }, 'speech', 20000).then(function (ab) { S.cache[k] = ab; }).catch(function () {}); }); }
+  function play(text, as, filler) {                                                          // as: the agent whose voice to use (default: whoever is on the page)
     return new Promise(function (resolve) {
-      as = as || S.who; loadVoices();
+      as = as || S.who; loadVoices(); if (S.stopPlay && !filler) S.stopPlay();            // a real answer cuts off the holding phrase
       var done = false, tick = null, rhythm = null, guard = null, node = null;
-      function fin() { if (done) return; done = true; if (S.stopPlay === fin) S.stopPlay = null; clearInterval(tick); clearInterval(rhythm); clearInterval(guard); try { if (node) node.stop(); } catch (e) {} S.speaking = false; resolve(); }
-      S.stopPlay = fin; S.speaking = true; setState('speak'); pulse(); rhythm = setInterval(pulse, 620);
+      function fin() { if (done) return; done = true; if (S.stopPlay === fin) S.stopPlay = null; if (filler) { clearInterval(tick); clearInterval(guard); try { if (node) node.stop(); } catch (e) {} resolve(); return; } clearInterval(tick); clearInterval(rhythm); clearInterval(guard); try { if (node) node.stop(); } catch (e) {} S.speaking = false; resolve(); }
+      S.stopPlay = fin; if (!filler) { S.speaking = true; setState('speak'); pulse(); rhythm = setInterval(pulse, 900); }
       var t0 = performance.now(), floor = 0, hi = 0, lastT = t0;
-      guard = setInterval(function () {
+      if (!filler) guard = setInterval(function () {
         var now = performance.now(), r = rms(); if (now - t0 < 600) { floor = Math.max(floor, r); lastT = now; return; }
         var limit = Math.max(0.12, floor * 2.2 + 0.04); hi = r > limit ? hi + (now - lastT) : 0; lastT = now;
         if (hi > 300 && !done) { S.barged = true; pulse(); fin(); }
       }, 30);
       var voice = null; try { voice = localStorage.getItem('hubVoiceName'); } catch (e) {}
-      post('/api/voice/speak', { text: text, voice: as === 'smith' ? (voice || undefined) : undefined, agent: as }, 'speech', 20000).then(function (ab) {
+      var ck = as + '|' + text;
+      (S.cache[ck] ? Promise.resolve(S.cache[ck]) : post('/api/voice/speak', { text: text, voice: as === 'smith' ? (voice || undefined) : undefined, agent: as }, 'speech', 20000).then(function (ab) { if (text.length <= 40) S.cache[ck] = ab; return ab; })).then(function (ab) {
         return S.actx.decodeAudioData(ab.slice(0)).then(function (buf) {
           var src = node = S.actx.createBufferSource(), an = S.actx.createAnalyser(), data = new Uint8Array(512), last = 0;
           an.fftSize = 512; src.buffer = buf; src.connect(an); var rec = (S.av && S.av[as]) || {}; if (window.HubVoiceFx) HubVoiceFx.connect(S.actx, an, S.actx.destination, buf.duration, as === 'smith' ? undefined : rec.fx, as === 'smith' ? undefined : rec.fxs); else an.connect(S.actx.destination); src.onended = fin; src.start();
@@ -294,7 +302,7 @@
         var r = rms(), now = performance.now(), thr = Math.min(0.06, Math.max(0.018, (S.floor || 0.01) * 3.2));
         if (!spoke) S.floor = (S.floor || r) * 0.97 + r * 0.03;
         if (r > thr) { if (!spoke) started = now; if (!spoke) smithHear(true); spoke = true; quiet = 0; } else if (spoke && !quiet) quiet = now;
-        if ((spoke && quiet && now - quiet > 900) || (spoke && now - started > 12000)) { try { mr.stop(); } catch (e) {} return; }
+        if ((spoke && quiet && now - quiet > 650) || (spoke && now - started > 12000)) { try { mr.stop(); } catch (e) {} return; }
         if (!spoke && now - t0 > 20000) { try { mr.stop(); } catch (e) {} return; }   // recycle the recorder now and then
         setTimeout(loop, 40);
       })();
@@ -321,8 +329,9 @@
       if (NO.test(text)) return reply({ say: 'Okay, cancelled. Nothing was changed.' }, text);
     }
     S.history.push({ role: 'user', text: text });
-    var run = S.run;
+    var run = S.run, waiting = true, hold = setTimeout(function () { if (waiting && run === S.run && S.state === 'think') play('One moment.', S.who, true); }, 1500);     // a slow answer is not silence
     return post('/api/voice/chat', { text: text, history: S.history.slice(-9, -1), scene: scene(), speaker: S.who }, 'json', 60000).then(function (r) {
+      waiting = false; clearTimeout(hold);
       if (run !== S.run) return;                                   // STOP was pressed while it was thinking: nothing is said
       S.history.push({ role: 'assistant', text: r.say || '' });
       var tr = r.transition;
@@ -394,7 +403,7 @@
     var AC = window.AudioContext || window.webkitAudioContext; if (!S.actx && AC) S.actx = new AC(); if (S.actx && S.actx.state === 'suspended') S.actx.resume();
     open().then(function (ok) {
       if (!ok) { setLabel('MICROPHONE BLOCKED'); return; }
-      S.on = true; S.run++; try { localStorage.setItem(KEY, '1'); } catch (e) {} setState('wake'); pulse(); loop(S.run);
+      S.on = true; S.run++; try { localStorage.setItem(KEY, '1'); } catch (e) {} setState('wake'); pulse(); prefetch(['Yes?', 'One moment.'], S.who); loop(S.run);
     });
   }
   // LISTENING means "in a conversation, no wake word needed". When the conversation window has run out the label must go back to LISTENING FOR SMITH;

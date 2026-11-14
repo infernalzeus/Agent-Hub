@@ -539,7 +539,26 @@ def model_chain(primary: str | None, workspace_model: str | None = None, brief: 
     chain = [first, *MODEL_FALLBACKS]
     seen: set[str] = set()
     out = [m for m in chain if m and not (m in seen or seen.add(m))]
-    return [m for m in out if m == primary or not (MS.broken(m) or LS.dead(m))]
+    out = [m for m in out if m == primary or not (MS.broken(m) or LS.dead(m))]
+    if not primary and len(out) > 1:
+        out = _tally_first(out)
+    return out
+
+
+def _tally_first(models: "list[str]") -> "list[str]":
+    """Only in APPLY mode (R panel, OVERVIEW, presets): the model the tally prefers, from the project's own checks, goes first. It needs two models with three results each; otherwise the order is unchanged."""
+    try:
+        from .yard_bridge import apply_mode
+        if not apply_mode():
+            return models
+        from ..features import bandit as BD
+        from . import model_stats as MS
+        adv = BD.advise(MS.table(models), options=models)
+        if adv.get("would") in models and adv["would"] != models[0]:
+            return [adv["would"], *[m for m in models if m != adv["would"]]]
+    except Exception:  # noqa: BLE001 - the order must never fail because learning did
+        pass
+    return models
 
 
 def _model_pick(own: dict) -> dict:

@@ -71,6 +71,17 @@ def record(models, ok: bool, secs: float, chars: int, mission: str = "", samplin
     write_json(OUTCOMES, rows[-200:])
 
 
+def table(models=None, last: int = 60) -> "dict[str, dict]":
+    """{model: {"ok": n, "failed": n}} from the project's own checks, newest `last` results per model: what the tally learns from."""
+    out: "dict[str, dict]" = {}
+    for r in _outcomes():
+        m = r.get("model")
+        if not m or (models is not None and m not in models):
+            continue
+        out.setdefault(m, {"ok": 0, "failed": 0})["ok" if r.get("ok") else "failed"] += 1
+    return out
+
+
 def rate(model: str, last: int = 20) -> "tuple[int, float]":
     rows = [r for r in _outcomes() if r.get("model") == model][-last:]
     return len(rows), (sum(1 for r in rows if r["ok"]) / len(rows) if rows else 0.0)

@@ -294,9 +294,9 @@ def models_table() -> dict:
                      "reward": round(sum(rewards) / len(rewards), 3) if rewards else None,
                      "checks": {"n": len(ver), "ok": sum(ver)} if ver else {"n": 0, "ok": 0},
                      "cut": len(cut), "secs": round(sum(secs) / len(secs), 1) if secs else None, "roles": roles})
-    rows.sort(key=lambda r: -r["n"])
-    local = [r for r in rows if r["where"] == "local"]
-    other = [r for r in rows if r["where"] in ("free", "claude", "other")]
+    rows = _with_chain(rows)
+    local = [r for r in rows if r["where"] == "local" and r["n"]]
+    other = [r for r in rows if r["where"] in ("free", "claude", "other") and r["n"]]
     verdict = ""
     if not rows:
         verdict = "no scored steps yet: run missions (shadow mode scores each one)"
@@ -315,7 +315,50 @@ def models_table() -> dict:
             dc = (rl - ro) if rl is not None and ro is not None else 0.0
             ck = f"; project checks passed {lo['checks']['ok']}/{lo['checks']['n']} vs {ot['checks']['ok']}/{ot['checks']['n']}" if rl is not None and ro is not None else ""
             verdict = f"local {lo['reward']} vs {ot['model']} {ot['reward']} reward ({'+' if d >= 0 else ''}{d:.2f}){ck}; " + ("local is as good or better on these steps" if d >= -0.05 and dc >= -0.15 else "local is behind on these steps")
-    return {"mode": mode(), "need": need, "calls": len(cs), "rows": rows, "verdict": verdict, "current": _current_model()}
+    return {"mode": mode(), "need": need, "calls": len(cs), "rows": rows, "verdict": verdict, "current": _current_model(), "tally": _tally_line(rows)}
+
+
+def _with_chain(rows: "list[dict]") -> "list[dict]":
+    """Every model the Hub would try for a mission appears, in the order it would try them, with whether it works; models with scored steps but outside the chain follow."""
+    try:
+        from .. import agent_knowledge as AK
+        from ..agent_knowledge import model_stats as MS, llm_status as LS
+        chain = AK.model_chain(None)
+    except Exception:  # noqa: BLE001
+        return sorted(rows, key=lambda r: -r["n"])
+    by = {r["model"]: r for r in rows}
+    out = []
+    for i, m in enumerate(chain):
+        r = by.pop(m, None) or {"model": m, "where": where_of(m), "n": 0, "reward": None, "checks": {"n": 0, "ok": 0}, "cut": 0, "secs": None, "roles": {}}
+        r["order"] = i + 1
+        out.append(r)
+    out.extend(sorted(by.values(), key=lambda r: -r["n"]))
+    for r in out:
+        m = r["model"]
+        try:
+            n, ok = MS.rate(m, 60)
+            r["verified"] = {"n": n, "ok": round(ok * n)}
+            r["works"] = "dead" if LS.dead(m) else "broken" if MS.broken(m) else "works" if MS.usable(m) else "unmeasured"
+        except Exception:  # noqa: BLE001
+            r["verified"] = {"n": 0, "ok": 0}
+            r["works"] = "unmeasured"
+        r.setdefault("order", None)
+    return out
+
+
+def _tally_line(rows: "list[dict]") -> str:
+    """What the tally would do with the model order, and whether it is allowed to."""
+    try:
+        from ..agent_knowledge import model_stats as MS
+        from ..features import bandit as BD
+        names = [r["model"] for r in rows if r.get("order")]
+        adv = BD.advise(MS.table(names), options=names)
+    except Exception:  # noqa: BLE001
+        return ""
+    m = mode()
+    if not adv.get("would"):
+        return "model order: by rules (the local model's record on your project's checks, and whether each model works). The tally has no opinion yet: " + adv.get("why", "").replace("no opinion yet: ", "")
+    return f"model order: the tally prefers {adv['would']} ({adv['why']}); " + ("APPLY is on, so it goes first" if m == "apply" else "it is not used until presets are set to APPLY")
 
 
 def _current_model() -> str:

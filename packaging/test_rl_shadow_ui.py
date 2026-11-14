@@ -57,10 +57,10 @@ def test_the_panel_says_experimental_and_its_switch_turns_shadow_mode_on_and_off
         pg.wait_for_function("document.getElementById('top-shadow').textContent.length>0")
         if pg.locator("#top-shadow").is_disabled():
             pytest.skip("the test run holds shadow mode off with an environment variable")
-        assert pg.inner_text("#top-shadow") == "SHADOW MODE: OFF" and "Nothing is recorded" in pg.inner_text("#top-note")
+        assert pg.inner_text("#top-shadow") == "SHADOW MODE: OFF" and "nothing is logged" in pg.inner_text("#top-note")
         pg.click("#top-shadow")
         pg.wait_for_function("document.getElementById('top-shadow').textContent==='SHADOW MODE: ON'")
-        assert "Observing" in pg.inner_text("#top-note")
+        assert "Nothing is pressed" in pg.inner_text("#top-note")
         j = pg.evaluate("fetch('/api/yard/settings').then(r=>r.json())")
         assert j["shadow"]["on"] is True and j["learning"]["on"] is True                 # one switch sets both
         pg.click("[data-tab=teach]")

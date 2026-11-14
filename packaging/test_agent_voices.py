@@ -172,7 +172,7 @@ def test_dramatic_pauses_break_a_plain_sentence_and_choosing_an_agent_does_not_s
         pg.locator("#v-test").click(force=True)
         pg.wait_for_function("document.getElementById('v-lab-st').textContent.startsWith('No audio')", timeout=8000)
         before = pg.evaluate("[document.getElementById('voice').scrollTop, scrollY]")
-        pg.locator("#v-who [data-who=neo]").click(force=True)
+        pg.evaluate("document.querySelector('#v-who [data-who=neo]').click()")                   # a script click: Playwright's own click would scroll the button into view and hide the bug
         pg.wait_for_timeout(500)
         after = pg.evaluate("[document.getElementById('voice').scrollTop, scrollY]")
         has_groups = pg.evaluate("document.querySelectorAll('#v-voice optgroup').length")
@@ -181,3 +181,52 @@ def test_dramatic_pauses_break_a_plain_sentence_and_choosing_an_agent_does_not_s
     assert len(spoken) >= 3 and spoken[0]["text"].startswith("I am"), [s["text"] for s in spoken]      # broken at "than" and in the middle of what is left
     assert before == after, (before, after)
     assert has_groups >= 1
+
+
+def test_a_kokoro_voice_on_this_pc_can_be_chosen_and_speaks_through_the_worker_or_falls_back_to_microsoft(tmp_path, monkeypatch):
+    from hub.features import kokoro_tts as KT
+    monkeypatch.setattr(KT, "voices", lambda: [{"id": "k:am_onyx", "name": "Onyx · Kokoro, on this PC, American male", "voice": "am_onyx"}])
+    calls = []
+
+    async def fake_synth(text, voice, speed=1.0):
+        calls.append((text, voice, round(speed, 2)))
+        if text == "break":
+            raise RuntimeError("worker died")
+        return b"RIFFfakewav"
+    monkeypatch.setattr(KT, "synth", fake_synth)
+
+    class Fake:
+        def __init__(self, text, voice, rate="+0%", pitch="+0Hz"):
+            self.v = voice
+
+        async def stream(self):
+            yield {"type": "audio", "data": b"ID3audio"}
+    import edge_tts
+    monkeypatch.setattr(edge_tts, "Communicate", Fake)
+    monkeypatch.setattr(V, "_TTS_CACHE", {})
+
+    async def go():
+        async with _client(tmp_path, monkeypatch) as c:
+            j = await (await c.get("/api/voice/voices")).json()
+            assert j["kokoro"] == [{"id": "k:am_onyx", "name": "Onyx · Kokoro, on this PC, American male"}]
+            assert (await c.post("/api/voice/agent-voice", json={"agent": "neo", "voice": "k:am_onyx"})).status == 200
+            assert (await c.post("/api/voice/agent-voice", json={"agent": "neo", "voice": "k:not_here"})).status == 400
+            r = await c.post("/api/voice/speak", json={"text": "hello", "agent": "neo", "rate": -10})
+            assert r.status == 200 and r.content_type == "audio/wav" and await r.read() == b"RIFFfakewav"
+            assert calls == [("hello", "am_onyx", 0.9)]                                      # rate -10 % is a speed of 0.9
+            r2 = await c.post("/api/voice/speak", json={"text": "hello", "agent": "neo", "rate": -10})
+            assert r2.headers.get("X-Voice-Cached") == "1" and len(calls) == 1                # the second time is from memory
+            r3 = await c.post("/api/voice/speak", json={"text": "break", "agent": "neo"})
+            assert r3.status == 200 and r3.content_type == "audio/mpeg"                       # the worker failed: Microsoft's voice says it instead
+    asyncio.run(go())
+
+
+def test_asking_for_an_agent_is_a_rule_not_a_model_call(tmp_path):
+    """"Bring Victor" took 12 to 35 s on the model (13 Nov log): every wording below is now caught by the rule that answers in milliseconds."""
+    from hub.features import talk_agents as TA
+    for text, who in [("Bring Victor.", "orchestrator"), ("Can you bring Victor?", "orchestrator"), ("I would like to speak to the Agent Victor.", "orchestrator"),
+                      ("get the agent neo please", "neo"), ("bring me the doctor", "doctor"), ("summon Neo", "neo"), ("Smith, pull up Viktor", "orchestrator"), ("give me Smith", "smith")]:
+        got = TA.summon(text, "smith")
+        assert got and got["to"] == who, (text, got)
+    for text in ("what is Neo doing", "bring up the dashboard", "show me the dashboard"):
+        assert TA.summon(text, "smith") is None, text                                 # a question about an agent, or about something else, is not a request for one

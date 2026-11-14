@@ -23,13 +23,14 @@ from ..agent_knowledge import AGENT_NAMES as _AN
 
 NAME = {k: v[0] for k, v in _AN.items()}                 # one source of names: agent_knowledge.AGENT_NAMES
 DESIGNATION = {k: v[1] for k, v in _AN.items()}
-_ALIAS = {"agent smith": "smith", "smith": "smith", "viktor": "orchestrator", "victor": "orchestrator", "viktor the orchestrator": "orchestrator", "victor the orchestrator": "orchestrator", "the orchestrator": "orchestrator",
+_ALIAS = {"avictor": "orchestrator", "avicter": "orchestrator", "victer": "orchestrator", "vikter": "orchestrator", "viktar": "orchestrator", "vector": "orchestrator", "the neo": "neo", "agent neo": "neo", "agent doctor": "doctor", "dr": "doctor", "doc": "doctor",
+          "agent smith": "smith", "smith": "smith", "viktor": "orchestrator", "victor": "orchestrator", "viktor the orchestrator": "orchestrator", "victor the orchestrator": "orchestrator", "the orchestrator": "orchestrator",
           "orchestrator": "orchestrator", "neo": "neo", "the doctor": "doctor", "doctor": "doctor"}                 # a speech recogniser may write Viktor with a k, or give the Orchestrator by its designation
-_NAMES = r"(?:agent smith|smith|agent viktor|agent victor|viktor the orchestrator|victor the orchestrator|viktor|victor|the orchestrator|orchestrator|neo|the doctor|doctor)"
+_NAMES = r"(?:(?:the )?agent smith|smith|(?:the )?agent vi[ck]tor|(?:the )?agent avi[ck]ter|viktor the orchestrator|victor the orchestrator|avi[ck]t[eo]r|vi[ck]t[eo]r|viktar|the orchestrator|orchestrator|(?:the )?agent neo|neo|the doctor|(?:the )?agent doctor|doctor|dr\.?|doc)"
 _ADDRESS = re.compile(r"^\s*(?:hey |hi |ok |okay )?(" + _NAMES + r")\b[\s,:;.!-]*(.*)$", re.I | re.S)
 # asking for an agent: "Smith, pull up Viktor", "can I talk to Neo", "get the Doctor", "put Viktor on", "switch to the orchestrator". What follows the name ("get Neo to draft an agent ...") goes to that agent.
 _SUMMON = re.compile(r"^\s*(?:(?:hey |hi |ok |okay )?(?:agent )?(?:smith|viktor|victor|neo|doctor|orchestrator)[\s,:;.!-]+)?(?:(?:please|can you|could you|would you|will you|can i|could i|may i|i'd like to|i would like to|i want to|i need to|let me|let's|lets|i wanna)\s+)*"
-                     r"(?:pull up|bring up|bring in|bring over|call up|call in|call on|call|get me|get|put|fetch|put me through to|put me on to|put on|patch me in to|patch me to|connect me to|connect me with|hand me over to|hand me to|hand over to|pass me to|switch to|go to|change to|"
+                     r"(?:pull up|bring up|bring in|bring over|bring me|bring|summon|give me|show me|let me have|i want|call up|call in|call on|call|get me|get|put|fetch|put me through to|put me on to|put on|patch me in to|patch me to|connect me to|connect me with|hand me over to|hand me to|hand over to|pass me to|switch to|go to|change to|"
                      r"talk to|talk with|speak to|speak with|chat to|chat with|ask)\s+(" + _NAMES + r")\b\s*(?:on|up|in|over|please)?\W*(?:(?:to|and|about|:|,)\s+(.*))?$", re.I | re.S)
 _TASK = re.compile(r"\b(fix|add|build|make|create|write|change|update|refactor|implement|set up|rename|remove|delete|improve|test|deploy)\b", re.I)
 _STATUS = re.compile(r"\b(status|progress|how('?s| is| are)|where (is|are)|what('?s| is) (it|going|happening)|update me|any news)\b", re.I)
@@ -50,7 +51,7 @@ def address(text: str) -> "tuple[str | None, str]":
     m = _ADDRESS.match(text or "")
     if not m:
         return None, text
-    who = _ALIAS.get(re.sub(r"^agent (?=vi[ck]tor)", "", m.group(1).lower()).strip(), "smith")
+    who = _ALIAS.get(re.sub(r"^(?:the )?agent\s+", "", m.group(1).lower()).strip(), "smith")
     return who, m.group(2).strip()
 
 
@@ -59,7 +60,7 @@ def summon(text: str, current: str = "smith") -> "dict | None":
     m = _SUMMON.match(text or "")
     if not m:
         return None
-    who = _ALIAS.get(re.sub(r"^agent (?=vi[ck]tor)", "", m.group(1).lower()).strip())
+    who = _ALIAS.get(re.sub(r"^(?:the )?agent\s+", "", m.group(1).lower()).strip())
     if not who:
         return None
     return {"to": who, "from": current, "rest": (m.group(2) or "").strip(), "same": who == current}

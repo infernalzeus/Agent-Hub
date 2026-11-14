@@ -2,7 +2,7 @@
 .talk-btn{position:relative;width:46px;height:46px;flex:none;padding:0;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
   border:1px solid rgba(0,230,118,.55);background:linear-gradient(180deg,#1a2170 0%,#0d1050 48%,#0a0c3e 100%);
   box-shadow:inset 0 1px 0 rgba(140,165,255,.35),0 2px 6px rgba(0,0,0,.5);-webkit-tap-highlight-color:transparent}
-.talk-btn img{width:28px;height:28px;border-radius:7px;position:relative;z-index:1;object-fit:contain}
+.talk-btn img{width:28px;height:28px;border-radius:0;position:relative;z-index:1;object-fit:contain;display:block}.talk-btn img.lit{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);margin:0!important;z-index:2;opacity:0;pointer-events:none}
 .talk-btn::before,.talk-btn::after{content:"";position:absolute;inset:-1px;border-radius:12px;border:1.5px solid rgba(0,230,118,.6);opacity:0;pointer-events:none;animation:talkWave 2.8s ease-out infinite}
 .talk-btn::after{animation-delay:1.4s}
 .talk-btn:hover{box-shadow:inset 0 1px 0 rgba(210,225,255,.5),0 2px 6px rgba(0,0,0,.5),0 0 14px rgba(0,230,118,.55)}
@@ -72,7 +72,7 @@ html.hub-board-on #voice{left:50%!important;top:50%!important;right:auto!importa
 }
 
 /* Smith on the Talk button: breathing while he listens for his name, green pulses while he thinks or speaks, a burst when his name is heard */
-.talk-btn img{animation:smBreathe 3.6s ease-in-out infinite}.talk-btn.on img{animation:smBreathe 2.4s ease-in-out infinite}.talk-btn.speaking img{animation:smLit .9s ease-in-out infinite}.talk-btn.heard img{animation:smHeard 2.4s ease-out 1}
+.talk-btn img.lit{animation:litIdle 3.6s ease-in-out infinite}.talk-btn.on img.lit{animation:litOn 2.2s ease-in-out infinite}.talk-btn.speaking img.lit{animation:litSpeak .9s ease-in-out infinite}.talk-btn.heard img.lit{animation:litHeard 2.4s ease-out 1}
 @keyframes smBreathe{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.12);opacity:1}}
 @keyframes smLit{0%,100%{transform:scale(1);opacity:.65}50%{transform:scale(1.18);opacity:1}}
 @keyframes smHeard{0%{transform:scale(1.2);opacity:1}100%{transform:scale(1);opacity:.9}}
@@ -83,7 +83,7 @@ html.hub-board-on #voice{left:50%!important;top:50%!important;right:auto!importa
 #voice .v-who{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 8px}#voice .v-who .vbtn{padding:5px 8px;font-size:9px;letter-spacing:1px;opacity:.7}#voice .v-who .vbtn.on{opacity:1;border-color:var(--accent,#00e676);box-shadow:0 0 8px rgba(0,230,118,.35);color:var(--accent,#00e676)}
 
 /* The speaker's picture in the Talk window pulses like the Talk button: a slow breath while listening, a bright beat while he speaks or thinks. */
-#voice .v-stage img{animation:smBreathe 3.4s ease-in-out infinite;will-change:transform,opacity}#voice .v-stage.on img{animation:smBreathe 2.2s ease-in-out infinite}#voice .v-stage.speaking img{animation:smLit .9s ease-in-out infinite}
+
 @media (prefers-reduced-motion:reduce){#voice .v-stage img{animation:none!important}}
 /* VOICE TEST: a sub panel for hearing each agent's voice and setting its default. Nothing typed here goes to an agent. */
 #voice .v-tools #v-labbtn.on{background:rgba(0,230,118,.14);border-color:var(--accent,#00e676)}
@@ -99,3 +99,11 @@ html.hub-board-on #voice{left:50%!important;top:50%!important;right:auto!importa
 #voice.compact .v-lab{display:none}
 #voice .v-lab-del{display:grid;grid-template-columns:auto 1fr 1fr;gap:4px;align-items:center}#voice .v-chk{display:flex;gap:6px;align-items:center;font:700 9px 'Orbitron',monospace;letter-spacing:1px;color:var(--accent,#00e676);white-space:nowrap}
 #voice .v-lab-tip{font-size:10.5px;opacity:.6;line-height:1.35}
+
+/* The speaker's picture and the Talk button's: the plain picture never moves or scales; a glowing copy over it fades in and out (opacity only: nothing repaints on software graphics). */
+@keyframes litIdle{0%,100%{opacity:0}50%{opacity:.8}}@keyframes litOn{0%,100%{opacity:.1}50%{opacity:.95}}@keyframes litSpeak{0%,100%{opacity:.25}50%{opacity:1}}@keyframes litHeard{0%{opacity:1}100%{opacity:0}}
+#voice .v-stage .pic{position:relative;width:56px;height:56px;flex:none;display:block}
+#voice .v-stage .pic img{position:absolute;left:0;top:0;width:56px;height:56px;object-fit:contain;border:0;border-radius:0;box-shadow:none;background:transparent;animation:none}
+#voice .v-stage .pic img.lit{opacity:0;pointer-events:none;animation:litIdle 3.6s ease-in-out infinite;will-change:opacity}
+#voice .v-stage.on .pic img.lit{animation:litOn 2.2s ease-in-out infinite}#voice .v-stage.speaking .pic img.lit{animation:litSpeak .9s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){#voice .v-stage .pic img.lit,.talk-btn img.lit{animation:none!important}}

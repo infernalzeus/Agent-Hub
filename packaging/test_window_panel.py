@@ -315,12 +315,12 @@ def test_a_phone_gets_small_single_pictures_one_at_a_time_and_each_old_picture_i
     assert len(frames) <= 12 and revoked >= len(frames) - 2                                         # about two a second, and each earlier picture released
 
 
-def test_the_talk_button_shows_smiths_face_and_the_landing_page_swaps_in_his_outline_at_enter(hub):
+def test_the_talk_button_keeps_smiths_original_picture_and_the_landing_page_swaps_in_his_outline_at_enter(hub):
     import base64
     import urllib.request
     root = Path(__file__).resolve().parent.parent / "hub" / "static"
-    face = (root / "agent-icons" / "face" / "smith.png").read_bytes()
-    assert urllib.request.urlopen(hub + "/smith-icon.png", timeout=10).read() == face                  # the Talk button: a small circle shows the face
+    still = (root / "agent-art" / "smith-still.png").read_bytes()
+    assert urllib.request.urlopen(hub + "/smith-icon.png", timeout=10).read() == still                 # the Talk button: his original picture, the whole bust
     portrait = (root / "agent-art" / "smith-portrait.png").read_bytes()
     page = urllib.request.urlopen(hub + "/offline.html", timeout=10).read().decode("utf-8", "replace")
     assert base64.b64encode(portrait).decode() in page                                                 # the picture the landing page swaps in at ENTER: the plain outline

@@ -37,13 +37,13 @@ def test_the_landing_page_carries_smiths_outline_and_a_lit_copy_as_small_picture
     assert "data:image/svg+xml;base64," not in html
 
 
-def test_each_core_agent_has_a_face_picture_for_the_small_circles(hub):
-    for name in ("smith", "smith-new", "smith-new-lit", "orchestrator", "neo", "doctor"):
-        kind, body = _get(f"{hub}/static/agent-icons/face/{name}.png")
+def test_each_core_agent_has_a_glowing_copy_that_fades_over_its_whole_picture(hub):
+    for name in ("smith-classic", "orchestrator", "neo", "doctor"):
+        kind, body = _get(f"{hub}/static/agent-icons/lit/{name}.png")
         assert kind == "image/png" and 2_000 < len(body) < 60_000, name
     try:
-        _get(f"{hub}/static/agent-icons/face/../doctor.png")
+        _get(f"{hub}/static/agent-icons/lit/../doctor.png")
     except Exception:
         pass
     else:
-        raise AssertionError("a path outside the face folder must not be served")
+        raise AssertionError("a path outside the lit folder must not be served")

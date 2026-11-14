@@ -123,14 +123,14 @@ ART_DIR = ICON_DIR.parent / "agent-art"
 CREW = ("orchestrator", "neo", "smith", "doctor", "router")
 
 
-@routes.get("/static/agent-icons/face/{name}")
-async def agent_face(request: web.Request) -> web.StreamResponse:
-    """The face alone, a small square: what a small circle (the Talk button, the speaker's picture) shows, so the agent is recognised."""
+@routes.get("/static/agent-icons/lit/{name}")
+async def agent_lit(request: web.Request) -> web.StreamResponse:
+    """The same picture glowing: faded over the plain one while the agent listens or speaks (opacity only, nothing repaints)."""
     import re
     name = request.match_info["name"]
-    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,40}\.png", name) or not (ICON_DIR / "face" / name).is_file():
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,40}\.png", name) or not (ICON_DIR / "lit" / name).is_file():
         raise web.HTTPNotFound()
-    return web.FileResponse(ICON_DIR / "face" / name, headers={"Cache-Control": "public, max-age=300"})
+    return web.FileResponse(ICON_DIR / "lit" / name, headers={"Cache-Control": "public, max-age=300"})
 
 
 @routes.get("/static/agent-icons/{name}")
