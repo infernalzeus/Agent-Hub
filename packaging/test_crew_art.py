@@ -28,11 +28,10 @@ def test_the_talk_button_picture_is_the_light_png(hub):
     assert kind == "image/png" and len(body) < 40_000
 
 
-def test_the_landing_page_carries_smiths_animated_vector_and_a_still_picture_for_the_move_to_the_dashboard(hub):
+def test_the_landing_page_carries_smiths_picture_as_a_plain_png_and_a_small_still_for_the_move_to_the_dashboard(hub):
     _, page = _get(hub + "/offline.html")
     html = page.decode("utf-8", "replace")
-    m = re.search(r"data:image/svg\+xml;base64,([A-Za-z0-9+/=]+)", html)
-    assert m
-    svg = base64.b64decode(m.group(1)).decode("utf-8", "replace")
-    assert "lens-glint" in svg and "@keyframes glint" in svg and "prefers-reduced-motion" in svg           # the glasses glisten
-    assert "data:image/png;base64," in html and "SM.still" in html                                       # the still one, swapped in at ENTER
+    pngs = re.findall(r"data:image/png;base64,([A-Za-z0-9+/=]+)", html)
+    assert len(pngs) >= 2 and "SM.still" in html                                                          # the portrait and the small still, swapped in at ENTER
+    assert max(len(base64.b64decode(p)) for p in pngs) < 60_000                                           # a plain picture: nothing animated to redraw every frame
+    assert not re.search(r"data:image/svg\+xml;base64,", html)

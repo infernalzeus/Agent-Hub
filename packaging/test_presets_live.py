@@ -94,3 +94,18 @@ def test_the_routes_list_the_presets_and_save_a_choice_for_the_four_core_agents_
             assert (await (await c.get("/api/agents/presets")).json())["choices"] == {"smith": "varied"}
             assert (await c.post("/api/agents/coder/preset", json={"preset": "varied"})).status == 404
     asyncio.run(go())
+
+
+def test_a_preset_counts_only_for_the_model_that_made_the_call_and_the_models_table_compares_local_with_hosted():
+    import json
+    rows = []
+    for i in range(6):
+        rows.append({"role": "coder", "preset": "precise", "reward": 0.9, "at": i, "model": "ollama/gemma4:e4b-32k", "where": "local", "secs": 40, "verified": True, "parts": {"not_cut_off": 1}})
+        rows.append({"role": "coder", "preset": "varied", "reward": 0.2, "at": 10 + i, "model": "opencode/glm-5.3-flash-free", "where": "free", "secs": 12, "verified": False, "parts": {"not_cut_off": 0}})
+    (P._dir() / "preset_calls.jsonl").write_text("".join(json.dumps(x) + "\n" for x in rows), encoding="utf-8")
+    assert P.where_of("ollama/gemma4:e4b-32k") == "local" and P.where_of("opencode/glm-5.3-flash-free") == "free" and P.where_of("claude-sonnet") == "claude"
+    assert P.tally("coder", "ollama/gemma4:e4b-32k")["precise"]["n"] == 6 and P.tally("coder", "ollama/gemma4:e4b-32k")["varied"]["n"] == 0      # the hosted model's calls are not the local model's evidence
+    t = P.models_table()
+    by = {r["model"]: r for r in t["rows"]}
+    assert by["ollama/gemma4:e4b-32k"]["where"] == "local" and by["ollama/gemma4:e4b-32k"]["reward"] == 0.9 and by["ollama/gemma4:e4b-32k"]["checks"] == {"n": 6, "ok": 6}
+    assert by["opencode/glm-5.3-flash-free"]["cut"] == 6 and "local" in t["verdict"] and "better" in t["verdict"]

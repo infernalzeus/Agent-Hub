@@ -37,8 +37,11 @@ def _smith_still_uri() -> str:
 
 
 def _smith_data_uri() -> str:
-    """Smith for the landing page, inside the page itself: the vector picture (his glasses glisten), or the small PNG if the file is missing. No request, so nothing can fail while the Hub is down."""
+    """Smith for the landing page, inside the page itself: the small PNG (cheap to draw, no lag), or the old vector if the file is missing. No request, so nothing can fail while the Hub is down."""
     import base64 as _b64
+    art = Path(__file__).parent / "static" / "agent-art" / "smith-portrait.png"     # the new portrait is a plain picture: no animated vector to redraw every frame
+    if art.is_file():
+        return "data:image/png;base64," + _b64.b64encode(art.read_bytes()).decode("ascii")
     art = Path(__file__).parent / "static" / "agent-art" / "smith.svg"
     if art.is_file():
         return "data:image/svg+xml;base64," + _b64.b64encode(art.read_bytes()).decode("ascii")

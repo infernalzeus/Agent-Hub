@@ -1601,10 +1601,21 @@ VOICES = [
     {"id": "liam", "name": "Liam · Canadian, male", "voice": "en-CA-LiamNeural", "rate": "+0%", "pitch": "+0Hz"},
     {"id": "prabhat", "name": "Prabhat · Indian, male", "voice": "en-IN-PrabhatNeural", "rate": "+0%", "pitch": "+0Hz"},
     {"id": "luke", "name": "Luke · South African, male", "voice": "en-ZA-LukeNeural", "rate": "+0%", "pitch": "+0Hz"},
+    {"id": "viktor-soft", "name": "Viktor · soft British, slow and measured", "voice": "en-GB-ThomasNeural", "rate": "-8%", "pitch": "-8Hz"},
+    {"id": "neo-calm", "name": "Neo · calm American, low and unhurried", "voice": "en-US-BrianNeural", "rate": "-6%", "pitch": "-6Hz"},
+    {"id": "medic", "name": "Medic · German voice reading English", "voice": "de-DE-ChristophNeural", "rate": "-2%", "pitch": "-2Hz"},
+    {"id": "remy", "name": "Remy · French accent, male", "voice": "fr-FR-RemyMultilingualNeural", "rate": "+0%", "pitch": "+0Hz"},
 ]
 _VOICE_BY_ID = {v["id"]: v for v in VOICES}
 # Each core agent has its own voice, picked in the Talk window and kept here. `fx` / `fxs` are the robotic layer (amount, style); absent for Smith means the one he already uses.
-AGENT_VOICE_DEFAULTS = {"smith": {"voice": "smith"}, "orchestrator": {"voice": "ryan", "fx": "off", "fxs": "radio"}, "neo": {"voice": "guy", "fx": "off", "fxs": "radio"}, "doctor": {"voice": "sonia", "fx": "off", "fxs": "radio"}}
+AGENT_VOICE_DEFAULTS = {"smith": {"voice": "smith"}, "orchestrator": {"voice": "viktor-soft", "fx": "off", "fxs": "radio"}, "neo": {"voice": "neo-calm", "fx": "off", "fxs": "radio"}, "doctor": {"voice": "medic", "fx": "off", "fxs": "radio"}}
+# The sound each character is meant to have (the VOICE TEST panel's RECOMMENDED button). Only voices that exist in the free Microsoft set; nothing to download. None of this has been listened to by a person yet.
+RECOMMENDED = {
+    "smith": {"voice": "smith-deep", "fx": "p5", "fxs": "radio", "note": "Agent Smith: low, slow, clipped, Australian male. Deep William a little slower, a 5% radio layer."},
+    "orchestrator": {"voice": "viktor-soft", "fx": "off", "fxs": "radio", "note": "Viktor (Arcane): soft, tired, precise, British male. Thomas, slow and low, no effect."},
+    "neo": {"voice": "neo-calm", "fx": "off", "fxs": "radio", "note": "Neo: quiet, flat, unhurried American male. Brian, slower and lower, no effect."},
+    "doctor": {"voice": "medic", "fx": "off", "fxs": "radio", "note": "Medic (TF2): German accent, brisk, confident. A German neural voice reading English; Microsoft has no German-accent English voice, so this is the nearest."},
+}
 _FX_RE = re.compile(r"[a-z0-9]{1,8}")
 
 
@@ -1638,7 +1649,7 @@ async def api_voices(request: web.Request) -> web.Response:
         ok = True
     except Exception:
         ok = RT.PACKAGED and RT.python_for("speech").is_file()
-    return web.json_response({"voices": [{"id": v["id"], "name": v["name"]} for v in VOICES], "default": VOICES[0]["id"], "neural": ok, "agents": agent_voices()})
+    return web.json_response({"voices": [{"id": v["id"], "name": v["name"]} for v in VOICES], "default": VOICES[0]["id"], "neural": ok, "agents": agent_voices(), "recommended": RECOMMENDED})
 
 
 @routes.post("/api/voice/agent-voice")
@@ -1648,6 +1659,15 @@ async def api_agent_voice(request: web.Request) -> web.Response:
     a = str(b.get("agent") or "")
     if a not in AGENT_VOICE_DEFAULTS:
         raise web.HTTPBadRequest(text="agent must be one of: " + ", ".join(AGENT_VOICE_DEFAULTS))
+    if b.get("reset"):                                  # back to the built-in voice for this agent
+        try:
+            cur = json.loads(_agent_voice_file().read_text(encoding="utf-8"))
+            cur = cur if isinstance(cur, dict) else {}
+        except (OSError, ValueError):
+            cur = {}
+        cur.pop(a, None)
+        RT.write_json(_agent_voice_file(), cur)
+        return web.json_response({"ok": True, "agents": agent_voices()})
     if str(b.get("voice") or "") not in _VOICE_BY_ID:
         raise web.HTTPBadRequest(text="unknown voice")
     row = {"voice": str(b["voice"])}
@@ -1681,7 +1701,7 @@ async def api_speak(request: web.Request) -> web.Response:
         raise web.HTTPBadRequest(text="no text")
     key = (text, v["id"])
     if key in _TTS_CACHE:
-        return web.Response(body=_TTS_CACHE[key], content_type="audio/mpeg")
+        return web.Response(body=_TTS_CACHE[key][0], content_type="audio/mpeg", headers={"X-Voice-Used": _TTS_CACHE[key][1], "X-Voice-Fallback": _TTS_CACHE[key][2], "X-Voice-Cached": "1"})
     try:
         import edge_tts
         in_process = True
@@ -1718,6 +1738,7 @@ async def api_speak(request: web.Request) -> web.Response:
     global _TTS_LOCK
     if _TTS_LOCK is None:
         _TTS_LOCK = asyncio.Lock()
+    asked_voice = v["voice"]
     fallback = {**v, "voice": "en-GB-RyanNeural", "pitch": "-18Hz"}
     async with _TTS_LOCK:
         order = [fallback] if _VOICE_DOWN.get(v["voice"], 0) > time.time() else [v, fallback]
@@ -1736,10 +1757,12 @@ async def api_speak(request: web.Request) -> web.Response:
         raise web.HTTPServiceUnavailable(text=f"edge-tts did not answer ({last})")
     if not audio:
         raise web.HTTPServiceUnavailable(text="no audio came back")
-    if len(_TTS_CACHE) > 30:
+    fell_back = "1" if v["voice"] != asked_voice else ""                 # the chosen voice did not answer and Ryan spoke instead: the test panel says so
+    if len(_TTS_CACHE) > 80:
         _TTS_CACHE.pop(next(iter(_TTS_CACHE)))
-    _TTS_CACHE[key] = audio
-    return web.Response(body=audio, content_type="audio/mpeg")
+    if not fell_back:                                                    # a fallback is not cached under the chosen voice: the next try asks for the real one again
+        _TTS_CACHE[key] = (audio, v["voice"], "")
+    return web.Response(body=audio, content_type="audio/mpeg", headers={"X-Voice-Used": v["voice"], "X-Voice-Fallback": fell_back})
 
 
 @routes.get("/smith-icon.png")

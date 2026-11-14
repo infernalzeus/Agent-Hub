@@ -126,7 +126,7 @@ def test_his_picture_is_inside_the_page_and_while_the_hub_is_dormant_he_is_nearl
         pg.goto(hub + "/offline.html")
         pg.wait_for_selector("#smith-slot", timeout=20000)
         pg.wait_for_function("document.getElementById('smith-slot').classList.contains('dormant')", timeout=15000)
-        assert pg.evaluate("document.querySelector('#smith-slot img').src.startsWith('data:image/svg+xml')") and not asked
+        assert pg.evaluate("document.querySelector('#smith-slot img').src.startsWith('data:image/png')") and not asked
         assert pg.evaluate("getComputedStyle(document.getElementById('smith-slot')).pointerEvents") == "none"
         assert pg.evaluate("Math.max(...[0,1,2].map(()=>parseFloat(getComputedStyle(document.querySelector('#smith-slot img')).opacity)))") < 0.2     # nearly invisible
         assert pg.evaluate("document.getElementById('wake-btn').getAttribute('data-s')") != "starting"

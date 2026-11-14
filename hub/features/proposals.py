@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import time
 import uuid
+from pathlib import Path
 
 from aiohttp import web
 
@@ -48,6 +49,34 @@ def load() -> "list[dict]":
         return data if isinstance(data, list) else []
     except (OSError, ValueError):
         return []
+
+
+def _gone(p: dict) -> str:
+    """Why a proposal can no longer be acted on, or "" while it still can: a routine that is not in the store any more, or an app file that has been removed."""
+    w = p.get("wiring") or {}
+    try:
+        ids = [t.get("routine") for t in (w.get("tools") or []) if isinstance(t, dict) and t.get("routine")]
+        if ids:
+            from . import pc_control as PC
+            with PC._db() as db:
+                for rid in ids:
+                    if not db.execute("SELECT 1 FROM pc_routines WHERE id=?", (rid,)).fetchone():
+                        return "its routine is no longer kept"
+        path = w.get("path")
+        if p.get("kind") == "app_evidence" and path and not Path(path).exists():
+            return "the app file it was read from is gone"
+    except Exception:  # noqa: BLE001 - when the store cannot be read, leave the proposal alone
+        return ""
+    return ""
+
+
+def live() -> "list[dict]":
+    """The proposals worth showing: one whose routine or file has gone since is removed from the file, not left to wait for a click that can do nothing."""
+    rows = load()
+    keep = [p for p in rows if not _gone(p)]
+    if len(keep) != len(rows):
+        _save(keep)
+    return keep
 
 
 def _save(rows: "list[dict]") -> None:
@@ -156,7 +185,7 @@ async def accept(pid: str) -> dict:
 @routes.get("/api/proposals")
 async def api_list(request: web.Request) -> web.Response:
     """Everything worked out and waiting for a yes."""
-    return web.json_response({"proposals": sorted(load(), key=lambda p: -p.get("created", 0)),
+    return web.json_response({"proposals": sorted(live(), key=lambda p: -p.get("created", 0)),
                               "kinds": KINDS})
 
 

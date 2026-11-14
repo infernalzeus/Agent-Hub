@@ -9,6 +9,7 @@ def embedded(body: str, request: web.Request) -> str:
 html.hub-embed .bar>a,html.hub-embed .bar>.brand,html.hub-embed body>header,
 html.hub-embed body>h1{display:none!important}
 html.hub-embed .bar{padding:8px;position:relative;min-height:0}
+html.hub-embed{color-scheme:dark}
 html.hub-embed,html.hub-embed body{background:transparent!important}
 html.hub-embed svg#graph{top:0;height:100%}
 html.hub-embed #legend{top:14px}
@@ -16,4 +17,4 @@ html.hub-embed #legend{top:14px}
     body = body.replace('<html lang="en">', '<html lang="en" class="hub-embed">', 1)
     if 'class="hub-embed"' not in body:
         body = body.replace('<html>', '<html class="hub-embed">', 1)
-    return body.replace('</head>', css + '</head>', 1)
+    return body.replace('</head>', '<meta name="color-scheme" content="dark">' + css + '</head>', 1)  # the board is dark: a page that does not say so is drawn on white

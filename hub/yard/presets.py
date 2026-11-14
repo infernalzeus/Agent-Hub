@@ -71,6 +71,18 @@ def rows_for_tally(calls: "list[dict]", role: str) -> "list[dict]":
 
 
 # ---- live: record, tally, pick
+def where_of(model: str) -> str:
+    """Where a model runs: "local" (this PC, through Ollama), "claude" (Claude Code, your subscription), "free" (OpenCode Zen free models) or "other"."""
+    m = (model or "").lower()
+    if m.startswith("ollama/") or m.startswith("local/"):
+        return "local"
+    if m.startswith("claude") or "anthropic" in m:
+        return "claude"
+    if m.startswith("opencode/") or m.endswith("-free") or "zen" in m:
+        return "free"
+    return "other"
+
+
 def _dir():
     from ..runtime import STATE
     return STATE / "data" / "yard"
@@ -110,20 +122,23 @@ def _picks() -> dict:
         return {}
 
 
-def tally(role: str) -> "dict[str, dict]":
-    """{preset: {"n": tries, "ok": results above the role's median}} from the recorded calls."""
+def tally(role: str, model: "str | None" = None) -> "dict[str, dict]":
+    """{preset: {"n": tries, "ok": results above the role's median}} from the recorded calls. With `model`, only calls made by that model count: a preset that suits a big hosted model need not suit the small one on this PC."""
     out = {n: {"n": 0, "ok": 0} for n in PRESETS}
-    for r in rows_for_tally(calls(), role):
+    cs = calls()
+    if model:
+        cs = [c for c in cs if c.get("model") == model]
+    for r in rows_for_tally(cs, role):
         out[r["chosen"]]["n"] += 1
         out[r["chosen"]]["ok"] += 1 if r["ok"] else 0
     return out
 
 
-def suggest(role: str, rng: "random.Random | None" = None) -> dict:
+def suggest(role: str, rng: "random.Random | None" = None, model: "str | None" = None) -> dict:
     """The preset the tally would use next for a role: the least tried until each has `min_n` tries, then a Thompson draw (a Beta over wins and losses with one pretend of each)."""
     from . import knobs as K
     rng = rng or random.Random()
-    t = tally(role)
+    t = tally(role, model)
     need = K.get("min_n")
     short = [n for n, v in t.items() if v["n"] < need]
     if short:
@@ -132,7 +147,7 @@ def suggest(role: str, rng: "random.Random | None" = None) -> dict:
     else:
         draws = {n: rng.betavariate(1 + v["ok"], 1 + v["n"] - v["ok"]) for n, v in t.items()}
         pick, why = max(draws, key=draws.get), "the highest Thompson draw"
-    return {"role": role, "pick": pick, "why": why, "tally": t}
+    return {"role": role, "pick": pick, "why": why, "tally": t, "model": model or ""}
 
 
 def note_mission(m) -> "list[dict]":
@@ -146,6 +161,12 @@ def note_mission(m) -> "list[dict]":
             items = [(st["agent"], str(st.get("summary") or "")) for st in m.plan if st.get("agent") and st.get("status") in ("done", "complete") and st.get("summary")]
         elif getattr(m, "answer", ""):
             items = [(m.agent or "coder", str(m.answer))]
+        try:                                                         # which model did the work, and how long the agents worked: what lets presets and models be compared
+            from ..features import missions as _MI
+            secs, used = _MI._tm(m)
+        except Exception:  # noqa: BLE001
+            secs, used = 0.0, []
+        model = (used[0] if used else getattr(m, "model", "")) or ""
         verify = getattr(m, "verify", None)
         checks = bool(verify.get("ok")) if isinstance(verify, dict) and "ok" in verify else None
         rows = []
@@ -154,16 +175,21 @@ def note_mission(m) -> "list[dict]":
             smp = AK.sampling_of(role)
             applied = mode() == "apply" and (picks.get(role) or {}).get("applied")
             name = picks[role]["name"] if applied else nearest(smp)
+            where = where_of(model)
             toks = max(1, len(text) // 4)
             r = label_free_reward(text, "stop", toks, int(smp.get("num_predict") or smp.get("max_tokens") or 2048), checks)
-            rows.append({"at": time.time(), "role": role, "mission": getattr(m, "id", ""), "preset": name, "applied": bool(applied), "sampling": smp, "reward": r["reward"], "parts": r["parts"]})
+            rows.append({"at": time.time(), "role": role, "mission": getattr(m, "id", ""), "preset": name, "applied": bool(applied), "sampling": smp, "reward": r["reward"], "parts": r["parts"],
+                         "model": model, "where": where, "secs": round(float(secs or 0), 1), "chars": len(text), "verified": checks})
         if rows:
             _dir().mkdir(parents=True, exist_ok=True)
             with open(_dir() / "preset_calls.jsonl", "a", encoding="utf-8") as f:
                 f.write("".join(json.dumps(x) + "\n" for x in rows))
             for role in {x["role"] for x in rows}:
-                sg = suggest(role)
-                picks[role] = {"name": sg["pick"], "why": sg["why"], "at": time.time(), "applied": mode() == "apply"}
+                sg = suggest(role, model=model or None)
+                row = {"name": sg["pick"], "why": sg["why"], "at": time.time(), "applied": mode() == "apply", "model": model}
+                picks[role] = row
+                if model:
+                    picks[role + "@" + model] = row
             (_dir() / "preset_picks.json").write_text(json.dumps(picks), encoding="utf-8")
         return rows
     except Exception:  # noqa: BLE001
@@ -197,7 +223,13 @@ def applied(role: str) -> "dict | None":
         if c in PRESETS:
             by, name = "you", c
         elif c == "tally" or (not c and mode() == "apply"):
-            p = _picks().get(role)
+            pk = _picks()
+            try:
+                from .. import agent_knowledge as _AK
+                cur = _AK.resolved_default_model()
+            except Exception:  # noqa: BLE001
+                cur = ""
+            p = pk.get(role + "@" + cur) or pk.get(role)
             if not p or p.get("name") not in PRESETS:
                 return None
             by, name = "the tally", p["name"]
@@ -237,6 +269,66 @@ async def api_set_preset(request: web.Request) -> web.Response:
         raise web.HTTPBadRequest(text='send {"preset": "precise"}')
     set_choice(role, name)
     return web.json_response({"ok": True, "choices": choices()})
+
+
+def models_table() -> dict:
+    """What the MODELS tab shows. One row per model that has finished work: where it runs, how many scored steps, the mean label-free reward, how often the project's own checks passed, the share cut off,
+    the mean seconds of a mission, and the preset the tally would pick for each role it served. Local and hosted models sit side by side, which is the comparison that says whether the model on this PC is good enough."""
+    from . import knobs as K
+    need = K.get("min_n")
+    cs = calls()
+    by: "dict[str, list[dict]]" = {}
+    for c in cs:
+        by.setdefault(c.get("model") or "unknown", []).append(c)
+    rows = []
+    for model, items in by.items():
+        rewards = [c["reward"] for c in items if isinstance(c.get("reward"), (int, float))]
+        ver = [c["verified"] for c in items if isinstance(c.get("verified"), bool)]
+        secs = [c["secs"] for c in items if c.get("secs")]
+        cut = [c for c in items if (c.get("parts") or {}).get("not_cut_off", 1) == 0]
+        roles = {}
+        for role in sorted({c["role"] for c in items}):
+            pk = _picks().get(role + "@" + model)
+            roles[role] = {"n": sum(1 for c in items if c["role"] == role), "pick": (pk or {}).get("name"), "tally": tally(role, model)}
+        rows.append({"model": model, "where": where_of(model) if model != "unknown" else "unknown", "n": len(items),
+                     "reward": round(sum(rewards) / len(rewards), 3) if rewards else None,
+                     "checks": {"n": len(ver), "ok": sum(ver)} if ver else {"n": 0, "ok": 0},
+                     "cut": len(cut), "secs": round(sum(secs) / len(secs), 1) if secs else None, "roles": roles})
+    rows.sort(key=lambda r: -r["n"])
+    local = [r for r in rows if r["where"] == "local"]
+    other = [r for r in rows if r["where"] in ("free", "claude", "other")]
+    verdict = ""
+    if not rows:
+        verdict = "no scored steps yet: run missions (shadow mode scores each one)"
+    elif not local:
+        verdict = "the local model has no scored steps yet"
+    elif not other:
+        verdict = "only the local model has scored steps: nothing to compare it with yet"
+    else:
+        lo, ot = local[0], max(other, key=lambda r: r["n"])
+        if min(lo["n"], ot["n"]) < need:
+            verdict = f"too few to compare: local {lo['n']}, {ot['model']} {ot['n']}; each needs {need}"
+        else:
+            d = (lo["reward"] or 0) - (ot["reward"] or 0)
+            rl = lo["checks"]["ok"] / lo["checks"]["n"] if lo["checks"]["n"] else None
+            ro = ot["checks"]["ok"] / ot["checks"]["n"] if ot["checks"]["n"] else None
+            dc = (rl - ro) if rl is not None and ro is not None else 0.0
+            ck = f"; project checks passed {lo['checks']['ok']}/{lo['checks']['n']} vs {ot['checks']['ok']}/{ot['checks']['n']}" if rl is not None and ro is not None else ""
+            verdict = f"local {lo['reward']} vs {ot['model']} {ot['reward']} reward ({'+' if d >= 0 else ''}{d:.2f}){ck}; " + ("local is as good or better on these steps" if d >= -0.05 and dc >= -0.15 else "local is behind on these steps")
+    return {"mode": mode(), "need": need, "calls": len(cs), "rows": rows, "verdict": verdict, "current": _current_model()}
+
+
+def _current_model() -> str:
+    try:
+        from .. import agent_knowledge as _AK
+        return _AK.resolved_default_model()
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+@routes.get("/api/yard/models")
+async def api_models(request: web.Request) -> web.Response:
+    return web.json_response(models_table())
 
 
 def summary() -> dict:

@@ -20,7 +20,7 @@ PRIVATE = {'choices.jsonl', 'choices.jsonl.1', 'local_settings.py', 'locations.j
            # not something to ship to everyone who installs a build.
            'theme.json', 'support_missions.json', 'agent_events.json', 'model_outcomes.json', 'transition_selftest_result.json', 'update.json', 'automations.json', 'automation_runs.json',
            'integration_tokens.json', 'skill_topics_user.json', 'pending_move.json',
-           'action_apps.json', 'proposals.json', 'user_facts.json', 'info_routines.json', 'decision_settings.json', 'commands_user.json', 'rea.json', 'app_evidence', 'models', 'utterance_decisions.jsonl', 'recording_draft.json'}
+           'action_apps.json', 'proposals.json', 'agent_voices.json', 'user_facts.json', 'info_routines.json', 'decision_settings.json', 'commands_user.json', 'rea.json', 'app_evidence', 'models', 'utterance_decisions.jsonl', 'recording_draft.json'}
 ROOT_FILES = ('app.py', 'favicon.png', 'favicon-64.png', 'favicon-256.png', 'favicon.ico', 'requirements-youtube.txt')
 # Nothing is listed by hand for a NEW feature in hub/: if it is a file of a shipped kind it ships. But a file of a kind nobody has decided about, or a new top-level folder, used to be
 # dropped without a word (a sound, a font, a model, a folder next to hub/). These two lists are the decisions already made; anything outside them stops the build with its name,

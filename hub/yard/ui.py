@@ -98,7 +98,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
  iframe.teach{flex:1;height:auto;min-height:0;margin-top:6px}
 }
 @media (min-width:1200px){body{font-size:13.5px}}
-@media (max-width:899px){.rgrid{grid-template-columns:1fr}.term .tr,.term .mr{grid-template-columns:1fr}.term .th{display:none}.yrow{flex-direction:column}.yrow #nodebox{width:auto}}
+@media (max-width:899px){.rgrid{grid-template-columns:1fr}.term .tr,.term .mr,.term .dr{grid-template-columns:1fr}.term .th,.term .dh{display:none}.yrow{flex-direction:column}.yrow #nodebox{width:auto}}
 
 /* ---- terminal panels (OVERVIEW, SCORES): monospace, one screen, the font size is picked so the whole table fits */
 .term{--tf:13px;font:var(--tf)/1.36 "Cascadia Mono","Cascadia Code",Consolas,"Courier New",monospace;color:#c6f1da;background:rgba(2,6,20,.6);border:1px solid var(--border);border-radius:8px;padding:10px 14px;flex:1;min-height:0;overflow:hidden;margin-top:8px}
@@ -114,10 +114,12 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
 .term .sh,.term .mh{display:grid;gap:0 18px;color:var(--mute);letter-spacing:.06em;text-transform:uppercase;padding-bottom:2px}
 .term .none{color:var(--mute)}.term .num{color:var(--accent);font-weight:700}.term .dim{color:var(--mute)}
 .term button.mini{justify-self:start;font:inherit;font-size:.8em;padding:1px 8px;border-radius:4px;letter-spacing:.06em;line-height:1.3}
+.term .dr,.term .dh{display:grid;gap:0 16px;grid-template-columns:minmax(20ch,2fr) 7ch 6ch 8ch 9ch 5ch 9ch minmax(0,2.6fr);padding:4px 0;border-top:1px solid rgba(0,230,118,.12)}.term .dh{border:0;color:var(--mute);letter-spacing:.06em;text-transform:uppercase;padding-bottom:2px}
+.term .pm{display:flex;gap:8px;align-items:center;margin:0 0 6px;color:var(--mute)}.term .pm button.mini{justify-self:auto}.term .pm button.on{color:#eafff3;border-color:var(--accent);background:rgba(0,230,118,.22);opacity:1}
 .term .tl{color:var(--mute);margin-top:3px}.term .tl::before{content:"> ";color:var(--amber)}
 </style><link rel="stylesheet" href="/theme.css"></head><body><main>
 <div class="hdr"><div class="band"><div class="row" id="topbar" style="margin:0"><span class="chip part">EXPERIMENTAL</span><button id="top-shadow" type="button" aria-pressed="false"></button><span class="mute" id="top-note"></span></div></div>
-<div class="tabs" role="tablist"><button type="button" data-tab="overview" class="on">OVERVIEW</button><button type="button" data-tab="yard">YARD</button><button type="button" data-tab="teach">TEACH</button><button type="button" data-tab="routines">ROUTINES</button><button type="button" data-tab="scores">SCORES</button></div></div>
+<div class="tabs" role="tablist"><button type="button" data-tab="overview" class="on">OVERVIEW</button><button type="button" data-tab="yard">YARD</button><button type="button" data-tab="teach">TEACH</button><button type="button" data-tab="routines">ROUTINES</button><button type="button" data-tab="scores">SCORES</button><button type="button" data-tab="models">MODELS</button></div></div>
 
 <section id="tab-overview"><div id="ovlist" class="term"></div></section>
 
@@ -140,6 +142,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
 </section>
 
 <section id="tab-scores" hidden><div id="scterm" class="term"></div></section>
+<section id="tab-models" hidden><div id="mdterm" class="term"></div></section>
 </main>
 <script>
 (function(){
@@ -323,7 +326,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
   // ---- OVERVIEW: one row per thing that learns, in the order data travels; the explanation of a row is behind its button
   // the font size of a terminal panel is picked so that the whole table fits: largest first, down to 10 px
   function fit(box){if(!box||box.offsetParent===null)return;let px=window.innerWidth<900?13:15;box.style.setProperty('--tf',px+'px');if(window.innerWidth<900)return;while(px>10&&box.scrollHeight>box.clientHeight+1){px-=.5;box.style.setProperty('--tf',px+'px');}}
-  addEventListener('resize',()=>{fit($('ovlist'));fit($('scterm'));});
+  addEventListener('resize',()=>{fit($('ovlist'));fit($('scterm'));fit($('mdterm'));});
   async function overview(){
     let j;const box=$('ovlist');try{j=await J('/api/yard/overview');}catch(e){box.textContent='overview unavailable: '+e.message;return;}
     box.replaceChildren();box.append(el('div','tnext',j.next));
@@ -479,12 +482,28 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
     box.append(el('div','tl','gate for a new version: '+g.min_frozen+' held-out rows, 0 forbidden presses, '+g.shadow_n+' watched live choices at '+pct(g.shadow_agree||0)+', your yes'));
     fit(box);J('/api/yard/tev').then(v=>{box.append(el('div','tl','tev fine-tune: '+(v.enough?'enough graded requests ('+v.rows+'); ':'needs '+v.needed+' graded requests, has '+v.rows+' ('+v.held_out+' held out); ')+(v.hardware.cuda?'CUDA device available. ':v.hardware.note+'. ')+'nothing runs until you say go'));fit(box);}).catch(()=>{});}
 
+  // ---- MODELS: every model that has finished scored work, local and hosted side by side, and what the preset tally would use for each role
+  async function models(){
+    const box=$('mdterm');box.replaceChildren();let j;try{j=await J('/api/yard/models');}catch(e){box.textContent='models unavailable: '+e.message;return;}
+    const pm=el('div','pm');pm.append(el('span',null,'presets'));
+    [['off','OFF'],['shadow','SHADOW'],['apply','APPLY']].forEach(([v,t])=>{const b=el('button','mini'+(j.mode===v?' on':''),t);b.type='button';b.disabled=j.mode===v;b.onclick=async()=>{b.disabled=true;await POST('/api/yard/knobs',{preset_mode:v});models();};pm.append(b);});
+    pm.append(el('span','dim',{off:'nothing recorded',shadow:'scores every mission step, picks, changes nothing',apply:'agents use the tally pick'}[j.mode]||''));box.append(pm);
+    const H=(c,cols)=>{const d=el('div',c);cols.forEach(x=>d.append(el('div',null,x)));return d;};
+    box.append(H('dh',['model','where','steps','reward','checks','cut','s/mission','preset per role (tries)']));
+    if(!j.rows.length)box.append(el('div','none','no scored steps yet'));
+    j.rows.forEach(r=>{const d=el('div','dr'),ck=r.checks.n?r.checks.ok+'/'+r.checks.n:'-';
+      d.append(el('div','tn',r.model+(r.model===j.current?'  (default)':'')),el('div',r.where==='local'?'ts ok':'dim',r.where),el('div',null,String(r.n)),el('div','num',r.reward==null?'-':r.reward.toFixed(2)),el('div',null,ck),el('div',r.cut?'ts part':'dim',String(r.cut)),el('div',null,r.secs==null?'-':String(Math.round(r.secs))),
+        el('div','dim',Object.entries(r.roles).map(([k,v])=>k+' '+(v.pick||'testing')+' ('+v.n+')').join(' | ')));box.append(d);});
+    box.append(el('div','tl',j.verdict));
+    box.append(el('div','tl','a preset only counts for the model that made the call; each needs '+j.need+' tries before the tally has an opinion; reward = valid, not cut off, no loops, checks passed, few tokens'));
+    fit(box);}
+
   // ---- tabs
-  const TABS=['overview','yard','teach','routines','scores'];
+  const TABS=['overview','yard','teach','routines','scores','models'];
   let readied=false;function ready(){if(readied)return;readied=true;try{parent.postMessage({hubReady:true},location.origin);}catch(e){}}
   function tab(name){let first=null;if(!TABS.includes(name))name='overview';document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===name));
     TABS.forEach(n=>$('tab-'+n).hidden=n!==name);if(name==='yard')first=flowStart();else flowStop();
-    if(name==='teach'){const f=$('teachframe');if(!f.src)f.src=f.dataset.src;}if(name==='overview')first=overview();if(name==='routines'){first=routines();liveTasks();}if(name==='scores')first=scores();try{localStorage.setItem('hub-rl-tab',name);}catch(e){}
+    if(name==='teach'){const f=$('teachframe');if(!f.src)f.src=f.dataset.src;}if(name==='overview')first=overview();if(name==='routines'){first=routines();liveTasks();}if(name==='scores')first=scores();if(name==='models')first=models();try{localStorage.setItem('hub-rl-tab',name);}catch(e){}
     return Promise.resolve(first);}
   document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>tab(b.dataset.tab));
   let first='overview';try{first=localStorage.getItem('hub-rl-tab')||'overview';}catch(e){}

@@ -123,7 +123,7 @@ def state() -> dict:
                                         "Fix it only if the cause is in the Hub's own code; otherwise say what went wrong.",
                               "asked": just_asked})
 
-    props = P.load()
+    props = P.live()
     for p in props:
         attention.append({"level": "amber", "kind": "proposal", "id": p.get("id"), "go": "/",
                           "title": f'Proposal: {p.get("name")}',

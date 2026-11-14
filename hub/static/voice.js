@@ -24,7 +24,7 @@
   try { S.voice = localStorage.getItem('hubVoiceName'); S.mute = localStorage.getItem('hubVoiceMute') === '1'; } catch (e) {}
 
   // A deadline covers the response body as well as connection setup. Cancelling a turn ignores late replies.
-  async function request(u, b, raw, timeout) {
+  async function request(u, b, raw, timeout, info) {
     const controller = new AbortController(); S.requests.add(controller);
     const timer = setTimeout(() => controller.abort(), timeout || 45000);
     try {
@@ -32,6 +32,7 @@
         headers: { 'Content-Type': raw === 'audio' ? (b.type || 'audio/webm') : 'application/json' },
         body: raw === 'audio' ? b : JSON.stringify(b || {}) });
       if (!r.ok) throw new Error((await r.text()).slice(0, 140));
+      if (info) info.h = { used: r.headers.get('X-Voice-Used') || '', fb: r.headers.get('X-Voice-Fallback') || '', cached: r.headers.get('X-Voice-Cached') || '' };
       return raw === 'speech' ? await r.arrayBuffer() : await r.json();
     } finally { clearTimeout(timer); S.requests.delete(controller); }
   }
@@ -63,10 +64,11 @@
   function setState(orbState, text) {
     orb(orbState); $('v-state').textContent = text;
     talkBtns().forEach((b) => { b.classList.toggle('speaking', /Speaking|Thinking|Recognising|Doing|Working/.test(text)); });
+    const stg = $('v-stage'); if (stg) stg.classList.toggle('speaking', /Speaking|Thinking|Recognising|Doing|Working/.test(text));
     const st = $('v-stop'); if (st) st.hidden = !(S.busy || S.speaking || /Thinking|Recognising|Doing|Speaking|Working/.test(text));
   }
   const talkBtns = () => document.querySelectorAll('[data-talk]');
-  function paintOn() { talkBtns().forEach((b) => b.classList.toggle('on', S.on)); $('v-mic').textContent = S.on ? 'STOP LISTENING' : 'START LISTENING'; $('v-mic').classList.toggle('stop', S.on); $('v-mic').classList.toggle('go', !S.on); }
+  function paintOn() { talkBtns().forEach((b) => b.classList.toggle('on', S.on)); const stg = $('v-stage'); if (stg) stg.classList.toggle('on', S.on); $('v-mic').textContent = S.on ? 'STOP LISTENING' : 'START LISTENING'; $('v-mic').classList.toggle('stop', S.on); $('v-mic').classList.toggle('go', !S.on); }
   function hubSmithHeard() { talkBtns().forEach((b) => { b.classList.remove('heard'); void b.offsetWidth; b.classList.add('heard'); setTimeout(() => b.classList.remove('heard'), 2500); }); }
   function showBtns(confirm) { $('v-yes').hidden = !confirm; $('v-no').hidden = !confirm; }
   // everything said or noticed goes to the one LOG at the bottom of the dashboard (kept per tab in sessionStorage, so the landing page and every page share it)
@@ -119,11 +121,11 @@
     });
   }
   // Smith's voice goes through the layered robotic effect (voice-fx.js) on its way to the speakers; 'clean' skips it.
-  const route = (node, buf) => { if (window.HubVoiceFx) HubVoiceFx.connect(S.actx, node, S.actx.destination, buf.duration, S.fxNow, S.fxsNow); else node.connect(S.actx.destination); };       // S.fxNow / S.fxsNow: this speaker's own robotic layer (unset for Smith: the one he already uses)
+  const route = (node, buf, o) => { const fx = o && o.fx !== undefined ? o.fx : S.fxNow, fxs = o && o.fxs !== undefined ? o.fxs : S.fxsNow; if (window.HubVoiceFx) HubVoiceFx.connect(S.actx, node, S.actx.destination, buf.duration, fx, fxs); else node.connect(S.actx.destination); };       // S.fxNow / S.fxsNow: this speaker's own robotic layer (unset for Smith: the one he already uses)
   // Plays the reply a sentence at a time: the first sentence is made alone and starts playing while the next ones (up to three in flight) are being made,
   // so an answer starts after about the time of its first sentence, not of the whole answer. Resolves when it ends or when S.stop() is called
   // (talk-over, typing, STOP, or an answer arriving while a "working on it" line is still being said).
-  function play(text) {
+  function play(text, o) {                                                              // o (the VOICE TEST panel): {voice, agent, fx, fxs, info, fail} speak with those instead of the current speaker's
     return new Promise(async (resolve) => {
       let done = false, node = null, deadline = null, audioUrl = null, endPiece = null;
       const fin = () => { if (!done) { done = true; clearTimeout(deadline); if (audioUrl) URL.revokeObjectURL(audioUrl); S.stop = null; resolve(); } };
@@ -131,7 +133,7 @@
       deadline = setTimeout(() => { if (!done && S.stop) S.stop(); }, 60000);
       const parts = (window.HubVoiceGate && HubVoiceGate.sentences(text)) || [String(text)];
       if (!parts.length) { fin(); return; }
-      const get = (t) => { const r = request('/api/voice/speak', { text: t, voice: S.voice || undefined, agent: S.who || undefined }, 'speech', 30000); r.catch(() => {}); return r; };
+      const get = (t) => { const t0 = performance.now(), inf = {}; const r = request('/api/voice/speak', { text: t, voice: (o && o.voice) || S.voice || undefined, agent: (o && o.agent) || S.who || undefined }, 'speech', 30000, inf).then((ab) => { if (o && o.info) o.info({ ms: Math.round(performance.now() - t0), h: inf.h || {}, bytes: ab.byteLength }); return ab; }); r.catch(() => {}); return r; };
       const got = parts.map((t, i) => (i < 3 ? get(t) : null));
       // one piece of audio, to its end (or to a stop)
       async function piece(ab) {
@@ -139,7 +141,7 @@
           endPiece = end;
           try {
             if (S.actx) {
-              try { await S.actx.resume(); const buf = await S.actx.decodeAudioData(ab.slice(0)); if (done) return end(); node = S.actx.createBufferSource(); node.buffer = buf; route(node, buf); node.onended = end; node.start(); return; }
+              try { await S.actx.resume(); const buf = await S.actx.decodeAudioData(ab.slice(0)); if (done) return end(); node = S.actx.createBufferSource(); node.buffer = buf; route(node, buf, o); node.onended = end; node.start(); return; }
               catch (e0) { node = null; }                                             // AudioContext refused or could not decode: use the <audio> element
             }
             const a = S.audio || (S.audio = new Audio()), url = URL.createObjectURL(new Blob([ab], { type: 'audio/mpeg' }));
@@ -147,7 +149,7 @@
             audioUrl = url; a.onended = end; a.onerror = end; a.src = url; await a.play();
           } catch (e1) {
             if (!S.actx) return end();
-            try { await S.actx.resume(); const buf = await S.actx.decodeAudioData(ab.slice(0)); if (done) return end(); node = S.actx.createBufferSource(); node.buffer = buf; route(node, buf); node.onended = end; node.start(); } catch (e2) { end(); }
+            try { await S.actx.resume(); const buf = await S.actx.decodeAudioData(ab.slice(0)); if (done) return end(); node = S.actx.createBufferSource(); node.buffer = buf; route(node, buf, o); node.onended = end; node.start(); } catch (e2) { end(); }
           }
         });
         endPiece = null;
@@ -162,7 +164,7 @@
           await piece(ab);
         }
         fin();
-      } catch (e) { if (!done) { hint('Smith\'s voice (edge-tts) did not answer' + (e && e.message ? ': ' + String(e.message).slice(0, 90) : '') + '. This is the browser voice for now.'); await speakBrowser(parts.slice(at).join(' ')); fin(); } }
+      } catch (e) { if (!done) { if (o && o.fail) { o.fail(e); fin(); return; } hint('Smith\'s voice (edge-tts) did not answer' + (e && e.message ? ': ' + String(e.message).slice(0, 90) : '') + '. This is the browser voice for now.'); await speakBrowser(parts.slice(at).join(' ')); fin(); } }
     });
   }
 
@@ -439,31 +441,57 @@
   function close() { if (S.busy || S.acting || S.speaking || S.pending) stopNow(); S.on = false; S.listen++; releaseStream(); fresh(); paintOn(); $('voice').hidden = true; if (RECPOLL) { clearInterval(RECPOLL); RECPOLL = null; } }
   function toggle() { unlockAudio(); if (S.on) { S.on = false; S.listen++; cancelTurn(); S.pending = null; showBtns(false); saveSession(); paintOn(); ready(); } else { S.on = true; paintOn(); startLoop(); } }
 
-  function applyAgentVoice(w) {
-    const sel = $('v-voice'); if (!sel || !S.voices) return;
+  function applyAgentVoice(w) {                                                          // the speaker you are talking to: its saved voice and robotic layer become what replies use
+    if (!S.voices) return;
     const r = (S.av && S.av[w]) || {}; let v = r.voice;
     if (w === 'smith' && !v) { try { v = localStorage.getItem('hubVoiceName'); } catch (e) {} }
     if (!v || !S.voices.some((x) => x.id === v)) v = S.defVoice;
-    S.voice = v; sel.value = v; S.fxNow = r.fx || undefined; S.fxsNow = r.fxs || undefined;
-    const fx = $('v-fx'), fxs = $('v-fxs');
-    if (window.HubVoiceFx) { if (fx) fx.value = S.fxNow || HubVoiceFx.mode(); if (fxs) fxs.value = S.fxsNow || HubVoiceFx.style(); }
+    S.voice = v; S.fxNow = r.fx || undefined; S.fxsNow = r.fxs || undefined;
   }
+  // VOICE TEST panel: pick an agent, a voice and a robotic layer, type any text, SPEAK it; only SET AS DEFAULT saves it (for that agent alone).
+  const L = { who: 'smith', voice: null, fx: 'off', fxs: 'blend', rec: {} };
+  const labSt = (t, bad) => { const e = $('v-lab-st'); if (e) { e.textContent = t || ''; e.classList.toggle('bad', !!bad); } };
+  function labLoad(w) {                                                                  // show this agent's saved voice in the three boxes
+    L.who = w; const r = (S.av && S.av[w]) || {};
+    L.voice = r.voice && S.voices.some((x) => x.id === r.voice) ? r.voice : S.defVoice;
+    L.fx = r.fx || (window.HubVoiceFx ? HubVoiceFx.mode() : 'off'); L.fxs = r.fxs || (window.HubVoiceFx ? HubVoiceFx.style() : 'blend');
+    $('v-voice').value = L.voice; $('v-fx').value = L.fx; $('v-fxs').value = L.fxs;
+    document.querySelectorAll('#v-lab-who [data-lab]').forEach((b) => { b.classList.toggle('on', b.dataset.lab === w); b.setAttribute('aria-pressed', String(b.dataset.lab === w)); });
+    const rec = L.rec[w]; $('v-lab-note').textContent = rec ? rec.note : '';
+    const t = $('v-lab-text'); if (t && !t.dataset.own) t.value = (WHO[w] || 'Smith') + '. I have the results you asked for. Shall I go on?';
+    $('v-lab-save').textContent = 'SET AS ' + (WHO[w] || 'SMITH').toUpperCase() + "'S VOICE"; labSt('');
+  }
+  async function labSpeak() {
+    unlockAudio(); const text = ($('v-lab-text').value || '').trim(); if (!text) { labSt('Type something to hear.', true); return; }
+    if (S.stop) S.stop(); const t0 = performance.now(); let info = null, failed = null;
+    const btn = $('v-test'); btn.disabled = true; btn.textContent = 'MAKING…';
+    const tick = setInterval(() => { if (!info) labSt('Making the audio… ' + ((performance.now() - t0) / 1000).toFixed(0) + ' s'); }, 500); labSt('Making the audio…');
+    await play(text, { voice: $('v-voice').value, agent: L.who, fx: $('v-fx').value, fxs: $('v-fxs').value, fail: (e) => { failed = e; }, info: (i) => { if (info) return; info = i;
+      const nm = ((S.voices.find((x) => x.id === $('v-voice').value) || {}).name || '').split(' · ')[0];
+      labSt(i.h.fb ? 'That voice did not answer, so ' + i.h.used + ' spoke instead.' : (i.h.cached ? 'Played from memory. ' : 'Made in ' + (i.ms / 1000).toFixed(1) + ' s. ') + nm + (i.h.used ? ' (' + i.h.used + ')' : ''), !!i.h.fb); } });
+    clearInterval(tick); btn.disabled = false; btn.textContent = 'SPEAK';
+    if (failed) labSt('No audio: ' + String((failed && failed.message) || failed).slice(0, 120), true);
+  }
+  async function labSave(reset) {
+    try {
+      const body = reset ? { agent: L.who, reset: true } : { agent: L.who, voice: $('v-voice').value, fx: $('v-fx').value, fxs: $('v-fxs').value };
+      const r = await fetch('/api/voice/agent-voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!r.ok) { labSt('Not saved: ' + (await r.text()).slice(0, 100), true); return; }
+      S.av = (await r.json()).agents || S.av;
+      if (L.who === 'smith' && window.HubVoiceFx) { const a = S.av.smith || {}; if (a.fx) HubVoiceFx.set(a.fx); if (a.fxs) HubVoiceFx.setStyle(a.fxs); try { localStorage.setItem('hubVoiceName', a.voice); } catch (e) {} }
+      applyAgentVoice(S.who || 'smith'); const w = L.who; labLoad(w); labSt(reset ? (WHO[w] + ' is back to the built-in voice.') : (WHO[w] + ' will speak with this voice from now on.'));
+    } catch (e) { labSt('Not saved: ' + String(e.message || e), true); }
+  }
+  function labRecommended() { const r = L.rec[L.who]; if (!r) return; $('v-voice').value = r.voice; $('v-fx').value = r.fx; $('v-fxs').value = r.fxs; labSt('Recommended filled in. SPEAK to hear it, SET AS DEFAULT to keep it.'); }
   async function fillVoices() {
     try {
       const j = await (await fetch('/api/voice/voices')).json(), sel = $('v-voice');
       sel.innerHTML = j.voices.map((v) => `<option value="${v.id}">${v.name}</option>`).join('');
-      S.voices = j.voices; S.av = j.agents || {}; S.defVoice = j.default;
+      S.voices = j.voices; S.av = j.agents || {}; S.defVoice = j.default; L.rec = j.recommended || {};
       const fx = $('v-fx'), fxs = $('v-fxs');
-      // every core agent keeps its own voice and robotic layer: the three boxes show the one you are talking to, and a change is saved for that agent alone
-      const save = () => { const a = S.who || 'smith'; S.av[a] = Object.assign(S.av[a] || {}, { voice: S.voice, fx: S.fxNow, fxs: S.fxsNow }); if (a === 'smith') { try { localStorage.setItem('hubVoiceName', S.voice); } catch (e) {} }
-        fetch('/api/voice/agent-voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent: a, voice: S.voice, fx: S.fxNow || undefined, fxs: S.fxsNow || undefined }) }).catch(() => {}); };
-      sel.onchange = () => { S.voice = sel.value; save(); };
-      if (fx && window.HubVoiceFx) {
-        fx.onchange = () => { S.fxNow = fx.value; if ((S.who || 'smith') === 'smith') HubVoiceFx.set(fx.value); save(); unlockAudio(); play((WHO[S.who] || 'Smith') + ' online.'); };
-        if (fxs) fxs.onchange = () => { S.fxsNow = fxs.value; if ((S.who || 'smith') === 'smith') HubVoiceFx.setStyle(fxs.value); save(); unlockAudio(); play((WHO[S.who] || 'Smith') + ' online.'); };
-      } else { if (fx) fx.hidden = true; if (fxs) fxs.hidden = true; }
-      applyAgentVoice(S.who || 'smith');
-    } catch (e) { $('v-voice').hidden = true; }
+      if (!(fx && window.HubVoiceFx)) { if (fx) fx.hidden = true; if (fxs) fxs.hidden = true; }
+      applyAgentVoice(S.who || 'smith'); labLoad(L.who);
+    } catch (e) { const b = $('v-labbtn'); if (b) b.hidden = true; }
   }
   const paintToggles = () => { $('v-mute').textContent = S.mute ? 'SOUND OFF' : 'SOUND ON'; };
 
@@ -545,7 +573,11 @@
     $('v-no').onclick = () => { if (S.pending) handle('No'); };
     const send = () => { unlockAudio(); const v = $('v-in').value.trim(); if (v) { $('v-in').value = ''; if (S.stop) S.stop(); handle(v); } };
     // TEST VOICE: say what is typed in the box (or a sample line) with the voice and robotic layer chosen above for the agent you are talking to; nothing is sent to anyone
-    $('v-test').onclick = () => { unlockAudio(); const t = $('v-in').value.trim() || ((WHO[S.who] || 'Smith') + '. This is how I sound. The quick brown fox jumps over the lazy dog.'); if (S.stop) S.stop(); play(t); };
+    $('v-test').onclick = labSpeak; $('v-lab-save').onclick = () => labSave(false); $('v-lab-reset').onclick = () => labSave(true); $('v-lab-rec').onclick = labRecommended;
+    $('v-lab-text').oninput = () => { $('v-lab-text').dataset.own = '1'; };
+    $('v-lab-text').onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); labSpeak(); } };
+    document.querySelectorAll('#v-lab-who [data-lab]').forEach((b) => { b.onclick = () => { if (S.voices) labLoad(b.dataset.lab); }; });
+    $('v-labbtn').onclick = () => { const l = $('v-lab'); l.hidden = !l.hidden; $('v-labbtn').setAttribute('aria-expanded', String(!l.hidden)); $('v-labbtn').classList.toggle('on', !l.hidden); if (!l.hidden && S.voices) labLoad(L.who); };
     $('v-go').onclick = send; $('v-in').onkeydown = (e) => { if (e.key === 'Enter') send(); };
     fillVoices();
     try {
