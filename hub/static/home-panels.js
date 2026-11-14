@@ -101,7 +101,13 @@
   var RENDER = {
     attention: function (s) {
       var rows = s.attention.map(function (a) {
-        var r = row(a.level, a.title, a.options ? '' : a.detail, '', a.options ? null : a.go);
+        var r = row(a.level, a.title, a.options ? '' : a.detail, a.age_s ? ago(a.age_s) + (a.old ? ' · OLD' : '') : '', a.options ? null : a.go);
+        if (a.old) r.style.opacity = '.6';
+        if (a.old && a.dismiss) {           // waited more than two days: clear it from here
+          r.style.flexWrap = 'wrap'; var x = el('button', 'hp-btn', a.dismiss.label); x.type = 'button';
+          x.onclick = function (e) { e.preventDefault(); e.stopPropagation(); x.disabled = true; fetch(a.dismiss.url, { method: a.dismiss.method, headers: { 'Content-Type': 'application/json' }, body: a.dismiss.method === 'POST' ? '{}' : undefined }).then(function () { if (window.__hubHomePanels) window.__hubHomePanels.refresh(); }); };
+          r.appendChild(x);
+        }
         if (a.options) { r.style.flexWrap = 'wrap'; a.options.forEach(function (o) { var b = el('button', 'hp-btn', String(o.name || o.id).toUpperCase()); b.type = 'button'; b.onclick = function () { fetch('/api/acp/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: a.id, option: o.id }) }).then(poll); }; r.appendChild(b); }); }
         if (a.doctor) {            // a failed mission, an app that did not start, errors in the log: the same button as on the board
           r.style.flexWrap = 'wrap'; var d = el('button', 'hp-btn', a.asked ? 'THE DOCTOR WAS ASKED' : 'ASK THE DOCTOR'); d.type = 'button'; d.disabled = !!a.asked;
@@ -110,7 +116,8 @@
         }
         return r;
       });
-      return { node: list(rows, 'Nothing needs you right now.'), n: rows.length, level: s.attention.some(function (a) { return a.level === 'red'; }) ? 'red' : rows.length ? 'amber' : '' };
+      var fresh = s.attention.filter(function (a) { return !a.old; });
+      return { node: list(rows, 'Nothing needs you right now.'), n: fresh.length, level: fresh.some(function (a) { return a.level === 'red'; }) ? 'red' : fresh.length ? 'amber' : '' };
     },
     runs: function (s) {
       var rows = s.runs.map(function (m) { return row('', m.brief, m.project + ' · ' + m.status + (m.model ? ' · ' + m.model : ''), ago(m.age_s), '/missions'); });

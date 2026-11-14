@@ -708,11 +708,12 @@
     function paint() {
       if(heldPointers.size){paintPending=true;return;}
       if (!data) { ['att', 'runs', 'ses', 'hlt', 'use'].forEach(function (id) { if (!blocks[id]._in.firstChild) { blocks[id].dataset.loading = '1'; blocks[id]._in.appendChild(motion.skeleton('Loading ' + blocks[id]._name)); } }); return; }
-      var a = blocks.att, nA = data.attention.filter(function (x) { return x.kind !== 'session'; }).length; a._in.replaceChildren(); a._n.textContent = nA ? String(nA) : '';
+      var a = blocks.att, nA = data.attention.filter(function (x) { return x.kind !== 'session' && !x.old; }).length; a._in.replaceChildren(); a._n.textContent = nA ? String(nA) : '';
       if (!nA) a._in.appendChild(el('div', 'hb-note', 'Nothing needs you right now.')); data.attention.forEach(function (x) {
-        var chat = x.kind === 'session', r = li(chat ? 'o' : (x.level === 'red' ? 'r' : 'a'), x.title, x.options ? '' : x.detail); if (chat) { r.classList.add('hb-chat'); r.insertBefore(el('em', 'hb-tag', 'CHAT · REPLY IN ITS OWN APP'), r.children[1]); }
+        var chat = x.kind === 'session', ageT = x.age_s ? (x.age_s < 5400 ? Math.round(x.age_s / 60) + 'm' : x.age_s < 172800 ? Math.round(x.age_s / 3600) + 'h' : Math.round(x.age_s / 86400) + 'd') + (x.old ? ' old' : '') + ' · ' : '', r = li(chat || x.old ? 'o' : (x.level === 'red' ? 'r' : 'a'), x.title, x.options ? '' : ageT + (x.detail || '')); if (chat) { r.classList.add('hb-chat'); r.insertBefore(el('em', 'hb-tag', 'CHAT · REPLY IN ITS OWN APP'), r.children[1]); }
         if (x.options) { var bar = el('div'); bar.style.cssText = 'display:flex;gap:6px;padding:2px 10px 8px'; x.options.forEach(function (o) { var b = el('button', 'hb-btn', String(o.name || o.id).toUpperCase()); b.type = 'button'; b.onclick = function () { fetch('/api/acp/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: x.id, option: o.id }) }).then(function () { if (window.__hubHomePanels) window.__hubHomePanels.refresh(); }); }; bar.appendChild(b); }); a._in.appendChild(r); a._in.appendChild(bar); }
         else a._in.appendChild(r);
+        if (x.old && x.dismiss) { var xb = el('div'); xb.style.cssText = 'display:flex;gap:6px;padding:2px 10px 8px'; var xd = el('button', 'hb-btn', x.dismiss.label); xd.type = 'button'; xd.onclick = function () { xd.disabled = true; fetch(x.dismiss.url, { method: x.dismiss.method, headers: { 'Content-Type': 'application/json' }, body: x.dismiss.method === 'POST' ? '{}' : undefined }).then(function () { if (window.__hubHomePanels) window.__hubHomePanels.refresh(); }); }; xb.appendChild(xd); a._in.appendChild(xb); }
         if (x.doctor) {
           var db = el('div'); db.style.cssText = 'display:flex;gap:6px;padding:2px 10px 8px';
           var ask = el('button', 'hb-btn', x.asked ? 'THE DOCTOR WAS ASKED' : 'ASK THE DOCTOR'); ask.type = 'button'; ask.disabled = !!x.asked;

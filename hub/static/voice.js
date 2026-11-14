@@ -119,7 +119,7 @@
     });
   }
   // Smith's voice goes through the layered robotic effect (voice-fx.js) on its way to the speakers; 'clean' skips it.
-  const route = (node, buf) => { if (window.HubVoiceFx) HubVoiceFx.connect(S.actx, node, S.actx.destination, buf.duration); else node.connect(S.actx.destination); };
+  const route = (node, buf) => { if (window.HubVoiceFx) HubVoiceFx.connect(S.actx, node, S.actx.destination, buf.duration, S.fxNow, S.fxsNow); else node.connect(S.actx.destination); };       // S.fxNow / S.fxsNow: this speaker's own robotic layer (unset for Smith: the one he already uses)
   // Plays the reply a sentence at a time: the first sentence is made alone and starts playing while the next ones (up to three in flight) are being made,
   // so an answer starts after about the time of its first sentence, not of the whole answer. Resolves when it ends or when S.stop() is called
   // (talk-over, typing, STOP, or an answer arriving while a "working on it" line is still being said).
@@ -131,7 +131,7 @@
       deadline = setTimeout(() => { if (!done && S.stop) S.stop(); }, 60000);
       const parts = (window.HubVoiceGate && HubVoiceGate.sentences(text)) || [String(text)];
       if (!parts.length) { fin(); return; }
-      const get = (t) => { const r = request('/api/voice/speak', { text: t, voice: S.voice || undefined }, 'speech', 30000); r.catch(() => {}); return r; };
+      const get = (t) => { const r = request('/api/voice/speak', { text: t, voice: S.voice || undefined, agent: S.who || undefined }, 'speech', 30000); r.catch(() => {}); return r; };
       const got = parts.map((t, i) => (i < 3 ? get(t) : null));
       // one piece of audio, to its end (or to a stop)
       async function piece(ab) {
@@ -439,18 +439,30 @@
   function close() { if (S.busy || S.acting || S.speaking || S.pending) stopNow(); S.on = false; S.listen++; releaseStream(); fresh(); paintOn(); $('voice').hidden = true; if (RECPOLL) { clearInterval(RECPOLL); RECPOLL = null; } }
   function toggle() { unlockAudio(); if (S.on) { S.on = false; S.listen++; cancelTurn(); S.pending = null; showBtns(false); saveSession(); paintOn(); ready(); } else { S.on = true; paintOn(); startLoop(); } }
 
+  function applyAgentVoice(w) {
+    const sel = $('v-voice'); if (!sel || !S.voices) return;
+    const r = (S.av && S.av[w]) || {}; let v = r.voice;
+    if (w === 'smith' && !v) { try { v = localStorage.getItem('hubVoiceName'); } catch (e) {} }
+    if (!v || !S.voices.some((x) => x.id === v)) v = S.defVoice;
+    S.voice = v; sel.value = v; S.fxNow = r.fx || undefined; S.fxsNow = r.fxs || undefined;
+    const fx = $('v-fx'), fxs = $('v-fxs');
+    if (window.HubVoiceFx) { if (fx) fx.value = S.fxNow || HubVoiceFx.mode(); if (fxs) fxs.value = S.fxsNow || HubVoiceFx.style(); }
+  }
   async function fillVoices() {
     try {
       const j = await (await fetch('/api/voice/voices')).json(), sel = $('v-voice');
       sel.innerHTML = j.voices.map((v) => `<option value="${v.id}">${v.name}</option>`).join('');
-      sel.value = S.voice && j.voices.some((v) => v.id === S.voice) ? S.voice : j.default; S.voice = sel.value;
-      sel.onchange = () => { S.voice = sel.value; try { localStorage.setItem('hubVoiceName', S.voice); } catch (e) {} };
-      const fx = $('v-fx');
-      const fxs = $('v-fxs');
+      S.voices = j.voices; S.av = j.agents || {}; S.defVoice = j.default;
+      const fx = $('v-fx'), fxs = $('v-fxs');
+      // every core agent keeps its own voice and robotic layer: the three boxes show the one you are talking to, and a change is saved for that agent alone
+      const save = () => { const a = S.who || 'smith'; S.av[a] = Object.assign(S.av[a] || {}, { voice: S.voice, fx: S.fxNow, fxs: S.fxsNow }); if (a === 'smith') { try { localStorage.setItem('hubVoiceName', S.voice); } catch (e) {} }
+        fetch('/api/voice/agent-voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent: a, voice: S.voice, fx: S.fxNow || undefined, fxs: S.fxsNow || undefined }) }).catch(() => {}); };
+      sel.onchange = () => { S.voice = sel.value; save(); };
       if (fx && window.HubVoiceFx) {
-        fx.value = HubVoiceFx.mode(); fx.onchange = () => { HubVoiceFx.set(fx.value); unlockAudio(); play('Smith online.'); };
-        if (fxs) { fxs.value = HubVoiceFx.style(); fxs.onchange = () => { HubVoiceFx.setStyle(fxs.value); unlockAudio(); play('Smith online.'); }; }
+        fx.onchange = () => { S.fxNow = fx.value; if ((S.who || 'smith') === 'smith') HubVoiceFx.set(fx.value); save(); unlockAudio(); play((WHO[S.who] || 'Smith') + ' online.'); };
+        if (fxs) fxs.onchange = () => { S.fxsNow = fxs.value; if ((S.who || 'smith') === 'smith') HubVoiceFx.setStyle(fxs.value); save(); unlockAudio(); play((WHO[S.who] || 'Smith') + ' online.'); };
       } else { if (fx) fx.hidden = true; if (fxs) fxs.hidden = true; }
+      applyAgentVoice(S.who || 'smith');
     } catch (e) { $('v-voice').hidden = true; }
   }
   const paintToggles = () => { $('v-mute').textContent = S.mute ? 'SOUND OFF' : 'SOUND ON'; };
@@ -488,6 +500,7 @@
         if (!i.dataset.own) i.dataset.own = i.getAttribute('src') || '';
         i.src = w === 'smith' ? i.dataset.own : '/static/agent-icons/' + w + '.png';
       });
+      applyAgentVoice(w);
       if (!quiet) { try { $('v-in').focus(); } catch (e) {} }
     }
     // PRESET of the speaker: chosen here or on the Agency page, saved at once.
@@ -531,6 +544,8 @@
     $('v-yes').onclick = () => { unlockAudio(); if (S.pending) handle('Yes'); };
     $('v-no').onclick = () => { if (S.pending) handle('No'); };
     const send = () => { unlockAudio(); const v = $('v-in').value.trim(); if (v) { $('v-in').value = ''; if (S.stop) S.stop(); handle(v); } };
+    // TEST VOICE: say what is typed in the box (or a sample line) with the voice and robotic layer chosen above for the agent you are talking to; nothing is sent to anyone
+    $('v-test').onclick = () => { unlockAudio(); const t = $('v-in').value.trim() || ((WHO[S.who] || 'Smith') + '. This is how I sound. The quick brown fox jumps over the lazy dog.'); if (S.stop) S.stop(); play(t); };
     $('v-go').onclick = send; $('v-in').onkeydown = (e) => { if (e.key === 'Enter') send(); };
     fillVoices();
     try {

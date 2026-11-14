@@ -38,7 +38,7 @@ button:disabled{opacity:.5;cursor:default}button.on{background:var(--accent);col
 .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin:6px 0}
 .wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:11.5px}
 th{font:700 9.5px Orbitron,system-ui,sans-serif;letter-spacing:.06em;color:var(--accent);text-align:left;padding:4px 8px;border-bottom:1px solid var(--border)}td{padding:3px 8px;border-bottom:1px solid rgba(0,230,118,.08);vertical-align:top}
-section{animation:fadein .26s ease}@keyframes fadein{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}.ovcard,.sc,#rlist .rc{animation:rise .34s ease both}.ovcard:nth-child(2),.sc:nth-child(2){animation-delay:.04s}.ovcard:nth-child(3),.sc:nth-child(3){animation-delay:.08s}.ovcard:nth-child(4),.sc:nth-child(4){animation-delay:.12s}.ovcard:nth-child(5),.sc:nth-child(5){animation-delay:.16s}.ovcard:nth-child(6),.sc:nth-child(6){animation-delay:.2s}@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}@media (prefers-reduced-motion:reduce){section,.ovcard,.sc,#rlist .rc{animation:none}}
+section{animation:fadein .26s ease}@keyframes fadein{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}#rlist .rc{animation:rise .34s ease both}@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}@media (prefers-reduced-motion:reduce){section,#rlist .rc{animation:none}}
 iframe.teach{width:100%;height:80vh;min-height:460px;border:1px solid var(--border);border-radius:10px;background:#080c28}
 #top-shadow.on{background:var(--accent);color:#04120a}
 .flowwrap{overflow-x:auto;border:1px solid var(--border);border-radius:10px;background:rgba(8,12,40,.6);margin:6px 0}#flowsvg{width:100%;min-width:720px;height:auto;display:block}
@@ -75,21 +75,21 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
 /* ---- one screen, no page scroll: the panel is big and read at a glance, so every tab fills it and only a list inside a tab may scroll */
 .hdr{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.hdr .band{flex:1 1 360px;margin:0;min-width:0}.hdr .tabs{margin:0}
 #ovlist{display:flex;flex-direction:column;flex:1;min-height:0}
-.ovgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(0,1fr);gap:10px;flex:1;min-height:0;margin-top:8px}
-.ovcard{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:7px;min-height:0;overflow:auto}
-.ovtop{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.ovname{font:700 clamp(13px,1.5vh,16px) Orbitron,system-ui,sans-serif;letter-spacing:.04em;color:var(--accent)}
-.ovsum{display:flex;flex-direction:column;gap:clamp(7px,1.3vh,14px)}.ovk{font:700 9px Orbitron,system-ui,sans-serif;letter-spacing:.12em;color:var(--mute)}.ovv{font-size:clamp(13.5px,1.55vh,17px);line-height:1.4}.ovmore{margin-top:auto;align-self:flex-start}
-#ovnext{margin:8px 2px 0;font-size:13.5px}
+
+
+
+
+
 .yrow{display:flex;gap:10px;flex:1;min-height:0}.yrow .sess{flex:1;min-width:0;display:flex;flex-direction:column;margin:6px 0 0}.yrow .flowwrap{flex:1;min-height:0;overflow:hidden;display:flex}.yrow #flowsvg{width:100%;height:100%;min-width:0}
 .yrow #nodebox{width:400px;flex:none;overflow:auto;margin:6px 0 0}.yrow #legend{font-size:11px;line-height:1.4;padding:2px 12px 8px}
 .rtop{margin:8px 0 6px}.rtop #rdata{display:contents}.rtop #rdata>.card{flex:1 1 100%}
 .rgrid{display:grid;grid-template-columns:minmax(340px,.8fr) minmax(0,1.6fr);gap:10px;flex:1;min-height:0}.rcol{min-height:0;overflow:auto;padding-right:4px}
 #rdetail{border:1px solid var(--border);border-radius:12px;background:rgba(8,12,40,.45);padding:12px 14px}#rdetail>.said{font-size:15px;margin-bottom:8px}.pad{padding:10px}
 .rc.open{border-color:var(--accent);box-shadow:0 0 10px rgba(0,230,118,.18)}
-.sc{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;min-height:0}.scq{font-size:clamp(13.5px,1.55vh,16px);line-height:1.3;flex:1;min-width:160px}.scn{font:700 clamp(15px,2vh,20px) Orbitron,system-ui,sans-serif;color:var(--accent)}.scn.none{color:var(--mute);font-size:13px;font-weight:600}
-#fitgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-content:start;min-height:0;overflow:auto;padding-right:2px}
-.scgrid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:10px;flex:1;min-height:0;margin-top:6px;align-items:start;align-content:start}.scgrid>.card{min-height:0;max-height:100%;overflow:auto;margin:0;padding:10px 12px}.scgrid table{font-size:clamp(13px,1.5vh,16px)}.scgrid td{padding:clamp(6px,1vh,11px) 8px}.scgrid th{font-size:10px}
-.scgrid .mute{font-size:12.5px;margin-top:8px}.sc-note{margin:8px 2px 0;font-size:13px}
+
+
+
+
 @media (min-width:900px){
  html,body{height:100%}
  body{display:flex;flex-direction:column;overflow:hidden;padding:8px 12px 10px}
@@ -98,13 +98,28 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
  iframe.teach{flex:1;height:auto;min-height:0;margin-top:6px}
 }
 @media (min-width:1200px){body{font-size:13.5px}}
-@media (max-width:1250px){.ovgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:899px){.ovgrid{grid-template-columns:1fr;grid-auto-rows:auto}.rgrid,.scgrid{grid-template-columns:1fr}.yrow{flex-direction:column}.yrow #nodebox{width:auto}}
+@media (max-width:899px){.rgrid{grid-template-columns:1fr}.term .tr,.term .mr{grid-template-columns:1fr}.term .th{display:none}.yrow{flex-direction:column}.yrow #nodebox{width:auto}}
+
+/* ---- terminal panels (OVERVIEW, SCORES): monospace, one screen, the font size is picked so the whole table fits */
+.term{--tf:13px;font:var(--tf)/1.36 "Cascadia Mono","Cascadia Code",Consolas,"Courier New",monospace;color:#c6f1da;background:rgba(2,6,20,.6);border:1px solid var(--border);border-radius:8px;padding:10px 14px;flex:1;min-height:0;overflow:hidden;margin-top:8px}
+.term .tnext{color:var(--amber);margin-bottom:6px}.term .tnext::before{content:"> "}
+.term .th,.term .tr,.term .mr,.term .sr{display:grid;gap:0 18px;padding:4px 0;border-top:1px solid rgba(0,230,118,.12)}
+.term .th{border:0;color:var(--mute);letter-spacing:.06em;text-transform:uppercase;padding-bottom:2px}
+.term .tr{grid-template-columns:minmax(15ch,1.05fr) minmax(12ch,.7fr) minmax(0,1.35fr) minmax(0,1.05fr) minmax(0,1.9fr) minmax(0,1.5fr)}
+.term .tr.th{grid-template-columns:minmax(15ch,1.05fr) minmax(12ch,.7fr) minmax(0,1.35fr) minmax(0,1.05fr) minmax(0,1.9fr) minmax(0,1.5fr)}
+.term .tn{color:var(--accent);font-weight:700}.term .ts{font-weight:700}.term .ts.off{color:var(--red)}.term .ts.part{color:var(--amber)}.term .ts.ok{color:var(--accent)}
+.term .td{grid-column:1/-1;color:var(--mute);padding-left:2ch}.term .td::before{content:"- "}.term .td b{color:#9fe7c0;font-weight:400}
+.term .sr,.term .sh{grid-template-columns:minmax(20ch,1.5fr) minmax(16ch,1.4fr) minmax(0,1.5fr) minmax(0,1.5fr) minmax(0,1.6fr)}
+.term .mr,.term .mh{grid-template-columns:7ch 11ch 18ch 8ch 9ch 8ch 11ch;align-items:center}.term .sec{margin:12px 0 2px;color:var(--accent);letter-spacing:.1em}
+.term .sh,.term .mh{display:grid;gap:0 18px;color:var(--mute);letter-spacing:.06em;text-transform:uppercase;padding-bottom:2px}
+.term .none{color:var(--mute)}.term .num{color:var(--accent);font-weight:700}.term .dim{color:var(--mute)}
+.term button.mini{justify-self:start;font:inherit;font-size:.8em;padding:1px 8px;border-radius:4px;letter-spacing:.06em;line-height:1.3}
+.term .tl{color:var(--mute);margin-top:3px}.term .tl::before{content:"> ";color:var(--amber)}
 </style><link rel="stylesheet" href="/theme.css"></head><body><main>
 <div class="hdr"><div class="band"><div class="row" id="topbar" style="margin:0"><span class="chip part">EXPERIMENTAL</span><button id="top-shadow" type="button" aria-pressed="false"></button><span class="mute" id="top-note"></span></div></div>
 <div class="tabs" role="tablist"><button type="button" data-tab="overview" class="on">OVERVIEW</button><button type="button" data-tab="yard">YARD</button><button type="button" data-tab="teach">TEACH</button><button type="button" data-tab="routines">ROUTINES</button><button type="button" data-tab="scores">SCORES</button></div></div>
 
-<section id="tab-overview"><div class="mute" id="ovnext"></div><div id="ovlist"></div></section>
+<section id="tab-overview"><div id="ovlist" class="term"></div></section>
 
 <section id="tab-yard" hidden>
 <div class="yrow"><div class="sess">
@@ -124,11 +139,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
 <div class="rgrid"><div class="rcol" id="rleft"><div id="rlist"></div><h2>RECENT LIVE TASKS</h2><div class="mute" id="livenote"></div><div id="livelist"></div></div><div class="rcol" id="rdetail"><div class="mute pad">Pick a routine on the left.</div></div></div>
 </section>
 
-<section id="tab-scores" hidden>
-<div class="mute sc-note"><b>This is the report card.</b> Each card asks one question about one learner from the OVERVIEW and shows how well it does on data it never trained on, what it has to beat to be trusted, and what data it still needs. Only the two Control cards come from the YARD; the others come from what you grade in TEACH and from the Hub's own logs. No score yet just means it has not seen enough.</div>
-<div class="scgrid"><div id="fitgrid"></div>
-<div class="card"><h2>RIVAL WAYS OF CHOOSING</h2><div class="mute" style="margin:0 0 6px">The same choice (which model, which way to do a PC task) made three ways: tally, thompson and linucb. WATCH makes one of them note what it would have picked beside each live choice. Nothing is switched on its own.</div><div class="wrap" id="chalbox"><table id="chal"></table></div><div class="mute" id="chalnone">Nothing to compare yet: a method needs results on this PC before it can be scored.</div><div class="mute" id="knn"></div><div class="mute" id="gateline"></div><div class="mute" id="tevline"></div></div></div>
-</section>
+<section id="tab-scores" hidden><div id="scterm" class="term"></div></section>
 </main>
 <script>
 (function(){
@@ -310,20 +321,17 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
     dd.append(el('div','mute','Your trust is the label. The confidence the model gave a step only lowers that step weight; it is never the answer. The router fine-tune needs 100 requests: this is how many of them come from routines. '+(j.note||'')));
   }
   // ---- OVERVIEW: one row per thing that learns, in the order data travels; the explanation of a row is behind its button
+  // the font size of a terminal panel is picked so that the whole table fits: largest first, down to 10 px
+  function fit(box){if(!box||box.offsetParent===null)return;let px=window.innerWidth<900?13:15;box.style.setProperty('--tf',px+'px');if(window.innerWidth<900)return;while(px>10&&box.scrollHeight>box.clientHeight+1){px-=.5;box.style.setProperty('--tf',px+'px');}}
+  addEventListener('resize',()=>{fit($('ovlist'));fit($('scterm'));});
   async function overview(){
-    let j;try{j=await J('/api/yard/overview');}catch(e){$('ovlist').textContent='Could not read the learning layer.';return;}
-    $('ovnext').textContent='What to do next: '+j.next;
-    const L=$('ovlist');L.replaceChildren();
-    const COL={off:'no',recording:'part',practice:'part','shadow-picks':'part',shadow:'part',live:'ok'},WORD={off:'OFF',recording:'COLLECTING','shadow-picks':'SHADOW (CHOOSES NOTHING)',practice:'PRACTISED ON PRETEND APPS',shadow:'SHADOW (CHOOSES NOTHING)',live:'LIVE'};
-    const grid=el('div','ovgrid'),blocks=(box,pairs)=>pairs.forEach(([k,v])=>{const q=el('div');q.append(el('div','ovk',k),el('div','ovv',v));box.append(q);});
-    j.rows.forEach(r=>{
-      const card=el('div','ovcard'),top=el('div','ovtop'),sum=el('div','ovsum'),det=el('div','ovsum ovdet'),more=el('button','skip ovmore','DETAILS');
-      top.append(el('b','ovname',r.name),el('span','chip '+(COL[r.state]||'part'),WORD[r.state]||r.state));
-      blocks(sum,[['LEARNS FROM',r.from],['HOW MUCH',r.amount],['CHANGES TODAY',r.changes],['STILL NEEDS',r.needs]]);
-      det.hidden=true;blocks(det,r.details||[]);more.hidden=!(r.details||[]).length;
-      more.onclick=()=>{det.hidden=!det.hidden;sum.hidden=!det.hidden;more.textContent=det.hidden?'DETAILS':'BACK';};
-      card.append(top,sum,det,more);grid.append(card);});
-    L.append(grid);
+    let j;const box=$('ovlist');try{j=await J('/api/yard/overview');}catch(e){box.textContent='overview unavailable: '+e.message;return;}
+    box.replaceChildren();box.append(el('div','tnext',j.next));
+    const COL={off:'off',recording:'part','shadow-picks':'part',practice:'part',shadow:'part',live:'ok'},WORD={off:'OFF',recording:'COLLECTING','shadow-picks':'SHADOW',practice:'PRACTISED',shadow:'SHADOW',live:'LIVE'};
+    const h=el('div','th tr');['learner','mode','input','data','acts on','gate'].forEach(x=>h.append(el('div',null,x)));box.append(h);
+    j.rows.forEach(r=>{const row=el('div','tr');row.append(el('div','tn',r.name),el('div','ts '+(COL[r.state]||'part'),WORD[r.state]||r.state),el('div',null,r.from),el('div',null,r.amount),el('div',null,r.changes),el('div',null,r.needs));
+      (r.details||[]).forEach(([k,v])=>{const d=el('div','td');d.append(el('b',null,k+': '),document.createTextNode(v));row.append(d);});box.append(row);});
+    fit(box);
   }
   async function routines(){
     routineData();
@@ -448,30 +456,28 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
 
   // ---- SCORES
   async function scores(){
-    const gr=$('fitgrid');gr.replaceChildren();let j;try{j=await J('/api/yard/fitness');}catch(e){gr.append(el('div','mute','Could not read the scores.'));return;}
-    const rate=r=>r&&r.n?pct(r.rate):'-',iv=r=>r&&r.n?'95 % sure it is between '+pct(r.lower95)+' and '+pct(r.upper95):'';
-    const WHAT={'Route':['Did the Hub understand what you meant?','from TEACH'],'Model':['Which AI model finishes missions best?','from missions'],'Rung':['Which way of doing a PC task works best?','from PC tasks'],'Task confidence':['When the Hub is sure a PC task worked, is it right?','from PC tasks you grade'],'Control (yard)':['Can the learner press the right control in pretend apps it has never seen?','from the YARD'],'Control (live shadow)':['Would the learner press what the live agent pressed on your real tasks?','from shadow mode']};
-    const blk=(k,v)=>{const q=el('div');q.append(el('div','ovk',k),el('div','ovv',v||'-'));return q;};
-    const card=(h,score,ev,range)=>{const w=WHAT[h.head]||[h.head,''],c=el('div','sc'),top=el('div','ovtop'),has=!!score&&score!=='-';
-      top.append(el('b','scq',w[0]),el('span','chip',h.head+(w[1]?' | '+w[1]:'')));c.append(top,el('div','scn'+(has?'':' none'),has?score:'No score yet'));
-      if(range)c.append(el('div','mute',range));c.append(blk('EVIDENCE',ev||'nothing yet'),blk('MUST BEAT',h.baseline),blk('STILL NEEDS',h.needs));gr.append(c);};
+    const box=$('scterm');box.replaceChildren();let j;try{j=await J('/api/yard/fitness');}catch(e){box.textContent='scores unavailable: '+e.message;return;}
+    const rate=r=>r&&r.n?pct(r.rate):'',iv=r=>r&&r.n?' ['+Math.round(r.lower95*100)+'-'+Math.round(r.upper95*100)+']':'';
+    const LAB={'Route':'route: request to bin','Model':'model per mission','Rung':'PC way: replay | agent','Task confidence':'PC-task confidence (Brier)','Control (yard)':'control pick, unseen layouts','Control (live shadow)':'control pick vs live agent'};
+    const H=(cls,cols)=>{const d=el('div',cls);cols.forEach(c=>d.append(el('div',null,c)));return d;};
+    box.append(H('sh sr',['measure','score','evidence','baseline','gate']));
+    const row=(h,score,ev)=>{const r=el('div','sr');r.append(el('div','tn',LAB[h.head]||h.head),el('div',score?'num':'none',score||'--'),el('div',null,ev||'none yet'),el('div','dim',h.baseline||''),el('div','dim',h.needs||''));box.append(r);};
     j.heads.forEach(h=>{
-      if(h.options){const ks=Object.keys(h.options);card(h,ks.length?ks.map(k=>k+' '+rate(h.options[k])).join(' | '):'',ks.length?ks.map(k=>k+': '+h.options[k].k+' of '+h.options[k].n+' right').join('; '):'nothing labelled yet');return;}
-      if(h.train){card(h,rate(h.train),h.train.n+' labelled, '+h.frozen.n+' held out',iv(h.train));return;}
-      if(h.in_good_tasks){card(h,rate(h.in_good_tasks),h.tasks+' tasks',iv(h.in_good_tasks));return;}
-      if(h.brier!==undefined){card(h,h.brier===null?'':'error '+h.brier+' (lower is better)',h.graded+' graded');return;}
-      const sf=h.safety?('forbidden pressed on '+h.safety.breaches+' of '+h.safety.screens+' screens'):'no saved learner yet';
-      card(h,h.means?Object.entries(h.means).map(([k,v])=>k+' '+pct(v.held)).join(' | '):'','unseen words; '+sf);});
-    const ct=$('chal');
-    const ch=j.challengers||{};head(ct,['Choice','Method','Choices scored','Agreed','Estimate','Weight','']);
-    if(!ch.error)['model','rung'].forEach(h=>(ch[h]||[]).forEach(l=>{const r=el('tr');r.append(el('td',null,h),el('td',null,l.learner),el('td','mute',l.available===false?('needs '+l.needs):(l.decided||0)+' choices'),el('td',null,l.available===false?'-':(l.agreed||0)),el('td',null,l.estimate==null?'-':pct(l.estimate)),el('td','mute',l.available===false?'-':(l.ess||0).toFixed(1)));
-        const w=el('td'),b=el('button',null,(ch.selected||{})[h]===l.learner?'WATCHED':'WATCH');b.disabled=l.available===false||(ch.selected||{})[h]===l.learner;
-        b.onclick=async()=>{await POST('/api/yard/learners',{head:h,learner:l.learner});scores();};w.append(b);r.append(w);ct.append(r);}));
-    $('chalnone').hidden=ct.rows.length>1;
-    const k=ch.router_knn||{},c2=ch.router_classifier||{};
-    $('knn').textContent=k.ready?('Router, graded requests left out one at a time: nearest neighbours right on '+pct(k.knn)+(c2.ready?', trained classifier on '+pct(c2.classifier):'')+', current rules and tev on '+pct(k.current)+' ('+k.n+' graded).'):('Router: needs '+(k.needs||5)+' graded requests, has '+(k.n||0)+'.');
-    const g=j.gate||{};$('gateline').textContent='Gate for a new version: '+g.min_frozen+' held-out rows · zero forbidden presses · '+g.shadow_n+' watched live choices at '+pct(g.shadow_agree||0)+' · your yes.';
-    try{const v=await J('/api/yard/tev');$('tevline').textContent='tev fine-tune: '+(v.enough?'enough graded requests ('+v.rows+'), ':'needs '+v.needed+' graded requests, has '+v.rows+' ('+v.held_out+' held out). ')+(v.hardware.cuda?'a CUDA device is available. ':v.hardware.note+'. ')+'Nothing runs until you say go.';}catch(e){}}
+      if(h.options){const ks=Object.keys(h.options);row(h,ks.map(k=>k+' '+rate(h.options[k])).join(' | '),ks.length?ks.map(k=>k+' '+h.options[k].k+'/'+h.options[k].n).join(' | '):'');return;}
+      if(h.train){row(h,rate(h.train)+iv(h.train),h.train.n+' labelled, '+h.frozen.n+' held out');return;}
+      if(h.in_good_tasks){row(h,rate(h.in_good_tasks)+iv(h.in_good_tasks),h.tasks+' tasks');return;}
+      if(h.brier!==undefined){row(h,h.brier===null?'':String(h.brier),h.graded+' graded');return;}
+      row(h,h.means?Object.entries(h.means).map(([k,v])=>k+' '+pct(v.held)).join(' | '):'',(h.safety?'forbidden '+h.safety.breaches+'/'+h.safety.screens+' screens':'no saved learner'));});
+    box.append(el('div','sec','METHODS'));
+    box.append(H('mh',['choice','method','scored','agreed','estimate','weight','']));
+    const ch=j.challengers||{};
+    if(!ch.error)['model','rung'].forEach(hd=>(ch[hd]||[]).forEach(l=>{const r=el('div','mr'),on=(ch.selected||{})[hd]===l.learner,b=el('button','mini',on?'WATCHED':'WATCH');
+      b.disabled=l.available===false||on;b.onclick=async()=>{await POST('/api/yard/learners',{head:hd,learner:l.learner});scores();};
+      r.append(el('div',null,hd),el('div',null,l.learner),el('div','dim',l.available===false?'needs '+l.needs:(l.decided||0)+' choices'),el('div',null,l.available===false?'-':String(l.agreed||0)),el('div',null,l.estimate==null?'-':pct(l.estimate)),el('div','dim',l.available===false?'-':(l.ess||0).toFixed(1)),b);box.append(r);}));
+    const k=ch.router_knn||{},c2=ch.router_classifier||{},g=j.gate||{};
+    box.append(el('div','tl','router: '+(k.ready?('kNN '+pct(k.knn)+(c2.ready?', classifier '+pct(c2.classifier):'')+', rules+tev '+pct(k.current)+' (leave-one-out, '+k.n+' graded)'):('needs '+(k.needs||5)+' graded requests, has '+(k.n||0)))));
+    box.append(el('div','tl','gate for a new version: '+g.min_frozen+' held-out rows, 0 forbidden presses, '+g.shadow_n+' watched live choices at '+pct(g.shadow_agree||0)+', your yes'));
+    fit(box);J('/api/yard/tev').then(v=>{box.append(el('div','tl','tev fine-tune: '+(v.enough?'enough graded requests ('+v.rows+'); ':'needs '+v.needed+' graded requests, has '+v.rows+' ('+v.held_out+' held out); ')+(v.hardware.cuda?'CUDA device available. ':v.hardware.note+'. ')+'nothing runs until you say go'));fit(box);}).catch(()=>{});}
 
   // ---- tabs
   const TABS=['overview','yard','teach','routines','scores'];

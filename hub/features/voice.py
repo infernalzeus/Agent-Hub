@@ -1592,8 +1592,40 @@ VOICES = [
     {"id": "aria", "name": "Aria · American, female", "voice": "en-US-AriaNeural", "rate": "+4%", "pitch": "+0Hz"},
     {"id": "guy", "name": "Guy · American, male", "voice": "en-US-GuyNeural", "rate": "+2%", "pitch": "+0Hz"},
     {"id": "natasha", "name": "Natasha · Australian, female", "voice": "en-AU-NatashaNeural", "rate": "+4%", "pitch": "+0Hz"},
+    {"id": "christopher", "name": "Christopher · American, male, steady", "voice": "en-US-ChristopherNeural", "rate": "+0%", "pitch": "-4Hz"},
+    {"id": "andrew", "name": "Andrew · American, male, warm", "voice": "en-US-AndrewNeural", "rate": "+0%", "pitch": "+0Hz"},
+    {"id": "brian", "name": "Brian · American, male, relaxed", "voice": "en-US-BrianNeural", "rate": "+0%", "pitch": "+0Hz"},
+    {"id": "jenny", "name": "Jenny · American, female", "voice": "en-US-JennyNeural", "rate": "+2%", "pitch": "+0Hz"},
+    {"id": "connor", "name": "Connor · Irish, male", "voice": "en-IE-ConnorNeural", "rate": "+0%", "pitch": "+0Hz"},
+    {"id": "emily", "name": "Emily · Irish, female", "voice": "en-IE-EmilyNeural", "rate": "+2%", "pitch": "+0Hz"},
+    {"id": "liam", "name": "Liam · Canadian, male", "voice": "en-CA-LiamNeural", "rate": "+0%", "pitch": "+0Hz"},
+    {"id": "prabhat", "name": "Prabhat · Indian, male", "voice": "en-IN-PrabhatNeural", "rate": "+0%", "pitch": "+0Hz"},
+    {"id": "luke", "name": "Luke · South African, male", "voice": "en-ZA-LukeNeural", "rate": "+0%", "pitch": "+0Hz"},
 ]
 _VOICE_BY_ID = {v["id"]: v for v in VOICES}
+# Each core agent has its own voice, picked in the Talk window and kept here. `fx` / `fxs` are the robotic layer (amount, style); absent for Smith means the one he already uses.
+AGENT_VOICE_DEFAULTS = {"smith": {"voice": "smith"}, "orchestrator": {"voice": "ryan", "fx": "off", "fxs": "radio"}, "neo": {"voice": "guy", "fx": "off", "fxs": "radio"}, "doctor": {"voice": "sonia", "fx": "off", "fxs": "radio"}}
+_FX_RE = re.compile(r"[a-z0-9]{1,8}")
+
+
+def _agent_voice_file() -> Path:
+    return RT.STATE / "agent_voices.json"
+
+
+def agent_voices() -> dict:
+    """Every core agent's voice setting: the saved one where it is still valid, else the default."""
+    try:
+        saved = json.loads(_agent_voice_file().read_text(encoding="utf-8"))
+        saved = saved if isinstance(saved, dict) else {}
+    except (OSError, ValueError):
+        saved = {}
+    out = {}
+    for a, d in AGENT_VOICE_DEFAULTS.items():
+        row = {**d, **{k: v for k, v in (saved.get(a) or {}).items() if k in ("voice", "fx", "fxs") and isinstance(v, str)}}
+        if row.get("voice") not in _VOICE_BY_ID:
+            row["voice"] = d["voice"]
+        out[a] = row
+    return out
 _TTS_CACHE: dict = {}
 _TTS_LOCK = None
 _VOICE_DOWN: dict = {}
@@ -1606,7 +1638,32 @@ async def api_voices(request: web.Request) -> web.Response:
         ok = True
     except Exception:
         ok = RT.PACKAGED and RT.python_for("speech").is_file()
-    return web.json_response({"voices": [{"id": v["id"], "name": v["name"]} for v in VOICES], "default": VOICES[0]["id"], "neural": ok})
+    return web.json_response({"voices": [{"id": v["id"], "name": v["name"]} for v in VOICES], "default": VOICES[0]["id"], "neural": ok, "agents": agent_voices()})
+
+
+@routes.post("/api/voice/agent-voice")
+async def api_agent_voice(request: web.Request) -> web.Response:
+    """{agent, voice, fx?, fxs?}: the voice (and robotic layer) one core agent speaks with from now on."""
+    b = await _body(request)
+    a = str(b.get("agent") or "")
+    if a not in AGENT_VOICE_DEFAULTS:
+        raise web.HTTPBadRequest(text="agent must be one of: " + ", ".join(AGENT_VOICE_DEFAULTS))
+    if str(b.get("voice") or "") not in _VOICE_BY_ID:
+        raise web.HTTPBadRequest(text="unknown voice")
+    row = {"voice": str(b["voice"])}
+    for k in ("fx", "fxs"):
+        if b.get(k) is not None:
+            if not _FX_RE.fullmatch(str(b[k])):
+                raise web.HTTPBadRequest(text=f"bad {k}")
+            row[k] = str(b[k])
+    try:
+        cur = json.loads(_agent_voice_file().read_text(encoding="utf-8"))
+        cur = cur if isinstance(cur, dict) else {}
+    except (OSError, ValueError):
+        cur = {}
+    cur[a] = {**(cur.get(a) or {}), **row}
+    RT.write_json(_agent_voice_file(), cur)
+    return web.json_response({"ok": True, "agents": agent_voices()})
 
 
 def _speakable(text: str) -> str:
@@ -1618,7 +1675,8 @@ def _speakable(text: str) -> str:
 async def api_speak(request: web.Request) -> web.Response:
     b = await _body(request)
     text = _speakable(str(b.get("text") or ""))
-    v = _VOICE_BY_ID.get(str(b.get("voice") or ""), VOICES[0])
+    vid = str(b.get("voice") or "") or (agent_voices().get(str(b.get("agent") or "")) or {}).get("voice", "")          # a voice named in the request wins (the test box), else the agent's own
+    v = _VOICE_BY_ID.get(vid, VOICES[0])
     if not text:
         raise web.HTTPBadRequest(text="no text")
     key = (text, v["id"])

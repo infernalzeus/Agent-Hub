@@ -16,22 +16,21 @@ def test_the_overview_has_a_row_per_learner_with_a_state_and_what_it_still_needs
     assert j["next"]
 
 
-def test_the_panel_opens_on_the_overview_with_every_explanation_closed_and_a_button_for_each(hub):
+def test_the_panel_opens_on_the_overview_as_one_terminal_table_that_fits_the_screen_with_no_buttons(hub):
     with sync_playwright() as pw:
         b = pw.chromium.launch(headless=True)
-        pg = b.new_context(service_workers="block", viewport={"width": 1280, "height": 900}).new_page()
+        pg = b.new_context(service_workers="block", viewport={"width": 1366, "height": 768}).new_page()
         pg.goto(hub + "/yard")
-        pg.wait_for_selector(".ovgrid .ovcard", timeout=15000)
-        got = pg.evaluate("""()=>({tab:document.querySelector('.tabs .on').dataset.tab,rows:document.querySelectorAll('.ovgrid .ovname').length,open:[...document.querySelectorAll('.ovdet')].filter(e=>!e.hidden).length,btns:document.querySelectorAll('.ovgrid button').length})""")
-        pg.click(".ovgrid button")
-        opened = pg.evaluate("[...document.querySelectorAll('.ovdet')].filter(e=>!e.hidden).length")
+        pg.wait_for_selector("#ovlist .tr .tn", timeout=15000)
+        got = pg.evaluate("""()=>{const e=document.getElementById('ovlist');return {tab:document.querySelector('.tabs .on').dataset.tab,rows:e.querySelectorAll('.tr:not(.th) .tn').length,btns:e.querySelectorAll('button').length,
+          fits:e.scrollHeight<=e.clientHeight+1,page:document.documentElement.scrollHeight<=innerHeight+1,mono:/mono|consolas|courier/i.test(getComputedStyle(e).fontFamily),details:e.querySelectorAll('.td').length,px:parseFloat(getComputedStyle(e).fontSize)}}""")
         pg.click("[data-tab=routines]")
         pg.wait_for_selector("#rdata button", timeout=8000)
         data_open = pg.evaluate("[...document.querySelectorAll('#rdata .card')].filter(e=>!e.hidden).length")
-        cards_open = pg.evaluate("document.querySelectorAll('.rc.open').length")
         b.close()
-    assert got == {"tab": "overview", "rows": 6, "open": 0, "btns": 6}, got
-    assert opened == 1 and data_open == 0 and cards_open == 0                       # a button opens one; nothing else opens by itself
+    assert got["tab"] == "overview" and got["rows"] == 6 and got["btns"] == 0, got                      # a table, not a form: nothing to press on it
+    assert got["fits"] and got["page"] and got["mono"] and got["details"] >= 8 and 10 <= got["px"] <= 15, got      # one screen, monospace, the font picked to fit
+    assert data_open == 0
 
 
 def test_teach_says_why_it_is_empty(hub):

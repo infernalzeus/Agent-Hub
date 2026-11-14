@@ -211,3 +211,7 @@ hub/board_prefs.json
 !/tools/site_parts/
 /tools/site_parts/*
 !/tools/site_parts/architecture-original.svg
+
+# art experiments (Codex tests) and per-machine mission grades: local only
+/hub/static/agent-art/_test/
+/hub/mission_labels.json

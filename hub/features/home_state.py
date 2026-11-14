@@ -90,6 +90,9 @@ def stale_code(now: float) -> "float | None":
     return _STALE["newest"] if _STALE["newest"] > D._STARTED + 5 else None
 
 
+OLD_S = 2 * 86400                         # an item that has waited longer than this is shown as old, with a way to clear it
+
+
 def state() -> dict:
     from . import diagnose as D
     from . import proposals as P
@@ -110,7 +113,8 @@ def state() -> dict:
                               "title": {"needs_input": "A mission is asking you something",
                                         "plan_ready": "A plan is ready for your yes",
                                         "awaiting_review": "A mission is waiting for review"}[m["status"]],
-                              "detail": m["ask"] or f'{m["project"]}: {m["brief"]}'})
+                              "detail": m["ask"] or f'{m["project"]}: {m["brief"]}', "age_s": m["age_s"],
+                              "dismiss": {"method": "POST", "url": f'/api/missions/{m["id"]}/discard', "label": "DISCARD"} if m["status"] == "awaiting_review" else None})
         elif m["status"] in FAILED and m["ended"] and now - m["ended"] < RECENT_FAIL_S:
             attention.append({"level": "red", "kind": "mission", "id": m["id"], "go": "/missions",
                               "title": "A mission failed in the last day",
@@ -123,7 +127,8 @@ def state() -> dict:
     for p in props:
         attention.append({"level": "amber", "kind": "proposal", "id": p.get("id"), "go": "/",
                           "title": f'Proposal: {p.get("name")}',
-                          "detail": _short(p.get("why") or P.KINDS.get(p.get("kind"), ""))})
+                          "detail": _short(p.get("why") or P.KINDS.get(p.get("kind"), "")),
+                          "age_s": int(now - (p.get("created") or now)), "dismiss": {"method": "DELETE", "url": f'/api/proposals/{p.get("id")}', "label": "DISMISS"}})
 
     apps = D._apps()
     for aid, a in apps.items():
@@ -184,6 +189,11 @@ def state() -> dict:
     except Exception:  # noqa: BLE001
         pass
 
+    for a_ in attention:                    # what is old is said to be old: a review nobody answered for ten days is not "needs you now"
+        a_["old"] = bool(a_.get("age_s") and a_["age_s"] > OLD_S)
+        if a_["old"]:
+            a_["level"] = ""
+    attention.sort(key=lambda a_: a_["old"])
     runs = [m for m in ms if m["status"] in ACTIVE]
     working = [m for m in ms if m["status"] in ACTIVE]
     waiting = [m for m in ms if m["status"] in NEEDS_YOU]
