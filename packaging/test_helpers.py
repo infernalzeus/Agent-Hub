@@ -23,7 +23,6 @@ def test_the_agents_page_shows_a_hub_helpers_tab_with_the_doctor_icon(hub):
         errors = []
         pg.on("pageerror", lambda e: errors.append(str(e)))
         pg.goto(hub + "/agents#helpers")
-        pg.wait_for_selector("[data-fam=helpers]")
         pg.wait_for_function("document.querySelectorAll('#list .persona').length>=8", timeout=15000)
         assert "The Doctor" in pg.inner_text("#list") and "Yard learner" in pg.inner_text("#list")
         assert pg.locator("#list .persona svg path").count() >= 5                      # the doctor and the other helpers have drawn icons

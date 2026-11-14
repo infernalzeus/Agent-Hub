@@ -122,6 +122,29 @@
   }
   // Smith's voice goes through the layered robotic effect (voice-fx.js) on its way to the speakers; 'clean' skips it.
   const route = (node, buf, o) => { const fx = o && o.fx !== undefined ? o.fx : S.fxNow, fxs = o && o.fxs !== undefined ? o.fxs : S.fxsNow; if (window.HubVoiceFx) HubVoiceFx.connect(S.actx, node, S.actx.destination, buf.duration, fx, fxs); else node.connect(S.actx.destination); };       // S.fxNow / S.fxsNow: this speaker's own robotic layer (unset for Smith: the one he already uses)
+  // Shaped delivery. Microsoft's service gives one flat reading per request and rejects SSML, so character comes from how the line is cut: phrases at the commas, dashes and full stops, a slightly different
+  // rate and pitch for each (a question lifts, a statement falls and slows), a word between *stars* leaned on (slower, lower, with a breath either side) and the pauses made here, between the pieces.
+  function shape(text, d) {
+    const sc = d.pauses || 1, pace = d.pace || 0, out = [];
+    const GAP = { ',': 150, ';': 240, ':': 240, '\u2014': 320, '\u2026': 540, '.': 400, '?': 340, '!': 340 };
+    const t = String(text).replace(/\.{3}/g, '\u2026').replace(/\s+--?\s+/g, ' \u2014 ');
+    const re = /[^,;:.!?\u2026\u2014]+[,;:.!?\u2026\u2014]*/g; let m;
+    while ((m = re.exec(t))) {
+      const raw = m[0].trim(); if (!raw) continue;
+      const end = raw.slice(-1), core = raw.replace(/[,;:.!?\u2026\u2014]+$/, ''), stop = /[.!?\u2026]/.test(end);
+      let rate = pace, pitch = 0;
+      if (end === '?') pitch = 5; else if (end === '.') { rate -= 4; pitch = -4; } else if (end === '\u2026') { rate -= 8; pitch = -5; }
+      const bits = core.split(/(\*[^*]+\*)/).filter(Boolean);
+      bits.forEach((b, i) => {
+        const hot = b.length > 2 && b[0] === '*', txt = (hot ? b.slice(1, -1) : b).trim(); if (!txt) return;
+        const last = i === bits.length - 1;
+        if (hot && out.length && !out[out.length - 1].gap) out[out.length - 1].gap = Math.round(110 * sc);
+        out.push({ text: txt + (last && stop ? end : ''), rate: hot ? rate - 22 : rate, pitch: hot ? pitch - 6 : pitch, gap: hot ? Math.round(90 * sc) : 0 });
+      });
+      if (out.length) out[out.length - 1].gap = Math.round((GAP[end] || 120) * sc);
+    }
+    return out.length ? out : [{ text: String(text), rate: 0, pitch: 0, gap: 0 }];
+  }
   // Plays the reply a sentence at a time: the first sentence is made alone and starts playing while the next ones (up to three in flight) are being made,
   // so an answer starts after about the time of its first sentence, not of the whole answer. Resolves when it ends or when S.stop() is called
   // (talk-over, typing, STOP, or an answer arriving while a "working on it" line is still being said).
@@ -131,9 +154,10 @@
       const fin = () => { if (!done) { done = true; clearTimeout(deadline); if (audioUrl) URL.revokeObjectURL(audioUrl); S.stop = null; resolve(); } };
       S.stop = () => { try { if (S.audio) S.audio.pause(); } catch (e) {} try { if (node) node.stop(); } catch (e) {} try { speechSynthesis.cancel(); } catch (e) {} if (endPiece) endPiece(); fin(); };
       deadline = setTimeout(() => { if (!done && S.stop) S.stop(); }, 60000);
-      const parts = (window.HubVoiceGate && HubVoiceGate.sentences(text)) || [String(text)];
+      const rec = (S.av && S.av[(o && o.agent) || S.who]) || {}, del = (o && o.delivery) || rec.delivery || {};
+      const parts = del.on ? shape(text, del) : ((window.HubVoiceGate && HubVoiceGate.sentences(text)) || [String(text)]).map((t) => ({ text: t, rate: 0, pitch: 0, gap: 0 }));
       if (!parts.length) { fin(); return; }
-      const get = (t) => { const t0 = performance.now(), inf = {}; const r = request('/api/voice/speak', { text: t, voice: (o && o.voice) || S.voice || undefined, agent: (o && o.agent) || S.who || undefined }, 'speech', 30000, inf).then((ab) => { if (o && o.info) o.info({ ms: Math.round(performance.now() - t0), h: inf.h || {}, bytes: ab.byteLength }); return ab; }); r.catch(() => {}); return r; };
+      const get = (pc) => { const t0 = performance.now(), inf = {}; const r = request('/api/voice/speak', { text: pc.text, rate: pc.rate || undefined, pitch: pc.pitch || undefined, voice: (o && o.voice) || S.voice || undefined, agent: (o && o.agent) || S.who || undefined }, 'speech', 30000, inf).then((ab) => { if (o && o.info) o.info({ ms: Math.round(performance.now() - t0), h: inf.h || {}, bytes: ab.byteLength }); return ab; }); r.catch(() => {}); return r; };
       const got = parts.map((t, i) => (i < 3 ? get(t) : null));
       // one piece of audio, to its end (or to a stop)
       async function piece(ab) {
@@ -162,9 +186,10 @@
           const ab = await got[at];
           if (done) return;
           await piece(ab);
+          if (parts[at].gap && !done) await new Promise((r) => { const tm = setTimeout(() => { endPiece = null; r(); }, parts[at].gap); endPiece = () => { clearTimeout(tm); r(); }; });
         }
         fin();
-      } catch (e) { if (!done) { if (o && o.fail) { o.fail(e); fin(); return; } hint('Smith\'s voice (edge-tts) did not answer' + (e && e.message ? ': ' + String(e.message).slice(0, 90) : '') + '. This is the browser voice for now.'); await speakBrowser(parts.slice(at).join(' ')); fin(); } }
+      } catch (e) { if (!done) { if (o && o.fail) { o.fail(e); fin(); return; } hint('Smith\'s voice (edge-tts) did not answer' + (e && e.message ? ': ' + String(e.message).slice(0, 90) : '') + '. This is the browser voice for now.'); await speakBrowser(parts.slice(at).map((x) => x.text).join(' ')); fin(); } }
     });
   }
 
@@ -458,23 +483,31 @@
     $('v-voice').value = L.voice; $('v-fx').value = L.fx; $('v-fxs').value = L.fxs;
     document.querySelectorAll('#v-lab-who [data-lab]').forEach((b) => { b.classList.toggle('on', b.dataset.lab === w); b.setAttribute('aria-pressed', String(b.dataset.lab === w)); });
     const rec = L.rec[w]; $('v-lab-note').textContent = rec ? rec.note : '';
-    const t = $('v-lab-text'); if (t && !t.dataset.own) t.value = (WHO[w] || 'Smith') + '. I have the results you asked for. Shall I go on?';
+    const t = $('v-lab-text'); if (t) t.value = r.line || '';                                 // the line typed for this agent stays with this agent
+    const dl = r.delivery || {}; $('v-del-on').checked = !!dl.on; $('v-del-pace').value = String(dl.pace || 0); $('v-del-pauses').value = String(dl.pauses || 1);
     $('v-lab-save').textContent = 'SET AS ' + (WHO[w] || 'SMITH').toUpperCase() + "'S VOICE"; labSt('');
+  }
+  const pulseSet = (on) => { const st = $('v-stage'); if (st) st.classList.toggle('speaking', on); talkBtns().forEach((b) => b.classList.toggle('speaking', on)); };
+  const labDelivery = () => ({ on: $('v-del-on').checked, pace: Number($('v-del-pace').value), pauses: Number($('v-del-pauses').value) });
+  let lineT = 0;
+  function labSaveLine() {                                                                   // typing is saved for the agent shown, a moment after you stop
+    clearTimeout(lineT); const w = L.who, line = $('v-lab-text').value;
+    lineT = setTimeout(() => { fetch('/api/voice/agent-voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent: w, line }) }).then((r) => r.json()).then((j) => { if (j.agents) { S.av = j.agents; } }).catch(() => {}); }, 500);
   }
   async function labSpeak() {
     unlockAudio(); const text = ($('v-lab-text').value || '').trim(); if (!text) { labSt('Type something to hear.', true); return; }
-    if (S.stop) S.stop(); const t0 = performance.now(); let info = null, failed = null;
+    if (S.stop) S.stop(); const t0 = performance.now(); let info = null, failed = null; pulseSet(true);
     const btn = $('v-test'); btn.disabled = true; btn.textContent = 'MAKING…';
     const tick = setInterval(() => { if (!info) labSt('Making the audio… ' + ((performance.now() - t0) / 1000).toFixed(0) + ' s'); }, 500); labSt('Making the audio…');
-    await play(text, { voice: $('v-voice').value, agent: L.who, fx: $('v-fx').value, fxs: $('v-fxs').value, fail: (e) => { failed = e; }, info: (i) => { if (info) return; info = i;
+    await play(text, { voice: $('v-voice').value, agent: L.who, delivery: labDelivery(), fx: $('v-fx').value, fxs: $('v-fxs').value, fail: (e) => { failed = e; }, info: (i) => { if (info) return; info = i;
       const nm = ((S.voices.find((x) => x.id === $('v-voice').value) || {}).name || '').split(' · ')[0];
       labSt(i.h.fb ? 'That voice did not answer, so ' + i.h.used + ' spoke instead.' : (i.h.cached ? 'Played from memory. ' : 'Made in ' + (i.ms / 1000).toFixed(1) + ' s. ') + nm + (i.h.used ? ' (' + i.h.used + ')' : ''), !!i.h.fb); } });
-    clearInterval(tick); btn.disabled = false; btn.textContent = 'SPEAK';
+    clearInterval(tick); btn.disabled = false; btn.textContent = 'SPEAK'; pulseSet(false);
     if (failed) labSt('No audio: ' + String((failed && failed.message) || failed).slice(0, 120), true);
   }
   async function labSave(reset) {
     try {
-      const body = reset ? { agent: L.who, reset: true } : { agent: L.who, voice: $('v-voice').value, fx: $('v-fx').value, fxs: $('v-fxs').value };
+      const body = reset ? { agent: L.who, reset: true } : { agent: L.who, voice: $('v-voice').value, fx: $('v-fx').value, fxs: $('v-fxs').value, delivery: labDelivery(), line: $('v-lab-text').value };
       const r = await fetch('/api/voice/agent-voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!r.ok) { labSt('Not saved: ' + (await r.text()).slice(0, 100), true); return; }
       S.av = (await r.json()).agents || S.av;
@@ -522,11 +555,10 @@
       const face = $('v-face'), nm = $('v-name'), role = $('v-role'), stage = $('v-stage');
       if (face && nm && stage && nm.textContent !== WHO[w].toUpperCase()) {                  // the picture and name change with a short cross-fade: the new speaker arrives, the old one leaves
         stage.classList.add('swap');
-        setTimeout(() => { face.src = '/static/agent-icons/' + w + '.png'; face.alt = WHO[w]; nm.textContent = WHO[w].toUpperCase(); role.textContent = ROLE[w]; stage.dataset.who = w; stage.classList.remove('swap'); }, 220);
-      } else if (face && nm && stage && !face.getAttribute('src')) { face.src = '/static/agent-icons/' + w + '.png'; nm.textContent = WHO[w].toUpperCase(); role.textContent = ROLE[w]; stage.dataset.who = w; }
+        setTimeout(() => { face.src = '/static/agent-icons/face/' + (w === 'smith' ? 'smith-new' : w) + '.png'; face.alt = WHO[w]; nm.textContent = WHO[w].toUpperCase(); role.textContent = ROLE[w]; stage.dataset.who = w; stage.classList.remove('swap'); }, 220);
+      } else if (face && nm && stage && !face.getAttribute('src')) { face.src = '/static/agent-icons/face/' + (w === 'smith' ? 'smith-new' : w) + '.png'; nm.textContent = WHO[w].toUpperCase(); role.textContent = ROLE[w]; stage.dataset.who = w; }
       document.querySelectorAll('.talk-btn img').forEach((i) => {                          // the Talk button on the board wears the face of whoever you are talking to; Smith's own is put back for Smith
-        if (!i.dataset.own) i.dataset.own = i.getAttribute('src') || '';
-        i.src = w === 'smith' ? i.dataset.own : '/static/agent-icons/' + w + '.png';
+        i.src = '/static/agent-icons/face/' + w + '.png';                                  // a small circle shows the face, not the whole bust
       });
       applyAgentVoice(w);
       if (!quiet) { try { $('v-in').focus(); } catch (e) {} }
@@ -574,7 +606,7 @@
     const send = () => { unlockAudio(); const v = $('v-in').value.trim(); if (v) { $('v-in').value = ''; if (S.stop) S.stop(); handle(v); } };
     // TEST VOICE: say what is typed in the box (or a sample line) with the voice and robotic layer chosen above for the agent you are talking to; nothing is sent to anyone
     $('v-test').onclick = labSpeak; $('v-lab-save').onclick = () => labSave(false); $('v-lab-reset').onclick = () => labSave(true); $('v-lab-rec').onclick = labRecommended;
-    $('v-lab-text').oninput = () => { $('v-lab-text').dataset.own = '1'; };
+    $('v-lab-text').oninput = labSaveLine;
     $('v-lab-text').onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); labSpeak(); } };
     document.querySelectorAll('#v-lab-who [data-lab]').forEach((b) => { b.onclick = () => { if (S.voices) labLoad(b.dataset.lab); }; });
     $('v-labbtn').onclick = () => { const l = $('v-lab'); l.hidden = !l.hidden; $('v-labbtn').setAttribute('aria-expanded', String(!l.hidden)); $('v-labbtn').classList.toggle('on', !l.hidden); if (!l.hidden && S.voices) labLoad(L.who); };

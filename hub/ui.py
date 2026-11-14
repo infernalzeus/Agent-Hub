@@ -29,27 +29,35 @@ _HOME_BOARD_JS = (_BLOCKS_JS + "\n" + _HAND_JS + "\n" + (Path(__file__).parent /
                   + (Path(__file__).parent / "static" / "home-board-nav.js").read_text(encoding="utf-8") + "\n"
                   + (Path(__file__).parent / "static" / "home-board-view.js").read_text(encoding="utf-8") + "\n"
                   + (Path(__file__).parent / "static" / "home-board.js").read_text(encoding="utf-8"))
-def _smith_still_uri() -> str:
-    """The same full portrait as the vector, drawn once as a small PNG: what the landing page swaps in at ENTER and what the Talk button shows. One framing everywhere (never the old face-and-neck crop)."""
+def _agent_names_json() -> str:
+    """id -> [name, designation] for the landing page, from the one place that holds them."""
+    import json as _json
+    from .agent_knowledge import AGENT_NAMES
+    return _json.dumps(AGENT_NAMES)
+
+
+def _png_uri(name: str) -> str:
     import base64 as _b64
-    art = Path(__file__).parent / "static" / "agent-art" / "smith-still.png"
-    return "data:image/png;base64," + _b64.b64encode(art.read_bytes()).decode("ascii")
+    return "data:image/png;base64," + _b64.b64encode((Path(__file__).parent / "static" / "agent-art" / name).read_bytes()).decode("ascii")
+
+
+def _smith_still_uri() -> str:
+    """The plain outline, small: what the landing page swaps in at ENTER. No animated vector anywhere."""
+    return _png_uri("smith-portrait.png")
+
+
+def _smith_lit_uri() -> str:
+    """The same picture at the peak of his pulse (digits and tie lit): faded over the outline while he listens or answers."""
+    return _png_uri("smith-portrait-lit.png")
 
 
 def _smith_data_uri() -> str:
-    """Smith for the landing page, inside the page itself: the small PNG (cheap to draw, no lag), or the old vector if the file is missing. No request, so nothing can fail while the Hub is down."""
-    import base64 as _b64
-    art = Path(__file__).parent / "static" / "agent-art" / "smith-portrait.png"     # the new portrait is a plain picture: no animated vector to redraw every frame
-    if art.is_file():
-        return "data:image/png;base64," + _b64.b64encode(art.read_bytes()).decode("ascii")
-    art = Path(__file__).parent / "static" / "agent-art" / "smith.svg"
-    if art.is_file():
-        return "data:image/svg+xml;base64," + _b64.b64encode(art.read_bytes()).decode("ascii")
-    return "data:image/png;base64," + __import__("hub.agents_ui", fromlist=["x"])._SMITH_D_B64
+    """Smith for the landing page, inside the page itself: the plain outline as a small PNG (cheap to draw, no request, nothing to fail while the Hub is down)."""
+    return _png_uri("smith-portrait.png")
 
 
 _WAKE_JS = (_BLOCKS_JS + "\n" + (Path(__file__).parent / "static" / "voice-fx.js").read_text(encoding="utf-8") + "\n"
-            + (Path(__file__).parent / "static" / "wake.js").read_text(encoding="utf-8").replace("__SMITH_PNG__", _smith_data_uri()).replace("__SMITH_STILL__", _smith_still_uri()))
+            + (Path(__file__).parent / "static" / "wake.js").read_text(encoding="utf-8").replace("__SMITH_PNG__", _smith_data_uri()).replace("__SMITH_STILL__", _smith_still_uri()).replace("__SMITH_LIT__", _smith_lit_uri()).replace("__AGENT_NAMES__", _agent_names_json()))
 _DEPTH_LIFT_SOURCE = (Path(__file__).parent / "static" / "depth-lift.js").read_text(encoding="utf-8")
 # The build id decides when a long-lived host page must be replaced. It covers everything a retained view can have
 def _own_source() -> str:

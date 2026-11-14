@@ -147,3 +147,57 @@ def test_coming_back_to_the_landing_page_from_the_dashboard_his_button_works_aga
         pg.click("#smith-slot")                                                                    # and it is clickable: the wake word switches on again
         pg.wait_for_function("window.__hubWake.state() === 'wake' && window.__hubWake.mic()", timeout=15000)
         b.close()
+
+
+def test_asking_for_viktor_on_the_landing_page_swaps_the_picture_and_stop_throws_a_late_answer_away(hub):
+    """He asked "bring Viktor" and nothing changed; then STOP was pressed and the answer still arrived seconds later and spoke."""
+    with sync_playwright() as pw:
+        b, pg = _landing(pw, hub)
+        errors, sent = [], []
+        pg.on("pageerror", lambda e: errors.append(str(e)))
+        pg.route("**/api/voice/speak", lambda r: r.fulfill(status=503, body="no voice in a test"))
+
+        def chat(route):
+            body = route.request.post_data_json
+            sent.append(body)
+            if "slow" in body["text"]:
+                time.sleep(2.5)
+                return route.fulfill(json={"say": "Too late.", "action": None, "confirm": False, "speaker": "smith", "ui": {}})
+            route.fulfill(json={"say": "I am here.", "action": None, "confirm": False, "speaker": "orchestrator", "ui": {},
+                                "transition": {"from": "smith", "to": "orchestrator", "line": "Of course. I will bring in Viktor."}})
+        pg.route("**/api/voice/chat", chat)
+        _shown(pg)
+        pg.click("#smith-slot")
+        pg.wait_for_function("window.__hubWake.state() === 'wake'", timeout=15000)
+        assert pg.evaluate("window.__hubWake.who()") == "smith"
+        pg.evaluate("window.__hubWake.say('bring Viktor')")
+        pg.wait_for_function("window.__hubWake.who() === 'orchestrator'", timeout=8000)
+        pg.wait_for_function("document.querySelector('#smith-slot img').src.includes('/static/agent-icons/orchestrator.png')", timeout=4000)     # Smith went, Viktor arrived
+        assert "other" in pg.get_attribute("#smith-slot", "class")
+        assert sent[0]["speaker"] == "smith"
+        texts = pg.evaluate("[...document.querySelectorAll('#wake-lines .wl')].map(e => e.textContent)")
+        assert any(t.startswith("Smith: Of course") for t in texts) and any(t.startswith("Viktor: I am here") for t in texts), texts      # each line is under its own speaker's name
+        pg.evaluate("window.__hubWake.say('slow one')")
+        assert sent[-1]["speaker"] == "orchestrator"                                           # the next sentence goes to Viktor
+        pg.evaluate("window.__hubWake.stop()")                                                 # STOP while it is thinking
+        pg.wait_for_timeout(3500)
+        assert pg.evaluate("window.__hubWake.who()") == "smith"
+        texts = pg.evaluate("[...document.querySelectorAll('#wake-lines .wl')].map(e => e.textContent)")
+        assert not any("Too late" in t for t in texts), texts                                  # the late answer was not said
+        b.close()
+    assert errors == []
+
+
+def test_smith_stays_a_plain_outline_and_only_a_second_picture_fades_in_while_he_answers(hub):
+    with sync_playwright() as pw:
+        b, pg = _landing(pw, hub)
+        _shown(pg)
+        pg.click("#smith-slot")
+        pg.wait_for_function("window.__hubWake.state() === 'wake'", timeout=15000)
+        assert pg.evaluate("getComputedStyle(document.querySelector('#smith-slot .lit-img')).animationName") == "none"      # outline at rest
+        pg.evaluate("window.__hubWake._set('think')")
+        pg.wait_for_function("getComputedStyle(document.querySelector('#smith-slot .lit-img')).animationName === 'smDigits'", timeout=4000)
+        assert pg.evaluate("getComputedStyle(document.querySelector('#smith-slot img:not(.lit-img)')).animationName") == "none"     # the outline itself does not move or change colour
+        css = pg.evaluate("[...document.styleSheets].flatMap(s => { try { return [...s.cssRules].map(r => r.cssText) } catch (e) { return [] } }).join(' ')")
+        assert "hue-rotate" not in css and "rgba(0,230,118" not in css.split("smLit")[1][:200]                                 # no lime pulse
+        b.close()

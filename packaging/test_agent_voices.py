@@ -31,9 +31,13 @@ def test_every_core_agent_starts_with_a_different_voice_a_saved_choice_sticks_an
             r = await c.post("/api/voice/agent-voice", json={"agent": "doctor", "voice": "liam", "fx": "p10", "fxs": "metal"})
             assert r.status == 200
             ag = (await (await c.get("/api/voice/voices")).json())["agents"]
-            assert ag["doctor"] == {"voice": "liam", "fx": "p10", "fxs": "metal"} and ag["neo"]["voice"] == "neo-calm"      # only the doctor changed
+            assert {k: ag["doctor"][k] for k in ("voice", "fx", "fxs")} == {"voice": "liam", "fx": "p10", "fxs": "metal"} and ag["neo"]["voice"] == "neo-calm"      # only the doctor changed
             assert (await c.post("/api/voice/agent-voice", json={"agent": "doctor", "reset": True})).status == 200
             assert (await (await c.get("/api/voice/voices")).json())["agents"]["doctor"]["voice"] == "medic"                 # back to the built-in one
+            r = await c.post("/api/voice/agent-voice", json={"agent": "orchestrator", "line": "I am more than I ever was, truly.", "delivery": {"on": True, "pace": -99, "pauses": 9}})        # a test line and delivery without a voice
+            assert r.status == 200
+            vk = (await (await c.get("/api/voice/voices")).json())["agents"]["orchestrator"]
+            assert vk["line"] == "I am more than I ever was, truly." and vk["delivery"] == {"on": True, "pace": -20, "pauses": 2.5} and vk["voice"] == "viktor-soft"      # kept, clamped, and the voice untouched
             assert (await c.post("/api/voice/agent-voice", json={"agent": "nobody", "voice": "liam"})).status == 400
             assert (await c.post("/api/voice/agent-voice", json={"agent": "neo", "voice": "not-a-voice"})).status == 400
             assert (await c.post("/api/voice/agent-voice", json={"agent": "neo", "voice": "liam", "fx": "bad value!"})).status == 400
@@ -45,7 +49,7 @@ def test_speaking_uses_the_agents_voice_unless_a_voice_is_named(tmp_path, monkey
 
     class Fake:
         def __init__(self, text, voice, rate="+0%", pitch="+0Hz"):
-            seen.append(voice)
+            seen.append(voice if voice != "en-AU-WilliamMultilingualNeural" else (voice, rate, pitch))
 
         async def stream(self):
             yield {"type": "audio", "data": b"ID3audio"}
@@ -58,8 +62,9 @@ def test_speaking_uses_the_agents_voice_unless_a_voice_is_named(tmp_path, monkey
             await c.post("/api/voice/agent-voice", json={"agent": "neo", "voice": "connor"})
             assert (await c.post("/api/voice/speak", json={"text": "hello there", "agent": "neo"})).status == 200
             assert (await c.post("/api/voice/speak", json={"text": "hello again", "agent": "neo", "voice": "jenny"})).status == 200      # the test box names a voice: it wins
+            assert (await c.post("/api/voice/speak", json={"text": "more", "voice": "smith", "rate": -22, "pitch": -6})).status == 200       # shaped delivery: a slower, lower phrase
     asyncio.run(go())
-    assert seen == ["en-IE-ConnorNeural", "en-US-JennyNeural"]
+    assert seen == ["en-IE-ConnorNeural", "en-US-JennyNeural", ("en-AU-WilliamMultilingualNeural", "-22%", "-28Hz")]      # Smith: rate 0 and pitch -22 moved by -22% and -6Hz
 
 
 def test_the_voice_test_panel_speaks_custom_text_in_the_chosen_voice_and_only_saves_on_set_as_default(hub):
@@ -99,3 +104,40 @@ def test_the_voice_test_panel_speaks_custom_text_in_the_chosen_voice_and_only_sa
     assert errors == []
     assert [s for s in saved if s.get("voice")] == [{"agent": "neo", "voice": "liam", "fx": "off", "fxs": "radio"}] or any(s.get("agent") == "neo" and s.get("voice") == "liam" for s in saved), saved
     assert any(s and s.get("text") == "Testing one two three" and s.get("voice") == "liam" and s.get("agent") == "neo" for s in spoken), spoken
+
+
+def test_a_typed_test_line_stays_with_its_agent_and_shaped_phrasing_asks_phrase_by_phrase(hub):
+    spoken = []
+    with sync_playwright() as pw:
+        b = pw.chromium.launch(headless=True)
+        pg = b.new_context(service_workers="block", viewport={"width": 1280, "height": 900}).new_page()
+        errors = []
+        pg.on("pageerror", lambda e: errors.append(str(e)))
+        pg.route("**/api/voice/speak", lambda r: (spoken.append(r.request.post_data_json), r.fulfill(status=503, body="no voice in a test"))[1])
+        pg.goto(hub + "/?enter=1")
+        pg.wait_for_function("!!window.HubVoice && document.querySelectorAll('#v-voice option').length>=20", timeout=20000)
+        pg.evaluate("document.getElementById('voice').hidden=false")
+        pg.locator("#v-labbtn").click(force=True)
+        pg.locator("#v-lab-who [data-lab=orchestrator]").click(force=True)
+        assert pg.input_value("#v-lab-text") == "I am more than I ever was."                    # each agent starts with a line of its own
+        pg.fill("#v-lab-text", "I am... *more* than I ever was.")
+        pg.wait_for_timeout(900)                                                                 # saved a moment after typing stops
+        pg.locator("#v-lab-who [data-lab=doctor]").click(force=True)
+        assert "Hold still" in pg.input_value("#v-lab-text")                                     # the Doctor's line is not Viktor's
+        pg.locator("#v-lab-who [data-lab=orchestrator]").click(force=True)
+        assert pg.input_value("#v-lab-text") == "I am... *more* than I ever was."                # and Viktor's stayed
+        pg.reload()
+        pg.wait_for_function("document.querySelectorAll('#v-voice option').length>=20", timeout=20000)
+        pg.evaluate("document.getElementById('voice').hidden=false")
+        pg.locator("#v-labbtn").click(force=True)
+        pg.locator("#v-lab-who [data-lab=orchestrator]").click(force=True)
+        assert pg.input_value("#v-lab-text") == "I am... *more* than I ever was."                # kept on the Hub, not in this page
+        pg.check("#v-del-on")
+        pg.locator("#v-test").click(force=True)
+        pg.wait_for_function("document.getElementById('v-lab-st').textContent.startsWith('No audio')", timeout=8000)
+        b.close()
+    assert errors == []
+    texts = [s["text"] for s in spoken]
+    assert len(spoken) >= 2 and "more" in texts and any(t.startswith("I am") for t in texts), texts      # cut into phrases, the starred word on its own
+    more = next(s for s in spoken if s["text"] == "more")
+    assert more.get("rate", 0) < 0 and more.get("pitch", 0) < 0                                    # leaned on: slower and lower

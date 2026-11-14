@@ -123,6 +123,16 @@ ART_DIR = ICON_DIR.parent / "agent-art"
 CREW = ("orchestrator", "neo", "smith", "doctor", "router")
 
 
+@routes.get("/static/agent-icons/face/{name}")
+async def agent_face(request: web.Request) -> web.StreamResponse:
+    """The face alone, a small square: what a small circle (the Talk button, the speaker's picture) shows, so the agent is recognised."""
+    import re
+    name = request.match_info["name"]
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,40}\.png", name) or not (ICON_DIR / "face" / name).is_file():
+        raise web.HTTPNotFound()
+    return web.FileResponse(ICON_DIR / "face" / name, headers={"Cache-Control": "public, max-age=300"})
+
+
 @routes.get("/static/agent-icons/{name}")
 async def agent_icon(request: web.Request) -> web.StreamResponse:
     """One picture per agent or helper, by id (`doctor.png`, `coder.png`...). A missing file is a plain 404; the page falls back to a drawn glyph."""

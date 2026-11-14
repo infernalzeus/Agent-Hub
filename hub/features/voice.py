@@ -1617,10 +1617,43 @@ RECOMMENDED = {
     "doctor": {"voice": "medic", "fx": "off", "fxs": "radio", "note": "Medic (TF2): German accent, brisk, confident. A German neural voice reading English; Microsoft has no German-accent English voice, so this is the nearest."},
 }
 _FX_RE = re.compile(r"[a-z0-9]{1,8}")
+# The line each agent speaks in the VOICE TEST panel until you type your own; whatever you type is kept for that agent.
+AGENT_LINES = {"smith": "I have the results you asked for. Shall I go on?", "orchestrator": "I am more than I ever was.",
+               "neo": "I can see it now. Let me show you.", "doctor": "Hold still. This will only hurt a little."}
+# Shaped delivery: Microsoft's voice service rejects SSML (breaks, emphasis, nested prosody all return no audio, tested 14 Nov), so the only levers are the voice, its rate and pitch for a whole request.
+# The page therefore cuts a line into phrases, asks for each with a slightly different rate and pitch, and leaves the pauses itself. `delivery` is {"on": bool, "pace": -20..20 (percent), "pauses": 0.5..2.5}.
+_DELIVERY_KEYS = {"on": bool, "pace": int, "pauses": float}
+
+
+def _clean_delivery(d) -> dict:
+    out = {}
+    if isinstance(d, dict):
+        if isinstance(d.get("on"), bool):
+            out["on"] = d["on"]
+        if isinstance(d.get("pace"), (int, float)) and not isinstance(d.get("pace"), bool):
+            out["pace"] = int(max(-20, min(20, d["pace"])))
+        if isinstance(d.get("pauses"), (int, float)) and not isinstance(d.get("pauses"), bool):
+            out["pauses"] = round(float(max(0.5, min(2.5, d["pauses"]))), 2)
+    return out
+
+
+def _adj(base: str, delta: int, unit: str, lo: int, hi: int) -> str:
+    """A voice's own rate or pitch ("-8%", "-22Hz") moved by the page's adjustment, kept inside what the service accepts."""
+    m = re.fullmatch(r"([+-]?\d+)\s*(?:%|Hz)", str(base or "0"))
+    n = int(m.group(1)) if m else 0
+    return f"{max(lo, min(hi, n + delta)):+d}{unit}"
 
 
 def _agent_voice_file() -> Path:
     return RT.STATE / "agent_voices.json"
+
+
+def _read_saved() -> dict:
+    try:
+        cur = json.loads(_agent_voice_file().read_text(encoding="utf-8"))
+        return cur if isinstance(cur, dict) else {}
+    except (OSError, ValueError):
+        return {}
 
 
 def agent_voices() -> dict:
@@ -1632,9 +1665,12 @@ def agent_voices() -> dict:
         saved = {}
     out = {}
     for a, d in AGENT_VOICE_DEFAULTS.items():
-        row = {**d, **{k: v for k, v in (saved.get(a) or {}).items() if k in ("voice", "fx", "fxs") and isinstance(v, str)}}
+        sv = saved.get(a) or {}
+        row = {**d, **{k: v for k, v in sv.items() if k in ("voice", "fx", "fxs") and isinstance(v, str)}}
         if row.get("voice") not in _VOICE_BY_ID:
             row["voice"] = d["voice"]
+        row["line"] = sv["line"][:300] if isinstance(sv.get("line"), str) and sv["line"].strip() else AGENT_LINES[a]
+        row["delivery"] = {"on": False, "pace": 0, "pauses": 1.0, **_clean_delivery(sv.get("delivery"))}
         out[a] = row
     return out
 _TTS_CACHE: dict = {}
@@ -1668,9 +1704,21 @@ async def api_agent_voice(request: web.Request) -> web.Response:
         cur.pop(a, None)
         RT.write_json(_agent_voice_file(), cur)
         return web.json_response({"ok": True, "agents": agent_voices()})
+    row = {}
+    if "line" in b:
+        if not isinstance(b["line"], str):
+            raise web.HTTPBadRequest(text="line must be text")
+        row["line"] = b["line"].strip()[:300]
+    if "delivery" in b:
+        row["delivery"] = _clean_delivery(b["delivery"])
+    if "voice" not in b and row:                        # only the test line or the delivery changed
+        cur = _read_saved()
+        cur[a] = {**(cur.get(a) or {}), **row}
+        RT.write_json(_agent_voice_file(), cur)
+        return web.json_response({"ok": True, "agents": agent_voices()})
     if str(b.get("voice") or "") not in _VOICE_BY_ID:
         raise web.HTTPBadRequest(text="unknown voice")
-    row = {"voice": str(b["voice"])}
+    row["voice"] = str(b["voice"])
     for k in ("fx", "fxs"):
         if b.get(k) is not None:
             if not _FX_RE.fullmatch(str(b[k])):
@@ -1699,7 +1747,14 @@ async def api_speak(request: web.Request) -> web.Response:
     v = _VOICE_BY_ID.get(vid, VOICES[0])
     if not text:
         raise web.HTTPBadRequest(text="no text")
-    key = (text, v["id"])
+    try:                                               # the page's shaped delivery: a little slower or lower for this phrase only
+        ra, pa = int(float(b.get("rate") or 0)), int(float(b.get("pitch") or 0))
+    except (TypeError, ValueError):
+        ra = pa = 0
+    ra, pa = max(-50, min(30, ra)), max(-30, min(20, pa))
+    if ra or pa:
+        v = {**v, "rate": _adj(v["rate"], ra, "%", -60, 60), "pitch": _adj(v["pitch"], pa, "Hz", -60, 40)}
+    key = (text, v["id"], ra, pa)
     if key in _TTS_CACHE:
         return web.Response(body=_TTS_CACHE[key][0], content_type="audio/mpeg", headers={"X-Voice-Used": _TTS_CACHE[key][1], "X-Voice-Fallback": _TTS_CACHE[key][2], "X-Voice-Cached": "1"})
     try:
@@ -1737,7 +1792,7 @@ async def api_speak(request: web.Request) -> web.Response:
     # voice that keeps failing made every reply slow, so a voice that fails is set aside for ten minutes and a reliable deep British voice speaks instead, at once. Pieces are made one at a time.
     global _TTS_LOCK
     if _TTS_LOCK is None:
-        _TTS_LOCK = asyncio.Lock()
+        _TTS_LOCK = asyncio.Semaphore(2)               # two phrases at a time: shaped delivery asks for several, and one at a time made it slow
     asked_voice = v["voice"]
     fallback = {**v, "voice": "en-GB-RyanNeural", "pitch": "-18Hz"}
     async with _TTS_LOCK:
@@ -1770,6 +1825,8 @@ async def smith_icon(request: web.Request) -> web.Response:
     from .. import agents_ui
     # the small, still picture: this one sits on the Talk button at 28 px, so it must be cheap to draw (the animated vector is for the landing page and the Agency page)
     art = Path(__file__).resolve().parent.parent / "static" / "agent-art" / "smith-still.png"      # the full portrait, the same framing as the landing page's vector
+    face = Path(__file__).resolve().parent.parent / "static" / "agent-icons" / "face" / "smith.png"      # the Talk button is a small circle: his face, not the whole bust
+    art = face if face.is_file() else art
     body = art.read_bytes() if art.is_file() else base64.b64decode(agents_ui._SMITH_D_B64)
     return web.Response(body=body, content_type="image/png", headers={"Cache-Control": "no-cache"})
 

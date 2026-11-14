@@ -16,19 +16,19 @@ def test_the_overview_has_a_row_per_learner_with_a_state_and_what_it_still_needs
     assert j["next"]
 
 
-def test_the_panel_opens_on_the_overview_as_one_terminal_table_that_fits_the_screen_with_no_buttons(hub):
+def test_the_panel_opens_on_the_overview_as_one_terminal_table_that_fits_the_screen_with_only_the_real_levers_as_buttons(hub):
     with sync_playwright() as pw:
         b = pw.chromium.launch(headless=True)
         pg = b.new_context(service_workers="block", viewport={"width": 1366, "height": 768}).new_page()
         pg.goto(hub + "/yard")
         pg.wait_for_selector("#ovlist .tr .tn", timeout=15000)
-        got = pg.evaluate("""()=>{const e=document.getElementById('ovlist');return {tab:document.querySelector('.tabs .on').dataset.tab,rows:e.querySelectorAll('.tr:not(.th) .tn').length,btns:e.querySelectorAll('button').length,
+        got = pg.evaluate("""()=>{const e=document.getElementById('ovlist');return {tab:document.querySelector('.tabs .on').dataset.tab,rows:e.querySelectorAll('.tr:not(.th) .tn').length,btns:e.querySelectorAll('button').length-e.querySelectorAll('.lv button').length,levers:e.querySelectorAll('.lv button').length,
           fits:e.scrollHeight<=e.clientHeight+1,page:document.documentElement.scrollHeight<=innerHeight+1,mono:/mono|consolas|courier/i.test(getComputedStyle(e).fontFamily),details:e.querySelectorAll('.td').length,px:parseFloat(getComputedStyle(e).fontSize)}}""")
         pg.click("[data-tab=routines]")
         pg.wait_for_selector("#rdata button", timeout=8000)
         data_open = pg.evaluate("[...document.querySelectorAll('#rdata .card')].filter(e=>!e.hidden).length")
         b.close()
-    assert got["tab"] == "overview" and got["rows"] == 6 and got["btns"] == 0, got                      # a table, not a form: nothing to press on it
+    assert got["tab"] == "overview" and got["rows"] == 6 and got["btns"] == 0 and got["levers"] >= 8, got      # a table: the only buttons are the levers that really change something
     assert got["fits"] and got["page"] and got["mono"] and got["details"] >= 8 and 10 <= got["px"] <= 15, got      # one screen, monospace, the font picked to fit
     assert data_open == 0
 

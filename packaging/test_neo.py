@@ -23,15 +23,15 @@ def test_the_agents_page_shows_neo_with_his_picture_and_every_picture_is_big(hub
         pg.wait_for_function("document.querySelectorAll('#list .persona').length>=3", timeout=15000)
         txt = pg.inner_text("body")
         assert "NEO" in txt.upper() and "AGENT-SMITH" not in txt.upper()                      # Smith is one of the four core agents now (the voice); only the old file name must not show
-        assert "EDIT WITH NEO" in txt.upper()
+        assert pg.locator("button:has-text('EDIT WITH NEO')").count() >= 3                    # the button is on each card (inside the collapsed card, so not in the visible text)
         assert pg.locator("#btn-create img").get_attribute("src") == "/static/agent-icons/neo.png"
         pg.wait_for_function("[...document.querySelectorAll('#list .persona .smith-a')].every(i=>i.complete)", timeout=8000)
-        sizes = pg.evaluate("[...document.querySelectorAll('#list .persona .smith-a')].map(i=>Math.round(i.getBoundingClientRect().width))")
+        sizes = pg.evaluate("[...document.querySelectorAll('#list .persona .smith-a')].map(i=>i.naturalWidth)")
         assert sizes and all(w >= 64 for w in sizes), sizes
         pg.goto(hub + "/agents#helpers")
         pg.wait_for_function("document.querySelectorAll('#list .persona').length>=9", timeout=15000)
         pg.wait_for_function("[...document.querySelectorAll('#list .hic img, #list .smith-a')].every(i=>i.complete&&i.naturalWidth>0)", timeout=8000)
-        sizes = pg.evaluate("[...document.querySelectorAll('#list .hic img, #list .smith-a')].map(i=>Math.round(i.getBoundingClientRect().width))")
+        sizes = pg.evaluate("[...document.querySelectorAll('#list .hic img, #list .smith-a')].map(i=>i.naturalWidth)")
         assert sizes and all(w >= 64 for w in sizes), sizes
         assert "Neo" in pg.inner_text("#list")
         b.close()

@@ -24,7 +24,11 @@ _HTML = """<div id="voice" hidden>
     <select id="v-fx" aria-label="Voice effect amount" title="How much of a robotic layer sits on the same voice"><option value="off">CLEAN</option><option value="p5">ROBOT 5%</option><option value="p10">ROBOT 10%</option><option value="p15">ROBOT 15%</option><option value="p20">ROBOT 20%</option><option value="p25">ROBOT 25%</option><option value="p35">ROBOT 35%</option><option value="p50">ROBOT 50%</option><option value="p75">ROBOT 75%</option><option value="p100">ROBOT 100%</option></select>
     <select id="v-fxs" aria-label="Voice effect style" title="Which layers make the robotic sound"><option value="blend">BLEND</option><option value="ring">RING</option><option value="double">DOUBLE</option><option value="metal">METAL</option><option value="radio">RADIO</option></select>
     </div>
+    <div class="v-lab-del"><label class="v-chk" title="Cut the line into phrases with their own pace, pitch and pauses (one request per phrase, so it takes longer)"><input type="checkbox" id="v-del-on"> SHAPED PHRASING</label>
+      <select id="v-del-pace" aria-label="Pace"><option value="-15">SLOWER 15%</option><option value="-8">SLOWER 8%</option><option value="0">NORMAL PACE</option><option value="8">FASTER 8%</option></select>
+      <select id="v-del-pauses" aria-label="Pauses"><option value="0.6">TIGHT PAUSES</option><option value="1">NORMAL PAUSES</option><option value="1.6">LONG PAUSES</option><option value="2.3">DRAMATIC PAUSES</option></select></div>
     <textarea id="v-lab-text" rows="2" maxlength="300" aria-label="Text to speak" placeholder="Type anything to hear it in this voice"></textarea>
+    <div class="v-lab-tip">Lean on a word with *stars*. ... is a long pause, a dash a short one. Saved for the agent shown.</div>
     <div class="v-lab-btns"><button type="button" class="vbtn go" id="v-test" title="Speak the text above with the voice chosen here">SPEAK</button><button type="button" class="vbtn" id="v-lab-save">SET AS DEFAULT</button><button type="button" class="vbtn" id="v-lab-rec" title="The sound this character is meant to have">RECOMMENDED</button><button type="button" class="vbtn" id="v-lab-reset" title="Back to the built-in voice">RESET</button></div>
     <div class="v-lab-st" id="v-lab-st" role="status"></div>
     <div class="v-lab-note" id="v-lab-note"></div>

@@ -11,7 +11,8 @@
   var NAMES = ['smith', 'smyth', 'smythe', 'smit', 'smid', 'smif', 'smiff', 'schmidt', 'smeeth', 'smeth', 'kenya', 'kenia', 'semis', 'mith', 'smitt', 'sneth', 'zmith'];
   var KEY = 'agenthub:wake', EASE = 'cubic-bezier(.2,.8,.2,1)', SPRING = 'cubic-bezier(.34,1.45,.64,1)', CONVO_MS = 20000, FADE = 320;
   var reduce = matchMedia('(prefers-reduced-motion: reduce)');
-  var S = { on: false, stream: null, ctx: null, an: null, state: 'off', speaking: false, run: 0, actx: null, pending: null, history: [], convoUntil: 0, clear: null, doctor: null, doctorTimer: null };
+  var AGN = __AGENT_NAMES__;                                                           // id -> [name, designation]: the four agents you can ask for by name
+  var S = { who: 'smith', reqs: [], stopPlay: null, av: null, on: false, stream: null, ctx: null, an: null, state: 'off', speaking: false, run: 0, actx: null, pending: null, history: [], convoUntil: 0, clear: null, doctor: null, doctorTimer: null };
   var BUF = new Uint8Array(1024);
 
   function lev(a, b) {
@@ -50,14 +51,18 @@
     '.smith-slot,.smith-slot:hover,.smith-slot:focus,.smith-slot:active,.smith-slot:focus-visible{background:transparent!important;border:0!important;box-shadow:none!important;outline:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}',
     '.smith-slot img{transform-origin:50% 55%}',
     // wake word off: he pulses, so you can see he is the button. On and waiting for his name: he breathes. Hearing you, or answering: his lines light up in green pulses.
-    '.smith-slot.pulse img{animation:smIdle 3.4s ease-in-out infinite}.smith-slot.breathe img{animation:smBreathe 4.2s ease-in-out infinite}',
-    '.smith-slot.hear img,.smith-slot.lit img{animation:smLit .9s ease-in-out infinite}.smith-slot.heard img{animation:smHeard 2.4s ease-out 1}',
+    '.smith-slot.pulse img:not(.lit-img){animation:smIdle 3.4s ease-in-out infinite}.smith-slot.breathe img:not(.lit-img){animation:smBreathe 4.2s ease-in-out infinite}',
+    '.smith-slot.other.hear img,.smith-slot.other.lit img{animation:smLit .9s ease-in-out infinite}.smith-slot.other.heard img{animation:smHeard 2.4s ease-out 1}',
+    // Smith himself stays the plain outline. While he listens or answers his digits and tie light up over it (a second picture fading in and out); nothing else about him moves.
+    '.smith-slot .lit-img{position:absolute;left:0;top:0;opacity:0}.smith-slot.other .lit-img{display:none}',
+    '.smith-slot:not(.other).hear .lit-img,.smith-slot:not(.other).lit .lit-img{animation:smDigits 1.8s ease-in-out infinite}.smith-slot:not(.other).heard .lit-img{animation:smDigitsOnce 1.4s ease-out 1}',
+    '@keyframes smDigits{0%,100%{opacity:0}50%{opacity:1}}@keyframes smDigitsOnce{0%{opacity:1}100%{opacity:0}}',
     '@keyframes smIdle{0%,100%{opacity:.08}50%{opacity:.3}}@keyframes smDorm{0%,100%{opacity:.03}50%{opacity:.11}}',
-    '.smith-slot.dormant{pointer-events:none}.smith-slot.dormant img{animation:smDorm 4.5s ease-in-out infinite}',
-    '@keyframes smBreathe{0%,100%{transform:scale(1);filter:drop-shadow(0 0 4px rgba(0,230,118,.35))}50%{transform:scale(1.05);filter:drop-shadow(0 0 12px rgba(0,230,118,.65))}}',
-    '@keyframes smLit{0%,100%{filter:brightness(1) hue-rotate(0deg) drop-shadow(0 0 6px rgba(0,230,118,.7))}50%{filter:brightness(1.5) hue-rotate(-35deg) drop-shadow(0 0 22px rgba(0,230,118,1))}}',
-    '@keyframes smHeard{0%{filter:brightness(2.3) hue-rotate(-40deg) drop-shadow(0 0 32px #00e676)}100%{filter:brightness(1) hue-rotate(0deg) drop-shadow(0 0 4px rgba(0,230,118,.4))}}',
-    '@media (prefers-reduced-motion:reduce){.smith-slot img{animation:none!important}.smith-slot.pulse img{opacity:.2}.smith-slot.dormant img{opacity:.06}}.smith-slot.still img{animation:none!important}',
+    '.smith-slot.dormant{pointer-events:none}.smith-slot.dormant img:not(.lit-img){animation:smDorm 4.5s ease-in-out infinite}',
+    '@keyframes smBreathe{0%,100%{transform:scale(1);filter:brightness(1)}50%{transform:scale(1.05);filter:brightness(1.25)}}',
+    '@keyframes smLit{0%,100%{transform:scale(1);filter:brightness(1)}50%{transform:scale(1.06);filter:brightness(1.6)}}',
+    '@keyframes smHeard{0%{filter:brightness(2.2)}100%{filter:brightness(1)}}',
+    '@media (prefers-reduced-motion:reduce){.smith-slot img{animation:none!important}.smith-slot .lit-img{display:none}.smith-slot.pulse img{opacity:.2}.smith-slot.dormant img{opacity:.06}}.smith-slot.still img{animation:none!important}',
     '.smith-slot img{visibility:hidden}.smith-slot img.ok{visibility:visible}.smith-slot img{width:100%;height:100%;border-radius:0;object-fit:contain;display:block;pointer-events:none;transition:opacity .3s ease,filter .3s ease}',
     '.wake-toggle.smith-held{position:absolute!important;left:-9999px;top:0}',
   ].join('\n');
@@ -101,9 +106,9 @@
     syncSmith();
   }
   var lineT = null;
-  function say(text, who) {
-    try { var LK = 'agenthub:log', la = JSON.parse(sessionStorage.getItem(LK) || '[]'), lt = (who === 'you' ? 'You: ' : 'Smith: ') + String(text).slice(0, 400); if (!(la[0] && la[0].t === lt)) la.unshift({ at: Date.now(), kind: 'chat', t: lt, err: false }); sessionStorage.setItem(LK, JSON.stringify(la.slice(0, 80))); } catch (e) {}
-    var l = document.createElement('div'); l.className = 'wl ' + who; l.textContent = (who === 'you' ? 'You: ' : 'Smith: ') + text; lines.appendChild(l); fadeIn(l, 300);
+  function say(text, who, name) {
+    try { var LK = 'agenthub:log', la = JSON.parse(sessionStorage.getItem(LK) || '[]'), lt = (who === 'you' ? 'You: ' : (name || nameOf(S.who)) + ': ') + String(text).slice(0, 400); if (!(la[0] && la[0].t === lt)) la.unshift({ at: Date.now(), kind: 'chat', t: lt, err: false }); sessionStorage.setItem(LK, JSON.stringify(la.slice(0, 80))); } catch (e) {}
+    var l = document.createElement('div'); l.className = 'wl ' + who; l.textContent = (who === 'you' ? 'You: ' : (name || nameOf(S.who)) + ': ') + text; lines.appendChild(l); fadeIn(l, 300);
     var live = Array.prototype.slice.call(lines.children).filter(function (c) { return !c._fading; });
     while (live.length > 3) fadeOut(live.shift());
     clearTimeout(lineT); lineT = setTimeout(function () { Array.prototype.slice.call(lines.children).forEach(function (c, i) { fadeOut(c, i * 60); }); }, 25000);
@@ -111,10 +116,22 @@
   function secure() { return !!(window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder); }
   function rms() { if (!S.an) return 0; S.an.getByteTimeDomainData(BUF); var s = 0; for (var i = 0; i < BUF.length; i++) { var v = (BUF[i] - 128) / 128; s += v * v; } return Math.sqrt(s / BUF.length); }
   function post(u, body, kind, ms) {
-    var c = new AbortController(), t = setTimeout(function () { c.abort(); }, ms || 30000);
+    var c = new AbortController(), t = setTimeout(function () { c.abort(); }, ms || 30000); S.reqs.push(c);
     return fetch(u, { method: 'POST', signal: c.signal, headers: { 'Content-Type': kind === 'audio' ? (body.type || 'audio/webm') : 'application/json' }, body: kind === 'audio' ? body : JSON.stringify(body || {}) })
-      .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return kind === 'speech' ? r.arrayBuffer() : r.json(); }).finally(function () { clearTimeout(t); });
+      .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return kind === 'speech' ? r.arrayBuffer() : r.json(); }).finally(function () { clearTimeout(t); var i = S.reqs.indexOf(c); if (i >= 0) S.reqs.splice(i, 1); });
   }
+  // STOP means stop: whatever is still being asked for, and whatever is being said, ends now, and an answer that arrives late is thrown away (it used to turn up seconds later and speak).
+  function cancelAll() { var q = S.reqs.splice(0); q.forEach(function (c) { try { c.abort(); } catch (e) {} }); if (S.stopPlay) S.stopPlay(); }
+  function nameOf(w) { return (AGN[w] || AGN.smith || ['Smith'])[0]; }
+  // The picture on the landing page is whoever you are talking to: Smith goes, the one you asked for arrives (a fade out, then in). Smith is the front door and returns when the conversation is quiet.
+  function setWho(w) {
+    if (!AGN[w] || S.who === w) return; S.who = w; try { sessionStorage.setItem('hubTalkWho', w); } catch (e) {}
+    var img = SM && SM.img; if (!img) return;
+    if (SM.slot) SM.slot.classList.toggle('other', w !== 'smith');
+    img.style.opacity = '0';
+    setTimeout(function () { img.src = w === 'smith' ? SM.own : '/static/agent-icons/' + w + '.png'; SM.live = img.src; img.style.opacity = ''; }, 300);
+  }
+  function loadVoices() { if (S.av) return; S.av = {}; fetch('/api/voice/voices').then(function (r) { return r.json(); }).then(function (j) { S.av = j.agents || {}; }).catch(function () { S.av = null; }); }
 
   // ---- blocks around the ring
   var blocks = [];
@@ -218,11 +235,12 @@
   }
 
   // ---- speaking, with the ring pulsing to the voice; talking over it cuts it off
-  function play(text) {
+  function play(text, as) {                                                          // as: the agent whose voice to use (default: whoever is on the page)
     return new Promise(function (resolve) {
+      as = as || S.who; loadVoices();
       var done = false, tick = null, rhythm = null, guard = null, node = null;
-      function fin() { if (done) return; done = true; clearInterval(tick); clearInterval(rhythm); clearInterval(guard); try { if (node) node.stop(); } catch (e) {} S.speaking = false; resolve(); }
-      S.speaking = true; setState('speak'); pulse(); rhythm = setInterval(pulse, 620);
+      function fin() { if (done) return; done = true; if (S.stopPlay === fin) S.stopPlay = null; clearInterval(tick); clearInterval(rhythm); clearInterval(guard); try { if (node) node.stop(); } catch (e) {} S.speaking = false; resolve(); }
+      S.stopPlay = fin; S.speaking = true; setState('speak'); pulse(); rhythm = setInterval(pulse, 620);
       var t0 = performance.now(), floor = 0, hi = 0, lastT = t0;
       guard = setInterval(function () {
         var now = performance.now(), r = rms(); if (now - t0 < 600) { floor = Math.max(floor, r); lastT = now; return; }
@@ -230,10 +248,10 @@
         if (hi > 300 && !done) { S.barged = true; pulse(); fin(); }
       }, 30);
       var voice = null; try { voice = localStorage.getItem('hubVoiceName'); } catch (e) {}
-      post('/api/voice/speak', { text: text, voice: voice || undefined }, 'speech', 20000).then(function (ab) {
+      post('/api/voice/speak', { text: text, voice: as === 'smith' ? (voice || undefined) : undefined, agent: as }, 'speech', 20000).then(function (ab) {
         return S.actx.decodeAudioData(ab.slice(0)).then(function (buf) {
           var src = node = S.actx.createBufferSource(), an = S.actx.createAnalyser(), data = new Uint8Array(512), last = 0;
-          an.fftSize = 512; src.buffer = buf; src.connect(an); if (window.HubVoiceFx) HubVoiceFx.connect(S.actx, an, S.actx.destination, buf.duration); else an.connect(S.actx.destination); src.onended = fin; src.start();
+          an.fftSize = 512; src.buffer = buf; src.connect(an); var rec = (S.av && S.av[as]) || {}; if (window.HubVoiceFx) HubVoiceFx.connect(S.actx, an, S.actx.destination, buf.duration, as === 'smith' ? undefined : rec.fx, as === 'smith' ? undefined : rec.fxs); else an.connect(S.actx.destination); src.onended = fin; src.start();
           tick = setInterval(function () { an.getByteTimeDomainData(data); var s = 0; for (var i = 0; i < data.length; i++) { var v = (data[i] - 128) / 128; s += v * v; } if (Math.sqrt(s / data.length) > 0.07 && performance.now() - last > 380) { last = performance.now(); pulse(); } }, 80);
         });
       }).catch(fin);
@@ -287,13 +305,26 @@
       if (NO.test(text)) return reply({ say: 'Okay, cancelled. Nothing was changed.' }, text);
     }
     S.history.push({ role: 'user', text: text });
-    return post('/api/voice/chat', { text: text, history: S.history.slice(-9, -1), scene: scene() }, 'json', 60000).then(function (r) {
+    var run = S.run;
+    return post('/api/voice/chat', { text: text, history: S.history.slice(-9, -1), scene: scene(), speaker: S.who }, 'json', 60000).then(function (r) {
+      if (run !== S.run) return;                                   // STOP was pressed while it was thinking: nothing is said
       S.history.push({ role: 'assistant', text: r.say || '' });
+      var tr = r.transition;
+      if (tr) {                                                    // "bring Viktor": the one leaving says so in their own voice, then the picture changes, then the new one answers
+        var from = S.who; say(tr.line, 'smith', nameOf(from));
+        return play(tr.line, from).then(function () { if (run !== S.run) return; setWho(r.speaker || tr.to); return after(r, text, run); });
+      }
+      if (r.speaker && r.speaker !== S.who) setWho(r.speaker);
+      return after(r, text, run);
+    });
+  }
+  function after(r, text, run) {
+    {
       if (r.ask === 'restart') { S.pending = { restart: true }; return reply(r, text); }
       if (r.action && r.confirm) { S.pending = r; return reply(r, text); }
       if (r.action && !r.url) return act(r, text);
       return reply(r, text);
-    });
+    }
   }
   function restartHub() { return post('/api/restart', {}, 'json', 8000).catch(function () {}).then(function () { return reply({ say: 'Restarting. I will be back in a few seconds.' }, 'restart'); }); }
   function act(r, text) { return post('/api/voice/act', { id: r.action.id, args: r.action.args }, 'json', 90000).then(function (j) { if (j.action && j.confirm) S.pending = j; return reply(j, text); }); }
@@ -341,7 +372,7 @@
     }).then(function () { setTimeout(function () { loop(run); }, 50); });
   }
 
-  function stopAll(clearKey) { S.on = false; S.run++; S.pending = null; S.convoUntil = 0; clearBlocks(); Array.prototype.slice.call(lines.children).forEach(function (c) { fadeOut(c); }); release(); if (clearKey !== false) { try { localStorage.setItem(KEY, '0'); } catch (e) {} } setState('off'); }
+  function stopAll(clearKey) { S.on = false; S.run++; cancelAll(); setWho('smith'); S.pending = null; S.convoUntil = 0; clearBlocks(); Array.prototype.slice.call(lines.children).forEach(function (c) { fadeOut(c); }); release(); if (clearKey !== false) { try { localStorage.setItem(KEY, '0'); } catch (e) {} } setState('off'); }
   function start() {
     if (!secure()) { setLabel('NEEDS HTTPS'); btn.title = 'The browser only allows the microphone on https. Open the Hub through its Tailscale address.'; return; }
     var AC = window.AudioContext || window.webkitAudioContext; if (!S.actx && AC) S.actx = new AC(); if (S.actx && S.actx.state === 'suspended') S.actx.resume();
@@ -356,7 +387,7 @@
   setInterval(function () {
     syncSmith();
     if (!S.on) { thinkSince = 0; return; }
-    if (S.state === 'convo' && !S.pending && Date.now() >= S.convoUntil) setState('wake');
+    if (S.state === 'convo' && !S.pending && Date.now() >= S.convoUntil) { setState('wake'); setWho('smith'); }
     if (S.state === 'think') { if (!thinkSince) thinkSince = Date.now(); else if (Date.now() - thinkSince > 75000 && !S.speaking) { thinkSince = 0; setState('wake'); } } else thinkSince = 0;
   }, 500);
   // ---- Smith replaces the wake button. His picture sits where the button was and is the switch. It shows while the wake word is OFF (so you can switch it on) and while you are
@@ -366,7 +397,8 @@
   (function buildSlot() {
     var slot = document.createElement('button'); slot.type = 'button'; slot.id = 'smith-slot'; slot.className = 'smith-slot';
     slot.setAttribute('aria-label', 'Smith: switch the wake word on or off');
-    var img = document.createElement('img'); img.alt = ''; img.draggable = false; img.src = '__SMITH_PNG__'; img.classList.add('ok'); slot.appendChild(img); SM.img = img; SM.loaded = true; SM.tried = 0; SM.still = '__SMITH_STILL__';
+    var img = document.createElement('img'); img.alt = ''; img.draggable = false; img.src = '__SMITH_PNG__'; img.classList.add('ok'); slot.appendChild(img); SM.img = img; SM.own = img.src; SM.loaded = true;
+    var litImg = document.createElement('img'); litImg.className = 'lit-img ok'; litImg.alt = ''; litImg.draggable = false; litImg.src = '__SMITH_LIT__'; slot.appendChild(litImg); SM.lit = litImg; SM.tried = 0; SM.still = '__SMITH_STILL__';
     
     btn.parentNode.insertBefore(slot, btn); btn.classList.add('smith-held');
     slot.onclick = function () {
@@ -427,6 +459,6 @@
   // It keeps listening when another window comes in front (opening an app by voice used to switch it off); only leaving the page ends it.
   addEventListener('pagehide', function () { if (S.on) stopAll(); });
   addEventListener('resize', function () { if (blocks.length) clearBlocks(); });
-  window.__hubWake = { stop: function(){stopAll(false);}, state: function () { return S.state; }, smith: function () { return { icon: SM.iconOn, state: S.state }; }, _leave: quietForEnter, _back: unquiet, mic: function () { return !!S.stream; }, _set: function (s) { S.on = s !== 'off'; if (s === 'convo') S.convoUntil = Date.now() + 20000; setState(s); }, blocks: function () { return blocks.length; }, say: function (t) { return ask(t); } };
+  window.__hubWake = { stop: function(){stopAll(false);}, state: function () { return S.state; }, smith: function () { return { icon: SM.iconOn, state: S.state }; }, _leave: quietForEnter, _back: unquiet, mic: function () { return !!S.stream; }, _set: function (s) { S.on = s !== 'off'; if (s === 'convo') S.convoUntil = Date.now() + 20000; setState(s); }, blocks: function () { return blocks.length; }, who: function () { return S.who; }, say: function (t) { return ask(t); } };
   setState('off');
 })();

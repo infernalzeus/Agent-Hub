@@ -66,7 +66,7 @@ def test_stale_code_chip_delegates_to_existing_restart(page):
 def test_hands_is_primary_and_on_screen(page,size):
  page.set_viewport_size({'width':size[0],'height':size[1]});page.wait_for_timeout(500)
  h=page.locator('.hb-ingest-dock .hb-hands');assert h.is_visible();r=h.bounding_box();assert 0<=r['x'] and r['x']+r['width']<=size[0]
- assert page.locator('.hands-log .hl-tools').get_by_text('HAND SETUP',exact=True).count()==1
+ assert page.locator('.hands-log .hl-tools').get_by_text('HAND SETUP',exact=True).count()==0       # the board moves HAND SETUP and SAVE TRACE out of the log on purpose (home-board.js toLog)
 
 @pytest.mark.parametrize('surface',['slab','glass'])
 def test_rear_surface_pixels_and_preference(page,surface):

@@ -98,7 +98,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
  iframe.teach{flex:1;height:auto;min-height:0;margin-top:6px}
 }
 @media (min-width:1200px){body{font-size:13.5px}}
-@media (max-width:899px){.rgrid{grid-template-columns:1fr}.term .tr,.term .mr,.term .dr{grid-template-columns:1fr}.term .th,.term .dh{display:none}.yrow{flex-direction:column}.yrow #nodebox{width:auto}}
+@media (max-width:899px){.rgrid{grid-template-columns:1fr}.term .tr,.term .mr,.term .dr,.term .sr,.term .mh{grid-template-columns:minmax(0,1fr)!important}.term .th,.term .dh,.term .sh,.term .mh{display:none!important}.term .sr,.term .mr,.term .dr,.term .tr{padding:6px 0}.yrow{flex-direction:column}.yrow #nodebox{width:auto}}
 
 /* ---- terminal panels (OVERVIEW, SCORES): monospace, one screen, the font size is picked so the whole table fits */
 .term{--tf:13px;font:var(--tf)/1.36 "Cascadia Mono","Cascadia Code",Consolas,"Courier New",monospace;color:#c6f1da;background:rgba(2,6,20,.6);border:1px solid var(--border);border-radius:8px;padding:10px 14px;flex:1;min-height:0;overflow:hidden;margin-top:8px}
@@ -116,6 +116,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
 .term button.mini{justify-self:start;font:inherit;font-size:.8em;padding:1px 8px;border-radius:4px;letter-spacing:.06em;line-height:1.3}
 .term .dr,.term .dh{display:grid;gap:0 16px;grid-template-columns:minmax(20ch,2fr) 7ch 6ch 8ch 9ch 5ch 9ch minmax(0,2.6fr);padding:4px 0;border-top:1px solid rgba(0,230,118,.12)}.term .dh{border:0;color:var(--mute);letter-spacing:.06em;text-transform:uppercase;padding-bottom:2px}
 .term .pm{display:flex;gap:8px;align-items:center;margin:0 0 6px;color:var(--mute)}.term .pm button.mini{justify-self:auto}.term .pm button.on{color:#eafff3;border-color:var(--accent);background:rgba(0,230,118,.22);opacity:1}
+.term{overflow-wrap:anywhere}.term.tight .td{display:none}.term .lv{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-left:2ch;color:var(--mute)}.term .lv button.on{color:#eafff3;border-color:var(--accent);background:rgba(0,230,118,.22);opacity:1}
 .term .tl{color:var(--mute);margin-top:3px}.term .tl::before{content:"> ";color:var(--amber)}
 </style><link rel="stylesheet" href="/theme.css"></head><body><main>
 <div class="hdr"><div class="band"><div class="row" id="topbar" style="margin:0"><span class="chip part">EXPERIMENTAL</span><button id="top-shadow" type="button" aria-pressed="false"></button><span class="mute" id="top-note"></span></div></div>
@@ -325,15 +326,27 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
   }
   // ---- OVERVIEW: one row per thing that learns, in the order data travels; the explanation of a row is behind its button
   // the font size of a terminal panel is picked so that the whole table fits: largest first, down to 10 px
-  function fit(box){if(!box||box.offsetParent===null)return;let px=window.innerWidth<900?13:15;box.style.setProperty('--tf',px+'px');if(window.innerWidth<900)return;while(px>10&&box.scrollHeight>box.clientHeight+1){px-=.5;box.style.setProperty('--tf',px+'px');}}
+  function fit(box){if(!box||box.offsetParent===null)return;box.classList.remove('tight');let px=window.innerWidth<900?13:15;box.style.setProperty('--tf',px+'px');if(window.innerWidth<900)return;while(px>10&&box.scrollHeight>box.clientHeight+1){px-=.5;box.style.setProperty('--tf',px+'px');}if(box.scrollHeight>box.clientHeight+1)box.classList.add('tight');}
   addEventListener('resize',()=>{fit($('ovlist'));fit($('scterm'));fit($('mdterm'));});
+  // What can be changed from the overview, per learner: only things that really change behaviour, each one the same call the other tabs make.
+  function lever(r,j){
+    const d=el('div','lv'),mini=(t,fn,on)=>{const b=el('button','mini'+(on?' on':''),t);b.type='button';b.disabled=!!on;b.onclick=fn;return b;};
+    d.append(el('span','dim','change:'));
+    if(r.id==='presets'){const cur={off:'off','shadow-picks':'shadow',live:'apply'}[r.state];[['off','OFF'],['shadow','SHADOW'],['apply','APPLY']].forEach(([v,t])=>d.append(mini(t,async()=>{await POST('/api/yard/knobs',{preset_mode:v});overview();},cur===v)));d.append(el('span','dim','per-model results: MODELS tab'));}
+    else if(r.id==='routines'){const on=!!((j.switches||[])[0]||{}).on;d.append(mini('TEACH THE LEARNERS',async()=>{await POST('/api/yard/knobs',{routine_data:true});overview();},on),mini('ONLY CHECKS',async()=>{await POST('/api/yard/knobs',{routine_data:false});overview();},!on),mini('ROUTINES',()=>tab('routines')));}
+    else if(r.id==='router')d.append(mini('GRADE REQUESTS (TEACH)',()=>tab('teach')));
+    else if(r.id==='bandits')d.append(mini('CHOOSE THE WATCHED LEARNER (SCORES)',()=>tab('scores')));
+    else if(r.id==='policy')d.append(mini('APPROVE TASKS (ROUTINES)',()=>tab('routines')));
+    else return null;
+    return d;}
   async function overview(){
     let j;const box=$('ovlist');try{j=await J('/api/yard/overview');}catch(e){box.textContent='overview unavailable: '+e.message;return;}
     box.replaceChildren();box.append(el('div','tnext',j.next));
     const COL={off:'off',recording:'part','shadow-picks':'part',practice:'part',shadow:'part',live:'ok'},WORD={off:'OFF',recording:'COLLECTING','shadow-picks':'SHADOW',practice:'PRACTISED',shadow:'SHADOW',live:'LIVE'};
     const h=el('div','th tr');['learner','mode','input','data','acts on','gate'].forEach(x=>h.append(el('div',null,x)));box.append(h);
     j.rows.forEach(r=>{const row=el('div','tr');row.append(el('div','tn',r.name),el('div','ts '+(COL[r.state]||'part'),WORD[r.state]||r.state),el('div',null,r.from),el('div',null,r.amount),el('div',null,r.changes),el('div',null,r.needs));
-      (r.details||[]).forEach(([k,v])=>{const d=el('div','td');d.append(el('b',null,k+': '),document.createTextNode(v));row.append(d);});box.append(row);});
+      (r.details||[]).forEach(([k,v])=>{const d=el('div','td');d.append(el('b',null,k+': '),document.createTextNode(v));row.append(d);});
+      const lv=lever(r,j);if(lv)row.append(lv);box.append(row);});
     fit(box);
   }
   async function routines(){

@@ -28,10 +28,22 @@ def test_the_talk_button_picture_is_the_light_png(hub):
     assert kind == "image/png" and len(body) < 40_000
 
 
-def test_the_landing_page_carries_smiths_picture_as_a_plain_png_and_a_small_still_for_the_move_to_the_dashboard(hub):
+def test_the_landing_page_carries_smiths_outline_and_a_lit_copy_as_small_pictures_and_no_animated_vector(hub):
     _, page = _get(hub + "/offline.html")
     html = page.decode("utf-8", "replace")
     pngs = re.findall(r"data:image/png;base64,([A-Za-z0-9+/=]+)", html)
-    assert len(pngs) >= 2 and "SM.still" in html                                                          # the portrait and the small still, swapped in at ENTER
-    assert max(len(base64.b64decode(p)) for p in pngs) < 60_000                                           # a plain picture: nothing animated to redraw every frame
-    assert not re.search(r"data:image/svg\+xml;base64,", html)
+    assert len(pngs) >= 3 and "SM.still" in html and "lit-img" in html                                 # the outline, the lit copy and the still
+    assert max(len(base64.b64decode(p)) for p in pngs) < 60_000
+    assert "data:image/svg+xml;base64," not in html
+
+
+def test_each_core_agent_has_a_face_picture_for_the_small_circles(hub):
+    for name in ("smith", "smith-new", "smith-new-lit", "orchestrator", "neo", "doctor"):
+        kind, body = _get(f"{hub}/static/agent-icons/face/{name}.png")
+        assert kind == "image/png" and 2_000 < len(body) < 60_000, name
+    try:
+        _get(f"{hub}/static/agent-icons/face/../doctor.png")
+    except Exception:
+        pass
+    else:
+        raise AssertionError("a path outside the face folder must not be served")
