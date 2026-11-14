@@ -10,6 +10,11 @@ from test_ui_lifecycle import hub  # noqa: F401  (an isolated Hub on its own sta
 FAKE_MIC = """navigator.mediaDevices.getUserMedia = async () => { const c = new AudioContext(), d = c.createMediaStreamDestination(), o = c.createOscillator(); o.connect(d); o.start(); return d.stream; };"""
 
 
+def _nd(data):
+    import json
+    return json.dumps({"t": "result", "data": data}) + chr(10)
+
+
 def _landing(pw, hub, **ctx_args):
     b = pw.chromium.launch(headless=True, args=["--autoplay-policy=no-user-gesture-required"])
     ctx = b.new_context(service_workers="block", viewport={"width": 1100, "height": 900}, **ctx_args)
@@ -163,10 +168,10 @@ def test_asking_for_viktor_on_the_landing_page_swaps_the_picture_and_stop_throws
             sent.append(body)
             if "slow" in body["text"]:
                 time.sleep(2.5)
-                return route.fulfill(json={"say": "Too late.", "action": None, "confirm": False, "speaker": "smith", "ui": {}})
-            route.fulfill(json={"say": "I am here.", "action": None, "confirm": False, "speaker": "orchestrator", "ui": {},
-                                "transition": {"from": "smith", "to": "orchestrator", "line": "Of course. I will bring in Viktor."}})
-        pg.route("**/api/voice/chat", chat)
+                return route.fulfill(body=_nd({"say": "Too late.", "action": None, "confirm": False, "speaker": "smith", "ui": {}}), content_type="application/x-ndjson")
+            route.fulfill(body=_nd({"say": "I am here.", "action": None, "confirm": False, "speaker": "orchestrator", "ui": {},
+                                    "transition": {"from": "smith", "to": "orchestrator", "line": "Of course. I will bring in Viktor."}}), content_type="application/x-ndjson")
+        pg.route("**/api/voice/stream", chat)
         _shown(pg)
         pg.click("#smith-slot")
         pg.wait_for_function("window.__hubWake.state() === 'wake'", timeout=15000)
@@ -223,8 +228,8 @@ def test_a_slow_answer_is_covered_by_a_short_holding_phrase_that_a_real_answer_c
 
         def chat(route):
             time.sleep(2.4)
-            route.fulfill(json={"say": "Here it is.", "action": None, "confirm": False, "speaker": "smith", "ui": {}})
-        pg.route("**/api/voice/chat", chat)
+            route.fulfill(body=_nd({"say": "Here it is.", "action": None, "confirm": False, "speaker": "smith", "ui": {}}), content_type="application/x-ndjson")
+        pg.route("**/api/voice/stream", chat)
         _shown(pg)
         pg.click("#smith-slot")
         pg.wait_for_function("window.__hubWake.state() === 'wake'", timeout=15000)
@@ -233,3 +238,24 @@ def test_a_slow_answer_is_covered_by_a_short_holding_phrase_that_a_real_answer_c
         assert "One moment." in asked, asked                                                  # said while the answer was still being worked out
         pg.wait_for_function("document.querySelector('#wake-lines') && [...document.querySelectorAll('#wake-lines .wl')].some(e => e.textContent.includes('Here it is'))", timeout=8000)
         b.close()
+
+
+def test_a_streamed_answer_is_said_sentence_by_sentence_as_it_arrives_and_not_said_again_at_the_end(hub):
+    """The whole sentence used to appear and then wait for its voice: now each sentence is fetched as a voice when it arrives and shown when it starts."""
+    import json
+    with sync_playwright() as pw:
+        b, pg = _landing(pw, hub)
+        asked = []
+        pg.route("**/api/voice/speak", lambda r: (asked.append(r.request.post_data_json["text"]), r.fulfill(status=503, body="no voice in a test"))[1])
+        lines = [{"t": "say", "text": "First sentence."}, {"t": "say", "text": "And a second one."},
+                 {"t": "result", "data": {"say": "First sentence. And a second one.", "action": None, "confirm": False, "speaker": "smith", "ui": {}, "backend": "fast:test"}}]
+        pg.route("**/api/voice/stream", lambda r: r.fulfill(body=chr(10).join(json.dumps(x) for x in lines) + chr(10), content_type="application/x-ndjson"))
+        _shown(pg)
+        pg.click("#smith-slot")
+        pg.wait_for_function("window.__hubWake.state() === 'wake'", timeout=15000)
+        pg.evaluate("window.__hubWake.say('tell me something')")
+        pg.wait_for_function("[...document.querySelectorAll('#wake-lines .wl')].filter(e => e.textContent.startsWith('Smith: ')).length >= 2", timeout=8000)
+        texts = pg.evaluate("[...document.querySelectorAll('#wake-lines .wl')].map(e => e.textContent)")
+        b.close()
+    assert {t for t in asked if t not in ("Yes?", "One moment.")} == {"First sentence.", "And a second one."}, asked          # a voice was asked for each sentence (fetched ahead, then used), none for the whole answer
+    assert "Smith: First sentence." in texts and "Smith: And a second one." in texts and not any("First sentence. And" in t for t in texts), texts

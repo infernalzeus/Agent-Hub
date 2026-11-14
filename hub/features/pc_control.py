@@ -1861,6 +1861,24 @@ async def api_run_step(request: web.Request) -> web.Response:
     routine = dict(row)
     if routine["tool"] != "ui":
         raise web.HTTPBadRequest(text="only a routine that presses things inside an app has steps to run one by one")
+    if ordinal == -1:                                                      # step 1 of a routine is opening its app (it is listed first, as ordinal -1): do that, wait for the window, then (from here) carry on with the rest
+        app = _app_of(routine)
+        if not app:
+            raise web.HTTPBadRequest(text="this routine does not say which app it works in")
+        window = (json.loads(routine.get("signature_json") or "{}") or {}).get("window", "")
+        t0 = time.time()
+        opened = await launch_app(app, "step run")
+        if opened.get("ok"):
+            for _ in range(24):
+                if await _snapshot(window):
+                    break
+                await asyncio.sleep(0.5)
+        done = {"ok": bool(opened.get("ok")), "route": "routine", "say": (opened.get("say") or f"Opened {display_app_name(app)}.") + f" ({(time.time() - t0):.1f} s)", "step": -1}
+        if body.get("mode", "one") == "from" and done["ok"]:
+            rest = await replay_ui_routine(routine, "step run", only=(0, 10 ** 6))
+            rest["say"] = done["say"] + " " + (rest.get("say") or "")
+            return web.json_response(rest)
+        return web.json_response(done)
     only = (ordinal, ordinal) if body.get("mode", "one") == "one" else (ordinal, 10 ** 6)
     got = await replay_ui_routine(routine, "step run", only=only)
     return web.json_response(got)
@@ -1875,7 +1893,14 @@ async def api_routine_steps(request: web.Request) -> web.Response:
         name = str((cmd["args"] or {}).get("name") or row["title"])
         return web.json_response({"steps": [{"ordinal": 0, "tool": cmd["tool"], "args": cmd["args"], "target": {"name": name, "control": "app"}, "command": cmd["text"], "source": cmd["source"], "fixed": True}]})
     steps = _steps(request.match_info["id"])
-    return web.json_response({"steps": [
+    first = []
+    if row and row["tool"] == "ui":                                          # opening the app is a command to Windows, not a click, but it is a step: it is listed first and can be replayed on its own
+        app = _app_of(dict(row))
+        if app:
+            cmd = launch_command({"tool": "App", "args_json": json.dumps({"name": display_app_name(app)}), "successes": row["successes"]})
+            first = [{"ordinal": -1, "tool": "App", "args": cmd["args"], "target": {"name": display_app_name(app), "control": "app"}, "command": cmd["text"],
+                      "source": "the app this routine works in", "fixed": True, "launch": True}]
+    return web.json_response({"steps": first + [
         {"ordinal": s["ordinal"], "tool": s["tool"],
          "args": json.loads(s["args_json"] or "{}"),
          "target": json.loads(s["target_json"] or "{}"),

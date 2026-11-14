@@ -256,7 +256,7 @@
 
   // ---- speaking, with the ring pulsing to the voice; talking over it cuts it off
   S.cache = {};
-  function prefetch(texts, as) { texts.forEach(function (t) { var k = as + '|' + t; if (S.cache[k]) return; post('/api/voice/speak', { text: t, voice: as === 'smith' ? ((function () { try { return localStorage.getItem('hubVoiceName'); } catch (e) { return null; } })() || undefined) : undefined, agent: as }, 'speech', 20000).then(function (ab) { S.cache[k] = ab; }).catch(function () {}); }); }
+  function prefetch(texts, as) { texts.forEach(function (t) { var k = as + '|' + t; if (S.cache[k]) return; if (t.length > 40 && Object.keys(S.cache).length > 24) return; post('/api/voice/speak', { text: t, voice: as === 'smith' ? ((function () { try { return localStorage.getItem('hubVoiceName'); } catch (e) { return null; } })() || undefined) : undefined, agent: as }, 'speech', 20000).then(function (ab) { S.cache[k] = ab; }).catch(function () {}); }); }
   function play(text, as, filler) {                                                          // as: the agent whose voice to use (default: whoever is on the page)
     return new Promise(function (resolve) {
       as = as || S.who; loadVoices(); if (S.stopPlay && !filler) S.stopPlay();            // a real answer cuts off the holding phrase
@@ -271,7 +271,7 @@
       }, 30);
       var voice = null; try { voice = localStorage.getItem('hubVoiceName'); } catch (e) {}
       var ck = as + '|' + text;
-      (S.cache[ck] ? Promise.resolve(S.cache[ck]) : post('/api/voice/speak', { text: text, voice: as === 'smith' ? (voice || undefined) : undefined, agent: as }, 'speech', 20000).then(function (ab) { if (text.length <= 40) S.cache[ck] = ab; return ab; })).then(function (ab) {
+      (S.cache[ck] ? (function () { var hit = S.cache[ck]; if (text.length > 40) delete S.cache[ck]; return Promise.resolve(hit); })() : post('/api/voice/speak', { text: text, voice: as === 'smith' ? (voice || undefined) : undefined, agent: as }, 'speech', 20000).then(function (ab) { if (text.length <= 40) S.cache[ck] = ab; return ab; })).then(function (ab) {
         return S.actx.decodeAudioData(ab.slice(0)).then(function (buf) {
           var src = node = S.actx.createBufferSource(), an = S.actx.createAnalyser(), data = new Uint8Array(512), last = 0;
           an.fftSize = 512; src.buffer = buf; src.connect(an); var rec = (S.av && S.av[as]) || {}; if (window.HubVoiceFx) HubVoiceFx.connect(S.actx, an, S.actx.destination, buf.duration, as === 'smith' ? undefined : rec.fx, as === 'smith' ? undefined : rec.fxs); else an.connect(S.actx.destination); src.onended = fin; src.start();
@@ -320,6 +320,32 @@
     var done = function () { lineBusy[text] = false; };
     S.convoUntil = Date.now() + CONVO_MS; ask(text).catch(function () { return reply({ say: 'I could not do that just now.' }, text); }).then(done, done);
   }
+  function streamChat(body, run) {
+    return new Promise(function (resolve, reject) {
+      var c = new AbortController(), t = setTimeout(function () { c.abort(); }, 70000), spoken = Promise.resolve(), n = 0, result = null, buf = '';
+      S.reqs.push(c);
+      function done() { clearTimeout(t); var i = S.reqs.indexOf(c); if (i >= 0) S.reqs.splice(i, 1); }
+      function line(l) {
+        var j; try { j = JSON.parse(l); } catch (e) { return; }
+        if (j.t === 'say') {
+          n++; var txt = j.text; prefetch([txt], S.who);
+          spoken = spoken.then(function () { if (run !== S.run) return; say(txt, S.who); return play(txt, S.who); });          // shown when it starts being said, not before
+        } else if (j.t === 'result') result = j.data;
+        else if (j.t === 'error') reject(new Error(j.text || 'stream error'));
+      }
+      fetch('/api/voice/stream', { method: 'POST', signal: c.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) {
+        if (!r.ok) throw new Error('http ' + r.status);
+        var rd = r.body.getReader(), dec = new TextDecoder();
+        function pump() {
+          return rd.read().then(function (x) {
+            if (x.done) { if (buf.trim()) line(buf); done(); if (!result) return reject(new Error('no answer')); if (n) { result._streamed = true; result._spoken = spoken; } return resolve(result); }
+            buf += dec.decode(x.value, { stream: true }); var ls = buf.split(String.fromCharCode(10)); buf = ls.pop(); ls.forEach(line); return pump();
+          });
+        }
+        return pump();
+      }).catch(function (e) { done(); reject(e); });
+    });
+  }
   function ask(text) {
     setState('think'); say(text, 'you');
     var YES = /^\W*(yes|yeah|yep|sure|okay|ok|go ahead|do it|confirm)\b/i, NO = /^\W*(no|nope|cancel|stop|don'?t|never mind)\b/i;
@@ -330,7 +356,7 @@
     }
     S.history.push({ role: 'user', text: text });
     var run = S.run, waiting = true, hold = setTimeout(function () { if (waiting && run === S.run && S.state === 'think') play('One moment.', S.who, true); }, 1500);     // a slow answer is not silence
-    return post('/api/voice/chat', { text: text, history: S.history.slice(-9, -1), scene: scene(), speaker: S.who }, 'json', 60000).then(function (r) {
+    return streamChat({ text: text, history: S.history.slice(-9, -1), scene: scene(), speaker: S.who, pending: !!S.pending }, run).then(function (r) {
       waiting = false; clearTimeout(hold);
       if (run !== S.run) return;                                   // STOP was pressed while it was thinking: nothing is said
       S.history.push({ role: 'assistant', text: r.say || '' });
@@ -357,23 +383,24 @@
   // what to show comes from the answer's own `ui`; the page only guesses when the Hub sent nothing
   function reply(r, asked) {
     var ui = r.ui || {}, sayText = r.say || '';
-    say(sayText, 'smith');
+    var speak = r._streamed ? function () { return r._spoken; } : function () { return play(sayText); };
+    if (!r._streamed) say(sayText, S.who);
     var show;
-    if (ui.sleep) show = function () { clearBlocks(); return play(sayText).then(function () { S.convoUntil = 0; setState('wake'); }); };
-    else if (ui.clear) show = function () { clearBlocks(); return play(sayText).then(afterReply); };
-    else if (ui.open) show = function () { return play(sayText).then(openHome); };
-    else if (ui.focus && focusBlock(ui.focus)) show = function () { return play(sayText).then(afterReply); };
+    if (ui.sleep) show = function () { clearBlocks(); return speak().then(function () { S.convoUntil = 0; setState('wake'); }); };
+    else if (ui.clear) show = function () { clearBlocks(); return speak().then(afterReply); };
+    else if (ui.open) show = function () { return speak().then(openHome); };
+    else if (ui.focus && focusBlock(ui.focus)) show = function () { return speak().then(afterReply); };
     // applying or discarding the doctor's work answers inside its own block (which then offers RESTART), not in a new note that would replace it
-    else if ((ui.apply || ui.discard) && S.doctor && S.doctor.isConnected) show = function () { watchDoctor(); return play(sayText).then(afterReply); };
-    else if (ui.window && ui.window.url) show = function () { try { sessionStorage.setItem('agenthub:window', JSON.stringify(ui.window)); } catch (e) {} return play(sayText).then(openHome); };   // the dashboard opens that window as a panel
-    else if (r.url && TOOL.test(r.url) && !(ui.blocks && ui.blocks.length) && !ui.doctor_id && !ui.help) show = function () { try { sessionStorage.setItem('agenthub:tool', r.url); } catch (e) {} return play(sayText).then(openHome); };   // the dashboard opens on that tool
+    else if ((ui.apply || ui.discard) && S.doctor && S.doctor.isConnected) show = function () { watchDoctor(); return speak().then(afterReply); };
+    else if (ui.window && ui.window.url) show = function () { try { sessionStorage.setItem('agenthub:window', JSON.stringify(ui.window)); } catch (e) {} return speak().then(openHome); };   // the dashboard opens that window as a panel
+    else if (r.url && TOOL.test(r.url) && !(ui.blocks && ui.blocks.length) && !ui.doctor_id && !ui.help) show = function () { try { sessionStorage.setItem('agenthub:tool', r.url); } catch (e) {} return speak().then(openHome); };   // the dashboard opens on that tool
     else {
       var list = ui.blocks && ui.blocks.length ? ui.blocks.slice() : null;
       if (ui.doctor_id) list = [{ id: 'doctor', t: 'THE DOCTOR', type: 'doctor' }];
       else if (ui.help) list = [{ id: 'help', t: 'YOU CAN SAY', type: 'note', text: 'show the dashboard · what is running · how is the PC · how much have I used · maximise the usage chart · clear the dashboard · open Home · something is wrong with the Hub · go to sleep' }];
       else if (!list && r.url) list = [{ id: 'note', t: 'SMITH', type: 'note', text: sayText, link: ['OPEN', r.url] }];
       else if (!list && sayText) list = [{ id: 'note', t: 'SMITH', type: 'note', text: sayText }];
-      show = function () { if (list) raise(list); return play(sayText).then(afterReply); };
+      show = function () { if (list) raise(list); return speak().then(afterReply); };
     }
     return Promise.resolve(show());
   }

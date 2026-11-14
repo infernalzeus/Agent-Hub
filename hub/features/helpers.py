@@ -6,6 +6,8 @@ is added or changes state shows up here without anyone editing a page.
 """
 from __future__ import annotations
 
+import re
+
 from aiohttp import web
 
 routes = web.RouteTableDef()
@@ -121,6 +123,16 @@ async def api_helpers(request: web.Request) -> web.Response:
 ICON_DIR = __import__("pathlib").Path(__file__).resolve().parent.parent / "static" / "agent-icons"
 ART_DIR = ICON_DIR.parent / "agent-art"
 CREW = ("orchestrator", "neo", "smith", "doctor", "router")
+
+
+@routes.get("/static/agent-icons/anim/{name}")
+async def agent_anim(request: web.Request) -> web.StreamResponse:
+    """The agent's own animated portrait (the drawn picture with its lens glints), for the Talk window: it carries its own pulse, so nothing is laid over it."""
+    name = request.match_info["name"]
+    f = ART_DIR / name
+    if not re.fullmatch(r"(orchestrator|neo|doctor|smith)\.svg", name) or not f.is_file():
+        raise web.HTTPNotFound()
+    return web.FileResponse(f, headers={"Cache-Control": "public, max-age=300", "Content-Type": "image/svg+xml"})
 
 
 @routes.get("/static/agent-icons/lit/{name}")

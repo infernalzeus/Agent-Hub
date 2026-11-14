@@ -21,6 +21,7 @@ STUB = """
   window.fetch = async (url, opts) => {
     const u = String(url), at = Math.round(performance.now() - window.__t0), sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     if (u.includes('/api/voice/chat')) return new Response(JSON.stringify({ say: window.__cfg.say, action: window.__cfg.action, confirm: false }), { headers: { 'Content-Type': 'application/json' } });
+    if (u.includes('/api/voice/stream')) return new Response(JSON.stringify({ t: 'result', data: { say: window.__cfg.say, action: window.__cfg.action, confirm: false } }) + String.fromCharCode(10), { headers: { 'Content-Type': 'application/x-ndjson' } });
     if (u.includes('/api/voice/act')) { await sleep(window.__cfg.act); return new Response(JSON.stringify({ say: window.__cfg.answer || 'Done.' }), { headers: { 'Content-Type': 'application/json' } }); }
     if (u.includes('/api/voice/speak')) { const text = JSON.parse(opts.body).text; const k = window.__log.filter((x) => x.kind === 'speak').length;
       window.__log.push({ kind: 'speak', at, text }); await sleep(window.__cfg.speak[Math.min(k, window.__cfg.speak.length - 1)]); return new Response(wav(), { headers: { 'Content-Type': 'audio/wav' } }); }
@@ -68,7 +69,7 @@ def test_a_working_line_never_holds_the_answer_up(talk):
 
 def test_talk_keeps_listening_while_a_task_runs_stop_cuts_in_and_another_request_waits_its_turn(talk):
     talk.evaluate("""window.__cfg.say = 'On it.'; window.__cfg.action = { id: 'desktop_task', args: {} }; window.__cfg.act = 2500; window.__cfg.speak = [50];
-                     window.__chats = 0; const f = window.fetch; window.fetch = (u, o) => { if (String(u).includes('/api/voice/chat')) window.__chats++; return f(u, o); };
+                     window.__chats = 0; const f = window.fetch; window.fetch = (u, o) => { if (String(u).includes('/api/voice/chat') || String(u).includes('/api/voice/stream')) window.__chats++; return f(u, o); };
                      HubVoice.ask('play the playlist'); void 0""")
     talk.wait_for_timeout(500)
     talk.evaluate("HubVoice.ask('and then open missions'); void 0")
@@ -84,7 +85,7 @@ def test_talk_keeps_listening_while_a_task_runs_stop_cuts_in_and_another_request
 
 def test_a_second_request_runs_after_the_first_finishes(talk):
     talk.evaluate("""window.__cfg.say = 'On it.'; window.__cfg.action = { id: 'desktop_task', args: {} }; window.__cfg.act = 1200; window.__cfg.speak = [50];
-                     window.__chats = 0; const f = window.fetch; window.fetch = (u, o) => { if (String(u).includes('/api/voice/chat')) window.__chats++; return f(u, o); };
+                     window.__chats = 0; const f = window.fetch; window.fetch = (u, o) => { if (String(u).includes('/api/voice/chat') || String(u).includes('/api/voice/stream')) window.__chats++; return f(u, o); };
                      HubVoice.ask('first'); setTimeout(() => HubVoice.ask('second'), 300); void 0""")
     talk.wait_for_function("window.__chats === 2", timeout=9000)
 

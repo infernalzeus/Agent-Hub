@@ -47,3 +47,15 @@ def test_each_core_agent_has_a_glowing_copy_that_fades_over_its_whole_picture(hu
         pass
     else:
         raise AssertionError("a path outside the lit folder must not be served")
+
+
+def test_the_talk_window_uses_each_agents_own_animated_portrait(hub):
+    for name in ("orchestrator", "neo", "doctor", "smith"):
+        kind, body = _get(f"{hub}/static/agent-icons/anim/{name}.svg")
+        assert kind.startswith("image/svg+xml") and body.lstrip().startswith(b"<svg"), name
+    try:
+        _get(f"{hub}/static/agent-icons/anim/router.svg")
+    except Exception:
+        pass
+    else:
+        raise AssertionError("only the four core agents' portraits are served here")

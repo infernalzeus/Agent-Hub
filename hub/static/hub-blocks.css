@@ -675,4 +675,8 @@ html.hub-phone .hb .talk-btn:not(.on)::before,html.hub-phone .hb .talk-btn:not(.
  html.hub-phone .hb .hb-bar{flex-direction:column}
 }
 /* A phone keeps its endless animations off until something is happening (measured: they held every frame at about 100 ms), so the Talk button's picture breathes only while listening or speaking there. */
-html.hub-phone .talk-btn:not(.on):not(.speaking) img.lit{animation:none}
+
+
+/* the 3D tools fade between their states instead of snapping */
+.hb .gz-tools button{transition:opacity .18s ease,background-color .28s ease,border-color .28s ease,color .28s ease,box-shadow .28s ease}
+@media (prefers-reduced-motion:reduce){.hb .gz-tools button{transition:none}}

@@ -159,6 +159,8 @@
   // Plays the reply a sentence at a time: the first sentence is made alone and starts playing while the next ones (up to three in flight) are being made,
   // so an answer starts after about the time of its first sentence, not of the whole answer. Resolves when it ends or when S.stop() is called
   // (talk-over, typing, STOP, or an answer arriving while a "working on it" line is still being said).
+  S.pre = {};
+  function prefetchTts(text) { const b = { text, voice: S.voice || undefined, agent: S.who || undefined }, k = JSON.stringify(b); if (S.pre[k] || Object.keys(S.pre).length > 12) return; S.pre[k] = request('/api/voice/speak', b, 'speech', 30000); S.pre[k].catch(() => {}); }
   function play(text, o) {                                                              // o (the VOICE TEST panel): {voice, agent, fx, fxs, info, fail} speak with those instead of the current speaker's
     return new Promise(async (resolve) => {
       let done = false, node = null, deadline = null, audioUrl = null, endPiece = null;
@@ -168,7 +170,7 @@
       const rec = (S.av && S.av[(o && o.agent) || S.who]) || {}, del = (o && o.delivery) || rec.delivery || {};
       const parts = del.on ? shape(text, del) : ((window.HubVoiceGate && HubVoiceGate.sentences(text)) || [String(text)]).map((t) => ({ text: t, rate: 0, pitch: 0, gap: 0 }));
       if (!parts.length) { fin(); return; }
-      const get = (pc) => { const t0 = performance.now(), inf = {}; const r = request('/api/voice/speak', { text: pc.text, rate: pc.rate || undefined, pitch: pc.pitch || undefined, voice: (o && o.voice) || S.voice || undefined, agent: (o && o.agent) || S.who || undefined }, 'speech', 30000, inf).then((ab) => { if (o && o.info) o.info({ ms: Math.round(performance.now() - t0), h: inf.h || {}, bytes: ab.byteLength }); return ab; }); r.catch(() => {}); return r; };
+      const get = (pc) => { const t0 = performance.now(), inf = {}; const bodyS = { text: pc.text, rate: pc.rate || undefined, pitch: pc.pitch || undefined, voice: (o && o.voice) || S.voice || undefined, agent: (o && o.agent) || S.who || undefined }, keyS = JSON.stringify(bodyS); if (S.pre[keyS]) { const hit = S.pre[keyS]; delete S.pre[keyS]; return hit; } const r = request('/api/voice/speak', bodyS, 'speech', 30000, inf).then((ab) => { if (o && o.info) o.info({ ms: Math.round(performance.now() - t0), h: inf.h || {}, bytes: ab.byteLength }); return ab; }); r.catch(() => {}); return r; };
       if (o && o.plan) o.plan(parts.length);
       const got = parts.map((t, i) => (i < 3 ? get(t) : null));
       // one piece of audio, to its end (or to a stop)
@@ -378,6 +380,27 @@
     catch (e) { if (turn === S.turn) { log('hub', e.name === 'AbortError' ? 'That took too long. Please try again.' : 'I could not complete that request. Please try again.'); hint(String(e.message || e).slice(0, 140)); } }
     finally { if (turn === S.turn) { S.convoUntil = Date.now() + CONVO_MS; S.busy = false; S.acting = false; if (S.pending) setState('breathing', 'Waiting for confirmation'); else ready(); const q = S.queued; if (q && !S.pending) { S.queued = null; setTimeout(() => handle(q), 0); } } }
   }
+  // The answer as it is written: each sentence is fetched as a voice the moment it appears and shown and said in turn (plain conversation is answered by the small local model in under a second;
+  // everything else comes back whole, as before).
+  async function streamChat(body, turn) {
+    const ctl = new AbortController(); S.requests.add(ctl); const timer = setTimeout(() => ctl.abort(), 70000);
+    try {
+      const r = await fetch('/api/voice/stream', { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!r.ok) throw new Error((await r.text()).slice(0, 140));
+      const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '', result = null, n = 0, spoken = Promise.resolve();
+      const line = (l) => {
+        let j; try { j = JSON.parse(l); } catch (e) { return; }
+        if (j.t === 'say') { n++; const txt = j.text; prefetchTts(txt); spoken = spoken.then(async () => { if (turn !== S.turn) return; log('hub', txt); await speak(txt); }); }
+        else if (j.t === 'result') result = j.data;
+        else if (j.t === 'error') throw new Error(j.text || 'no answer');
+      };
+      for (;;) { const x = await rd.read(); if (x.done) break; buf += dec.decode(x.value, { stream: true }); const ls = buf.split(String.fromCharCode(10)); buf = ls.pop(); ls.forEach(line); }
+      if (buf.trim()) line(buf);
+      if (!result) throw new Error('no answer');
+      if (n) { result._streamed = true; result._spoken = spoken; }
+      return result;
+    } finally { clearTimeout(timer); S.requests.delete(ctl); }
+  }
   async function answer(text, turn) {
     log('you', text);
     if (S.pending) {
@@ -389,17 +412,17 @@
     setState('solving', 'Thinking…');
     const ctx = (window.__voiceCtx && window.__voiceCtx()) || {};
     const board = window.__hubBoard && window.__hubBoard.scene();            // on the dashboard Talk sees its blocks and may move them
-    const r = await request('/api/voice/chat', { text, history: S.history.slice(-9, -1), mission: ctx.mission || S.mission || null, scene: board || undefined, speaker: S.who });
+    const r = await streamChat({ text, history: S.history.slice(-9, -1), mission: ctx.mission || S.mission || null, scene: board || undefined, speaker: S.who, pending: !!S.pending }, turn);
     if (turn !== S.turn) return;
     if (r.transition) log('hub', r.transition.line);                                                         // the one who is leaving says so, under their own name, before the change
     if (r.speaker && r.speaker !== S.who && window.__hubTalkWho) window.__hubTalkWho(r.speaker, true);          // you named another agent: the conversation is theirs from here
     if (r.mission) S.mission = r.mission;
     const serverResult = r.action && !r.confirm && !r.url;          // its own result is the answer: do not also say the model's sentence
-    if (!serverResult) log('hub', r.say);
+    if (!serverResult && !r._streamed) log('hub', r.say);
     if (r.ui && board && window.__hubBoard.applyUi(r.ui)) { S.compact = true; S.expanded = false; layout(); }   // a panel asked for, tidy, fit, a mouse scheme: done on the board itself
-    if (r.action && r.confirm) { S.pending = r; showBtns(true); setState('breathing', 'Waiting for your yes'); await speak(r.say); return; }
+    if (r.action && r.confirm) { S.pending = r; showBtns(true); setState('breathing', 'Waiting for your yes'); await (r._streamed ? r._spoken : speak(r.say)); return; }
     if (serverResult) return execute(r, turn);
-    await speak((r.transition ? r.transition.line + ' ' : '') + r.say);
+    await (r._streamed ? r._spoken : speak((r.transition ? r.transition.line + ' ' : '') + r.say));
     if (turn !== S.turn || S.carry) return;                       // you talked over the reply: handle what you said first
     if (r.action) await execute(r, turn);
   }
@@ -493,7 +516,7 @@
     L.voice = r.voice && S.voices.some((x) => x.id === r.voice) ? r.voice : S.defVoice;
     L.fx = r.fx || (window.HubVoiceFx ? HubVoiceFx.mode() : 'off'); L.fxs = r.fxs || (window.HubVoiceFx ? HubVoiceFx.style() : 'blend');
     $('v-voice').value = L.voice; $('v-fx').value = L.fx; $('v-fxs').value = L.fxs;
-    document.querySelectorAll('#v-lab-who [data-lab]').forEach((b) => { b.classList.toggle('on', b.dataset.lab === w); b.setAttribute('aria-pressed', String(b.dataset.lab === w)); });
+    const nm = $('v-lab-name'); if (nm) nm.textContent = (WHO[w] || 'Smith').toUpperCase();
     const rec = L.rec[w]; $('v-lab-note').textContent = rec ? rec.note : '';
     const t = $('v-lab-text'); if (t) t.value = r.line || '';                                 // the line typed for this agent stays with this agent
     const dl = r.delivery || {}; $('v-del-on').checked = !!dl.on; $('v-del-pace').value = String(dl.pace || 0); $('v-del-pauses').value = String(dl.pauses || 1);
@@ -527,22 +550,28 @@
       applyAgentVoice(S.who || 'smith'); const w = L.who; labLoad(w); labSt(reset ? (WHO[w] + ' is back to the built-in voice.') : (WHO[w] + ' will speak with this voice from now on.'));
     } catch (e) { labSt('Not saved: ' + String(e.message || e), true); }
   }
+  function labFast() { const r = L.rec[L.who]; const id = (r && r.fast) || ''; if (!id || !S.voices.some((x) => x.id === id)) { labSt('No on-PC voice is installed yet.', true); return; } $('v-voice').value = id; labSt('Fast voice on this PC filled in. SPEAK to hear it, SET AS DEFAULT to keep it. Your robotic layer still applies.'); }
   function labRecommended() { const r = L.rec[L.who]; if (!r) return; $('v-voice').value = r.voice; $('v-fx').value = r.fx; $('v-fxs').value = r.fxs; labSt('Recommended filled in. SPEAK to hear it, SET AS DEFAULT to keep it.'); }
-  async function fillVoices() {
+  async function fillVoices(all) {
     try {
-      const j = await (await fetch('/api/voice/voices')).json(), sel = $('v-voice');
+      const keep = $('v-voice') ? $('v-voice').value : '';
+      const j = await (await fetch('/api/voice/voices' + (all ? '?all=1' : ''))).json(), sel = $('v-voice');
       const cat = j.catalog || [], opt = (id, t) => `<option value="${id}">${t}</option>`;
       const by = {}; cat.forEach((v) => { (by[v.lang] = by[v.lang] || []).push(v); });
       const langs = Object.keys(by).sort((x, y) => (/^English/.test(y) ? 1 : 0) - (/^English/.test(x) ? 1 : 0) || x.localeCompare(y));
       const kok = j.kokoro || [];
-      sel.innerHTML = (kok.length ? '<optgroup label="On this PC (Kokoro: no internet, about a second a sentence)">' + kok.map((v) => opt(v.id, v.name)).join('') + '</optgroup>' : '') + '<optgroup label="Tuned for the characters">' + j.voices.map((v) => opt(v.id, v.name)).join('') + '</optgroup>' +
+      const recIds = [...new Set(Object.values(j.recommended || {}).map((r) => r.voice))], recV = j.voices.filter((v) => recIds.includes(v.id)), otherV = j.voices.filter((v) => !recIds.includes(v.id));
+      sel.innerHTML = '<optgroup label="Recommended for the four">' + recV.map((v) => opt(v.id, v.name)).join('') + '</optgroup>' +
+        (kok.length ? '<optgroup label="On this PC (fast, no internet)">' + kok.map((v) => opt(v.id, v.name)).join('') + '</optgroup>' : '') +
+        '<optgroup label="Other tuned voices">' + otherV.map((v) => opt(v.id, v.name)).join('') + '</optgroup>' +
+        langs.map((l) => '<optgroup label="' + (/^English/.test(l) ? l : l + ' (reads English with an accent)') + '">' + by[l].map((v) => opt(v.id, v.n + ' · ' + v.g)).join('') + '</optgroup>').join('');
         langs.map((l) => '<optgroup label="' + (/^English/.test(l) ? l : l + ' (reads English with an accent)') + '">' + by[l].map((v) => opt(v.id, v.n + ' \u00b7 ' + v.g)).join('') + '</optgroup>').join('');
       j.voices = j.voices.concat(kok, cat.map((v) => ({ id: v.id, name: v.n })));
       if (Object.values(j.agents || {}).some((a) => String(a.voice || '').startsWith('k:'))) fetch('/api/voice/warm', { method: 'POST' }).catch(() => {});
       S.voices = j.voices; S.av = j.agents || {}; S.defVoice = j.default; L.rec = j.recommended || {};
       const fx = $('v-fx'), fxs = $('v-fxs');
       if (!(fx && window.HubVoiceFx)) { if (fx) fx.hidden = true; if (fxs) fxs.hidden = true; }
-      applyAgentVoice(S.who || 'smith'); labLoad(L.who);
+      applyAgentVoice(S.who || 'smith'); labLoad(L.who); if (keep && S.voices.some((x) => x.id === keep)) sel.value = keep;
     } catch (e) { const b = $('v-labbtn'); if (b) b.hidden = true; }
   }
   const paintToggles = () => { $('v-mute').textContent = S.mute ? 'SOUND OFF' : 'SOUND ON'; };
@@ -570,15 +599,11 @@
     // The pictures: Smith's old art on the Talk button, his new outline in the Talk window, the others as they are. A second, glowing copy of each lies over it and only its opacity moves.
     const ICON = (w) => w === 'smith' ? '/smith-icon.png' : '/static/agent-icons/' + w + '.png';
     const LIT = (w) => w === 'smith' ? '/static/agent-icons/lit/smith-classic.png' : '/static/agent-icons/lit/' + w + '.png';
-    function paintButton(img, w) {
-      img.src = ICON(w); let lit = img.parentNode.querySelector('img.lit');
-      if (!lit) { lit = document.createElement('img'); lit.className = 'lit'; lit.alt = ''; lit.draggable = false; img.parentNode.appendChild(lit); }
-      lit.src = LIT(w);
-    }
+    function paintButton(img, w) { img.src = ICON(w); const old = img.parentNode.querySelector('img.lit'); if (old) old.remove(); }
     function paintStage(w) {
       const f = $('v-face'), l = $('v-face-lit'); if (!f) return;
-      f.src = w === 'smith' ? '/static/agent-icons/smith-line.png' : ICON(w); f.alt = WHO[w];
-      if (l) l.src = w === 'smith' ? '/static/agent-icons/lit/smith-line.png' : LIT(w);
+      f.src = w === 'smith' ? '/static/agent-icons/smith-line.png' : '/static/agent-icons/anim/' + w + '.svg'; f.alt = WHO[w];
+      if (l) { if (w === 'smith') l.src = '/static/agent-icons/lit/smith-line.png'; else l.removeAttribute('src'); }
     }
     function setWho(w, quiet) {
       if (!WHO[w]) w = 'smith'; S.who = w; try { sessionStorage.setItem('hubTalkWho', w); } catch (e) {}
@@ -592,7 +617,7 @@
       document.querySelectorAll('.talk-btn img').forEach((i) => {                          // the Talk button on the board wears the face of whoever you are talking to; Smith's own is put back for Smith
         paintButton(i, w);                                                                // the whole bust, as it always was; a glowing copy fades over it
       });
-      applyAgentVoice(w);
+      applyAgentVoice(w); if (S.voices && typeof labLoad === 'function') labLoad(w);
       if (!quiet && $('v-lab').hidden) { try { $('v-in').focus({ preventScroll: true }); } catch (e) {} }
     }
     // PRESET of the speaker: chosen here or on the Agency page, saved at once.
@@ -637,10 +662,10 @@
     $('v-no').onclick = () => { if (S.pending) handle('No'); };
     const send = () => { unlockAudio(); const v = $('v-in').value.trim(); if (v) { $('v-in').value = ''; if (S.stop) S.stop(); handle(v); } };
     // TEST VOICE: say what is typed in the box (or a sample line) with the voice and robotic layer chosen above for the agent you are talking to; nothing is sent to anyone
-    $('v-test').onclick = labSpeak; $('v-lab-save').onclick = () => labSave(false); $('v-lab-reset').onclick = () => labSave(true); $('v-lab-rec').onclick = labRecommended;
+    $('v-test').onclick = labSpeak; $('v-lab-save').onclick = () => labSave(false); $('v-lab-reset').onclick = () => labSave(true); $('v-lab-rec').onclick = labRecommended; $('v-lab-fast').onclick = labFast;
+    $('v-all').onchange = () => fillVoices($('v-all').checked);
     $('v-lab-text').oninput = labSaveLine;
     $('v-lab-text').onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); labSpeak(); } };
-    document.querySelectorAll('#v-lab-who [data-lab]').forEach((b) => { b.onclick = () => { if (S.voices) labLoad(b.dataset.lab); }; });
     $('v-labbtn').onclick = () => { const l = $('v-lab'); l.hidden = !l.hidden; $('v-labbtn').setAttribute('aria-expanded', String(!l.hidden)); $('v-labbtn').classList.toggle('on', !l.hidden); if (!l.hidden && S.voices) labLoad(L.who); };
     $('v-go').onclick = send; $('v-in').onkeydown = (e) => { if (e.key === 'Enter') send(); };
     fillVoices();

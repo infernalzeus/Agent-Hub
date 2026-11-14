@@ -73,7 +73,14 @@
     }
     function gizmoShown() { return mode === '3d' && gizmoOn; }
     function toolPaint() {
-      tLock.hidden = mode !== '3d'; tLock.textContent = locked ? 'LOCK 40°' : 'FREE'; tLock.classList.toggle('on', !locked); gzBtn.hidden = mode !== '3d'; gzBtn.classList.toggle('on', gizmoOn);
+      tLock.hidden = mode !== '3d'; fadeLabel(tLock, locked ? 'LOCK 40°' : 'FREE'); tLock.classList.toggle('on', !locked); gzBtn.hidden = mode !== '3d'; gzBtn.classList.toggle('on', gizmoOn);
+    }
+    // Switching LOCK 40° and FREE fades the label and the colour (about a fifth of a second each way) instead of snapping.
+    function fadeLabel(btn, text) {
+      if (btn.textContent === text) return;
+      if (!btn.textContent || btn.hidden) { btn.textContent = text; return; }
+      clearTimeout(btn._ft); btn.style.opacity = '0';
+      btn._ft = setTimeout(function () { btn.textContent = text; btn.style.opacity = ''; }, 170);
     }
     function apply(initial) {
       host.classList.toggle('hb-3d', mode === '3d');

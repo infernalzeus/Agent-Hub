@@ -202,6 +202,7 @@ def test_loaded_chat_messages_remain_visible_without_legacy_history_toggle(page)
  assert p.locator('#voice').is_visible() and p.locator('#voice').count()==1
  assert not p.locator('#v-history').is_visible()
  p.route('**/api/voice/chat',lambda r:r.fulfill(json={'say':'Test response'}))
+ p.route('**/api/voice/stream',lambda r:r.fulfill(body=json.dumps({'t':'result','data':{'say':'Test response'}})+chr(10),content_type='application/x-ndjson'))
  if p.locator('#v-mute').inner_text()=='SOUND ON':press(p,'#v-mute')
  for text in ['Explain this example','Explain another example']:
   p.locator('#v-in').fill(text);press(p,'#v-go');p.wait_for_timeout(200)

@@ -331,10 +331,12 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
   function fit(box){if(!box||box.offsetParent===null)return;box.classList.remove('tight');let px=window.innerWidth<900?13:15;box.style.setProperty('--tf',px+'px');if(window.innerWidth<900)return;while(px>10&&box.scrollHeight>box.clientHeight+1){px-=.5;box.style.setProperty('--tf',px+'px');}if(box.scrollHeight>box.clientHeight+1)box.classList.add('tight');}
   addEventListener('resize',()=>{fit($('ovlist'));fit($('scterm'));fit($('mdterm'));});
   // What can be changed from the overview, per learner: only things that really change behaviour, each one the same call the other tabs make.
+  // SHADOW or APPLY on the presets also switches SHADOW MODE (the master switch at the top left) on: scoring and picking do nothing while it is off, so the two are one action. OFF only turns the presets off.
+  async function setPresets(v){await POST('/api/yard/knobs',{preset_mode:v});if(v!=='off'){await POST('/api/yard/settings',{shadow:true,learning:true});}await switches();}
   function lever(r,j){
     const d=el('div','lv'),mini=(t,fn,on)=>{const b=el('button','mini'+(on?' on':''),t);b.type='button';b.disabled=!!on;b.onclick=fn;return b;};
     d.append(el('span','dim','change:'));
-    if(r.id==='presets'){const cur={off:'off','shadow-picks':'shadow',live:'apply'}[r.state];[['off','OFF'],['shadow','SHADOW'],['apply','APPLY']].forEach(([v,t])=>d.append(mini(t,async()=>{await POST('/api/yard/knobs',{preset_mode:v});overview();},cur===v)));d.append(el('span','dim','per-model results: MODELS tab'));}
+    if(r.id==='presets'){const cur={off:'off','shadow-picks':'shadow',live:'apply'}[r.state];[['off','OFF'],['shadow','SHADOW'],['apply','APPLY']].forEach(([v,t])=>d.append(mini(t,async()=>{await setPresets(v);overview();},cur===v)));d.append(el('span','dim','per-model results: MODELS tab'));}
     else if(r.id==='routines'){const on=!!((j.switches||[])[0]||{}).on;d.append(mini('TEACH THE LEARNERS',async()=>{await POST('/api/yard/knobs',{routine_data:true});overview();},on),mini('ONLY CHECKS',async()=>{await POST('/api/yard/knobs',{routine_data:false});overview();},!on),mini('ROUTINES',()=>tab('routines')));}
     else if(r.id==='router')d.append(mini('GRADE REQUESTS (TEACH)',()=>tab('teach')));
     else if(r.id==='bandits')d.append(mini('CHOOSE THE WATCHED LEARNER (SCORES)',()=>tab('scores')));
@@ -407,9 +409,10 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
           if(!j.steps.length){stepsBox.replaceChildren(el('div','mute','This routine has no steps saved.'));return;}
           const edit=async(ord,body2)=>{const x=await POST('/api/pc/routines/'+r.id+'/steps/'+ord,body2);if(!x.ok){note.textContent=await x.text();}await showSteps();};
           const lastBy={};((lastRun&&lastRun.trace)||[]).forEach(t=>{if(t.ordinal!=null)lastBy[t.ordinal]=t;});
+          const off=(j.steps[0]&&j.steps[0].fixed&&j.steps[0].ordinal===-1)?1:0;
           j.steps.forEach((x,i)=>{const row=el('div','step'),nm=(x.target&&x.target.name)||'';
             const label=el('span','sl');label.append(el('b',null,(i+1)+'. '),document.createTextNode(x.tool.toLowerCase()+' '),el('span','sn','“'+(nm.length>48?nm.slice(0,48)+'…':nm)+'”'),el('span','mute',(x.target&&x.target.control?'  '+x.target.control:'')+(x.target&&x.target.path?' in '+x.target.path:'')));label.title=nm;
-            if(x.fixed){label.replaceChildren(el('b',null,'1. '),document.createTextNode('open app '),el('span','sn','“'+nm+'”'));const how=el('div','mute');how.textContent='Command: '+x.command+'. Name taken from '+x.source+'.';row.append(label,how);list.append(row);return;}
+            if(x.fixed){label.replaceChildren(el('b',null,(i+1)+'. '),document.createTextNode('open app '),el('span','sn','“'+nm+'”'));const how=el('div','mute');how.textContent='Command: '+x.command+'. Name taken from '+x.source+'.';row.append(label,how);if(x.launch){const g1=el('button','i','▶'),gN=el('button','i','⏭');g1.title='Run just this step now: open the app (or bring it forward) and wait for its window.';gN.title='Run this step and every step after it.';g1.onclick=()=>runSteps(-1,'one',1);gN.onclick=()=>runSteps(-1,'from',1);row.append(g1,gN);}list.append(row);return;}
             if(x.confidence!=null){const cf=el('div','mute');cf.textContent='The model said it was '+Math.round(x.confidence*100)+' % sure of this step when it recorded it (its own word, not a measurement).';label.append(cf);}
             const t=lastBy[x.ordinal];
             if(t){const res=el('div','mute');res.style.color=t.error?'#ff6b6b':'#00e676';res.textContent='Last run: '+(t.error?'FAILED - '+t.error:'worked')+' · '+secs(t.ms);label.append(res);}
@@ -419,8 +422,8 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
             up.title='Move up';dn.title='Move down';rn.title='Change which control it presses';rm.title='Remove this step';
             go1.onclick=()=>runSteps(x.ordinal,'one',i+1);goN.onclick=()=>runSteps(x.ordinal,'from',i+1);
             nb.onclick=async()=>{const v=prompt('Why this step works, or does not (kept with the step, read when we train):',x.note||'');if(v!==null)await edit(x.ordinal,{note:v});};
-            up.disabled=i===0;dn.disabled=i===j.steps.length-1;
-            up.onclick=()=>edit(x.ordinal,{to:i-1});dn.onclick=()=>edit(x.ordinal,{to:i+1});
+            up.disabled=i<=off;dn.disabled=i===j.steps.length-1;
+            up.onclick=()=>edit(x.ordinal,{to:i-1-off});dn.onclick=()=>edit(x.ordinal,{to:i+1-off});
             rn.onclick=()=>{const v=prompt('The control this step presses (as it is named on screen):',nm);if(v&&v.trim()&&v!==nm)edit(x.ordinal,{name:v.trim()});};
             rm.onclick=async()=>{const y=await fetch('/api/pc/routines/'+r.id+'/steps/'+x.ordinal,{method:'DELETE'});if(!y.ok)note.textContent=await y.text();await showSteps();routinesStatus();};
             row.append(label);
@@ -515,7 +518,7 @@ pre.formula{font:11.5px/1.5 Consolas,monospace;color:#9fe7c0;margin-top:6px;whit
   async function models(){
     const box=$('mdterm');box.replaceChildren();let j;try{j=await J('/api/yard/models');}catch(e){box.textContent='models unavailable: '+e.message;return;}
     const pm=el('div','pm');pm.append(el('span',null,'presets'));
-    [['off','OFF'],['shadow','SHADOW'],['apply','APPLY']].forEach(([v,t])=>{const b=el('button','mini'+(j.mode===v?' on':''),t);b.type='button';b.disabled=j.mode===v;b.onclick=async()=>{b.disabled=true;await POST('/api/yard/knobs',{preset_mode:v});models();};pm.append(b);});
+    [['off','OFF'],['shadow','SHADOW'],['apply','APPLY']].forEach(([v,t])=>{const b=el('button','mini'+(j.mode===v?' on':''),t);b.type='button';b.disabled=j.mode===v;b.onclick=async()=>{b.disabled=true;await setPresets(v);models();};pm.append(b);});
     pm.append(el('span','dim',{off:'nothing recorded',shadow:'scores every mission step, picks, changes nothing',apply:'agents use the tally pick'}[j.mode]||''));box.append(pm);
     const H=(c,cols)=>{const d=el('div',c);cols.forEach(x=>d.append(el('div',null,x)));return d;};
     box.append(H('dh',['model','order','works','where','steps','reward','checks','cut','s/mission','preset per role (tries)']));

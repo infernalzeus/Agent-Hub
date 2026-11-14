@@ -259,3 +259,30 @@ def test_steps_and_why_toggle_open_and_closed_and_a_picture_opens_inside_the_pan
         pg.wait_for_function("!document.getElementById('lb')")
         assert len(ctx.pages) == 1
         b.close()
+
+
+def test_opening_the_app_is_listed_as_step_one_and_can_be_played_on_its_own(routine, monkeypatch):
+    """Outlook and Apple Music routines showed only the clicks: the command that opens the app is a step too, and the one that is easiest to replay by itself."""
+    opened = []
+
+    async def fake_launch(app, request, then="", fresh=False):
+        opened.append(app)
+        return {"ok": True, "say": f"Opened {app}."}
+
+    async def fake_snapshot(window=""):
+        return [{"name": "x"}]
+    monkeypatch.setattr(PC, "launch_app", fake_launch)
+    monkeypatch.setattr(PC, "_snapshot", fake_snapshot)
+
+    async def go():
+        app = web.Application()
+        app.add_routes(PC.routes)
+        async with TestClient(TestServer(app)) as c:
+            j = await (await c.get(f"/api/pc/routines/{routine}/steps")).json()
+            first, rest = j["steps"][0], j["steps"][1:]
+            assert first["ordinal"] == -1 and first["fixed"] and first["tool"] == "App" and first["target"]["name"] == "Apple Music"      # step 1: open Apple Music
+            assert [s["ordinal"] for s in rest] == list(range(len(NAMES)))                                                                   # the clicks keep their numbers
+            r = await c.post(f"/api/pc/routines/{routine}/steps/-1/run", json={"mode": "one"})
+            got = await r.json()
+            assert r.status == 200 and got["ok"] and opened == ["Apple Music"] and "Opened Apple Music" in got["say"]
+    asyncio.run(go())

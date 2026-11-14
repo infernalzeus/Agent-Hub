@@ -1340,6 +1340,20 @@ async def api_chat(request: web.Request) -> web.Response:
     text = str(b.get("text") or "").strip()[:500]
     if not text:
         raise web.HTTPBadRequest(text="no text")
+    from . import talk_agents as TA
+    history = b.get("history") if isinstance(b.get("history"), list) else []
+    speaker = str(b.get("speaker") or "smith").lower()
+    sm = TA.summon(text, speaker if speaker in TA.SPEAKERS else "smith")      # "Smith, pull up Viktor": the conversation moves, and the one leaving says so
+    if sm:
+        to, frm = sm["to"], sm["from"]
+        move = {"from": frm, "to": to, "from_name": TA.NAME[frm], "to_name": TA.NAME[to], "designation": TA.DESIGNATION[to]}
+        if sm["same"] and not sm["rest"]:
+            return web.json_response({"say": f"{TA.NAME[to]} is already here.", "action": None, "confirm": False, "backend": to, "speaker": to, "ui": {}})
+        got = await TA.speak_as(to, sm["rest"], history, b.get("mission") or None, chat)
+        if not sm["same"]:
+            move["line"] = TA.handoff_line(frm, to)
+            got["transition"] = move
+        return web.json_response({**got, "ui": got.get("ui") or {}})
     from . import home_state as HS
     scene = b.get("scene") if isinstance(b.get("scene"), list) else None
     try:
@@ -1369,20 +1383,6 @@ async def api_chat(request: web.Request) -> web.Response:
         except Exception:
             pass
         return web.json_response({"say": say, "action": None, "confirm": False, "backend": "screen", "heard": text, "ui": ui})
-    from . import talk_agents as TA
-    history = b.get("history") if isinstance(b.get("history"), list) else []
-    speaker = str(b.get("speaker") or "smith").lower()
-    sm = TA.summon(text, speaker if speaker in TA.SPEAKERS else "smith")      # "Smith, pull up Viktor": the conversation moves, and the one leaving says so
-    if sm:
-        to, frm = sm["to"], sm["from"]
-        move = {"from": frm, "to": to, "from_name": TA.NAME[frm], "to_name": TA.NAME[to], "designation": TA.DESIGNATION[to]}
-        if sm["same"] and not sm["rest"]:
-            return web.json_response({"say": f"{TA.NAME[to]} is already here.", "action": None, "confirm": False, "backend": to, "speaker": to, "ui": ui})
-        got = await TA.speak_as(to, sm["rest"], history, b.get("mission") or None, chat)
-        if not sm["same"]:
-            move["line"] = TA.handoff_line(frm, to)
-            got["transition"] = move
-        return web.json_response({**got, "ui": {**ui, **(got.get("ui") or {})}})
     named, rest = TA.address(text)                                            # "Neo, draft an agent ...": a leading name picks who answers this sentence
     if named:
         speaker, text = named, rest
@@ -1392,6 +1392,102 @@ async def api_chat(request: web.Request) -> web.Response:
         return web.json_response({**got, "ui": {**ui, **(got.get("ui") or {})}})
     res = await chat(text, history, b.get("mission") or None)
     return web.json_response({**res, "speaker": "smith", "ui": ui})
+
+
+_DOES_SOMETHING = re.compile(r"^\W*(?:(?:hey|ok|okay|hi)\W+)?(?:smith\W+)?(?:(?:can|could|would|will) you |please |i want you to |i'd like you to |i would like you to |go ahead and |just )*"
+                             r"(open|launch|start|play|pause|resume|stop|show|bring|get|put|call|run|set|turn|switch|go|close|search|find|send|email|remind|write|create|make|draft|fix|restart|apply|discard|record|learn|teach|"
+                             r"mute|unmute|type|click|press|download|install|delete|remove|add|save|list|read|check|look|summari[sz]e|tell me what|what'?s running|how much|how many|schedule|cancel|undo|redo)\b", re.I)
+
+
+class _AsBody:
+    """Hands a dict to the code that reads a request body."""
+    def __init__(self, b: dict):
+        self.b = b
+
+    async def json(self):
+        return self.b
+
+
+async def _is_plain_conversation(b: dict, text: str, speaker: str) -> bool:
+    """True only for talk the quick lane can answer well: Smith, no pending question, no dashboard command, no app or PC task, no routine, nothing the router would act on."""
+    if speaker != "smith" or b.get("pending") or len(text.split()) < 3:
+        return False
+    if _DOES_SOMETHING.search(text):                                # a request to do something goes the long way, which knows how
+        return False
+    try:
+        from . import talk_agents as _TA
+        if _TA.summon(text, speaker) or _TA.address(text)[0]:        # a request for an agent, or one addressed to an agent by name
+            return False
+    except Exception:  # noqa: BLE001
+        return False
+    try:
+        from . import binning as BIN, converse as CONV, home_state as HS, pc_control as PC
+        if BIN.decide(text).get("bin") != "conversation":
+            return False
+        if CONV.match(text) or PC.classify_request(text) or smalltalk(text, b.get("history") if isinstance(b.get("history"), list) else []):
+            return False
+        ui = HS.ui_for(text, "", None) or {}
+        return not any(ui.get(k) for k in ("topic", "blocks", "window_query", "open", "clear", "focus", "sleep", "help", "doctor_id", "apply", "discard", "window"))
+    except Exception:  # noqa: BLE001 - when in doubt, the long route
+        return False
+
+
+@routes.post("/api/voice/stream")
+async def api_stream(request: web.Request) -> web.StreamResponse:
+    """The answer as it is written, one line of JSON per event: {"t":"say","text":"one sentence"} as each sentence is ready, then {"t":"result","data":{...}} (the same shape /api/voice/chat returns).
+    Plain conversation is answered by the small local model with a short prompt (sentences within about half a second); everything else is the long route, whole, as one result."""
+    b = await _body(request)
+    text = str(b.get("text") or "").strip()[:500]
+    if not text:
+        raise web.HTTPBadRequest(text="no text")
+    speaker = str(b.get("speaker") or "smith").lower()
+    resp = web.StreamResponse(headers={"Content-Type": "application/x-ndjson", "Cache-Control": "no-store"})
+    await resp.prepare(request)
+
+    async def send(d: dict) -> None:
+        await resp.write((json.dumps(d) + "\n").encode("utf-8"))
+    try:
+        from . import fast_chat as FC
+        model = await FC.pick_model() if await _is_plain_conversation(b, text, speaker) else None
+        if not model:
+            full = await api_chat(_AsBody(b))                       # the long route, exactly as before
+            await send({"t": "result", "data": json.loads(full.text)})
+            await resp.write_eof()
+            return
+        from . import binning as BIN, talk_agents as TA
+        _settle_outcomes(text)
+        BIN.verdict_on_last(text)
+        t0, said = time.time(), []
+        try:
+            async for sentence in FC.stream(text, b.get("history") if isinstance(b.get("history"), list) else [], TA.NAME["smith"], TA.DESIGNATION["smith"], model):
+                said.append(sentence)
+                await send({"t": "say", "text": sentence})
+        except Exception as exc:  # noqa: BLE001 - the model did not answer: nothing was said yet, so the long route takes it
+            logger.info("voice: quick lane failed (%s)", exc)
+            if not said:
+                full = await api_chat(_AsBody(b))
+                await send({"t": "result", "data": json.loads(full.text)})
+                await resp.write_eof()
+                return
+        answer = " ".join(said)
+        try:
+            BIN.record(text, {"bin": "conversation", "confidence": 1.0, "by": "rules", "why": "plain conversation: the quick lane", "asked": []},
+                       {"action": None, "backend": f"fast:{model}", "said": answer[:120], "ms": int((time.time() - t0) * 1000), "timed_out": False})
+        except Exception:  # noqa: BLE001
+            pass
+        await send({"t": "result", "data": {"say": answer, "action": None, "confirm": False, "backend": f"fast:{model}", "speaker": "smith", "heard": text, "ui": {}}})
+    except (ConnectionResetError, asyncio.CancelledError):           # STOP: the page closed the request; nothing more to send
+        return resp
+    except Exception as exc:  # noqa: BLE001
+        try:
+            await send({"t": "error", "text": str(exc)[:160]})
+        except Exception:  # noqa: BLE001
+            pass
+    try:
+        await resp.write_eof()
+    except Exception:  # noqa: BLE001
+        pass
+    return resp
 
 
 @routes.post("/api/voice/act")
@@ -1666,9 +1762,9 @@ async def voice_catalog() -> "list[dict]":
 AGENT_VOICE_DEFAULTS = {"smith": {"voice": "smith"}, "orchestrator": {"voice": "viktor-soft", "fx": "off", "fxs": "radio"}, "neo": {"voice": "neo-calm", "fx": "off", "fxs": "radio"}, "doctor": {"voice": "medic", "fx": "off", "fxs": "radio"}}
 # The sound each character is meant to have (the VOICE TEST panel's RECOMMENDED button). Only voices that exist in the free Microsoft set; nothing to download. None of this has been listened to by a person yet.
 RECOMMENDED = {
-    "smith": {"voice": "smith-deep", "fx": "p5", "fxs": "radio", "note": "Agent Smith: low, slow, clipped, Australian male. Deep William a little slower, a 5% radio layer."},
-    "orchestrator": {"voice": "viktor-soft", "fx": "off", "fxs": "radio", "note": "Viktor (Arcane): soft, tired, precise, British male. Thomas, slow and low, no effect."},
-    "neo": {"voice": "neo-calm", "fx": "off", "fxs": "radio", "note": "Neo: quiet, flat, unhurried American male. Brian, slower and lower, no effect."},
+    "smith": {"voice": "smith-deep", "fx": "p5", "fxs": "radio", "fast": "k:am_onyx", "note": "Agent Smith: low, slow, clipped, Australian male. Deep William a little slower, a 5% radio layer. Fast alternative on this PC: Onyx (deep American), with your robotic layer on top."},
+    "orchestrator": {"voice": "viktor-soft", "fx": "off", "fxs": "radio", "fast": "k:am_onyx", "note": "Viktor (Arcane): soft, tired, precise, British male. Thomas, slow and low, no effect."},
+    "neo": {"voice": "neo-calm", "fx": "off", "fxs": "radio", "fast": "k:am_onyx", "note": "Neo: quiet, flat, unhurried American male. Brian, slower and lower, no effect."},
     "doctor": {"voice": "medic", "fx": "off", "fxs": "radio", "note": "Medic (TF2): German accent, brisk, confident. A German neural voice reading English; Microsoft has no German-accent English voice, so this is the nearest."},
 }
 _FX_RE = re.compile(r"[a-z0-9]{1,8}")
@@ -1740,7 +1836,7 @@ async def api_voices(request: web.Request) -> web.Response:
         ok = True
     except Exception:
         ok = RT.PACKAGED and RT.python_for("speech").is_file()
-    return web.json_response({"voices": [{"id": v["id"], "name": v["name"]} for v in VOICES], "default": VOICES[0]["id"], "neural": ok, "agents": agent_voices(), "recommended": RECOMMENDED, "catalog": await voice_catalog(), "kokoro": _kokoro_voices()})
+    return web.json_response({"voices": [{"id": v["id"], "name": v["name"]} for v in VOICES], "default": VOICES[0]["id"], "neural": ok, "agents": agent_voices(), "recommended": RECOMMENDED, "catalog": (await voice_catalog()) if request.query.get("all") else [], "kokoro": _kokoro_voices()})
 
 
 def _kokoro_voices() -> "list[dict]":

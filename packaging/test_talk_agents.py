@@ -108,6 +108,19 @@ def test_a_bare_name_greets_and_smith_with_no_words_does_not_reach_the_router(mo
     assert asyncio.run(TA.speak_as("smith", "", [], None, chat))["say"] == "Here."
 
 
+def _as_stream(chat, route):
+    """The Talk window asks /api/voice/stream now: the same stub answers, wrapped as one result line."""
+    got = {}
+
+    class R:
+        request = route.request
+
+        def fulfill(self, **kw):
+            got.update(kw)
+    chat(R())
+    route.fulfill(body=json.dumps({"t": "result", "data": got["json"]}) + chr(10), content_type="application/x-ndjson")
+
+
 def test_the_talk_window_sends_the_chosen_speaker_and_a_mission_hands_it_to_the_orchestrator(hub):
     sent = []
     with sync_playwright() as pw:
@@ -120,6 +133,7 @@ def test_the_talk_window_sends_the_chosen_speaker_and_a_mission_hands_it_to_the_
             who = body.get("speaker")
             route.fulfill(json={"say": "ok from " + who, "action": {"id": "start_mission", "args": {"project": "p", "text": "t"}} if who == "smith" else None, "confirm": False, "speaker": who, "backend": "x"})
         pg.route("**/api/voice/chat", chat)
+        pg.route("**/api/voice/stream", lambda route: _as_stream(chat, route))
         pg.route("**/api/voice/act", lambda r: r.fulfill(json={"say": "Started.", "handoff": "orchestrator", "mission": "abc123def456"}))
         pg.route("**/api/voice/speak", lambda r: r.fulfill(status=503, body="no voice in a test"))
         pg.goto(hub + "/?enter=1")
@@ -174,7 +188,7 @@ def test_the_talk_window_moves_from_smith_to_viktor_with_a_line_from_each(hub):
         got = pg.evaluate("""()=>({role:document.getElementById('v-role').textContent,face:document.getElementById('v-face').getAttribute('src'),chip:document.querySelector('#v-who [data-who=orchestrator]').textContent,
           log:[...document.querySelectorAll('#v-log .v-msg')].map(e=>e.textContent)})""")
         b.close()
-    assert got["role"] == "Orchestrator" and got["face"].endswith("/orchestrator.png") and got["chip"] == "VIKTOR", got
+    assert got["role"] == "Orchestrator" and got["face"].endswith("/anim/orchestrator.svg") and got["chip"] == "VIKTOR", got
     assert face_on_board.endswith("/static/agent-icons/orchestrator.png") or face_on_board == "", face_on_board          # the Talk button on the board wears his face (when the board has one)
     text = " | ".join(got["log"])
     assert "bring in Viktor" in text and "Viktor here" in text, text                                   # Smith says he is bringing Viktor in, then Viktor speaks

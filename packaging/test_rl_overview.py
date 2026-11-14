@@ -37,3 +37,23 @@ def test_teach_says_why_it_is_empty(hub):
     import urllib.request
     j = json.loads(urllib.request.urlopen(hub + "/api/learning/teach").read())
     assert set(j["status"]) == {"logged", "since_fresh", "last", "fresh"}
+
+
+def test_choosing_a_preset_mode_also_switches_shadow_mode_on_so_the_two_are_one_action(hub):
+    with sync_playwright() as pw:
+        b = pw.chromium.launch(headless=True)
+        pg = b.new_context(service_workers="block", viewport={"width": 1366, "height": 768}).new_page()
+        pg.goto(hub + "/yard")
+        pg.wait_for_selector("#ovlist .lv button", timeout=15000)
+        pg.wait_for_function("document.getElementById('top-shadow').textContent.startsWith('SHADOW MODE')")
+        if pg.inner_text("#top-shadow") != "SHADOW MODE: OFF":
+            pg.click("#top-shadow")
+            pg.wait_for_function("document.getElementById('top-shadow').textContent === 'SHADOW MODE: OFF'")
+        pg.locator("#ovlist .lv button", has_text="APPLY").click()
+        pg.wait_for_function("document.getElementById('top-shadow').textContent === 'SHADOW MODE: ON'", timeout=8000)        # one click, both done
+        assert pg.evaluate("fetch('/api/yard/knobs').then(r=>r.json()).then(j=>JSON.stringify(j)).then(t=>t.includes('\"preset_mode\"') && /preset_mode[^}]*\"value\": ?\"apply\"/.test(t))")
+        pg.locator("#ovlist .lv button", has_text="SHADOW").click()                          # put the presets back to the default
+        pg.wait_for_timeout(600)
+        pg.click("#top-shadow")
+        pg.wait_for_function("document.getElementById('top-shadow').textContent === 'SHADOW MODE: OFF'")
+        b.close()

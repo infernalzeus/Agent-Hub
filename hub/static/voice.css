@@ -2,7 +2,7 @@
 .talk-btn{position:relative;width:46px;height:46px;flex:none;padding:0;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
   border:1px solid rgba(0,230,118,.55);background:linear-gradient(180deg,#1a2170 0%,#0d1050 48%,#0a0c3e 100%);
   box-shadow:inset 0 1px 0 rgba(140,165,255,.35),0 2px 6px rgba(0,0,0,.5);-webkit-tap-highlight-color:transparent}
-.talk-btn img{width:28px;height:28px;border-radius:0;position:relative;z-index:1;object-fit:contain;display:block}.talk-btn img.lit{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);margin:0!important;z-index:2;opacity:0;pointer-events:none}
+.talk-btn img{width:28px;height:28px;border-radius:0;position:relative;z-index:1;object-fit:contain;display:block}
 .talk-btn::before,.talk-btn::after{content:"";position:absolute;inset:-1px;border-radius:12px;border:1.5px solid rgba(0,230,118,.6);opacity:0;pointer-events:none;animation:talkWave 2.8s ease-out infinite}
 .talk-btn::after{animation-delay:1.4s}
 .talk-btn:hover{box-shadow:inset 0 1px 0 rgba(210,225,255,.5),0 2px 6px rgba(0,0,0,.5),0 0 14px rgba(0,230,118,.55)}
@@ -72,7 +72,7 @@ html.hub-board-on #voice{left:50%!important;top:50%!important;right:auto!importa
 }
 
 /* Smith on the Talk button: breathing while he listens for his name, green pulses while he thinks or speaks, a burst when his name is heard */
-.talk-btn img.lit{animation:litIdle 3.6s ease-in-out infinite}.talk-btn.on img.lit{animation:litOn 2.2s ease-in-out infinite}.talk-btn.speaking img.lit{animation:litSpeak .9s ease-in-out infinite}.talk-btn.heard img.lit{animation:litHeard 2.4s ease-out 1}
+
 @keyframes smBreathe{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.12);opacity:1}}
 @keyframes smLit{0%,100%{transform:scale(1);opacity:.65}50%{transform:scale(1.18);opacity:1}}
 @keyframes smHeard{0%{transform:scale(1.2);opacity:1}100%{transform:scale(1);opacity:.9}}
@@ -107,3 +107,7 @@ html.hub-board-on #voice{left:50%!important;top:50%!important;right:auto!importa
 #voice .v-stage .pic img.lit{opacity:0;pointer-events:none;animation:litIdle 3.6s ease-in-out infinite;will-change:opacity}
 #voice .v-stage.on .pic img.lit{animation:litOn 2.2s ease-in-out infinite}#voice .v-stage.speaking .pic img.lit{animation:litSpeak .9s ease-in-out infinite}
 @media (prefers-reduced-motion:reduce){#voice .v-stage .pic img.lit,.talk-btn img.lit{animation:none!important}}
+
+/* Smith's digits pulse over his outline; the other agents are their own animated portraits, so nothing is laid over them (no glow). */
+#voice .v-stage:not([data-who=smith]) .pic img.lit{display:none}
+#voice .v-lab-for{font-size:11px;opacity:.75}#voice .v-lab-for b{color:var(--accent,#00e676);letter-spacing:1px}

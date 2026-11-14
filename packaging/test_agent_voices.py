@@ -29,7 +29,7 @@ def _client(tmp_path, monkeypatch):
 def test_every_core_agent_starts_with_a_different_voice_a_saved_choice_sticks_and_reset_undoes_it(tmp_path, monkeypatch):
     async def go():
         async with _client(tmp_path, monkeypatch) as c:
-            j = await (await c.get("/api/voice/voices")).json()
+            j = await (await c.get("/api/voice/voices?all=1")).json()
             ag = j["agents"]
             assert set(ag) == {"smith", "orchestrator", "neo", "doctor"} and len({a["voice"] for a in ag.values()}) == 4
             ids = {v["id"] for v in j["voices"]}
@@ -93,7 +93,7 @@ def test_the_voice_test_panel_speaks_custom_text_in_the_chosen_voice_and_only_sa
         assert pg.locator("#v-lab").is_hidden()
         pg.locator("#v-labbtn").click(force=True)
         assert pg.locator("#v-lab").is_visible()
-        pg.locator("#v-lab-who [data-lab=neo]").click(force=True)
+        pg.evaluate("document.querySelector(\'#v-who [data-who=neo]\').click()")
         pg.wait_for_function("document.getElementById('v-voice').value==='neo-calm'")
         pg.select_option("#v-voice", "liam")
         pg.fill("#v-lab-text", "Testing one two three")
@@ -102,9 +102,9 @@ def test_the_voice_test_panel_speaks_custom_text_in_the_chosen_voice_and_only_sa
         assert saved == []                                                                      # speaking a test saves nothing
         pg.locator("#v-lab-save").click(force=True)
         pg.wait_for_function("document.getElementById('v-lab-st').textContent.includes('from now on')")
-        pg.locator("#v-lab-who [data-lab=doctor]").click(force=True)
+        pg.evaluate("document.querySelector(\'#v-who [data-who=doctor]\').click()")
         pg.wait_for_function("document.getElementById('v-voice').value==='medic'")                 # the doctor has his own
-        pg.locator("#v-lab-who [data-lab=neo]").click(force=True)
+        pg.evaluate("document.querySelector(\'#v-who [data-who=neo]\').click()")
         pg.wait_for_function("document.getElementById('v-voice').value==='liam'")                  # and Neo's choice stayed
         pg.locator("#v-lab-rec").click(force=True)
         assert pg.input_value("#v-voice") == "neo-calm"                                         # RECOMMENDED fills the ideal in
@@ -129,19 +129,19 @@ def test_a_typed_test_line_stays_with_its_agent_and_shaped_phrasing_asks_phrase_
         pg.wait_for_function("!!window.HubVoice && document.querySelectorAll('#v-voice option').length>=20", timeout=20000)
         pg.evaluate("document.getElementById('voice').hidden=false")
         pg.locator("#v-labbtn").click(force=True)
-        pg.locator("#v-lab-who [data-lab=orchestrator]").click(force=True)
+        pg.evaluate("document.querySelector(\'#v-who [data-who=orchestrator]\').click()")
         assert pg.input_value("#v-lab-text") == "I am more than I ever was."                    # each agent starts with a line of its own
         pg.fill("#v-lab-text", "I am... *more* than I ever was.")
         pg.wait_for_timeout(900)                                                                 # saved a moment after typing stops
-        pg.locator("#v-lab-who [data-lab=doctor]").click(force=True)
+        pg.evaluate("document.querySelector(\'#v-who [data-who=doctor]\').click()")
         assert "Hold still" in pg.input_value("#v-lab-text")                                     # the Doctor's line is not Viktor's
-        pg.locator("#v-lab-who [data-lab=orchestrator]").click(force=True)
+        pg.evaluate("document.querySelector(\'#v-who [data-who=orchestrator]\').click()")
         assert pg.input_value("#v-lab-text") == "I am... *more* than I ever was."                # and Viktor's stayed
         pg.reload()
         pg.wait_for_function("document.querySelectorAll('#v-voice option').length>=20", timeout=20000)
         pg.evaluate("document.getElementById('voice').hidden=false")
         pg.locator("#v-labbtn").click(force=True)
-        pg.locator("#v-lab-who [data-lab=orchestrator]").click(force=True)
+        pg.evaluate("document.querySelector(\'#v-who [data-who=orchestrator]\').click()")
         assert pg.input_value("#v-lab-text") == "I am... *more* than I ever was."                # kept on the Hub, not in this page
         pg.check("#v-del-on")
         pg.locator("#v-test").click(force=True)
@@ -230,3 +230,53 @@ def test_asking_for_an_agent_is_a_rule_not_a_model_call(tmp_path):
         assert got and got["to"] == who, (text, got)
     for text in ("what is Neo doing", "bring up the dashboard", "show me the dashboard"):
         assert TA.summon(text, "smith") is None, text                                 # a question about an agent, or about something else, is not a request for one
+
+
+def test_a_request_for_an_agent_is_answered_before_any_dashboard_command_and_without_the_model(tmp_path, monkeypatch):
+    """"Show me Agent Neo" was answered with the dashboard summary ("2 need you") and "Can you bring Victor in front?" with 35 s of model (14 Nov log)."""
+    async def go():
+        app = web.Application()
+        app.add_routes(V.routes)
+        async with TestClient(TestServer(app)) as c:
+            for text, to in [("Show me Agent Neo.", "neo"), ("Can you bring Victor in front?", "orchestrator"), ("I would like to speak to the Agent Victor.", "orchestrator"), ("bring the doctor", "doctor")]:
+                r = await c.post("/api/voice/chat", json={"text": text, "speaker": "smith"})
+                j = await r.json()
+                assert r.status == 200 and j["speaker"] == to and j["transition"]["to"] == to and j["say"], (text, j)
+    asyncio.run(go())
+
+
+def test_only_plain_conversation_takes_the_quick_lane_everything_else_takes_the_long_route(tmp_path, monkeypatch):
+    from hub.features import fast_chat as FC
+    streamed = []
+
+    async def fake_pick():
+        return "fake-model"
+
+    async def fake_stream(text, history, name, role, model):
+        streamed.append(text)
+        for s in ("Sure.", "I am here."):
+            yield s
+    monkeypatch.setattr(FC, "pick_model", fake_pick)
+    monkeypatch.setattr(FC, "stream", fake_stream)
+
+    async def long_route(req):
+        return web.json_response({"say": "long route", "backend": "rules", "action": None, "confirm": False, "ui": {}})
+    monkeypatch.setattr(V, "api_chat", long_route)
+
+    async def go():
+        app = web.Application()
+        app.add_routes(V.routes)
+        async with TestClient(TestServer(app)) as c:
+            async def ask(text, **extra):
+                r = await c.post("/api/voice/stream", json={"text": text, "speaker": "smith", **extra})
+                return [json.loads(x) for x in (await r.text()).splitlines() if x.strip()]
+            ev = await ask("Can you be my friend and tell me something calm?")
+            assert [e["t"] for e in ev] == ["say", "say", "result"] and ev[-1]["data"]["backend"] == "fast:fake-model"      # plain talk: sentences, then the result
+            for text in ("Smith, pull up Viktor", "open the dashboard for me", "can you play the ADHD playlist", "Neo, draft an agent that checks invoices"):
+                before = len(streamed)
+                ev = await ask(text)
+                assert len(streamed) == before and ev[-1]["t"] == "result" and not ev[-1]["data"]["backend"].startswith("fast"), (text, ev)   # these never reach the small model
+            before = len(streamed)
+            await ask("yes please do that now friend", pending=True)
+            assert len(streamed) == before                                                                                         # an open question is answered by the long route
+    asyncio.run(go())

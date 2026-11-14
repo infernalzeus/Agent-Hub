@@ -31,7 +31,7 @@ _ADDRESS = re.compile(r"^\s*(?:hey |hi |ok |okay )?(" + _NAMES + r")\b[\s,:;.!-]
 # asking for an agent: "Smith, pull up Viktor", "can I talk to Neo", "get the Doctor", "put Viktor on", "switch to the orchestrator". What follows the name ("get Neo to draft an agent ...") goes to that agent.
 _SUMMON = re.compile(r"^\s*(?:(?:hey |hi |ok |okay )?(?:agent )?(?:smith|viktor|victor|neo|doctor|orchestrator)[\s,:;.!-]+)?(?:(?:please|can you|could you|would you|will you|can i|could i|may i|i'd like to|i would like to|i want to|i need to|let me|let's|lets|i wanna)\s+)*"
                      r"(?:pull up|bring up|bring in|bring over|bring me|bring|summon|give me|show me|let me have|i want|call up|call in|call on|call|get me|get|put|fetch|put me through to|put me on to|put on|patch me in to|patch me to|connect me to|connect me with|hand me over to|hand me to|hand over to|pass me to|switch to|go to|change to|"
-                     r"talk to|talk with|speak to|speak with|chat to|chat with|ask)\s+(" + _NAMES + r")\b\s*(?:on|up|in|over|please)?\W*(?:(?:to|and|about|:|,)\s+(.*))?$", re.I | re.S)
+                     r"talk to|talk with|speak to|speak with|chat to|chat with|ask)\s+(" + _NAMES + r")\b\s*(?:(?:in front|to the front|to front|forward|here|now|for me|please|on|up|in|over)\W*)*\W*(?:(?:to|and|about|:|,)\s+(.*))?$", re.I | re.S)
 _TASK = re.compile(r"\b(fix|add|build|make|create|write|change|update|refactor|implement|set up|rename|remove|delete|improve|test|deploy)\b", re.I)
 _STATUS = re.compile(r"\b(status|progress|how('?s| is| are)|where (is|are)|what('?s| is) (it|going|happening)|update me|any news)\b", re.I)
 _STOP = re.compile(r"^\W*(stop|cancel|abort|kill)\b", re.I)

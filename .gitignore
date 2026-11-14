@@ -101,6 +101,7 @@ hub/action_apps.json
 hub/proposals.json
 hub/agent_voices.json
 hub/voice_catalog.json
+hub/llm_status.json
 hub/automations.json
 hub/automation_runs.json
 hub/theme.json

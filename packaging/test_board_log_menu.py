@@ -78,6 +78,7 @@ def test_history_survives_reload_and_can_be_cleared_without_reimport(page):
 def test_history_keeps_full_reply_instead_of_the_short_log_preview(page):
  p,_=page;reply='A detailed example. '*40+'Visible final sentence.'
  p.route('**/api/voice/chat',lambda r:r.fulfill(json={'say':reply}))
+ p.route('**/api/voice/stream',lambda r:r.fulfill(body=json.dumps({'t':'result','data':{'say':reply}})+chr(10),content_type='application/x-ndjson'))
  p.locator('.hb-bar .talk-btn').click(button='right');p.wait_for_timeout(250)
  if p.locator('#v-mute').inner_text()=='SOUND ON':press(p,'#v-mute')
  p.locator('#v-in').fill('Explain an example');press(p,'#v-go');press(p,'#hb-chat-history-tab')
