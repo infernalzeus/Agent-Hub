@@ -12,7 +12,14 @@ from hub.features import voice as V
 from test_ui_lifecycle import hub  # noqa: F401
 
 
+FAKE_CATALOG = [{"id": "x:de-DE-ChristophNeural", "n": "Christoph", "l": "de-DE", "g": "Male", "lang": "German (Germany)"},
+                {"id": "x:en-GB-OliverNeural", "n": "Oliver", "l": "en-GB", "g": "Male", "lang": "English (United Kingdom)"}]
+
+
 def _client(tmp_path, monkeypatch):
+    async def fake_catalog():
+        return FAKE_CATALOG
+    monkeypatch.setattr(V, "voice_catalog", fake_catalog)
     monkeypatch.setattr(RT, "STATE", tmp_path)
     app = web.Application()
     app.add_routes(V.routes)
@@ -38,6 +45,10 @@ def test_every_core_agent_starts_with_a_different_voice_a_saved_choice_sticks_an
             assert r.status == 200
             vk = (await (await c.get("/api/voice/voices")).json())["agents"]["orchestrator"]
             assert vk["line"] == "I am more than I ever was, truly." and vk["delivery"] == {"on": True, "pace": -20, "pauses": 2.5} and vk["voice"] == "viktor-soft"      # kept, clamped, and the voice untouched
+            assert j["catalog"] == FAKE_CATALOG
+            r = await c.post("/api/voice/agent-voice", json={"agent": "doctor", "voice": "x:de-DE-ChristophNeural", "fx": "off"})                 # any voice Microsoft offers can be chosen
+            assert r.status == 200 and (await (await c.get("/api/voice/voices")).json())["agents"]["doctor"]["voice"] == "x:de-DE-ChristophNeural"
+            assert (await c.post("/api/voice/agent-voice", json={"agent": "doctor", "voice": "x:../etc/passwd"})).status == 400
             assert (await c.post("/api/voice/agent-voice", json={"agent": "nobody", "voice": "liam"})).status == 400
             assert (await c.post("/api/voice/agent-voice", json={"agent": "neo", "voice": "not-a-voice"})).status == 400
             assert (await c.post("/api/voice/agent-voice", json={"agent": "neo", "voice": "liam", "fx": "bad value!"})).status == 400
@@ -141,3 +152,32 @@ def test_a_typed_test_line_stays_with_its_agent_and_shaped_phrasing_asks_phrase_
     assert len(spoken) >= 2 and "more" in texts and any(t.startswith("I am") for t in texts), texts      # cut into phrases, the starred word on its own
     more = next(s for s in spoken if s["text"] == "more")
     assert more.get("rate", 0) < 0 and more.get("pitch", 0) < 0                                    # leaned on: slower and lower
+
+
+def test_dramatic_pauses_break_a_plain_sentence_and_choosing_an_agent_does_not_scroll_the_open_voice_panel(hub):
+    spoken = []
+    with sync_playwright() as pw:
+        b = pw.chromium.launch(headless=True)
+        pg = b.new_context(service_workers="block", viewport={"width": 900, "height": 520}).new_page()
+        errors = []
+        pg.on("pageerror", lambda e: errors.append(str(e)))
+        pg.route("**/api/voice/speak", lambda r: (spoken.append(r.request.post_data_json), r.fulfill(status=503, body="no voice in a test"))[1])
+        pg.goto(hub + "/?enter=1")
+        pg.wait_for_function("!!window.HubVoice && document.querySelectorAll('#v-voice option').length>=20", timeout=25000)
+        pg.evaluate("document.getElementById('voice').hidden=false")
+        pg.locator("#v-labbtn").click(force=True)
+        pg.fill("#v-lab-text", "I am more than I ever was")                                      # no comma, no dash, no full stop
+        pg.check("#v-del-on")
+        pg.select_option("#v-del-pauses", "2.3")
+        pg.locator("#v-test").click(force=True)
+        pg.wait_for_function("document.getElementById('v-lab-st').textContent.startsWith('No audio')", timeout=8000)
+        before = pg.evaluate("[document.getElementById('voice').scrollTop, scrollY]")
+        pg.locator("#v-who [data-who=neo]").click(force=True)
+        pg.wait_for_timeout(500)
+        after = pg.evaluate("[document.getElementById('voice').scrollTop, scrollY]")
+        has_groups = pg.evaluate("document.querySelectorAll('#v-voice optgroup').length")
+        b.close()
+    assert errors == []
+    assert len(spoken) >= 3 and spoken[0]["text"].startswith("I am"), [s["text"] for s in spoken]      # broken at "than" and in the middle of what is left
+    assert before == after, (before, after)
+    assert has_groups >= 1

@@ -124,6 +124,16 @@
   const route = (node, buf, o) => { const fx = o && o.fx !== undefined ? o.fx : S.fxNow, fxs = o && o.fxs !== undefined ? o.fxs : S.fxsNow; if (window.HubVoiceFx) HubVoiceFx.connect(S.actx, node, S.actx.destination, buf.duration, fx, fxs); else node.connect(S.actx.destination); };       // S.fxNow / S.fxsNow: this speaker's own robotic layer (unset for Smith: the one he already uses)
   // Shaped delivery. Microsoft's service gives one flat reading per request and rejects SSML, so character comes from how the line is cut: phrases at the commas, dashes and full stops, a slightly different
   // rate and pitch for each (a question lifts, a statement falls and slows), a word between *stars* leaned on (slower, lower, with a breath either side) and the pauses made here, between the pieces.
+  // Where a sentence naturally parts: before a joining word, and in the middle of anything longer than five words.
+  function breakWords(t) {
+    const w = t.trim().split(/\s+/), out = []; let cur = [];
+    const JOIN = /^(than|but|and|because|until|when|while|that|which|if|or|so|as|before|after|though|yet)$/i;
+    const SV = /^(i|we|you|he|she|it|they)$/i, AUX = /^(am|are|is|was|were|will|have|had|can|could|would|shall|do|did)$/i;
+    if (w.length >= 5 && SV.test(w[0]) && AUX.test(w[1])) { out.push(w[0] + ' ' + w[1]); w.splice(0, 2); }            // "I am | ..."
+    w.forEach((x, i) => { if (cur.length >= 1 && JOIN.test(x)) { out.push(cur.join(' ')); cur = []; } cur.push(x); });
+    if (cur.length) out.push(cur.join(' '));
+    return out.flatMap((c) => { const k = c.split(' '); return k.length > 5 ? [k.slice(0, Math.ceil(k.length / 2)).join(' '), k.slice(Math.ceil(k.length / 2)).join(' ')] : [c]; });
+  }
   function shape(text, d) {
     const sc = d.pauses || 1, pace = d.pace || 0, out = [];
     const GAP = { ',': 150, ';': 240, ':': 240, '\u2014': 320, '\u2026': 540, '.': 400, '?': 340, '!': 340 };
@@ -134,12 +144,13 @@
       const end = raw.slice(-1), core = raw.replace(/[,;:.!?\u2026\u2014]+$/, ''), stop = /[.!?\u2026]/.test(end);
       let rate = pace, pitch = 0;
       if (end === '?') pitch = 5; else if (end === '.') { rate -= 4; pitch = -4; } else if (end === '\u2026') { rate -= 8; pitch = -5; }
-      const bits = core.split(/(\*[^*]+\*)/).filter(Boolean);
+      let bits = core.split(/(\*[^*]+\*)/).filter(Boolean);
+      if (sc >= 1.5) bits = bits.flatMap((b) => (b.length > 2 && b[0] === '*') ? [b] : breakWords(b));     // LONG and DRAMATIC pauses also fall inside a sentence, at its natural joints
       bits.forEach((b, i) => {
         const hot = b.length > 2 && b[0] === '*', txt = (hot ? b.slice(1, -1) : b).trim(); if (!txt) return;
         const last = i === bits.length - 1;
         if (hot && out.length && !out[out.length - 1].gap) out[out.length - 1].gap = Math.round(110 * sc);
-        out.push({ text: txt + (last && stop ? end : ''), rate: hot ? rate - 22 : rate, pitch: hot ? pitch - 6 : pitch, gap: hot ? Math.round(90 * sc) : 0 });
+        out.push({ text: txt + (last && stop ? end : ''), rate: hot ? rate - 22 : rate, pitch: hot ? pitch - 6 : pitch, gap: hot ? Math.round(90 * sc) : (sc >= 1.5 && !last ? Math.round(240 * sc) : 0) });
       });
       if (out.length) out[out.length - 1].gap = Math.round((GAP[end] || 120) * sc);
     }
@@ -158,6 +169,7 @@
       const parts = del.on ? shape(text, del) : ((window.HubVoiceGate && HubVoiceGate.sentences(text)) || [String(text)]).map((t) => ({ text: t, rate: 0, pitch: 0, gap: 0 }));
       if (!parts.length) { fin(); return; }
       const get = (pc) => { const t0 = performance.now(), inf = {}; const r = request('/api/voice/speak', { text: pc.text, rate: pc.rate || undefined, pitch: pc.pitch || undefined, voice: (o && o.voice) || S.voice || undefined, agent: (o && o.agent) || S.who || undefined }, 'speech', 30000, inf).then((ab) => { if (o && o.info) o.info({ ms: Math.round(performance.now() - t0), h: inf.h || {}, bytes: ab.byteLength }); return ab; }); r.catch(() => {}); return r; };
+      if (o && o.plan) o.plan(parts.length);
       const got = parts.map((t, i) => (i < 3 ? get(t) : null));
       // one piece of audio, to its end (or to a stop)
       async function piece(ab) {
@@ -496,12 +508,12 @@
   }
   async function labSpeak() {
     unlockAudio(); const text = ($('v-lab-text').value || '').trim(); if (!text) { labSt('Type something to hear.', true); return; }
-    if (S.stop) S.stop(); const t0 = performance.now(); let info = null, failed = null; pulseSet(true);
+    if (S.stop) S.stop(); const t0 = performance.now(); let info = null, failed = null, phrases = 0; pulseSet(true);
     const btn = $('v-test'); btn.disabled = true; btn.textContent = 'MAKING…';
     const tick = setInterval(() => { if (!info) labSt('Making the audio… ' + ((performance.now() - t0) / 1000).toFixed(0) + ' s'); }, 500); labSt('Making the audio…');
-    await play(text, { voice: $('v-voice').value, agent: L.who, delivery: labDelivery(), fx: $('v-fx').value, fxs: $('v-fxs').value, fail: (e) => { failed = e; }, info: (i) => { if (info) return; info = i;
+    await play(text, { voice: $('v-voice').value, agent: L.who, delivery: labDelivery(), fx: $('v-fx').value, fxs: $('v-fxs').value, fail: (e) => { failed = e; }, plan: (n) => { phrases = n; }, info: (i) => { if (info) return; info = i;
       const nm = ((S.voices.find((x) => x.id === $('v-voice').value) || {}).name || '').split(' · ')[0];
-      labSt(i.h.fb ? 'That voice did not answer, so ' + i.h.used + ' spoke instead.' : (i.h.cached ? 'Played from memory. ' : 'Made in ' + (i.ms / 1000).toFixed(1) + ' s. ') + nm + (i.h.used ? ' (' + i.h.used + ')' : ''), !!i.h.fb); } });
+      labSt(i.h.fb ? 'That voice did not answer, so ' + i.h.used + ' spoke instead.' : (i.h.cached ? 'Played from memory. ' : 'Made in ' + (i.ms / 1000).toFixed(1) + ' s. ') + (phrases > 1 ? phrases + ' phrases, first one shown. ' : '') + nm + (i.h.used ? ' (' + i.h.used + ')' : ''), !!i.h.fb); } });
     clearInterval(tick); btn.disabled = false; btn.textContent = 'SPEAK'; pulseSet(false);
     if (failed) labSt('No audio: ' + String((failed && failed.message) || failed).slice(0, 120), true);
   }
@@ -519,7 +531,12 @@
   async function fillVoices() {
     try {
       const j = await (await fetch('/api/voice/voices')).json(), sel = $('v-voice');
-      sel.innerHTML = j.voices.map((v) => `<option value="${v.id}">${v.name}</option>`).join('');
+      const cat = j.catalog || [], opt = (id, t) => `<option value="${id}">${t}</option>`;
+      const by = {}; cat.forEach((v) => { (by[v.lang] = by[v.lang] || []).push(v); });
+      const langs = Object.keys(by).sort((x, y) => (/^English/.test(y) ? 1 : 0) - (/^English/.test(x) ? 1 : 0) || x.localeCompare(y));
+      sel.innerHTML = '<optgroup label="Tuned for the characters">' + j.voices.map((v) => opt(v.id, v.name)).join('') + '</optgroup>' +
+        langs.map((l) => '<optgroup label="' + (/^English/.test(l) ? l : l + ' (reads English with an accent)') + '">' + by[l].map((v) => opt(v.id, v.n + ' \u00b7 ' + v.g)).join('') + '</optgroup>').join('');
+      j.voices = j.voices.concat(cat.map((v) => ({ id: v.id, name: v.n })));
       S.voices = j.voices; S.av = j.agents || {}; S.defVoice = j.default; L.rec = j.recommended || {};
       const fx = $('v-fx'), fxs = $('v-fxs');
       if (!(fx && window.HubVoiceFx)) { if (fx) fx.hidden = true; if (fxs) fxs.hidden = true; }
@@ -561,7 +578,7 @@
         i.src = '/static/agent-icons/face/' + w + '.png';                                  // a small circle shows the face, not the whole bust
       });
       applyAgentVoice(w);
-      if (!quiet) { try { $('v-in').focus(); } catch (e) {} }
+      if (!quiet && $('v-lab').hidden) { try { $('v-in').focus({ preventScroll: true }); } catch (e) {} }
     }
     // PRESET of the speaker: chosen here or on the Agency page, saved at once.
     let PRE = null;

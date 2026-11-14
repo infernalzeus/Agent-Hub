@@ -315,13 +315,15 @@ def test_a_phone_gets_small_single_pictures_one_at_a_time_and_each_old_picture_i
     assert len(frames) <= 12 and revoked >= len(frames) - 2                                         # about two a second, and each earlier picture released
 
 
-def test_smiths_still_and_talk_button_picture_are_the_full_portrait_of_the_landing_vector(hub):
+def test_the_talk_button_shows_smiths_face_and_the_landing_page_swaps_in_his_outline_at_enter(hub):
     import base64
     import urllib.request
-    still = (Path(__file__).resolve().parent.parent / "hub" / "static" / "agent-art" / "smith-still.png").read_bytes()
-    assert urllib.request.urlopen(hub + "/smith-icon.png", timeout=10).read() == still               # the Talk button
+    root = Path(__file__).resolve().parent.parent / "hub" / "static"
+    face = (root / "agent-icons" / "face" / "smith.png").read_bytes()
+    assert urllib.request.urlopen(hub + "/smith-icon.png", timeout=10).read() == face                  # the Talk button: a small circle shows the face
+    portrait = (root / "agent-art" / "smith-portrait.png").read_bytes()
     page = urllib.request.urlopen(hub + "/offline.html", timeout=10).read().decode("utf-8", "replace")
-    assert base64.b64encode(still).decode() in page                                                  # the picture the landing page swaps in at ENTER
+    assert base64.b64encode(portrait).decode() in page                                                 # the picture the landing page swaps in at ENTER: the plain outline
 
 
 def test_the_hub_itself_holds_a_phone_to_its_picture_budget_whatever_the_page_asks(fake, monkeypatch):

@@ -1607,6 +1607,57 @@ VOICES = [
     {"id": "remy", "name": "Remy · French accent, male", "voice": "fr-FR-RemyMultilingualNeural", "rate": "+0%", "pitch": "+0Hz"},
 ]
 _VOICE_BY_ID = {v["id"]: v for v in VOICES}
+_X_ID = re.compile(r"x:[a-z]{2,3}-[A-Za-z]{2,4}(?:-[A-Za-z]+)?-[A-Za-z0-9]+Neural")
+
+
+def voice_by_id(vid: str) -> "dict | None":
+    """One of the tuned voices above, or any other voice Microsoft offers as `x:<short name>` (for example x:de-DE-ChristophNeural) with its own pace and pitch untouched."""
+    v = _VOICE_BY_ID.get(vid)
+    if v:
+        return v
+    if isinstance(vid, str) and _X_ID.fullmatch(vid):
+        short = vid[2:]
+        return {"id": vid, "name": short, "voice": short, "rate": "+0%", "pitch": "+0Hz"}
+    return None
+
+
+_CATALOG: dict = {"at": 0.0, "voices": []}
+
+
+async def voice_catalog() -> "list[dict]":
+    """Every voice Microsoft's service offers (about 300): [{"id": "x:...", "n": name, "l": locale, "g": "Male"|"Female", "lang": "German (Germany)"}]. Asked for once a week and kept in the state folder; nothing is sent but the request for the list."""
+    now = time.time()
+    if _CATALOG["voices"] and now - _CATALOG["at"] < 3 * 86400:
+        return _CATALOG["voices"]
+    f = RT.STATE / "voice_catalog.json"
+    try:
+        saved = json.loads(f.read_text(encoding="utf-8"))
+        if isinstance(saved, dict) and saved.get("voices") and now - float(saved.get("at") or 0) < 7 * 86400:
+            _CATALOG.update(saved)
+            return _CATALOG["voices"]
+    except (OSError, ValueError):
+        saved = None
+    try:
+        import edge_tts
+        raw = await asyncio.wait_for(edge_tts.list_voices(), timeout=8)
+        out = []
+        for v in raw:
+            short = str(v.get("ShortName") or "")
+            if not short.endswith("Neural") or not _X_ID.fullmatch("x:" + short):
+                continue
+            fr = str(v.get("FriendlyName") or "")
+            lang = fr.split(" - ", 1)[1].strip() if " - " in fr else str(v.get("Locale") or "")
+            nm = short.split("-", 2)[2].replace("MultilingualNeural", " (multilingual)").replace("Neural", "")
+            out.append({"id": "x:" + short, "n": nm, "l": str(v.get("Locale") or ""), "g": str(v.get("Gender") or ""), "lang": lang})
+        if out:
+            _CATALOG.update({"at": now, "voices": out})
+            RT.write_json(f, _CATALOG)
+            return out
+    except Exception as exc:  # noqa: BLE001 - offline or the package is not here: the tuned voices alone
+        logger.info("voice: could not list Microsoft's voices: %s", exc)
+    if isinstance(saved, dict) and saved.get("voices"):
+        _CATALOG.update(saved)
+    return _CATALOG["voices"]
 # Each core agent has its own voice, picked in the Talk window and kept here. `fx` / `fxs` are the robotic layer (amount, style); absent for Smith means the one he already uses.
 AGENT_VOICE_DEFAULTS = {"smith": {"voice": "smith"}, "orchestrator": {"voice": "viktor-soft", "fx": "off", "fxs": "radio"}, "neo": {"voice": "neo-calm", "fx": "off", "fxs": "radio"}, "doctor": {"voice": "medic", "fx": "off", "fxs": "radio"}}
 # The sound each character is meant to have (the VOICE TEST panel's RECOMMENDED button). Only voices that exist in the free Microsoft set; nothing to download. None of this has been listened to by a person yet.
@@ -1667,7 +1718,7 @@ def agent_voices() -> dict:
     for a, d in AGENT_VOICE_DEFAULTS.items():
         sv = saved.get(a) or {}
         row = {**d, **{k: v for k, v in sv.items() if k in ("voice", "fx", "fxs") and isinstance(v, str)}}
-        if row.get("voice") not in _VOICE_BY_ID:
+        if not voice_by_id(row.get("voice")):
             row["voice"] = d["voice"]
         row["line"] = sv["line"][:300] if isinstance(sv.get("line"), str) and sv["line"].strip() else AGENT_LINES[a]
         row["delivery"] = {"on": False, "pace": 0, "pauses": 1.0, **_clean_delivery(sv.get("delivery"))}
@@ -1685,7 +1736,7 @@ async def api_voices(request: web.Request) -> web.Response:
         ok = True
     except Exception:
         ok = RT.PACKAGED and RT.python_for("speech").is_file()
-    return web.json_response({"voices": [{"id": v["id"], "name": v["name"]} for v in VOICES], "default": VOICES[0]["id"], "neural": ok, "agents": agent_voices(), "recommended": RECOMMENDED})
+    return web.json_response({"voices": [{"id": v["id"], "name": v["name"]} for v in VOICES], "default": VOICES[0]["id"], "neural": ok, "agents": agent_voices(), "recommended": RECOMMENDED, "catalog": await voice_catalog()})
 
 
 @routes.post("/api/voice/agent-voice")
@@ -1716,7 +1767,7 @@ async def api_agent_voice(request: web.Request) -> web.Response:
         cur[a] = {**(cur.get(a) or {}), **row}
         RT.write_json(_agent_voice_file(), cur)
         return web.json_response({"ok": True, "agents": agent_voices()})
-    if str(b.get("voice") or "") not in _VOICE_BY_ID:
+    if not voice_by_id(str(b.get("voice") or "")):
         raise web.HTTPBadRequest(text="unknown voice")
     row["voice"] = str(b["voice"])
     for k in ("fx", "fxs"):
@@ -1744,7 +1795,7 @@ async def api_speak(request: web.Request) -> web.Response:
     b = await _body(request)
     text = _speakable(str(b.get("text") or ""))
     vid = str(b.get("voice") or "") or (agent_voices().get(str(b.get("agent") or "")) or {}).get("voice", "")          # a voice named in the request wins (the test box), else the agent's own
-    v = _VOICE_BY_ID.get(vid, VOICES[0])
+    v = voice_by_id(vid) or VOICES[0]
     if not text:
         raise web.HTTPBadRequest(text="no text")
     try:                                               # the page's shaped delivery: a little slower or lower for this phrase only

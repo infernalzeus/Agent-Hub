@@ -21,13 +21,28 @@
     for (i = 1; i <= m; i++) for (j = 1; j <= n; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
     return d[m][n];
   }
-  // the wake word is the first word (after an optional "hey"): an exact name, or within two letters of "smith"
-  function wakeSplit(text) {
-    var m = /^\W*(?:(?:hey|hi|okay|ok|yo)\W+)?([A-Za-z]{2,10})\b[\s,.!?:-]*/.exec(text);
-    if (!m) return null;
-    var w = m[1].toLowerCase();
-    if (NAMES.indexOf(w) >= 0 || (w.length >= 4 && lev(w, 'smith') <= 1) || (w.length >= 5 && lev(w, 'smith') <= 2 && w.charAt(0) === 's')) return { rest: text.slice(m[0].length).trim() };
+  // The wake word is the first word (after an optional "hey" and "agent" or "the"): the name of any of the four agents, as a speech recogniser may write it. Whoever is named is who answers,
+  // so "Viktor" works from Smith's page and Viktor stays the one to say to while he is on it.
+  var ALIAS = {
+    smith: NAMES,
+    orchestrator: ['viktor', 'victor', 'viktar', 'victer', 'vikter', 'vector', 'viktar', 'vic', 'orchestrator', 'victory'],
+    neo: ['neo', 'nio', 'neal', 'neil', 'niel', 'kneo', 'nao', 'nayo', 'nyo', 'kneel', 'knee', 'neon'],
+    doctor: ['doctor', 'dr', 'doc', 'docter', 'doktor', 'docta', 'dock']
+  };
+  function whoIs(w) {
+    var id;
+    for (id in ALIAS) if (ALIAS[id].indexOf(w) >= 0) return id;
+    if (w.length >= 4 && lev(w, 'smith') <= 1) return 'smith';
+    if (w.length >= 5 && lev(w, 'smith') <= 2 && w.charAt(0) === 's') return 'smith';
+    if (w.length >= 5 && (lev(w, 'viktor') <= 1 || lev(w, 'victor') <= 1)) return 'orchestrator';
+    if (w.length >= 5 && lev(w, 'doctor') <= 1) return 'doctor';
     return null;
+  }
+  function wakeSplit(text) {
+    var m = /^\W*(?:(?:hey|hi|okay|ok|yo)\W+)?(?:(?:agent|the)\W+)?([A-Za-z]{2,12})\b[\s,.!?:-]*/.exec(text);
+    if (!m) return null;
+    var who = whoIs(m[1].toLowerCase());
+    return who ? { rest: text.slice(m[0].length).trim(), who: who } : null;
   }
 
   var st = document.createElement('style');
@@ -45,7 +60,7 @@
     '.wb .nt{padding:2px 10px 9px;font-size:13px;line-height:1.45;overflow-wrap:anywhere}.wb .nt.sm{font-size:11.5px;color:#8fcfb2}',
     '.wb .row{display:flex;gap:8px;padding:2px 10px 10px;flex-wrap:wrap}.wb .go{font:700 9.5px Orbitron,monospace;letter-spacing:1.2px;color:#00e676;background:none;border:1px solid #00e676;border-radius:7px;padding:8px 14px;min-height:34px;cursor:pointer;text-decoration:none;display:inline-block}.wb .go.no{color:#ff8a8a;border-color:rgba(255,92,92,.6)}',
     '#wake-lines{position:fixed;left:50%;bottom:max(112px,calc(98px + env(safe-area-inset-bottom)));transform:translateX(-50%);width:min(560px,92vw);display:flex;flex-direction:column;gap:5px;align-items:center;pointer-events:none;z-index:7}',
-    '.wl{font-size:13.5px;padding:5px 12px;border-radius:99px;border:1px solid rgba(0,230,118,.3);background:rgba(6,10,36,.92);color:#d9ffe9;max-width:100%}.wl.you{border-color:rgba(59,167,255,.5);color:#cfe6ff}',
+    '.wl{font-size:13.5px;padding:5px 12px;border-radius:99px;border:1px solid rgba(0,230,118,.3);background:rgba(6,10,36,.92);color:#d9ffe9;max-width:100%}.wl.you{border-color:rgba(59,167,255,.5);color:#cfe6ff}.wl.heard{opacity:.6;font-size:12px;border-style:dashed;border-color:rgba(255,255,255,.25);color:#9fb3c8}',
     '.wake-toggle .t{transition:opacity .2s}.wake-toggle .t.sw{opacity:0}',
     '.smith-slot{display:block;position:fixed;left:50%;bottom:max(2px,env(safe-area-inset-bottom));margin:0 0 0 -36px;width:72px;height:72px;z-index:60;border:0;background:transparent;border-radius:50%;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}',
     '.smith-slot,.smith-slot:hover,.smith-slot:focus,.smith-slot:active,.smith-slot:focus-visible{background:transparent!important;border:0!important;box-shadow:none!important;outline:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}',
@@ -59,11 +74,11 @@
     '@keyframes smDigits{0%,100%{opacity:0}50%{opacity:1}}@keyframes smDigitsOnce{0%{opacity:1}100%{opacity:0}}',
     '@keyframes smIdle{0%,100%{opacity:.08}50%{opacity:.3}}@keyframes smDorm{0%,100%{opacity:.03}50%{opacity:.11}}',
     '.smith-slot.dormant{pointer-events:none}.smith-slot.dormant img:not(.lit-img){animation:smDorm 4.5s ease-in-out infinite}',
-    '@keyframes smBreathe{0%,100%{transform:scale(1);filter:brightness(1)}50%{transform:scale(1.05);filter:brightness(1.25)}}',
-    '@keyframes smLit{0%,100%{transform:scale(1);filter:brightness(1)}50%{transform:scale(1.06);filter:brightness(1.6)}}',
-    '@keyframes smHeard{0%{filter:brightness(2.2)}100%{filter:brightness(1)}}',
+    '@keyframes smBreathe{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.05);opacity:1}}',
+    '@keyframes smLit{0%,100%{transform:scale(1);opacity:.8}50%{transform:scale(1.06);opacity:1}}',
+    '@keyframes smHeard{0%{transform:scale(1.15);opacity:1}100%{transform:scale(1);opacity:.9}}',
     '@media (prefers-reduced-motion:reduce){.smith-slot img{animation:none!important}.smith-slot .lit-img{display:none}.smith-slot.pulse img{opacity:.2}.smith-slot.dormant img{opacity:.06}}.smith-slot.still img{animation:none!important}',
-    '.smith-slot img{visibility:hidden}.smith-slot img.ok{visibility:visible}.smith-slot img{width:100%;height:100%;border-radius:0;object-fit:contain;display:block;pointer-events:none;transition:opacity .3s ease,filter .3s ease}',
+    '.smith-slot img{visibility:hidden}.smith-slot img.ok{visibility:visible}.smith-slot img{width:100%;height:100%;border-radius:0;object-fit:contain;display:block;pointer-events:none;transition:opacity .3s ease}',
     '.wake-toggle.smith-held{position:absolute!important;left:-9999px;top:0}',
   ].join('\n');
   document.head.appendChild(st);
@@ -107,8 +122,8 @@
   }
   var lineT = null;
   function say(text, who, name) {
-    try { var LK = 'agenthub:log', la = JSON.parse(sessionStorage.getItem(LK) || '[]'), lt = (who === 'you' ? 'You: ' : (name || nameOf(S.who)) + ': ') + String(text).slice(0, 400); if (!(la[0] && la[0].t === lt)) la.unshift({ at: Date.now(), kind: 'chat', t: lt, err: false }); sessionStorage.setItem(LK, JSON.stringify(la.slice(0, 80))); } catch (e) {}
-    var l = document.createElement('div'); l.className = 'wl ' + who; l.textContent = (who === 'you' ? 'You: ' : (name || nameOf(S.who)) + ': ') + text; lines.appendChild(l); fadeIn(l, 300);
+    if (who !== 'heard') try { var LK = 'agenthub:log', la = JSON.parse(sessionStorage.getItem(LK) || '[]'), lt = (who === 'you' ? 'You: ' : (name || nameOf(S.who)) + ': ') + String(text).slice(0, 400); if (!(la[0] && la[0].t === lt)) la.unshift({ at: Date.now(), kind: 'chat', t: lt, err: false }); sessionStorage.setItem(LK, JSON.stringify(la.slice(0, 80))); } catch (e) {}
+    var l = document.createElement('div'); l.className = 'wl ' + who; l.textContent = (who === 'you' ? 'You: ' : who === 'heard' ? 'Heard: ' : (name || nameOf(S.who)) + ': ') + text; lines.appendChild(l); fadeIn(l, 300);
     var live = Array.prototype.slice.call(lines.children).filter(function (c) { return !c._fading; });
     while (live.length > 3) fadeOut(live.shift());
     clearTimeout(lineT); lineT = setTimeout(function () { Array.prototype.slice.call(lines.children).forEach(function (c, i) { fadeOut(c, i * 60); }); }, 25000);
@@ -276,8 +291,9 @@
       mr.start();
       (function loop() {
         if (!S.on || run !== S.run || S.speaking || S.state === 'think') { try { mr.state !== 'inactive' && mr.stop(); } catch (e) {} spoke = false; return; }
-        var r = rms(), now = performance.now();
-        if (r > 0.04) { if (!spoke) started = now; if (!spoke) smithHear(true); spoke = true; quiet = 0; } else if (spoke && !quiet) quiet = now;
+        var r = rms(), now = performance.now(), thr = Math.min(0.06, Math.max(0.018, (S.floor || 0.01) * 3.2));
+        if (!spoke) S.floor = (S.floor || r) * 0.97 + r * 0.03;
+        if (r > thr) { if (!spoke) started = now; if (!spoke) smithHear(true); spoke = true; quiet = 0; } else if (spoke && !quiet) quiet = now;
         if ((spoke && quiet && now - quiet > 900) || (spoke && now - started > 12000)) { try { mr.stop(); } catch (e) {} return; }
         if (!spoke && now - t0 > 20000) { try { mr.stop(); } catch (e) {} return; }   // recycle the recorder now and then
         setTimeout(loop, 40);
@@ -361,11 +377,11 @@
       return hear(blob).then(function (text) {
         if (!text) return;
         var w = wakeSplit(text), convo = Date.now() < S.convoUntil, rest = w ? w.rest : text;
-        if (!w && !convo && !S.pending) return;                      // no wake word, not in a conversation: ignore, nothing leaves the PC
+        if (!w && !convo && !S.pending) { if (text.replace(/[^\w]/g, '').length >= 3) say(text.slice(0, 80), 'heard'); return; }      // no name, not in a conversation: nothing is sent anywhere; the words are shown dimly so a missed name can be seen
         if (rest.replace(/[^\w]/g, '').length < 2 && !w) return;
-        pulse(); if (w) smithHeard();
+        pulse(); if (w) { smithHeard(); setWho(w.who); }               // the agent named is the one who answers
         if (w && rest.replace(/[^\w]/g, '').length < 2) {            // just the name: answer and wait for the request
-          say('Yes?', 'smith'); return play('Yes?').then(function () { S.convoUntil = Date.now() + CONVO_MS; setState('convo'); });
+          say('Yes?', S.who); return play('Yes?').then(function () { S.convoUntil = Date.now() + CONVO_MS; setState('convo'); });
         }
         return ask(rest).catch(function () { return reply({ say: 'I could not do that just now.' }, rest); });
       }).catch(function () {});
@@ -459,6 +475,6 @@
   // It keeps listening when another window comes in front (opening an app by voice used to switch it off); only leaving the page ends it.
   addEventListener('pagehide', function () { if (S.on) stopAll(); });
   addEventListener('resize', function () { if (blocks.length) clearBlocks(); });
-  window.__hubWake = { stop: function(){stopAll(false);}, state: function () { return S.state; }, smith: function () { return { icon: SM.iconOn, state: S.state }; }, _leave: quietForEnter, _back: unquiet, mic: function () { return !!S.stream; }, _set: function (s) { S.on = s !== 'off'; if (s === 'convo') S.convoUntil = Date.now() + 20000; setState(s); }, blocks: function () { return blocks.length; }, who: function () { return S.who; }, say: function (t) { return ask(t); } };
+  window.__hubWake = { stop: function(){stopAll(false);}, state: function () { return S.state; }, smith: function () { return { icon: SM.iconOn, state: S.state }; }, _leave: quietForEnter, _back: unquiet, mic: function () { return !!S.stream; }, _set: function (s) { S.on = s !== 'off'; if (s === 'convo') S.convoUntil = Date.now() + 20000; setState(s); }, blocks: function () { return blocks.length; }, who: function () { return S.who; }, _split: function (t) { return wakeSplit(t); }, say: function (t) { return ask(t); } };
   setState('off');
 })();

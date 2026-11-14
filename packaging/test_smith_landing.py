@@ -201,3 +201,12 @@ def test_smith_stays_a_plain_outline_and_only_a_second_picture_fades_in_while_he
         css = pg.evaluate("[...document.styleSheets].flatMap(s => { try { return [...s.cssRules].map(r => r.cssText) } catch (e) { return [] } }).join(' ')")
         assert "hue-rotate" not in css and "rgba(0,230,118" not in css.split("smLit")[1][:200]                                 # no lime pulse
         b.close()
+
+
+def test_any_agents_name_wakes_that_agent_and_unmatched_speech_is_shown_dimly(hub):
+    with sync_playwright() as pw:
+        b, pg = _landing(pw, hub)
+        _shown(pg)
+        names = pg.evaluate("""() => { const f = window.__hubWake._split; return ['Smith, status', 'hey Viktor what is running', 'Victor', 'agent smith', 'the doctor, fix it', 'Neo draft an agent', 'smif open home', 'banana', 'doc how is it'].map(t => { const r = f(t); return r ? r.who + '|' + r.rest : null; }); }""")
+        b.close()
+    assert names == ["smith|status", "orchestrator|what is running", "orchestrator|", "smith|", "doctor|fix it", "neo|draft an agent", "smith|open home", None, "doctor|how is it"], names
