@@ -21,7 +21,7 @@ def page(hub):
   b.close()
 
 def more(page):
- if not page.locator('.hb-more-menu').is_visible():press(page,'.hb-bar>button:last-child')
+ if not page.locator('.hb-more-menu').is_visible():page.evaluate("document.querySelector('.hb-hands-menu-button').click()");page.wait_for_timeout(150)     # the button is display:none now (the menu opens from a right click on HANDS); what is tested is that the popup closes
 
 @pytest.mark.parametrize('size',[(1280,667),(1920,1080),(2560,1440),(834,1112),(390,844),(320,568)])
 def test_chrome_controls_have_separate_lanes(page,size):

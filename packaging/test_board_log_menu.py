@@ -32,24 +32,24 @@ def test_chat_filter_does_not_open_chat_and_chat_has_real_history(page):
  assert p.evaluate('captureRequests')==0
 
 
-def test_hands_right_click_opens_controls_and_legend_is_interactive(page):
+def test_hands_right_click_opens_the_gesture_setup_with_the_camera_switch_and_every_gesture_listed(page):
+ """The old HAND CONTROL pane (START HANDS and a GESTURE LEGEND toggle) became one setup dialog: the camera switch, ADD GESTURE, recording, and a table with each gesture and an ON/OFF switch."""
  p,_=page;p.locator('.hb-hands').click(button='right');p.wait_for_timeout(250)
- pane=p.get_by_role('dialog',name='HAND CONTROL',exact=True);assert pane.is_visible()
- assert pane.get_by_role('button',name='START HANDS',exact=True).is_visible()
- press(p,pane.get_by_role('button',name='GESTURE LEGEND',exact=True))
- assert pane.locator('.hb-gesture-guide').is_visible();assert pane.locator('.hb-gesture-guide article').count()>=7
- press(p,pane.get_by_role('button',name='GESTURE LEGEND',exact=True));assert not pane.locator('.hb-gesture-guide').is_visible()
- assert p.evaluate('captureRequests')==0
+ pane=p.get_by_role('dialog',name='Set up hand control',exact=True);assert pane.is_visible()
+ assert pane.get_by_role('button',name='CAMERA OFF',exact=True).is_visible()        # the camera is off until you switch it on
+ assert pane.get_by_role('button',name='ADD GESTURE',exact=True).is_visible()
+ assert pane.get_by_role('button',name='ON',exact=True).count()>=7                   # a gesture per row, each with its own switch
+ assert p.evaluate('captureRequests')==0                                           # opening the menu never asks for the camera
 
 
-def test_view_panel_is_bottom_anchored_above_minimap(page):
+def test_view_panel_sits_under_the_header_and_clear_of_the_hide_button_and_minimap(page):
  p,_=page
  for mode in ['cad','3d']:
   p.evaluate('(mode)=>__hubBoard.active.view().setMode(mode)',mode);p.wait_for_timeout(300)
   r=p.evaluate("""()=>{let a=document.querySelector('.hb-right-panel'),m=document.querySelector('.hb-map'),h=document.querySelector('.hb-panel-hide');return {a:a.getBoundingClientRect().toJSON(),m:m.getBoundingClientRect().toJSON(),h:h.getBoundingClientRect().toJSON(),top:getComputedStyle(a).top,bottom:getComputedStyle(a).bottom}}""")
-  assert 0<r['m']['top']-r['a']['bottom']<90,r
+  assert 0<r['m']['top']-r['a']['bottom'],r                      # the view panel sits at the top right now and never reaches the minimap
   assert r['a']['bottom']<=r['h']['top'] and r['h']['bottom']<=r['m']['top'],r
-  if mode=='cad':assert r['a']['top']>200,r
+  assert r['a']['top']<140,r                                          # under the header, not at the bottom
 
 
 def test_mcp_failure_is_logged_as_failure_not_success(page):

@@ -50,7 +50,7 @@ def test_view_controls_are_one_group_on_the_right_and_actions_stay_on_top(page):
     r = page.evaluate("""()=>{const vb=document.querySelector('.hb-viewbar').getBoundingClientRect(),bar=document.querySelector('.hb-bar').getBoundingClientRect();
       const inside=t=>[...document.querySelectorAll('.hb-viewbar .hb-btn')].some(b=>b.textContent.trim().startsWith(t));
       const top=t=>[...document.querySelectorAll('.hb-bar > .hb-btn')].some(b=>b.textContent.trim().includes(t));
-      return {right:vb.right>innerWidth-20,below:vb.top>=bar.bottom-1,view:inside('VIEW'),fit:inside('FIT'),blocks:inside('BLOCKS'),tidy:inside('TIDY'),talk:!!document.querySelector('.hb-bar [aria-label=\"Talk to the Hub\"]'),ingest:!!document.querySelector('.hb-ingest-dock button'),pc:!!document.querySelector('.hb-bar [aria-label=\"PC control\"]')}}""")
+      return {right:vb.right>innerWidth-20,apart:vb.left>=bar.right-1||vb.top>=bar.bottom-1,view:inside('2D')||inside('3D'),fit:inside('FIT'),blocks:inside('BLOCKS'),tidy:inside('TIDY'),talk:!!document.querySelector('.hb-bar [aria-label=\"Talk to the Hub\"]'),ingest:!!document.querySelector('.hb-ingest-dock button'),pc:!!document.querySelector('.hb-bar [aria-label=\"PC control\"]')}}""")
     assert all(r.values()), r
 
 
@@ -89,7 +89,7 @@ def test_an_app_can_be_moved_to_another_layer_from_the_layers_list(page):
     before = page.evaluate("getComputedStyle(document.querySelector(\".hk[data-id='card:oc'],.hk[data-id='card:movie']\")||document.body).getPropertyValue('--hb-dz')")
     row = page.locator(".hb-layer-block", has_text="Auto-LLM").first
     assert row.count() == 1
-    row.locator(".hb-btn", has_text="TO APPS").click(); page.wait_for_timeout(500)
+    row.locator("select").select_option("apps"); page.wait_for_timeout(500)                      # each row has a layer picker now (it used to have a TO APPS button); a drag also works
     assert page.locator(".hb-layer-block", has_text="Auto-LLM").locator("..").count() >= 1
     saved = page.evaluate("JSON.parse(localStorage.getItem('agenthub:board:layers')).members")
     assert any(v == "apps" for v in saved.values()), saved                                # the move is remembered

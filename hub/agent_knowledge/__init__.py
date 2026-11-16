@@ -39,6 +39,36 @@ USER_SKILLS_DIR = (_RT.STATE / "skills") if _RT.PACKAGED else SKILLS_DIR
 INSTALLED_SKILLS_DIR = (_RT.STATE / "skills") if _RT.PACKAGED else (SKILLS_DIR.parent / "skills_installed")
 
 
+def _migrate_user_skills() -> None:
+    """One-way move of anything in the shipped dir that the build did not ship.
+
+    Runs only for an installed build, and only when the build left a manifest -
+    without one there is no honest way to tell the two apart, so nothing moves.
+    (Restored 16 Nov: a clean-up removed it as unused, but skills_sync still calls it at every start, which logged a warning
+    and stopped a user's own skills from being moved out of the program folder after an update.)
+    """
+    import shutil
+    if not _RT.PACKAGED or USER_SKILLS_DIR == SKILLS_DIR or not SHIPPED_LIST.is_file():
+        return
+    try:
+        shipped = {line.strip() for line in SHIPPED_LIST.read_text(encoding="utf-8").splitlines() if line.strip()}
+    except OSError:
+        return
+    for directory in sorted(p for p in SKILLS_DIR.glob("*/") if p.is_dir()):
+        if directory.name in shipped:
+            continue
+        target = USER_SKILLS_DIR / directory.name
+        try:
+            USER_SKILLS_DIR.mkdir(parents=True, exist_ok=True)
+            if target.exists():                      # already migrated; the copy left behind is stale
+                shutil.rmtree(directory)
+            else:
+                shutil.move(str(directory), str(target))
+            logger.info("moved your skill %r out of the program folder into %s", directory.name, USER_SKILLS_DIR)
+        except OSError as exc:
+            logger.warning("could not move skill %r: %s", directory.name, exc)
+
+
 # Per-provider/per-model sampling overrides (temperature, top_p, ...), keyed
 # exactly like opencode.json's own `provider.<name>.models.<model>.options` —
 # deep-merged in, so setting one model's temperature never touches another's

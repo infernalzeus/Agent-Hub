@@ -97,7 +97,7 @@ def test_orbit_gizmo_never_pans_the_board(hub):
   b=p.chromium.launch(headless=os.environ.get('AGENTHUB_TEST_HEADED')!='1',channel='msedge')
   try:
    pg=b.new_context(service_workers='block',viewport={'width':1400,'height':950}).new_page();pg.goto(hub+'/?enter=1');pg.wait_for_selector('.hb .hk');pg.wait_for_timeout(1000)
-   pg.click('.hb-btn:has-text("VIEW")');pg.wait_for_timeout(600)
+   pg.evaluate("__hubBoard.active.view().setMode('3d')");pg.wait_for_selector('.hb-gizmo svg',state='visible');pg.wait_for_timeout(600)       # the board now has a 2D / 3D button instead of VIEW; the property under test is the gizmo
    before=pg.evaluate('({...__hubBoard.active.state().V})');g=pg.locator('.hb-gizmo svg').bounding_box();x=g['x']+g['width']*.3;y=g['y']+g['height']*.7
    pg.mouse.move(x,y);pg.mouse.down();pg.mouse.move(x+40,y-20,steps=12);pg.mouse.up();pg.wait_for_timeout(600)
    after=pg.evaluate('__hubBoard.active.state().V');assert before==after

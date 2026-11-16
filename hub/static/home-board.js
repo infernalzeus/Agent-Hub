@@ -776,6 +776,8 @@
     var stage={left:8,top:120,right:800,bottom:600,width:792,height:480};
     function stageRect(ignoreTray){
       var hr=host.getBoundingClientRect(),ar=bar.getBoundingClientRect(),top=Math.max(ar.bottom,document.querySelector('body>header')?document.querySelector('body>header').getBoundingClientRect().bottom:0,!restartChip.hidden?restartChip.getBoundingClientRect().bottom:0)-hr.top+8,right=hr.width-8,bottom=hr.height-8;
+      // The two batch buttons float at the bottom right: the free stage ends above them, so FIT and TIDY never put a block under them (round 5 let the stage run underneath).
+      if(typeof batchControls!=='undefined'&&batchControls&&batchControls.isConnected){var bq=batchControls.getBoundingClientRect();if(bq.height>0&&bq.top>hr.top+top+120)bottom=Math.min(bottom,bq.top-hr.top-6);}
       stage={left:8,top:top,right:Math.max(48,right),bottom:Math.max(top+40,bottom)};stage.width=stage.right-stage.left;stage.height=stage.bottom-stage.top;
       stageClip.style.clipPath='none';return stage;
     }

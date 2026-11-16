@@ -35,7 +35,7 @@ def bands(pg,expected_min=None):
       for(let [id,l] of Object.entries(s.L)){let k=layer(id);if(s.hid[id]||ls.hidden[k])continue;
         if(expected!==null&&!!l.min!==!!expected)fail.push(id+' min');if(l.x%16||l.y%16)fail.push(id+' grid');
         (groups[k]||=[]).push({id,x:l.x,y:l.y,r:l.x+l.w,b:l.y+(l.min?32:l.h)});}
-      let bottom=-Infinity;for(let k of ls.order){let a=groups[k]||[];if(!a.length)continue;
+      let bottom=-Infinity;for(let k of ls.order.slice().reverse()){          /* the list is bottom layer first: the TOP layer (last in the order) is laid out first, at the top of the board */let a=groups[k]||[];if(!a.length)continue;
         if(Math.min(...a.map(v=>v.y))<=bottom)fail.push(k+' band');bottom=Math.max(...a.map(v=>v.b));
         for(let i=0;i<a.length;i++)for(let j=i+1;j<a.length;j++)if(Math.min(a[i].r,a[j].r)>Math.max(a[i].x,a[j].x)&&Math.min(a[i].b,a[j].b)>Math.max(a[i].y,a[j].y))fail.push(a[i].id+' overlaps '+a[j].id);}
       return {fail,groups:Object.keys(groups)};}""",expected_min)

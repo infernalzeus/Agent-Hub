@@ -58,3 +58,6 @@
 .skl-grid details.skl{margin:0}.skl-tools{display:flex;gap:6px;margin:8px 0 0}.skl-tools button{font:700 8.5px Orbitron,monospace;letter-spacing:1px;padding:6px 10px}
 #skills details.skl>summary{display:grid;grid-template-columns:1fr auto;gap:2px 8px}#skills details.skl>summary .sm{grid-column:1/-1;white-space:normal;color:var(--text-muted);font-size:11.5px;line-height:1.4}
 .ag-group{display:block!important}.ag-group>h2,.ag-group>.ag-note{grid-column:auto}
+
+/* a long model name or the hidden RESET button made the grid cell wider than its column and the whole page wider than an iPhone: the cell now clips its own overflow */
+.ag-model{overflow:hidden}
